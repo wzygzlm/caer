@@ -34,6 +34,16 @@ union sshs_node_attr_value {
 	char *string;
 };
 
+union sshs_node_attr_range {
+	double d;
+	int64_t i;
+};
+
+enum sshs_node_attr_flags {
+	SSHS_ATTRIBUTE_READ_ONLY = 0,
+	SSHS_ATTRIBUTE_RESET = 1,
+};
+
 enum sshs_node_node_events {
 	SSHS_CHILD_NODE_ADDED = 0,
 };

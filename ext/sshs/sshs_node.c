@@ -18,6 +18,9 @@ struct sshs_node {
 struct sshs_node_attr {
 	UT_hash_handle hh;
 	union sshs_node_attr_value value;
+	union sshs_node_attr_range min;
+	union sshs_node_attr_range max;
+	enum sshs_node_attr_flags flags;
 	enum sshs_node_attr_value_type value_type;
 	char key[];
 };
@@ -330,6 +333,83 @@ void sshsNodeTransactionLock(sshsNode node) {
 
 void sshsNodeTransactionUnlock(sshsNode node) {
 	mtx_shared_unlock_exclusive(&node->node_lock);
+}
+
+bool sshsNodeCreateAttribute(sshsNode node, const char *key, enum sshs_node_attr_value_type type,
+	union sshs_node_attr_value value, union sshs_node_attr_range min, union sshs_node_attr_range max,
+	enum sshs_node_attr_flags flags) {
+	size_t keyLength = strlen(key);
+	sshsNodeAttr newAttr = malloc(sizeof(*newAttr) + keyLength + 1);
+	SSHS_MALLOC_CHECK_EXIT(newAttr);
+	memset(newAttr, 0, sizeof(*newAttr));
+
+	if (type == SSHS_STRING) {
+		// Make a copy of the string so we own the memory internally.
+		char *valueCopy = strdup(value.string);
+		SSHS_MALLOC_CHECK_EXIT(valueCopy);
+
+		newAttr->value.string = valueCopy;
+	}
+	else {
+		newAttr->value = value;
+	}
+
+	newAttr->min = min;
+	newAttr->max = max;
+	newAttr->flags = flags;
+	newAttr->value_type = type;
+	strcpy(newAttr->key, key);
+
+	size_t fullKeyLength = offsetof(struct sshs_node_attr, key) + keyLength
+		+ 1- offsetof(struct sshs_node_attr, value_type);
+
+	mtx_shared_lock_exclusive(&node->node_lock);
+
+	sshsNodeAttr oldAttr;
+	HASH_FIND(hh, node->attributes, &newAttr->value_type, fullKeyLength, oldAttr);
+
+	// Add if not present.
+	if (oldAttr == NULL) {
+		HASH_ADD(hh, node->attributes, value_type, fullKeyLength, newAttr);
+	}
+
+	mtx_shared_unlock_exclusive(&node->node_lock);
+
+	if (oldAttr == NULL) {
+		// Listener support. Call only on change, which is always the case here.
+		mtx_shared_lock_shared(&node->node_lock);
+
+		sshsNodeAttrListener l;
+		LL_FOREACH(node->attrListeners, l)
+		{
+			l->attribute_changed(node, l->userData, SSHS_ATTRIBUTE_ADDED, key, type, value);
+		}
+
+		mtx_shared_unlock_shared(&node->node_lock);
+
+		return (true);
+	}
+	else {
+		// Free lookup memory, if not added to table.
+		if (type == SSHS_STRING) {
+			free((newAttr->value).string);
+		}
+
+		free(newAttr);
+
+		// If present, bomb out. All attributes must be created
+		// by one call to sshsNodeCreateAttribute().
+		char errorMsg[1024];
+		snprintf(errorMsg, 1024, "Attribute '%s' of type '%s' not present, please initialize it first.", key,
+			sshsHelperTypeToStringConverter(type));
+
+		(*sshsGetGlobalErrorLogCallback())(errorMsg);
+
+		// This is a critical usage error that *must* be fixed!
+		exit(EXIT_FAILURE);
+
+		return (false);
+	}
 }
 
 bool sshsNodeAttributeExists(sshsNode node, const char *key, enum sshs_node_attr_value_type type) {
