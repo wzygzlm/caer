@@ -40,8 +40,9 @@ union sshs_node_attr_range {
 };
 
 enum sshs_node_attr_flags {
-	SSHS_ATTRIBUTE_READ_ONLY = 0,
-	SSHS_ATTRIBUTE_RESET = 1,
+	SSHS_ATTRIBUTE_NORMAL = 0,
+	SSHS_ATTRIBUTE_READ_ONLY = 1,
+	SSHS_ATTRIBUTE_NOTIFY_ONLY = 2,
 };
 
 enum sshs_node_node_events {
@@ -69,30 +70,27 @@ void sshsNodeRemoveAttributeListener(sshsNode node, void *userData,
 	void (*attribute_changed)(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 		const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue));
 void sshsNodeRemoveAllAttributeListeners(sshsNode node);
+void sshsNodeCreateAttribute(sshsNode node, const char *key, enum sshs_node_attr_value_type type,
+	union sshs_node_attr_value defaultValue, union sshs_node_attr_range minValue, union sshs_node_attr_range maxValue,
+	enum sshs_node_attr_flags flags);
 bool sshsNodeAttributeExists(sshsNode node, const char *key, enum sshs_node_attr_value_type type);
+bool sshsNodePutAttribute(sshsNode node, const char *key, enum sshs_node_attr_value_type type,
+	union sshs_node_attr_value value);
 union sshs_node_attr_value sshsNodeGetAttribute(sshsNode node, const char *key, enum sshs_node_attr_value_type type);
-bool sshsNodePutBoolIfAbsent(sshsNode node, const char *key, bool value);
 void sshsNodePutBool(sshsNode node, const char *key, bool value);
 bool sshsNodeGetBool(sshsNode node, const char *key);
-bool sshsNodePutByteIfAbsent(sshsNode node, const char *key, int8_t value);
 void sshsNodePutByte(sshsNode node, const char *key, int8_t value);
 int8_t sshsNodeGetByte(sshsNode node, const char *key);
-bool sshsNodePutShortIfAbsent(sshsNode node, const char *key, int16_t value);
 void sshsNodePutShort(sshsNode node, const char *key, int16_t value);
 int16_t sshsNodeGetShort(sshsNode node, const char *key);
-bool sshsNodePutIntIfAbsent(sshsNode node, const char *key, int32_t value);
 void sshsNodePutInt(sshsNode node, const char *key, int32_t value);
 int32_t sshsNodeGetInt(sshsNode node, const char *key);
-bool sshsNodePutLongIfAbsent(sshsNode node, const char *key, int64_t value);
 void sshsNodePutLong(sshsNode node, const char *key, int64_t value);
 int64_t sshsNodeGetLong(sshsNode node, const char *key);
-bool sshsNodePutFloatIfAbsent(sshsNode node, const char *key, float value);
 void sshsNodePutFloat(sshsNode node, const char *key, float value);
 float sshsNodeGetFloat(sshsNode node, const char *key);
-bool sshsNodePutDoubleIfAbsent(sshsNode node, const char *key, double value);
 void sshsNodePutDouble(sshsNode node, const char *key, double value);
 double sshsNodeGetDouble(sshsNode node, const char *key);
-bool sshsNodePutStringIfAbsent(sshsNode node, const char *key, const char *value);
 void sshsNodePutString(sshsNode node, const char *key, const char *value);
 char *sshsNodeGetString(sshsNode node, const char *key);
 void sshsNodeExportNodeToXML(sshsNode node, int outFd, const char **filterKeys, size_t filterKeysLength);
@@ -104,6 +102,11 @@ bool sshsNodeStringToNodeConverter(sshsNode node, const char *key, const char *t
 const char **sshsNodeGetChildNames(sshsNode node, size_t *numNames);
 const char **sshsNodeGetAttributeKeys(sshsNode node, size_t *numKeys);
 enum sshs_node_attr_value_type *sshsNodeGetAttributeTypes(sshsNode node, const char *key, size_t *numTypes);
+union sshs_node_attr_range sshsNodeGetAttributeMinRange(sshsNode node, const char *key,
+	enum sshs_node_attr_value_type type);
+union sshs_node_attr_range sshsNodeGetAttributeMaxRange(sshsNode node, const char *key,
+	enum sshs_node_attr_value_type type);
+enum sshs_node_attr_flags sshsNodeGetAttributeFlags(sshsNode node, const char *key, enum sshs_node_attr_value_type type);
 
 // Helper functions
 const char *sshsHelperTypeToStringConverter(enum sshs_node_attr_value_type type);
