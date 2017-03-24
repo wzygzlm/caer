@@ -74,10 +74,10 @@ static void configServerConnection(uv_stream_t *server, int status) {
 	UV_RET_CHECK_CS(retVal, "uv_tcp_init", free(tcpClient));
 
 	retVal = uv_accept(server, (uv_stream_t *) tcpClient);
-	UV_RET_CHECK_CS(retVal, "uv_accept", uv_close((uv_handle_t *) tcpClient, &libuvCloseFree));
+	UV_RET_CHECK_CS(retVal, "uv_accept", uv_close((uv_handle_t * ) tcpClient, &libuvCloseFree));
 
 	retVal = uv_read_start((uv_stream_t *) tcpClient, &configServerAlloc, &configServerRead);
-	UV_RET_CHECK_CS(retVal, "uv_read_start", uv_close((uv_handle_t *) tcpClient, &libuvCloseFree));
+	UV_RET_CHECK_CS(retVal, "uv_read_start", uv_close((uv_handle_t * ) tcpClient, &libuvCloseFree));
 }
 
 static void configServerAlloc(uv_handle_t *client, size_t suggestedSize, uv_buf_t *buf) {
@@ -209,9 +209,9 @@ static int caerConfigServerRunner(void *inPtr) {
 	sshsNode serverNode = sshsGetNode(sshsGetGlobal(), "/server/");
 
 	// Ensure default values are present.
-	sshsNodePutStringIfAbsent(serverNode, "ipAddress", "127.0.0.1");
-	sshsNodePutIntIfAbsent(serverNode, "portNumber", 4040);
-	sshsNodePutShortIfAbsent(serverNode, "backlogSize", 5);
+	sshsNodeCreateString(serverNode, "ipAddress", "127.0.0.1", 7, 15, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateInt(serverNode, "portNumber", 4040, 1, UINT16_MAX, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateShort(serverNode, "backlogSize", 5, 1, 512, SSHS_FLAGS_NORMAL);
 
 	int retVal;
 	bool eventLoopInitialized = false;

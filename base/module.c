@@ -124,7 +124,7 @@ caerModuleData caerModuleInitialize(uint16_t moduleID, const char *moduleShortNa
 	moduleData->moduleSubSystemString[nameLength] = '\0';
 
 	// Initialize shutdown controls. By default modules always run.
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "runAtStartup", true); // Allow for users to disable a module at start.
+	sshsNodeCreateBool(moduleData->moduleNode, "runAtStartup", true, SSHS_FLAGS_NORMAL); // Allow for users to disable a module at start.
 	bool runModule = sshsNodeGetBool(moduleData->moduleNode, "runAtStartup");
 
 	atomic_store_explicit(&moduleData->running, runModule, memory_order_relaxed);

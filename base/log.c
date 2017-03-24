@@ -3,6 +3,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <limits.h>
 #include "ext/portable_misc.h"
 
 int CAER_LOG_FILE_FD = -1;
@@ -26,13 +27,13 @@ void caerLogInit(void) {
 	strcpy(logFilePath, logFileDirClean);
 	strcat(logFilePath, logFileName);
 
-	sshsNodePutStringIfAbsent(logNode, "logFile", logFilePath);
+	sshsNodeCreateString(logNode, "logFile", logFilePath, 0, PATH_MAX, SSHS_FLAGS_NORMAL);
 
 	free(logFilePath);
 	free(logFileDirClean);
 	free(logFileDir);
 
-	sshsNodePutByteIfAbsent(logNode, "logLevel", CAER_LOG_NOTICE);
+	sshsNodeCreateByte(logNode, "logLevel", CAER_LOG_NOTICE, CAER_LOG_EMERGENCY, CAER_LOG_DEBUG, SSHS_FLAGS_NORMAL);
 
 	// Try to open the specified file and error out if not possible.
 	char *logFile = sshsNodeGetString(logNode, "logFile");
