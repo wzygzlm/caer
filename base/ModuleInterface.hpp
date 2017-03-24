@@ -38,19 +38,6 @@ struct ModuleFunctions {
 	void (* const moduleReset)(caerModuleData moduleData, uint16_t resetCallSourceID); // Can be NULL.
 };
 
-struct ConfigParameter {
-	const char *key;
-	enum sshs_node_attr_value_type type;
-	union sshs_node_attr_value value;
-	union sshs_node_attr_range min;
-	union sshs_node_attr_range max;
-	enum sshs_node_attr_flags flags;
-};
-
-struct ModuleConfig {
-
-};
-
 class ModuleInterface {
 private:
 	int16_t id;
