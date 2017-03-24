@@ -27,7 +27,7 @@ void caerLogInit(void) {
 	strcpy(logFilePath, logFileDirClean);
 	strcat(logFilePath, logFileName);
 
-	sshsNodeCreateString(logNode, "logFile", logFilePath, 0, PATH_MAX, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateString(logNode, "logFile", logFilePath, 2, PATH_MAX, SSHS_FLAGS_NORMAL);
 
 	free(logFilePath);
 	free(logFileDirClean);
