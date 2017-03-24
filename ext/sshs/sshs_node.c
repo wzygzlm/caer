@@ -422,10 +422,33 @@ void sshsNodeCreateAttribute(sshsNode node, const char *key, enum sshs_node_attr
 	sshsNodeAttr oldAttr;
 	HASH_FIND(hh, node->attributes, &newAttr->value_type, fullKeyLength, oldAttr);
 
-	// Add if not present. This should always be the case.
-	// Else handle error case below.
+	bool attrValueChanged = false;
+
+	// Add if not present. Else update value (below).
 	if (oldAttr == NULL) {
 		HASH_ADD(hh, node->attributes, value_type, fullKeyLength, newAttr);
+	}
+	else {
+		// If value was present, update its range and flags, and make sure
+		// the current value is still within range.
+		oldAttr->min = minValue;
+		oldAttr->max = maxValue;
+		oldAttr->flags = flags;
+
+		// If old value is out of range, replace with new default value.
+		if (!sshsNodeCheckRange(type, oldAttr->value, minValue, maxValue)) {
+			attrValueChanged = true;
+
+			oldAttr->value = newAttr->value;
+		}
+		else {
+			// Value still fine, free unused memory (string value).
+			if (type == SSHS_STRING) {
+				free(newAttr->value.string);
+			}
+		}
+
+		free(newAttr);
 	}
 
 	mtx_shared_unlock_exclusive(&node->node_lock);
@@ -443,17 +466,20 @@ void sshsNodeCreateAttribute(sshsNode node, const char *key, enum sshs_node_attr
 		mtx_shared_unlock_shared(&node->node_lock);
 	}
 	else {
-		// If value was present, bomb out. All attributes must be created
-		// by one call to sshsNodeCreateAttribute().
-		char errorMsg[1024];
-		snprintf(errorMsg, 1024, "sshsNodeCreateAttribute(): attribute '%s' of type '%s' already present. "
-			"All SSHS attributes must be created by exactly one call to sshsNodeCreateAttribute(). "
-			"Multiple calls are incorrect and must be avoided.", key, sshsHelperTypeToStringConverter(type));
+		// Let's check if anything changed with this update and call
+		// the appropriate listeners if needed.
+		if (attrValueChanged) {
+			// Listener support. Call only on change, which is always the case here.
+			mtx_shared_lock_shared(&node->node_lock);
 
-		(*sshsGetGlobalErrorLogCallback())(errorMsg);
+			sshsNodeAttrListener l;
+			LL_FOREACH(node->attrListeners, l)
+			{
+				l->attribute_changed(node, l->userData, SSHS_ATTRIBUTE_MODIFIED, key, type, defaultValue);
+			}
 
-		// This is a critical usage error that *must* be fixed!
-		exit(EXIT_FAILURE);
+			mtx_shared_unlock_shared(&node->node_lock);
+		}
 	}
 }
 
