@@ -40,9 +40,9 @@ union sshs_node_attr_range {
 };
 
 enum sshs_node_attr_flags {
-	SSHS_ATTRIBUTE_NORMAL = 0,
-	SSHS_ATTRIBUTE_READ_ONLY = 1,
-	SSHS_ATTRIBUTE_NOTIFY_ONLY = 2,
+	SSHS_FLAGS_NORMAL = 0,
+	SSHS_FLAGS_READ_ONLY = 1,
+	SSHS_FLAGS_NOTIFY_ONLY = 2,
 };
 
 enum sshs_node_node_events {

@@ -541,7 +541,7 @@ bool sshsNodePutAttribute(sshsNode node, const char *key, enum sshs_node_attr_va
 	}
 
 	// Value must be present, so update old one, after checking range and flags.
-	if (attr->flags == SSHS_ATTRIBUTE_READ_ONLY) {
+	if (attr->flags == SSHS_FLAGS_READ_ONLY) {
 		// Read-only flag set, cannot put new value!
 		mtx_shared_unlock_exclusive(&node->node_lock);
 		return (false);
@@ -557,7 +557,7 @@ bool sshsNodePutAttribute(sshsNode node, const char *key, enum sshs_node_attr_va
 	// itself with the new one, and save the old one for later.
 	union sshs_node_attr_value attrValueOld = attr->value;
 
-	if (attr->flags != SSHS_ATTRIBUTE_NOTIFY_ONLY) {
+	if (attr->flags != SSHS_FLAGS_NOTIFY_ONLY) {
 		if (type == SSHS_STRING) {
 			// Make a copy of the string so we own the memory internally.
 			char *valueCopy = strdup(value.string);
