@@ -363,8 +363,8 @@ static bool sshsNodeCheckRange(enum sshs_node_attr_value_type type, union sshs_n
 			return (value.ddouble >= min.d && value.ddouble <= max.d);
 
 		case SSHS_STRING: {
-			int64_t stringLength = (int64_t) strlen(value.string);
-			return (stringLength >= min.i && stringLength <= max.i);
+			size_t stringLength = strlen(value.string);
+			return (stringLength >= (size_t) min.i && stringLength <= (size_t) max.i);
 		}
 
 		case SSHS_UNKNOWN:
@@ -714,12 +714,23 @@ static sshsNodeAttr *sshsNodeGetAttributes(sshsNode node, size_t *numAttributes)
 	return (attributes);
 }
 
+void sshsNodeCreateBool(sshsNode node, const char *key, bool defaultValue, enum sshs_node_attr_flags flags) {
+	sshsNodeCreateAttribute(node, key, SSHS_BOOL, (union sshs_node_attr_value ) { .boolean = defaultValue },
+		(union sshs_node_attr_range ) { .i = -1 }, (union sshs_node_attr_range ) { .i = -1 }, flags);
+}
+
 void sshsNodePutBool(sshsNode node, const char *key, bool value) {
 	sshsNodePutAttribute(node, key, SSHS_BOOL, (union sshs_node_attr_value ) { .boolean = value });
 }
 
 bool sshsNodeGetBool(sshsNode node, const char *key) {
 	return (sshsNodeGetAttribute(node, key, SSHS_BOOL).boolean);
+}
+
+void sshsNodeCreateByte(sshsNode node, const char *key, int8_t defaultValue, int8_t minValue, int8_t maxValue,
+	enum sshs_node_attr_flags flags) {
+	sshsNodeCreateAttribute(node, key, SSHS_BYTE, (union sshs_node_attr_value ) { .ibyte = defaultValue },
+		(union sshs_node_attr_range ) { .i = minValue }, (union sshs_node_attr_range ) { .i = maxValue }, flags);
 }
 
 void sshsNodePutByte(sshsNode node, const char *key, int8_t value) {
@@ -730,12 +741,24 @@ int8_t sshsNodeGetByte(sshsNode node, const char *key) {
 	return (sshsNodeGetAttribute(node, key, SSHS_BYTE).ibyte);
 }
 
+void sshsNodeCreateShort(sshsNode node, const char *key, int16_t defaultValue, int16_t minValue, int16_t maxValue,
+	enum sshs_node_attr_flags flags) {
+	sshsNodeCreateAttribute(node, key, SSHS_SHORT, (union sshs_node_attr_value ) { .ishort = defaultValue },
+		(union sshs_node_attr_range ) { .i = minValue }, (union sshs_node_attr_range ) { .i = maxValue }, flags);
+}
+
 void sshsNodePutShort(sshsNode node, const char *key, int16_t value) {
 	sshsNodePutAttribute(node, key, SSHS_SHORT, (union sshs_node_attr_value ) { .ishort = value });
 }
 
 int16_t sshsNodeGetShort(sshsNode node, const char *key) {
 	return (sshsNodeGetAttribute(node, key, SSHS_SHORT).ishort);
+}
+
+void sshsNodeCreateInt(sshsNode node, const char *key, int32_t defaultValue, int32_t minValue, int32_t maxValue,
+	enum sshs_node_attr_flags flags) {
+	sshsNodeCreateAttribute(node, key, SSHS_INT, (union sshs_node_attr_value ) { .iint = defaultValue },
+		(union sshs_node_attr_range ) { .i = minValue }, (union sshs_node_attr_range ) { .i = maxValue }, flags);
 }
 
 void sshsNodePutInt(sshsNode node, const char *key, int32_t value) {
@@ -746,12 +769,24 @@ int32_t sshsNodeGetInt(sshsNode node, const char *key) {
 	return (sshsNodeGetAttribute(node, key, SSHS_INT).iint);
 }
 
+void sshsNodeCreateLong(sshsNode node, const char *key, int64_t defaultValue, int64_t minValue, int64_t maxValue,
+	enum sshs_node_attr_flags flags) {
+	sshsNodeCreateAttribute(node, key, SSHS_LONG, (union sshs_node_attr_value ) { .ilong = defaultValue },
+		(union sshs_node_attr_range ) { .i = minValue }, (union sshs_node_attr_range ) { .i = maxValue }, flags);
+}
+
 void sshsNodePutLong(sshsNode node, const char *key, int64_t value) {
 	sshsNodePutAttribute(node, key, SSHS_LONG, (union sshs_node_attr_value ) { .ilong = value });
 }
 
 int64_t sshsNodeGetLong(sshsNode node, const char *key) {
 	return (sshsNodeGetAttribute(node, key, SSHS_LONG).ilong);
+}
+
+void sshsNodeCreateFloat(sshsNode node, const char *key, float defaultValue, float minValue, float maxValue,
+	enum sshs_node_attr_flags flags) {
+	sshsNodeCreateAttribute(node, key, SSHS_FLOAT, (union sshs_node_attr_value ) { .ffloat = defaultValue },
+		(union sshs_node_attr_range ) { .d = minValue }, (union sshs_node_attr_range ) { .d = maxValue }, flags);
 }
 
 void sshsNodePutFloat(sshsNode node, const char *key, float value) {
@@ -762,12 +797,25 @@ float sshsNodeGetFloat(sshsNode node, const char *key) {
 	return (sshsNodeGetAttribute(node, key, SSHS_FLOAT).ffloat);
 }
 
+void sshsNodeCreateDouble(sshsNode node, const char *key, double defaultValue, double minValue, double maxValue,
+	enum sshs_node_attr_flags flags) {
+	sshsNodeCreateAttribute(node, key, SSHS_DOUBLE, (union sshs_node_attr_value ) { .ddouble = defaultValue },
+		(union sshs_node_attr_range ) { .d = minValue }, (union sshs_node_attr_range ) { .d = maxValue }, flags);
+}
+
 void sshsNodePutDouble(sshsNode node, const char *key, double value) {
 	sshsNodePutAttribute(node, key, SSHS_DOUBLE, (union sshs_node_attr_value ) { .ddouble = value });
 }
 
 double sshsNodeGetDouble(sshsNode node, const char *key) {
 	return (sshsNodeGetAttribute(node, key, SSHS_DOUBLE).ddouble);
+}
+
+void sshsNodeCreateString(sshsNode node, const char *key, const char *defaultValue, size_t minLength, size_t maxLength,
+	enum sshs_node_attr_flags flags) {
+	sshsNodeCreateAttribute(node, key, SSHS_STRING, (union sshs_node_attr_value ) { .string = (char *) defaultValue },
+		(union sshs_node_attr_range ) { .i = (int64_t) minLength }, (union sshs_node_attr_range ) { .i =
+					(int64_t) maxLength }, flags);
 }
 
 void sshsNodePutString(sshsNode node, const char *key, const char *value) {
