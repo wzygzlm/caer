@@ -169,7 +169,7 @@ ENDIF()
 
 # Search for external libraries with pkg-config.
 INCLUDE(FindPkgConfig)
-
+set(PKG_CONFIG_PATH "${PKG_CONFIG_PATH}:/usr/lib/pkgconfig")
 # Basic device support, XML configuration, networking and I/O.
 PKG_CHECK_MODULES(LIBCAER REQUIRED libcaer>=2.0.1)
 PKG_CHECK_MODULES(MXML REQUIRED mxml>=2.7)
