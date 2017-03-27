@@ -31,6 +31,7 @@ struct caer_module_data {
 	atomic_uint_fast32_t configUpdate;
 	void *moduleState;
 	char *moduleSubSystemString;
+	uint8_t moduleLogLevel;
 	atomic_uint_fast32_t doReset;
 };
 
