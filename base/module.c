@@ -9,6 +9,8 @@
 
 static void caerModuleShutdownListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
+static void caerModuleLogLevelListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
+	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
 
 void caerModuleSM(caerModuleFunctions moduleFunctions, caerModuleData moduleData, size_t memSize, size_t argsNumber,
 	...) {
@@ -123,6 +125,13 @@ caerModuleData caerModuleInitialize(uint16_t moduleID, const char *moduleShortNa
 	strncpy(moduleData->moduleSubSystemString, nameString, nameLength);
 	moduleData->moduleSubSystemString[nameLength] = '\0';
 
+	// Per-module log level support.
+	sshsNodeCreateByte(moduleData->moduleNode, "logLevel", CAER_LOG_NOTICE, CAER_LOG_EMERGENCY, CAER_LOG_DEBUG,
+		SSHS_FLAGS_NORMAL);
+	atomic_store_explicit(&moduleData->moduleLogLevel, U8T(sshsNodeGetByte(moduleData->moduleNode, "logLevel")),
+		memory_order_relaxed);
+	sshsNodeAddAttributeListener(moduleData->moduleNode, moduleData, &caerModuleLogLevelListener);
+
 	// Initialize shutdown controls. By default modules always run.
 	sshsNodeCreateBool(moduleData->moduleNode, "runAtStartup", true, SSHS_FLAGS_NORMAL); // Allow for users to disable a module at start.
 	bool runModule = sshsNodeGetBool(moduleData->moduleNode, "runAtStartup");
@@ -194,12 +203,17 @@ static void caerModuleShutdownListener(sshsNode node, void *userData, enum sshs_
 	caerModuleData data = userData;
 
 	if (event == SSHS_ATTRIBUTE_MODIFIED && changeType == SSHS_BOOL && caerStrEquals(changeKey, "running")) {
-		// Running changed, let's see.
-		if (changeValue.boolean == true) {
-			atomic_store(&data->running, true);
-		}
-		else {
-			atomic_store(&data->running, false);
-		}
+		atomic_store(&data->running, changeValue.boolean);
+	}
+}
+
+static void caerModuleLogLevelListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
+	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue) {
+	UNUSED_ARGUMENT(node);
+
+	caerModuleData data = userData;
+
+	if (event == SSHS_ATTRIBUTE_MODIFIED && changeType == SSHS_BYTE && caerStrEquals(changeKey, "logLevel")) {
+		atomic_store(&data->moduleLogLevel, U8T(changeValue.ibyte));
 	}
 }

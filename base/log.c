@@ -101,7 +101,8 @@ static void caerLogLevelListener(sshsNode node, void *userData, enum sshs_node_a
 void caerLogModule(caerModuleData moduleData, enum caer_log_level logLevel, const char *format, ...) {
 	va_list argumentList;
 	va_start(argumentList, format);
-	caerLogVAFull(caerLogFileDescriptorsGetFirst(), caerLogFileDescriptorsGetSecond(), moduleData->moduleLogLevel,
-		logLevel, moduleData->moduleSubSystemString, format, argumentList);
+	caerLogVAFull(caerLogFileDescriptorsGetFirst(), caerLogFileDescriptorsGetSecond(),
+		atomic_load_explicit(&moduleData->moduleLogLevel, memory_order_relaxed), logLevel,
+		moduleData->moduleSubSystemString, format, argumentList);
 	va_end(argumentList);
 }
