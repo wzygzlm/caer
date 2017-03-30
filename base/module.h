@@ -9,9 +9,22 @@
 #define MODULE_H_
 
 #include "main.h"
-#include "ext/uthash/uthash.h"
+
+#ifdef __cplusplus
+
+#include <cstdarg>
+#include <cstdatomic>
+
+#else
+
 #include <stdarg.h>
 #include <stdatomic.h>
+
+#endif
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 // Module-related definitions.
 enum caer_module_status {
@@ -22,8 +35,27 @@ enum caer_module_type {
 	CAER_MODULE_INPUT = 0, CAER_MODULE_OUTPUT = 1, CAER_MODULE_PROCESSOR = 2,
 };
 
+struct caer_event_stream {
+	int16_t type;
+	int16_t number; // Use 0 for any number of.
+	bool required;
+	// Support chaining for multiple elements.
+	struct caer_event_stream *next;
+};
+
+typedef struct caer_event_stream *caerEventStream;
+
+struct caer_module_info {
+	uint32_t version;
+	char *name;
+	enum caer_module_type type;
+	caerEventStream inputStreams;
+	caerEventStream outputStreams;
+};
+
+typedef struct caer_module_info *caerModuleInfo;
+
 struct caer_module_data {
-	UT_hash_handle hh;
 	uint16_t moduleID;
 	sshsNode moduleNode;
 	enum caer_module_status moduleStatus;
@@ -33,6 +65,7 @@ struct caer_module_data {
 	char *moduleSubSystemString;
 	atomic_uint_fast8_t moduleLogLevel;
 	atomic_uint_fast32_t doReset;
+	void *parentMainloop;
 };
 
 typedef struct caer_module_data *caerModuleData;
@@ -57,5 +90,9 @@ void caerModuleDestroy(caerModuleData moduleData);
 void caerModuleConfigUpdateReset(caerModuleData moduleData);
 void caerModuleConfigDefaultListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* MODULE_H_ */

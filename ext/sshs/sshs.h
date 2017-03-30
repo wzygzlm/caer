@@ -1,12 +1,26 @@
 #ifndef SSHS_H_
 #define SSHS_H_
 
-// Common includes, useful for everyone.
+#ifdef __cplusplus
+
+#include <cstdlib>
+#include <cstdio>
+#include <cstdint>
+#include <cinttypes>
+
+#else
+
 #include <stdlib.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include <stdint.h>
 #include <inttypes.h>
-#include <stdio.h>
+
+#endif
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 // SSHS node
 typedef struct sshs_node *sshsNode;
@@ -144,5 +158,9 @@ bool sshsExistsRelativeNode(sshsNode node, const char *nodePath);
 sshsNode sshsGetRelativeNode(sshsNode node, const char *nodePath);
 bool sshsBeginTransaction(sshs st, char *nodePaths[], size_t nodePathsLength);
 bool sshsEndTransaction(sshs st, char *nodePaths[], size_t nodePathsLength);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* SSHS_H_ */
