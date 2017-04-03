@@ -75,10 +75,10 @@ typedef struct caer_module_functions const * const caerModuleFunctions;
 
 struct caer_module_info {
 	uint32_t version;
-	char *name;
+	const char *name;
 	enum caer_module_type type;
 	size_t memSize;
-	struct caer_module_functions functions;
+	caerModuleFunctions functions;
 	caerEventStream inputStreams;
 	caerEventStream outputStreams;
 };
