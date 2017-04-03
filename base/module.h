@@ -65,13 +65,13 @@ typedef struct caer_module_data *caerModuleData;
 
 struct caer_module_functions {
 	bool (* const moduleInit)(caerModuleData moduleData); // Can be NULL.
-	void (* const moduleRun)(caerModuleData moduleData, size_t argsNumber, va_list args);
+	void (* const moduleRun)(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out);
 	void (* const moduleConfig)(caerModuleData moduleData); // Can be NULL.
 	void (* const moduleExit)(caerModuleData moduleData); // Can be NULL.
 	void (* const moduleReset)(caerModuleData moduleData, uint16_t resetCallSourceID); // Can be NULL.
 };
 
-typedef struct caer_module_functions const * const caerModuleFunctions;
+typedef struct caer_module_functions const * caerModuleFunctions;
 
 struct caer_module_info {
 	uint32_t version;
@@ -83,7 +83,7 @@ struct caer_module_info {
 	caerEventStream outputStreams;
 };
 
-typedef struct caer_module_info const * const caerModuleInfo;
+typedef struct caer_module_info const * caerModuleInfo;
 
 // Functions to be implemented:
 caerModuleInfo caerModuleGetInfo(void);

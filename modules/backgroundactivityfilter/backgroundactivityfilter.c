@@ -20,7 +20,8 @@ struct BAFilter_state {
 typedef struct BAFilter_state *BAFilterState;
 
 static bool caerBackgroundActivityFilterInit(caerModuleData moduleData);
-static void caerBackgroundActivityFilterRun(caerModuleData moduleData, size_t argsNumber, va_list args);
+static void caerBackgroundActivityFilterRun(caerModuleData moduleData, caerEventPacketContainer in,
+	caerEventPacketContainer *out);
 static void caerBackgroundActivityFilterConfig(caerModuleData moduleData);
 static void caerBackgroundActivityFilterExit(caerModuleData moduleData);
 static void caerBackgroundActivityFilterReset(caerModuleData moduleData, uint16_t resetCallSourceID);
@@ -31,8 +32,7 @@ static struct caer_module_functions BAFilterFunctions = { .moduleInit = &caerBac
 	&caerBackgroundActivityFilterExit, .moduleReset = &caerBackgroundActivityFilterReset };
 
 static struct caer_module_info BAFilterInfo = { .version = 1, .name = "BAFilter", .type = CAER_MODULE_PROCESSOR,
-	.memSize = sizeof(struct BAFilter_state), .functions = &BAFilterFunctions, .inputStreams = NULL, .outputStreams =
-		NULL, };
+	.memSize = sizeof(struct BAFilter_state), .functions = &BAFilterFunctions, .inputStreams = NULL, .outputStreams = NULL, };
 
 caerModuleInfo caerModuleGetInfo(void) {
 	return (&BAFilterInfo);
@@ -59,11 +59,12 @@ static bool caerBackgroundActivityFilterInit(caerModuleData moduleData) {
 	return (true);
 }
 
-static void caerBackgroundActivityFilterRun(caerModuleData moduleData, size_t argsNumber, va_list args) {
-	UNUSED_ARGUMENT(argsNumber);
+static void caerBackgroundActivityFilterRun(caerModuleData moduleData, caerEventPacketContainer in,
+	caerEventPacketContainer *out) {
+	UNUSED_ARGUMENT(out);
 
-	// Interpret variable arguments (same as above in main function).
-	caerPolarityEventPacket polarity = va_arg(args, caerPolarityEventPacket);
+	caerPolarityEventPacket polarity = (caerPolarityEventPacket) caerEventPacketContainerFindEventPacketByType(in,
+		POLARITY_EVENT);
 
 	// Only process packets with content.
 	if (polarity == NULL) {
