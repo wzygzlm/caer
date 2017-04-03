@@ -28,11 +28,14 @@ extern "C" {
 
 // Module-related definitions.
 enum caer_module_status {
-	CAER_MODULE_STOPPED = 0, CAER_MODULE_RUNNING = 1,
+	CAER_MODULE_STOPPED = 0,
+	CAER_MODULE_RUNNING = 1,
 };
 
 enum caer_module_type {
-	CAER_MODULE_INPUT = 0, CAER_MODULE_OUTPUT = 1, CAER_MODULE_PROCESSOR = 2,
+	CAER_MODULE_INPUT = 0,
+	CAER_MODULE_OUTPUT = 1,
+	CAER_MODULE_PROCESSOR = 2,
 };
 
 struct caer_event_stream {
@@ -44,16 +47,6 @@ struct caer_event_stream {
 };
 
 typedef struct caer_event_stream *caerEventStream;
-
-struct caer_module_info {
-	uint32_t version;
-	char *name;
-	enum caer_module_type type;
-	caerEventStream inputStreams;
-	caerEventStream outputStreams;
-};
-
-typedef struct caer_module_info *caerModuleInfo;
 
 struct caer_module_data {
 	uint16_t moduleID;
@@ -80,13 +73,23 @@ struct caer_module_functions {
 
 typedef struct caer_module_functions const * const caerModuleFunctions;
 
-void caerModuleSM(caerModuleFunctions moduleFunctions, caerModuleData moduleData, size_t memSize, size_t argsNumber,
-	...);
-void caerModuleSMv(caerModuleFunctions moduleFunctions, caerModuleData moduleData, size_t memSize, size_t argsNumber,
-	va_list args);
-caerModuleData caerModuleInitialize(uint16_t moduleID, const char *moduleShortName, sshsNode mainloopNode);
+struct caer_module_info {
+	uint32_t version;
+	char *name;
+	enum caer_module_type type;
+	size_t memSize;
+	struct caer_module_functions functions;
+	caerEventStream inputStreams;
+	caerEventStream outputStreams;
+};
+
+typedef struct caer_module_info const * const caerModuleInfo;
+
+// Functions to be implemented:
+caerModuleInfo caerModuleGetInfo(void);
+
+// Functions available to call:
 bool caerModuleSetSubSystemString(caerModuleData moduleData, const char *subSystemString);
-void caerModuleDestroy(caerModuleData moduleData);
 void caerModuleConfigUpdateReset(caerModuleData moduleData);
 void caerModuleConfigDefaultListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
