@@ -39,14 +39,13 @@ enum caer_module_type {
 };
 
 struct caer_event_stream {
-	int16_t type;
-	int16_t number; // Use 0 for any number of.
-	bool required;
-	// Support chaining for multiple elements.
-	struct caer_event_stream *next;
+	int16_t type; // Use -1 for any type.
+	int16_t number; // Use -1 for any number of.
 };
 
-typedef struct caer_event_stream *caerEventStream;
+typedef struct caer_event_stream const *caerEventStream;
+
+#define CAER_EVENT_STREAM_SIZE(x) (sizeof(x) / sizeof(struct caer_event_stream))
 
 struct caer_module_data {
 	uint16_t moduleID;
@@ -79,7 +78,9 @@ struct caer_module_info {
 	enum caer_module_type type;
 	size_t memSize;
 	caerModuleFunctions functions;
+	size_t inputStreamsSize;
 	caerEventStream inputStreams;
+	size_t outputStreamsSize;
 	caerEventStream outputStreams;
 };
 
