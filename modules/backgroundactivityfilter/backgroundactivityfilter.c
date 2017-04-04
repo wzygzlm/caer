@@ -1,6 +1,9 @@
+#include "main.h"
 #include "base/mainloop.h"
 #include "base/module.h"
 #include "ext/buffers.h"
+
+#include <libcaer/events/polarity.h>
 
 struct BAFilter_state {
 	simple2DBufferLong timestampMap;
