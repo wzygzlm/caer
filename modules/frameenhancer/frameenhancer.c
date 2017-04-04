@@ -1,6 +1,8 @@
-#include "frameenhancer.h"
+#include "main.h"
 #include "base/mainloop.h"
 #include "base/module.h"
+
+#include <libcaer/events/frame.h>
 #include <libcaer/frame_utils.h>
 
 struct FrameEnhancer_state {
@@ -13,37 +15,36 @@ struct FrameEnhancer_state {
 typedef struct FrameEnhancer_state *FrameEnhancerState;
 
 static bool caerFrameEnhancerInit(caerModuleData moduleData);
-static void caerFrameEnhancerRun(caerModuleData moduleData, size_t argsNumber, va_list args);
+static void caerFrameEnhancerRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out);
 static void caerFrameEnhancerConfig(caerModuleData moduleData);
 static void caerFrameEnhancerExit(caerModuleData moduleData);
 
-static struct caer_module_functions caerFrameEnhancerFunctions = { .moduleInit = &caerFrameEnhancerInit, .moduleRun =
+static struct caer_module_functions FrameEnhancerFunctions = { .moduleInit = &caerFrameEnhancerInit, .moduleRun =
 	&caerFrameEnhancerRun, .moduleConfig = &caerFrameEnhancerConfig, .moduleExit = &caerFrameEnhancerExit };
 
-caerFrameEventPacket caerFrameEnhancer(uint16_t moduleID, caerFrameEventPacket frame) {
-	caerModuleData moduleData = caerMainloopFindModule(moduleID, "FrameEnhancer", CAER_MODULE_PROCESSOR);
-	if (moduleData == NULL) {
-		return (NULL);
-	}
+static const struct caer_event_stream FrameEnhancerInputs[] = { { .type = FRAME_EVENT, .number = 1 } };
 
-	// By default, same as input frame packet.
-	caerFrameEventPacket enhancedFrame = frame;
+static const struct caer_event_stream FrameEnhancerOutputs[] = { { .type = FRAME_EVENT, .number = 1 } };
 
-	caerModuleSM(&caerFrameEnhancerFunctions, moduleData, sizeof(struct FrameEnhancer_state), 2, frame, &enhancedFrame);
+static const struct caer_module_info FrameEnhancerInfo = { .version = 1, .name = "FrameEnhancer", .type =
+	CAER_MODULE_PROCESSOR, .memSize = sizeof(struct FrameEnhancer_state), .functions = &FrameEnhancerFunctions,
+	.inputStreams = FrameEnhancerInputs, .inputStreamsSize = CAER_EVENT_STREAM_SIZE(FrameEnhancerInputs),
+	.outputStreams = FrameEnhancerOutputs, .outputStreamsSize = CAER_EVENT_STREAM_SIZE(FrameEnhancerOutputs), };
 
-	return (enhancedFrame);
+caerModuleInfo caerModuleGetInfo(void) {
+	return (&FrameEnhancerInfo);
 }
 
 static bool caerFrameEnhancerInit(caerModuleData moduleData) {
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "doDemosaic", false);
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "doContrast", false);
+	sshsNodeCreateBool(moduleData->moduleNode, "doDemosaic", false, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateBool(moduleData->moduleNode, "doContrast", false, SSHS_FLAGS_NORMAL);
 
 #ifdef LIBCAER_HAVE_OPENCV
-	sshsNodePutStringIfAbsent(moduleData->moduleNode, "demosaicType", "opencv_edge_aware");
-	sshsNodePutStringIfAbsent(moduleData->moduleNode, "contrastType", "opencv_normalization");
+	sshsNodeCreateString(moduleData->moduleNode, "demosaicType", "opencv_edge_aware", 8, 17, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateString(moduleData->moduleNode, "contrastType", "opencv_normalization", 8, 29, SSHS_FLAGS_NORMAL);
 #else
-	sshsNodePutStringIfAbsent(moduleData->moduleNode, "demosaicType", "standard");
-	sshsNodePutStringIfAbsent(moduleData->moduleNode, "contrastType", "standard");
+	sshsNodeCreateString(moduleData->moduleNode, "demosaicType", "standard", 8, 8, SSHS_FLAGS_READ_ONLY);
+	sshsNodeCreateString(moduleData->moduleNode, "contrastType", "standard", 8, 8, SSHS_FLAGS_READ_ONLY);
 #endif
 
 	// Initialize configuration.
@@ -56,12 +57,9 @@ static bool caerFrameEnhancerInit(caerModuleData moduleData) {
 	return (true);
 }
 
-static void caerFrameEnhancerRun(caerModuleData moduleData, size_t argsNumber, va_list args) {
-	UNUSED_ARGUMENT(argsNumber);
-
-	// Interpret variable arguments (same as above in main function).
-	caerFrameEventPacket frame = va_arg(args, caerFrameEventPacket);
-	caerFrameEventPacket *enhancedFrame = va_arg(args, caerFrameEventPacket *);
+static void caerFrameEnhancerRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out) {
+	caerFrameEventPacketConst frame = (caerFrameEventPacketConst) caerEventPacketContainerFindEventPacketByTypeConst(in,
+		FRAME_EVENT);
 
 	// Only process packets with content.
 	if (frame == NULL) {
@@ -69,53 +67,74 @@ static void caerFrameEnhancerRun(caerModuleData moduleData, size_t argsNumber, v
 	}
 
 	FrameEnhancerState state = moduleData->moduleState;
+	caerFrameEventPacket enhancedFrame = NULL;
 
 	if (state->doDemosaic) {
 #ifdef LIBCAER_HAVE_OPENCV
 		switch (state->demosaicType) {
 			case 0:
-				*enhancedFrame = caerFrameUtilsDemosaic(frame);
+				enhancedFrame = caerFrameUtilsDemosaic(frame);
 				break;
 
 			case 1:
-				*enhancedFrame = caerFrameUtilsOpenCVDemosaic(frame, DEMOSAIC_NORMAL);
+				enhancedFrame = caerFrameUtilsOpenCVDemosaic(frame, DEMOSAIC_NORMAL);
 				break;
 
 			case 2:
-				*enhancedFrame = caerFrameUtilsOpenCVDemosaic(frame, DEMOSAIC_EDGE_AWARE);
+				enhancedFrame = caerFrameUtilsOpenCVDemosaic(frame, DEMOSAIC_EDGE_AWARE);
 				break;
 		}
 #else
-		*enhancedFrame = caerFrameUtilsDemosaic(frame);
+		enhancedFrame = caerFrameUtilsDemosaic(frame);
 #endif
-
-		// This creates a new, independent frame, which also needs to be
-		// correctly reclaimed at the end of the mainloop run.
-		caerMainloopFreeAfterLoop(&free, *enhancedFrame);
 	}
 
 	if (state->doContrast) {
+		// If enhancedFrame doesn't exist yet, make a copy of frame, since
+		// the demosaic operation didn't do it for us.
+		if (enhancedFrame == NULL) {
+			enhancedFrame = (caerFrameEventPacket) caerEventPacketCopyOnlyValidEvents(
+				(caerEventPacketHeaderConst) frame);
+			if (enhancedFrame == NULL) {
+				return;
+			}
+		}
+
 #ifdef LIBCAER_HAVE_OPENCV
 		switch (state->contrastType) {
 			case 0:
-				caerFrameUtilsContrast(*enhancedFrame);
+				caerFrameUtilsContrast(enhancedFrame);
 				break;
 
 			case 1:
-				caerFrameUtilsOpenCVContrast(*enhancedFrame, CONTRAST_NORMALIZATION);
+				caerFrameUtilsOpenCVContrast(enhancedFrame, CONTRAST_NORMALIZATION);
 				break;
 
 			case 2:
-				caerFrameUtilsOpenCVContrast(*enhancedFrame, CONTRAST_HISTOGRAM_EQUALIZATION);
+				caerFrameUtilsOpenCVContrast(enhancedFrame, CONTRAST_HISTOGRAM_EQUALIZATION);
 				break;
 
 			case 3:
-				caerFrameUtilsOpenCVContrast(*enhancedFrame, CONTRAST_CLAHE);
+				caerFrameUtilsOpenCVContrast(enhancedFrame, CONTRAST_CLAHE);
 				break;
 		}
 #else
-		caerFrameUtilsContrast(*enhancedFrame);
+		caerFrameUtilsContrast(enhancedFrame);
 #endif
+	}
+
+	// If something did happen, make a packet container and return the result.
+	// Also remember to put this new container up for freeing at loop end.
+	if (enhancedFrame != NULL) {
+		*out = caerEventPacketContainerAllocate(1);
+		if (*out == NULL) {
+			free(enhancedFrame);
+			return;
+		}
+
+		caerEventPacketContainerSetEventPacket(*out, 0, (caerEventPacketHeader) enhancedFrame);
+
+		caerMainloopFreeAfterLoop((void (*)(void *)) &caerEventPacketContainerFree, *out);
 	}
 }
 
