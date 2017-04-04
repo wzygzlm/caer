@@ -1,11 +1,3 @@
-/*
- * backgroundactivityfilter.c
- *
- *  Created on: Jan 20, 2014
- *      Author: chtekk
- */
-
-#include "backgroundactivityfilter.h"
 #include "base/mainloop.h"
 #include "base/module.h"
 #include "ext/buffers.h"
