@@ -24,10 +24,8 @@ typedef struct caer_statistics_state *caerStatisticsState;
 
 // For reuse inside other modules.
 bool caerStatisticsStringInit(caerStatisticsState state);
-void caerStatisticsStringUpdate(caerEventPacketHeader packetHeader, caerStatisticsState state);
+void caerStatisticsStringUpdate(caerEventPacketHeaderConst packetHeader, caerStatisticsState state);
 void caerStatisticsStringExit(caerStatisticsState state);
 void caerStatisticsStringReset(caerStatisticsState state);
-
-void caerStatistics(uint16_t moduleID, caerEventPacketHeader packetHeader, size_t divisionFactor);
 
 #endif /* STATISTICS_H_ */

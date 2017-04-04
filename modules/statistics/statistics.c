@@ -4,39 +4,42 @@
 #include "ext/portable_time.h"
 
 static bool caerStatisticsInit(caerModuleData moduleData);
-static void caerStatisticsRun(caerModuleData moduleData, size_t argsNumber, va_list args);
+static void caerStatisticsRun(caerModuleData moduleData, caerEventPacketContainer in,
+	caerEventPacketContainer *out);
 static void caerStatisticsExit(caerModuleData moduleData);
 static void caerStatisticsReset(caerModuleData moduleData, uint16_t resetCallSourceID);
 
-static struct caer_module_functions caerStatisticsFunctions = { .moduleInit = &caerStatisticsInit, .moduleRun =
+static struct caer_module_functions StatisticsFunctions = { .moduleInit = &caerStatisticsInit, .moduleRun =
 	&caerStatisticsRun, .moduleConfig = NULL, .moduleExit = &caerStatisticsExit, .moduleReset = &caerStatisticsReset };
 
-void caerStatistics(uint16_t moduleID, caerEventPacketHeader packetHeader, size_t divisionFactor) {
-	caerModuleData moduleData = caerMainloopFindModule(moduleID, "Statistics", CAER_MODULE_PROCESSOR);
-	if (moduleData == NULL) {
-		return;
-	}
+static const struct caer_event_stream StatisticsInputs[] = { { .type = -1, .number = 1 } };
 
-	caerModuleSM(&caerStatisticsFunctions, moduleData, sizeof(struct caer_statistics_state), 2, packetHeader,
-		divisionFactor);
+static const struct caer_module_info StatisticsInfo = { .version = 1, .name = "Statistics", .type = CAER_MODULE_PROCESSOR,
+	.memSize = sizeof(struct caer_statistics_state), .functions = &StatisticsFunctions, .inputStreams = StatisticsInputs,
+	.inputStreamsSize = CAER_EVENT_STREAM_SIZE(StatisticsInputs), .outputStreams = NULL, .outputStreamsSize = 0, };
+
+caerModuleInfo caerModuleGetInfo(void) {
+	return (&StatisticsInfo);
 }
 
 static bool caerStatisticsInit(caerModuleData moduleData) {
 	caerStatisticsState state = moduleData->moduleState;
 
+	// Configurable division factor.
+	sshsNodeCreateLong(moduleData->moduleNode, "divisionFactor", 1000, 1, INT64_MAX, SSHS_FLAGS_NORMAL);
+	state->divisionFactor = U64T(sshsNodeGetLong(moduleData->moduleNode, "divisionFactor"));
+
 	return (caerStatisticsStringInit(state));
 }
 
-static void caerStatisticsRun(caerModuleData moduleData, size_t argsNumber, va_list args) {
-	UNUSED_ARGUMENT(argsNumber);
+static void caerStatisticsRun(caerModuleData moduleData, caerEventPacketContainer in,
+	caerEventPacketContainer *out) {
+	UNUSED_ARGUMENT(out);
 
 	// Interpret variable arguments (same as above in main function).
-	caerEventPacketHeader packetHeader = va_arg(args, caerEventPacketHeader);
-	size_t divisionFactor = va_arg(args, size_t);
+	caerEventPacketHeaderConst packetHeader = caerEventPacketContainerGetEventPacketConst(in, 0);
 
 	caerStatisticsState state = moduleData->moduleState;
-	state->divisionFactor = divisionFactor;
-
 	caerStatisticsStringUpdate(packetHeader, state);
 
 	fprintf(stdout, "\r%s - %s", state->currentStatisticsStringTotal, state->currentStatisticsStringValid);
@@ -83,7 +86,7 @@ bool caerStatisticsStringInit(caerStatisticsState state) {
 	return (true);
 }
 
-void caerStatisticsStringUpdate(caerEventPacketHeader packetHeader, caerStatisticsState state) {
+void caerStatisticsStringUpdate(caerEventPacketHeaderConst packetHeader, caerStatisticsState state) {
 	// Only non-NULL packets (with content!) contribute to the event count.
 	if (packetHeader != NULL) {
 		state->totalEventsCounter += U64T(caerEventPacketHeaderGetEventNumber(packetHeader));
