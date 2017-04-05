@@ -1,6 +1,5 @@
-#include "visualizer.h"
+#include "visualizer_renderers.h"
 #include "base/mainloop.h"
-#include "modules/ini/dynapse_common.h"
 
 #include <math.h>
 #include <allegro5/allegro_primitives.h>
@@ -12,6 +11,7 @@
 #include <libcaer/events/point2d.h>
 #include <libcaer/events/point4d.h>
 #include <libcaer/events/spike.h>
+#include <libcaer/devices/dynapse.h>
 
 bool caerVisualizerRendererPolarityEvents(caerVisualizerPublicState state, caerEventPacketContainer container,
 bool doClear) {

@@ -1,6 +1,5 @@
-#include "visualizer.h"
+#include "visualizer_handlers.h"
 #include "base/mainloop.h"
-#include "modules/ini/dynapse_common.h"
 
 #include <math.h>
 #include <allegro5/allegro_primitives.h>
@@ -18,12 +17,12 @@ void caerVisualizerEventHandlerSpikeEvents(caerVisualizerPublicState state, ALLE
 		// adjust coordinates according to zoom
 		double currentZoomFactor = (double) sshsNodeGetFloat(state->visualizerConfigNode, "zoomFactor");
 		if (currentZoomFactor > 1) {
-			posx = (double)floor((double) posx / currentZoomFactor);
-			posy = (double)floor((double) posy / currentZoomFactor);
+			posx = (double) floor((double) posx / currentZoomFactor);
+			posy = (double) floor((double) posy / currentZoomFactor);
 		}
 		else if (currentZoomFactor < 1) {
-			posx = (double)floor((double) posx * currentZoomFactor);
-			posy = (double)floor((double) posy * currentZoomFactor);
+			posx = (double) floor((double) posx * currentZoomFactor);
+			posy = (double) floor((double) posy * currentZoomFactor);
 		}
 		//caerLog(CAER_LOG_NOTICE, "Visualizer", "pos x %d, pos y %d Zoom %f \n", posx, posy, currentZoomFactor);
 
@@ -87,10 +86,8 @@ void caerVisualizerEventHandlerSpikeEvents(caerVisualizerPublicState state, ALLE
 		if (indexLin > 255) {
 			indexLin = 255;
 		}
-		caerDeviceConfigSet(((caerInputDynapseState) state->eventSourceModuleState)->deviceState, DYNAPSE_CONFIG_CHIP,
-			DYNAPSE_CONFIG_CHIP_ID, (uint32_t) chipId);
-		caerDeviceConfigSet(((caerInputDynapseState) state->eventSourceModuleState)->deviceState,
-			DYNAPSE_CONFIG_MONITOR_NEU, coreid, indexLin);
+		caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, (uint32_t) chipId);
+		caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_MONITOR_NEU, coreid, indexLin);
 
 		if (chipId == 0) {
 			caerLog(CAER_LOG_NOTICE, "Visualizer",
