@@ -376,13 +376,13 @@ static void createCoarseFineBiasSetting(sshsNode biasNode, const char *biasName,
 	sshsNode biasConfigNode = sshsGetRelativeNode(biasNode, biasNameFull);
 
 	// Add bias settings.
-	sshsNodePutByteIfAbsent(biasConfigNode, "coarseValue", I8T(coarseValue));
-	sshsNodePutShortIfAbsent(biasConfigNode, "fineValue", I16T(fineValue));
-	sshsNodePutStringIfAbsent(biasConfigNode, "BiasLowHi", hlbias);
-	sshsNodePutStringIfAbsent(biasConfigNode, "currentLevel", currentLevel);
-	sshsNodePutStringIfAbsent(biasConfigNode, "sex", sex);
-	sshsNodePutBoolIfAbsent(biasConfigNode, "enabled", enabled);
-	sshsNodePutBoolIfAbsent(biasConfigNode, "special", false);
+	sshsNodeCreateByte(biasConfigNode, "coarseValue", I8T(coarseValue));
+	sshsNodeCreateShort(biasConfigNode, "fineValue", I16T(fineValue));
+	sshsNodeCreateString(biasConfigNode, "BiasLowHi", hlbias);
+	sshsNodeCreateString(biasConfigNode, "currentLevel", currentLevel);
+	sshsNodeCreateString(biasConfigNode, "sex", sex);
+	sshsNodeCreateBool(biasConfigNode, "enabled", enabled);
+	sshsNodeCreateBool(biasConfigNode, "special", false);
 }
 
 static void biasConfigListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
@@ -1269,12 +1269,12 @@ bool caerInputDYNAPSEInit(caerModuleData moduleData) {
 
 // USB port/bus/SN settings/restrictions.
 // These can be used to force connection to one specific device at startup.
-	sshsNodePutShortIfAbsent(moduleData->moduleNode, "busNumber", 0);
-	sshsNodePutShortIfAbsent(moduleData->moduleNode, "devAddress", 0);
-	sshsNodePutStringIfAbsent(moduleData->moduleNode, "serialNumber", "");
+	sshsNodeCreateShort(moduleData->moduleNode, "busNumber", 0);
+	sshsNodeCreateShort(moduleData->moduleNode, "devAddress", 0);
+	sshsNodeCreateString(moduleData->moduleNode, "serialNumber", "");
 
 // Add auto-restart setting.
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "autoRestart", true);
+	sshsNodeCreateBool(moduleData->moduleNode, "autoRestart", true);
 
 /// Start data acquisition, and correctly notify mainloop of new data and module of exceptional
 // shutdown cases (device pulled, ...).
@@ -1355,15 +1355,15 @@ bool caerInputDYNAPSEInit(caerModuleData moduleData) {
 	sshsNode usbNode = sshsGetRelativeNode(deviceConfigNode, "usb/");
 	sshsNode sysNode = sshsGetRelativeNode(moduleData->moduleNode, "system/");
 
-	sshsNodePutBoolIfAbsent(usbNode, "Run", true);
-	sshsNodePutShortIfAbsent(usbNode, "EarlyPacketDelay", 8); // 125µs time-slices, so 1ms
-	sshsNodePutIntIfAbsent(usbNode, "BufferNumber", 8);
-	sshsNodePutIntIfAbsent(usbNode, "BufferSize", 8192);
+	sshsNodeCreateBool(usbNode, "Run", true);
+	sshsNodeCreateShort(usbNode, "EarlyPacketDelay", 8); // 125µs time-slices, so 1ms
+	sshsNodeCreateInt(usbNode, "BufferNumber", 8);
+	sshsNodeCreateInt(usbNode, "BufferSize", 8192);
 	// Packet settings (size (in events) and time interval (in µs)).
-	sshsNodePutIntIfAbsent(sysNode, "PacketContainerMaxPacketSize", 8192);
-	sshsNodePutIntIfAbsent(sysNode, "PacketContainerInterval", 10000);
+	sshsNodeCreateInt(sysNode, "PacketContainerMaxPacketSize", 8192);
+	sshsNodeCreateInt(sysNode, "PacketContainerInterval", 10000);
 	// Ring-buffer setting (only changes value on module init/shutdown cycles).
-	sshsNodePutIntIfAbsent(sysNode, "DataExchangeBufferSize", 64);
+	sshsNodeCreateInt(sysNode, "DataExchangeBufferSize", 64);
 	// send it
 	sendDefaultConfiguration(moduleData, &dynapse_info);
 

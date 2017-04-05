@@ -50,12 +50,12 @@ static bool caerInputDVS128Init(caerModuleData moduleData) {
 
 	// USB port/bus/SN settings/restrictions.
 	// These can be used to force connection to one specific device at startup.
-	sshsNodePutShortIfAbsent(moduleData->moduleNode, "busNumber", 0);
-	sshsNodePutShortIfAbsent(moduleData->moduleNode, "devAddress", 0);
-	sshsNodePutStringIfAbsent(moduleData->moduleNode, "serialNumber", "");
+	sshsNodeCreateShort(moduleData->moduleNode, "busNumber", 0, 0, INT16_MAX, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateShort(moduleData->moduleNode, "devAddress", 0, 0, INT16_MAX, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateString(moduleData->moduleNode, "serialNumber", "", 0, 8, SSHS_FLAGS_NORMAL);
 
 	// Add auto-restart setting.
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "autoRestart", true);
+	sshsNodeCreateBool(moduleData->moduleNode, "autoRestart", true, SSHS_FLAGS_NORMAL);
 
 	// Start data acquisition, and correctly notify mainloop of new data and module of exceptional
 	// shutdown cases (device pulled, ...).
@@ -206,38 +206,38 @@ static void createDefaultConfiguration(caerModuleData moduleData) {
 
 	// Set default biases, from DVS128Fast.xml settings.
 	sshsNode biasNode = sshsGetRelativeNode(moduleData->moduleNode, "bias/");
-	sshsNodePutIntIfAbsent(biasNode, "cas", 1992);
-	sshsNodePutIntIfAbsent(biasNode, "injGnd", 1108364);
-	sshsNodePutIntIfAbsent(biasNode, "reqPd", 16777215);
-	sshsNodePutIntIfAbsent(biasNode, "puX", 8159221);
-	sshsNodePutIntIfAbsent(biasNode, "diffOff", 132);
-	sshsNodePutIntIfAbsent(biasNode, "req", 309590);
-	sshsNodePutIntIfAbsent(biasNode, "refr", 969);
-	sshsNodePutIntIfAbsent(biasNode, "puY", 16777215);
-	sshsNodePutIntIfAbsent(biasNode, "diffOn", 209996);
-	sshsNodePutIntIfAbsent(biasNode, "diff", 13125);
-	sshsNodePutIntIfAbsent(biasNode, "foll", 271);
-	sshsNodePutIntIfAbsent(biasNode, "pr", 217);
+	sshsNodeCreateInt(biasNode, "cas", 1992, 0, (0x01 << 24) - 1, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateInt(biasNode, "injGnd", 1108364, 0, (0x01 << 24) - 1, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateInt(biasNode, "reqPd", 16777215, 0, (0x01 << 24) - 1, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateInt(biasNode, "puX", 8159221, 0, (0x01 << 24) - 1, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateInt(biasNode, "diffOff", 132, 0, (0x01 << 24) - 1, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateInt(biasNode, "req", 309590, 0, (0x01 << 24) - 1, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateInt(biasNode, "refr", 969, 0, (0x01 << 24) - 1, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateInt(biasNode, "puY", 16777215, 0, (0x01 << 24) - 1, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateInt(biasNode, "diffOn", 209996, 0, (0x01 << 24) - 1, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateInt(biasNode, "diff", 13125, 0, (0x01 << 24) - 1, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateInt(biasNode, "foll", 271, 0, (0x01 << 24) - 1, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateInt(biasNode, "pr", 217, 0, (0x01 << 24) - 1, SSHS_FLAGS_NORMAL);
 
 	// DVS settings.
 	sshsNode dvsNode = sshsGetRelativeNode(moduleData->moduleNode, "dvs/");
-	sshsNodePutBoolIfAbsent(dvsNode, "Run", true);
-	sshsNodePutBoolIfAbsent(dvsNode, "TimestampReset", false);
-	sshsNodePutBoolIfAbsent(dvsNode, "ArrayReset", false);
+	sshsNodeCreateBool(dvsNode, "Run", true, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateBool(dvsNode, "TimestampReset", false, SSHS_FLAGS_NOTIFY_ONLY);
+	sshsNodeCreateBool(dvsNode, "ArrayReset", false, SSHS_FLAGS_NOTIFY_ONLY);
 
 	// USB buffer settings.
 	sshsNode usbNode = sshsGetRelativeNode(moduleData->moduleNode, "usb/");
-	sshsNodePutIntIfAbsent(usbNode, "BufferNumber", 8);
-	sshsNodePutIntIfAbsent(usbNode, "BufferSize", 4096);
+	sshsNodeCreateInt(usbNode, "BufferNumber", 8, 2, 128, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateInt(usbNode, "BufferSize", 4096, 512, 32768, SSHS_FLAGS_NORMAL);
 
 	sshsNode sysNode = sshsGetRelativeNode(moduleData->moduleNode, "system/");
 
 	// Packet settings (size (in events) and time interval (in µs)).
-	sshsNodePutIntIfAbsent(sysNode, "PacketContainerMaxPacketSize", 4096);
-	sshsNodePutIntIfAbsent(sysNode, "PacketContainerInterval", 10000);
+	sshsNodeCreateInt(sysNode, "PacketContainerMaxPacketSize", 4096, 1, 10 * 1024 * 1024, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateInt(sysNode, "PacketContainerInterval", 10000, 1, 120 * 1000 * 1000, SSHS_FLAGS_NORMAL);
 
 	// Ring-buffer setting (only changes value on module init/shutdown cycles).
-	sshsNodePutIntIfAbsent(sysNode, "DataExchangeBufferSize", 64);
+	sshsNodeCreateInt(sysNode, "DataExchangeBufferSize", 64, 8, 1024, SSHS_FLAGS_NORMAL);
 }
 
 static void sendDefaultConfiguration(caerModuleData moduleData) {
