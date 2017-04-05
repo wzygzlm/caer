@@ -24,7 +24,7 @@ static void caerMainloopSignalHandler(int signal);
 static void caerMainloopShutdownListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
 
-void caerMainloopRun(struct caer_mainloop_definition (*mainLoops)[], size_t numLoops) {
+void caerMainloopRun(void) {
 	if (numLoops == 0) {
 		// Nothing to start, exit right away.
 		caerLog(CAER_LOG_CRITICAL, "Mainloop",

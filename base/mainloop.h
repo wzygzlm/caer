@@ -37,7 +37,7 @@ struct caer_mainloop_definition {
 	bool (*mlFunction)(void);
 };
 
-void caerMainloopRun(struct caer_mainloop_definition (*mainLoops)[], size_t numLoops);
+void caerMainloopRun(void);
 caerModuleData caerMainloopFindModule(uint16_t moduleID, const char *moduleShortName, enum caer_module_type type);
 void caerMainloopFreeAfterLoop(void (*func)(void *mem), void *memPtr);
 caerMainloopData caerMainloopGetReference(void);
