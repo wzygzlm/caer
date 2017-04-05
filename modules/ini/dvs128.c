@@ -1,36 +1,30 @@
-/*
- * dvs128.c
- *
- *  Created on: Nov 26, 2013
- *      Author: chtekk
- */
-
-#include "dvs128.h"
+#include "main.h"
 #include "base/mainloop.h"
 #include "base/module.h"
 
+#include <libcaer/events/packetContainer.h>
+#include <libcaer/events/special.h>
+#include <libcaer/events/polarity.h>
 #include <libcaer/devices/dvs128.h>
 
 static bool caerInputDVS128Init(caerModuleData moduleData);
-static void caerInputDVS128Run(caerModuleData moduleData, size_t argsNumber, va_list args);
+static void caerInputDVS128Run(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out);
 // CONFIG: Nothing to do here in the main thread!
 // All configuration is asynchronous through SSHS listeners.
 static void caerInputDVS128Exit(caerModuleData moduleData);
 
-static struct caer_module_functions caerInputDVS128Functions = { .moduleInit = &caerInputDVS128Init, .moduleRun =
+static const struct caer_module_functions DVS128Functions = { .moduleInit = &caerInputDVS128Init, .moduleRun =
 	&caerInputDVS128Run, .moduleConfig = NULL, .moduleExit = &caerInputDVS128Exit };
 
-caerEventPacketContainer caerInputDVS128(uint16_t moduleID) {
-	caerModuleData moduleData = caerMainloopFindModule(moduleID, "DVS128", CAER_MODULE_INPUT);
-	if (moduleData == NULL) {
-		return (NULL);
-	}
+static const struct caer_event_stream DVS128Outputs[] = { { .type = SPECIAL_EVENT, .number = 1 }, { .type =
+	POLARITY_EVENT, .number = 1 } };
 
-	caerEventPacketContainer result = NULL;
+static const struct caer_module_info DVS128Info = { .version = 1, .name = "DVS128", .type = CAER_MODULE_INPUT,
+	.memSize = 0, .functions = &DVS128Functions, .inputStreams = NULL, .inputStreamsSize = 0, .outputStreams =
+		DVS128Outputs, .outputStreamsSize = CAER_EVENT_STREAM_SIZE(DVS128Outputs), };
 
-	caerModuleSM(&caerInputDVS128Functions, moduleData, 0, 1, &result);
-
-	return (result);
+caerModuleInfo caerModuleGetInfo(void) {
+	return (&DVS128Info);
 }
 
 static void createDefaultConfiguration(caerModuleData moduleData);
@@ -180,23 +174,19 @@ static void caerInputDVS128Exit(caerModuleData moduleData) {
 	}
 }
 
-static void caerInputDVS128Run(caerModuleData moduleData, size_t argsNumber, va_list args) {
-	UNUSED_ARGUMENT(argsNumber);
+static void caerInputDVS128Run(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out) {
+	UNUSED_ARGUMENT(in);
 
-	// Interpret variable arguments (same as above in main function).
-	caerEventPacketContainer *container = va_arg(args, caerEventPacketContainer *);
+	*out = caerDeviceDataGet(moduleData->moduleState);
 
-	*container = caerDeviceDataGet(moduleData->moduleState);
-
-	if (*container != NULL) {
-		caerMainloopFreeAfterLoop((void (*)(void *)) &caerEventPacketContainerFree, *container);
+	if (*out != NULL) {
+		caerMainloopFreeAfterLoop((void (*)(void *)) &caerEventPacketContainerFree, *out);
 
 		sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
-		sshsNodePutLong(sourceInfoNode, "highestTimestamp",
-			caerEventPacketContainerGetHighestEventTimestamp(*container));
+		sshsNodePutLong(sourceInfoNode, "highestTimestamp", caerEventPacketContainerGetHighestEventTimestamp(*out));
 
 		// Detect timestamp reset and call all reset functions for processors and outputs.
-		caerEventPacketHeader special = caerEventPacketContainerGetEventPacket(*container, SPECIAL_EVENT);
+		caerEventPacketHeader special = caerEventPacketContainerGetEventPacket(*out, SPECIAL_EVENT);
 
 		if ((special != NULL) && (caerEventPacketHeaderGetEventNumber(special) == 1)
 			&& (caerSpecialEventPacketFindEventByType((caerSpecialEventPacket) special, TIMESTAMP_RESET) != NULL)) {
