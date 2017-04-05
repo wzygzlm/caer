@@ -739,7 +739,7 @@ static void caerVisualizerModuleRun(caerModuleData moduleData, caerEventPacketCo
 static void caerVisualizerModuleExit(caerModuleData moduleData);
 static void caerVisualizerModuleReset(caerModuleData moduleData, uint16_t resetCallSourceID);
 
-static struct caer_module_functions VisualizerFunctions = { .moduleInit = &caerVisualizerModuleInit, .moduleRun =
+static const struct caer_module_functions VisualizerFunctions = { .moduleInit = &caerVisualizerModuleInit, .moduleRun =
 	&caerVisualizerModuleRun, .moduleConfig = NULL, .moduleExit = &caerVisualizerModuleExit, .moduleReset =
 	&caerVisualizerModuleReset };
 

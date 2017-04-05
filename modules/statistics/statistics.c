@@ -9,7 +9,7 @@ static void caerStatisticsRun(caerModuleData moduleData, caerEventPacketContaine
 static void caerStatisticsExit(caerModuleData moduleData);
 static void caerStatisticsReset(caerModuleData moduleData, uint16_t resetCallSourceID);
 
-static struct caer_module_functions StatisticsFunctions = { .moduleInit = &caerStatisticsInit, .moduleRun =
+static const struct caer_module_functions StatisticsFunctions = { .moduleInit = &caerStatisticsInit, .moduleRun =
 	&caerStatisticsRun, .moduleConfig = NULL, .moduleExit = &caerStatisticsExit, .moduleReset = &caerStatisticsReset };
 
 static const struct caer_event_stream StatisticsInputs[] = { { .type = -1, .number = 1 } };

@@ -27,7 +27,7 @@ static void caerCameraCalibrationConfig(caerModuleData moduleData);
 static void caerCameraCalibrationExit(caerModuleData moduleData);
 static void updateSettings(caerModuleData moduleData);
 
-static struct caer_module_functions CameraCalibrationFunctions = { .moduleInit = &caerCameraCalibrationInit,
+static const struct caer_module_functions CameraCalibrationFunctions = { .moduleInit = &caerCameraCalibrationInit,
 	.moduleRun = &caerCameraCalibrationRun, .moduleConfig = &caerCameraCalibrationConfig, .moduleExit =
 		&caerCameraCalibrationExit };
 
