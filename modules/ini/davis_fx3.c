@@ -1,5 +1,4 @@
 #include "davis_common.h"
-#include "davis_fx3.h"
 
 static bool caerInputDAVISFX3Init(caerModuleData moduleData);
 // RUN: common to all DAVIS systems.
@@ -7,20 +6,19 @@ static bool caerInputDAVISFX3Init(caerModuleData moduleData);
 // All configuration is asynchronous through SSHS listeners.
 // EXIT: common to all DAVIS systems.
 
-static struct caer_module_functions caerInputDAVISFX3Functions = { .moduleInit = &caerInputDAVISFX3Init, .moduleRun =
+static const struct caer_module_functions DAVISFX3Functions = { .moduleInit = &caerInputDAVISFX3Init, .moduleRun =
 	&caerInputDAVISRun, .moduleConfig = NULL, .moduleExit = &caerInputDAVISExit };
 
-caerEventPacketContainer caerInputDAVISFX3(uint16_t moduleID) {
-	caerModuleData moduleData = caerMainloopFindModule(moduleID, "DAVISFX3", CAER_MODULE_INPUT);
-	if (moduleData == NULL) {
-		return (NULL);
-	}
+static const struct caer_event_stream DAVISFX3Outputs[] = { { .type = SPECIAL_EVENT, .number = 1 }, { .type =
+	POLARITY_EVENT, .number = 1 }, { .type = FRAME_EVENT, .number = 1 }, { .type = IMU6_EVENT, .number = 1 }, { .type =
+	SAMPLE_EVENT, .number = 1 } };
 
-	caerEventPacketContainer result = NULL;
+static const struct caer_module_info DAVISFX3Info = { .version = 1, .name = "DAVISFX3", .type = CAER_MODULE_INPUT,
+	.memSize = 0, .functions = &DAVISFX3Functions, .inputStreams = NULL, .inputStreamsSize = 0, .outputStreams =
+		DAVISFX3Outputs, .outputStreamsSize = CAER_EVENT_STREAM_SIZE(DAVISFX3Outputs), };
 
-	caerModuleSM(&caerInputDAVISFX3Functions, moduleData, 0, 1, &result);
-
-	return (result);
+caerModuleInfo caerModuleGetInfo(void) {
+	return (&DAVISFX3Info);
 }
 
 static bool caerInputDAVISFX3Init(caerModuleData moduleData) {
