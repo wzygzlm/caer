@@ -14,7 +14,7 @@ ENDIF()
 PROJECT(cAER C CXX)
 SET(PROJECT_VERSION_MAJOR 0)
 SET(PROJECT_VERSION_MINOR 9)
-SET(PROJECT_VERSION_PATCH 12)
+SET(PROJECT_VERSION_PATCH 20)
 SET(PROJECT_VERSION_NOREV ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH})
 IF (NOT PROJECT_REVISION)
 	# EXECUTE_PROCESS(COMMAND svnversion OUTPUT_VARIABLE PROJECT_REVISION OUTPUT_STRIP_TRAILING_WHITESPACE)
@@ -144,27 +144,35 @@ ENDIF()
 
 # Enable all warnings for GCC / Clang
 IF (CC_GCC OR CC_CLANG)
-	SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -pedantic -Wall -Wextra")
-	SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pedantic -Wall -Wextra")
+	SET(WARN_COMMON_FLAGS "-pedantic -Wall -Wextra")
+	SET(WARN_C_FLAGS "")
+	SET(WARN_CXX_FLAGS "")
 
 	IF (CC_GCC)
-		# Enable all useful warnings manually in GCC.
-		SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wunused -Wundef -Wformat=2 -Winit-self -Wuninitialized")
-		SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wpointer-arith -Wcast-qual -Wcast-align -Wwrite-strings")
-		SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wstrict-prototypes -Wmissing-prototypes -Wredundant-decls")
-		SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wmissing-declarations -Wnested-externs -Wstack-protector")
-		SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wshadow -Wbad-function-cast")
-		SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wconversion -Wstrict-overflow=2")
-		SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wjump-misses-init -Wunsuffixed-float-constants -Wdouble-promotion")
+		# Enable all useful warnings in GCC one-by-one.
+		SET(WARN_COMMON_FLAGS "${WARN_COMMON_FLAGS} -Wunused -Wundef -Wformat=2 -Winit-self -Wuninitialized")
+		SET(WARN_COMMON_FLAGS "${WARN_COMMON_FLAGS} -Wpointer-arith -Wcast-qual -Wcast-align -Wwrite-strings")
+		SET(WARN_COMMON_FLAGS "${WARN_COMMON_FLAGS} -Wredundant-decls -Wmissing-declarations -Wstack-protector")
+		SET(WARN_COMMON_FLAGS "${WARN_COMMON_FLAGS} -Wshadow -Wfloat-equal -Wconversion -Wstrict-overflow=5")
+		SET(WARN_COMMON_FLAGS "${WARN_COMMON_FLAGS} -Wdouble-promotion")
+
+		SET(WARN_C_FLAGS "${WARN_C_FLAGS} -Wstrict-prototypes -Wmissing-prototypes -Wnested-externs")
+		SET(WARN_C_FLAGS "${WARN_C_FLAGS} -Wbad-function-cast -Wjump-misses-init -Wunsuffixed-float-constants")
 	ENDIF()
 
 	IF (CC_CLANG)
-		# Enable all warnings in Clang easily.
-		SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Weverything -Wno-packed -Wno-padded -Wno-unreachable-code-break")
-		SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-disabled-macro-expansion -Wno-reserved-id-macro -Wno-vla")
-		SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-parentheses-equality -Wno-covered-switch-default")
-		SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-used-but-marked-unused -Wno-cast-align -Wno-float-equal")
+		# Enable all warnings in Clang, then turn off useless ones.
+		SET(WARN_COMMON_FLAGS "${WARN_COMMON_FLAGS} -Weverything -Wno-packed -Wno-padded -Wno-unreachable-code-break")
+		SET(WARN_COMMON_FLAGS "${WARN_COMMON_FLAGS} -Wno-disabled-macro-expansion -Wno-reserved-id-macro -Wno-vla")
+		SET(WARN_COMMON_FLAGS "${WARN_COMMON_FLAGS} -Wno-parentheses-equality -Wno-covered-switch-default")
+		SET(WARN_COMMON_FLAGS "${WARN_COMMON_FLAGS} -Wno-used-but-marked-unused -Wno-cast-align")
+
+		SET(WARN_CXX_FLAGS "${WARN_CXX_FLAGS} -Wno-c++98-compat -Wno-c++98-compat-pedantic -Wno-old-style-cast")
 	ENDIF()
+
+	# Apply all flags.
+	SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${WARN_COMMON_FLAGS} ${WARN_C_FLAGS}")
+	SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${WARN_COMMON_FLAGS} ${WARN_CXX_FLAGS}")
 ENDIF()
 
 # Search for external libraries with pkg-config.
@@ -185,20 +193,8 @@ SET(CAER_C_SRC_FILES "")
 SET(CAER_CXX_LIBS "")
 SET(CAER_CXX_SRC_FILES "")
 
-SET(CAER_COMPILE_DEFINITIONS "")
-
-# Add all files and libraries needed, all modules etc.
-ADD_SUBDIRECTORY(base)
-ADD_SUBDIRECTORY(ext)
-ADD_SUBDIRECTORY(modules)
-
-# Add local directory to include and library paths
-SET(CAER_INCDIRS ${CAER_INCDIRS} ${CMAKE_SOURCE_DIR}/)
-SET(CAER_LIBDIRS ${CAER_LIBDIRS} ${CMAKE_SOURCE_DIR}/)
-
-INCLUDE_DIRECTORIES(${CAER_INCDIRS})
-LINK_DIRECTORIES(${CAER_LIBDIRS})
-ADD_DEFINITIONS(${CAER_COMPILE_DEFINITIONS})
+# Threads support
+SET(CAER_C_LIBS ${CAER_C_LIBS} ${CMAKE_THREAD_LIBS_INIT})
 
 # Set full RPATH
 SET(CMAKE_INSTALL_RPATH ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR})
@@ -210,6 +206,9 @@ ENDIF()
 IF (OS_UNIX AND NOT OS_MACOSX)
 	# Add --as-needed to linker flags for executables.
 	SET(CMAKE_EXE_LINKER_FLAGS "-Wl,--as-needed")
+
+	# Add --as-needed to linker flags for libraries.
+	SET(CMAKE_SHARED_LINKER_FLAGS "-Wl,--as-needed")
 ENDIF()
 
 # Add math support
@@ -230,11 +229,24 @@ IF (USE_TCMALLOC)
 	SET(CAER_C_LIBS ${CAER_C_LIBS} ${LIBTCMALLOC_LIBRARIES})
 ENDIF()
 
+# Add local directory to include and library paths
+SET(CAER_INCDIRS ${CAER_INCDIRS} ${CMAKE_SOURCE_DIR}/)
+SET(CAER_LIBDIRS ${CAER_LIBDIRS} ${CMAKE_SOURCE_DIR}/)
+
+INCLUDE_DIRECTORIES(${CAER_INCDIRS})
+LINK_DIRECTORIES(${CAER_LIBDIRS})
+
+# Add all source files and libraries.
+ADD_SUBDIRECTORY(base)
+ADD_SUBDIRECTORY(ext)
+ADD_SUBDIRECTORY(modules)
+
+# Compile main caer executable.
 ADD_EXECUTABLE(caer-bin ${CAER_C_SRC_FILES} ${CAER_CXX_SRC_FILES} main.c)
-TARGET_LINK_LIBRARIES(caer-bin ${CMAKE_THREAD_LIBS_INIT} ${CAER_C_LIBS} ${CAER_CXX_LIBS})
+TARGET_LINK_LIBRARIES(caer-bin ${CAER_C_LIBS} ${CAER_CXX_LIBS})
 INSTALL(TARGETS caer-bin DESTINATION ${CMAKE_INSTALL_BINDIR})
 
-# Compile extra utitilies
+# Compile extra utitilies.
 ADD_SUBDIRECTORY(utils)
 
 # Print info summary for debug purposes
