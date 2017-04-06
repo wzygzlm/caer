@@ -306,8 +306,7 @@ void caerInputDAVISRun(caerModuleData moduleData, caerEventPacketContainer in, c
 		caerMainloopFreeAfterLoop((void (*)(void *)) &caerEventPacketContainerFree, *out);
 
 		sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
-		sshsNodePutLong(sourceInfoNode, "highestTimestamp",
-			caerEventPacketContainerGetHighestEventTimestamp(*out));
+		sshsNodePutLong(sourceInfoNode, "highestTimestamp", caerEventPacketContainerGetHighestEventTimestamp(*out));
 
 		// Detect timestamp reset and call all reset functions for processors and outputs.
 		caerEventPacketHeader special = caerEventPacketContainerGetEventPacket(*out, SPECIAL_EVENT);
@@ -578,14 +577,17 @@ static void createDefaultConfiguration(caerModuleData moduleData, struct caer_da
 	sshsNodeCreateShort(apsNode, "EndRow0", I16T(devInfo->apsSizeY - 1), 0, devInfo->apsSizeY, SSHS_FLAGS_NORMAL);
 	sshsNodeCreateInt(apsNode, "Exposure", 4000, 0, (0x01 << 20) - 1, SSHS_FLAGS_NORMAL); // in µs
 	sshsNodeCreateInt(apsNode, "FrameDelay", 1000, 0, (0x01 << 20) - 1, SSHS_FLAGS_NORMAL); // in µs
-	sshsNodeCreateShort(apsNode, "RowSettle", (devInfo->adcClock / 3), 0, devInfo->adcClock * 2, SSHS_FLAGS_NORMAL); // in cycles
+	sshsNodeCreateShort(apsNode, "RowSettle", (devInfo->adcClock / 3), 0, I16T(devInfo->adcClock * 2),
+		SSHS_FLAGS_NORMAL); // in cycles
 	sshsNodeCreateBool(apsNode, "TakeSnapShot", false, SSHS_FLAGS_NOTIFY_ONLY);
 
 	// Not supported on DAVIS RGB.
 	if (!IS_DAVISRGB(devInfo->chipID)) {
-		sshsNodeCreateShort(apsNode, "ResetSettle", (devInfo->adcClock / 3), 0, devInfo->adcClock * 4, SSHS_FLAGS_NORMAL); // in cycles
-		sshsNodeCreateShort(apsNode, "ColumnSettle", devInfo->adcClock, 0, devInfo->adcClock * 4, SSHS_FLAGS_NORMAL); // in cycles
-		sshsNodeCreateShort(apsNode, "NullSettle", (devInfo->adcClock / 10), 0, devInfo->adcClock * 1, SSHS_FLAGS_NORMAL); // in cycles
+		sshsNodeCreateShort(apsNode, "ResetSettle", (devInfo->adcClock / 3), 0, I16T(devInfo->adcClock * 4),
+			SSHS_FLAGS_NORMAL); // in cycles
+		sshsNodeCreateShort(apsNode, "ColumnSettle", devInfo->adcClock, 0, I16T(devInfo->adcClock * 4),
+			SSHS_FLAGS_NORMAL); // in cycles
+		sshsNodeCreateShort(apsNode, "NullSettle", (devInfo->adcClock / 10), 0, devInfo->adcClock, SSHS_FLAGS_NORMAL); // in cycles
 	}
 
 	if (devInfo->apsHasQuadROI) {
@@ -606,20 +608,22 @@ static void createDefaultConfiguration(caerModuleData moduleData, struct caer_da
 	if (devInfo->apsHasInternalADC) {
 		sshsNodeCreateBool(apsNode, "UseInternalADC", true, SSHS_FLAGS_NORMAL);
 		sshsNodeCreateBool(apsNode, "SampleEnable", true, SSHS_FLAGS_NORMAL);
-		sshsNodeCreateShort(apsNode, "SampleSettle", devInfo->adcClock); // in cycles
-		sshsNodeCreateShort(apsNode, "RampReset", (devInfo->adcClock / 3)); // in cycles
+		sshsNodeCreateShort(apsNode, "SampleSettle", devInfo->adcClock, 0, I16T(devInfo->adcClock * 8),
+			SSHS_FLAGS_NORMAL); // in cycles
+		sshsNodeCreateShort(apsNode, "RampReset", (devInfo->adcClock / 3), 0, I16T(devInfo->adcClock * 8),
+			SSHS_FLAGS_NORMAL); // in cycles
 		sshsNodeCreateBool(apsNode, "RampShortReset", false, SSHS_FLAGS_NORMAL);
 		sshsNodeCreateBool(apsNode, "ADCTestMode", false, SSHS_FLAGS_NORMAL);
 	}
 
 	// DAVIS RGB has additional timing counters.
 	if (IS_DAVISRGB(devInfo->chipID)) {
-		sshsNodeCreateShort(apsNode, "TransferTime", 1500); // in cycles
-		sshsNodeCreateShort(apsNode, "RSFDSettleTime", 1000); // in cycles
-		sshsNodeCreateShort(apsNode, "GSPDResetTime", 1000); // in cycles
-		sshsNodeCreateShort(apsNode, "GSResetFallTime", 1000); // in cycles
-		sshsNodeCreateShort(apsNode, "GSTXFallTime", 1000); // in cycles
-		sshsNodeCreateShort(apsNode, "GSFDResetTime", 1000); // in cycles
+		sshsNodeCreateShort(apsNode, "TransferTime", 1500, 0, I16T(devInfo->adcClock * 2048), SSHS_FLAGS_NORMAL); // in cycles
+		sshsNodeCreateShort(apsNode, "RSFDSettleTime", 1000, 0, I16T(devInfo->adcClock * 128), SSHS_FLAGS_NORMAL); // in cycles
+		sshsNodeCreateShort(apsNode, "GSPDResetTime", 1000, 0, I16T(devInfo->adcClock * 128), SSHS_FLAGS_NORMAL); // in cycles
+		sshsNodeCreateShort(apsNode, "GSResetFallTime", 1000, 0, I16T(devInfo->adcClock * 128), SSHS_FLAGS_NORMAL); // in cycles
+		sshsNodeCreateShort(apsNode, "GSTXFallTime", 1000, 0, I16T(devInfo->adcClock * 128), SSHS_FLAGS_NORMAL); // in cycles
+		sshsNodeCreateShort(apsNode, "GSFDResetTime", 1000, 0, I16T(devInfo->adcClock * 128), SSHS_FLAGS_NORMAL); // in cycles
 	}
 
 	// Subsystem 3: IMU
@@ -634,11 +638,11 @@ static void createDefaultConfiguration(caerModuleData moduleData, struct caer_da
 	sshsNodeCreateBool(imuNode, "GyroYStandby", false, SSHS_FLAGS_NORMAL);
 	sshsNodeCreateBool(imuNode, "GyroZStandby", false, SSHS_FLAGS_NORMAL);
 	sshsNodeCreateBool(imuNode, "LowPowerCycle", false, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateByte(imuNode, "LowPowerWakeupFrequency", 1);
-	sshsNodeCreateShort(imuNode, "SampleRateDivider", 0);
-	sshsNodeCreateByte(imuNode, "DigitalLowPassFilter", 1);
-	sshsNodeCreateByte(imuNode, "AccelFullScale", 1);
-	sshsNodeCreateByte(imuNode, "GyroFullScale", 1);
+	sshsNodeCreateByte(imuNode, "LowPowerWakeupFrequency", 1, 0, 3, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateShort(imuNode, "SampleRateDivider", 0, 0, 255, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateByte(imuNode, "DigitalLowPassFilter", 1, 0, 7, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateByte(imuNode, "AccelFullScale", 1, 0, 3, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateByte(imuNode, "GyroFullScale", 1, 0, 3, SSHS_FLAGS_NORMAL);
 
 	// Subsystem 4: External Input
 	sshsNode extNode = sshsGetRelativeNode(deviceConfigNode, "externalInput/");
