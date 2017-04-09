@@ -10,11 +10,6 @@
 
 #include "main.h"
 #include "module.h"
-#include "ext/uthash/utarray.h"
-
-#ifdef HAVE_PTHREADS
-	#include "ext/c11threads_posix.h"
-#endif
 
 struct caer_mainloop_data {
 	sshsNode mainloopNode;

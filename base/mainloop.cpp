@@ -6,7 +6,7 @@
  */
 
 #include "mainloop.h"
-#include <signal.h>
+#include <csignal>
 #include <unistd.h>
 
 static caerMainloopData glMainloopData = NULL;
@@ -70,7 +70,7 @@ void caerMainloopRun(void) {
 #endif
 
 	// Allocate memory for the main-loop.
-	glMainloopData = calloc(1, sizeof(struct caer_mainloop_data));
+	glMainloopData = (caerMainloopData) calloc(1, sizeof(struct caer_mainloop_data));
 	if (glMainloopData == NULL) {
 		caerLog(CAER_LOG_EMERGENCY, "Mainloop", "Failed to allocate memory for the main-loop. Error: %d.", errno);
 		exit(EXIT_FAILURE);

@@ -12,12 +12,11 @@
 
 #ifdef __cplusplus
 
-#include <cstdarg>
-#include <cstdatomic>
+#include <atomic>
+using namespace std;
 
 #else
 
-#include <stdarg.h>
 #include <stdatomic.h>
 
 #endif
