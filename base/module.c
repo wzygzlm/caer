@@ -12,16 +12,8 @@ static void caerModuleShutdownListener(sshsNode node, void *userData, enum sshs_
 static void caerModuleLogLevelListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
 
-void caerModuleSM(caerModuleFunctions moduleFunctions, caerModuleData moduleData, size_t memSize, size_t argsNumber,
-	...) {
-	va_list args;
-	va_start(args, argsNumber);
-	caerModuleSMv(moduleFunctions, moduleData, memSize, argsNumber, args);
-	va_end(args);
-}
-
-void caerModuleSMv(caerModuleFunctions moduleFunctions, caerModuleData moduleData, size_t memSize, size_t argsNumber,
-	va_list args) {
+void caerModuleSM(caerModuleFunctions moduleFunctions, caerModuleData moduleData, size_t memSize,
+	caerEventPacketContainer in, caerEventPacketContainer *out) {
 	bool running = atomic_load_explicit(&moduleData->running, memory_order_relaxed);
 
 	if (moduleData->moduleStatus == CAER_MODULE_RUNNING && running) {
@@ -33,7 +25,8 @@ void caerModuleSMv(caerModuleFunctions moduleFunctions, caerModuleData moduleDat
 		}
 
 		if (moduleFunctions->moduleRun != NULL) {
-			moduleFunctions->moduleRun(moduleData, argsNumber, args);
+			*out = NULL;
+			moduleFunctions->moduleRun(moduleData, in, out);
 		}
 
 		if (atomic_load_explicit(&moduleData->doReset, memory_order_relaxed) != 0) {
