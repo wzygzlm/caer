@@ -17,9 +17,6 @@
 #endif
 
 struct caer_mainloop_data {
-	thrd_t mainloop;
-	uint16_t mainloopID;
-	bool (*mainloopFunction)(void);
 	sshsNode mainloopNode;
 	atomic_bool running;
 	atomic_uint_fast32_t dataAvailable;
@@ -31,11 +28,6 @@ struct caer_mainloop_data {
 };
 
 typedef struct caer_mainloop_data *caerMainloopData;
-
-struct caer_mainloop_definition {
-	uint16_t mlID;
-	bool (*mlFunction)(void);
-};
 
 void caerMainloopRun(void);
 caerModuleData caerMainloopFindModule(uint16_t moduleID, const char *moduleShortName, enum caer_module_type type);

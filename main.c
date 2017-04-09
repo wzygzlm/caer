@@ -20,7 +20,6 @@
 #include "base/misc.h"
 
 int main(int argc, char **argv) {
-
 	// Set thread name.
 	thrd_set_name("Main");
 
@@ -42,7 +41,7 @@ int main(int argc, char **argv) {
 	// Start the configuration server thread for run-time config changes.
 	caerConfigServerStart();
 
-	// Finally run the main event processing loops.
+	// Finally run the main event processing loop.
 	caerMainloopRun();
 
 	// After shutting down the mainloops, also shutdown the config server

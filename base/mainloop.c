@@ -9,29 +9,14 @@
 #include <signal.h>
 #include <unistd.h>
 
-// Main-loop-related definitions.
-static struct {
-	// Set this to false for global program shutdown.
-	atomic_bool running;
-	caerMainloopData loopThreads;
-	size_t loopThreadsLength;
-} mainloopThreads;
+static caerMainloopData glMainloopData = NULL;
 
-static _Thread_local caerMainloopData glMainloopData = NULL;
-
-static int caerMainloopRunner(void *inPtr);
+static int caerMainloopRunner(void);
 static void caerMainloopSignalHandler(int signal);
 static void caerMainloopShutdownListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
 
 void caerMainloopRun(void) {
-	if (numLoops == 0) {
-		// Nothing to start, exit right away.
-		caerLog(CAER_LOG_CRITICAL, "Mainloop",
-			"The number of Mainloops to start is specified at zero: nothing to start!");
-		return;
-	}
-
 	// Install signal handler for global shutdown.
 #if defined(OS_WINDOWS)
 	if (signal(SIGTERM, &caerMainloopSignalHandler) == SIG_ERR) {
@@ -84,106 +69,53 @@ void caerMainloopRun(void) {
 	signal(SIGPIPE, SIG_IGN);
 #endif
 
-	sshsNode rootNode = sshsGetNode(sshsGetGlobal(), "/");
-
-	// Enable main-loops.
-	atomic_store(&mainloopThreads.running, true);
-
-	// Add shutdown hook to SSHS for external control.
-	sshsNodePutBool(rootNode, "running", true); // Always reset to true.
-	sshsNodeAddAttributeListener(rootNode, &mainloopThreads.running, &caerMainloopShutdownListener);
-
-	// Allocate memory for main-loops.
-	mainloopThreads.loopThreadsLength = numLoops;
-	mainloopThreads.loopThreads = calloc(mainloopThreads.loopThreadsLength, sizeof(struct caer_mainloop_data));
-	if (mainloopThreads.loopThreads == NULL) {
-		caerLog(CAER_LOG_EMERGENCY, "Mainloop", "Failed to allocate memory for main-loops. Error: %d.", errno);
+	// Allocate memory for the main-loop.
+	glMainloopData = calloc(1, sizeof(struct caer_mainloop_data));
+	if (glMainloopData == NULL) {
+		caerLog(CAER_LOG_EMERGENCY, "Mainloop", "Failed to allocate memory for the main-loop. Error: %d.", errno);
 		exit(EXIT_FAILURE);
 	}
 
-	// Configure and launch all main-loops.
-	for (size_t i = 0; i < mainloopThreads.loopThreadsLength; i++) {
-		mainloopThreads.loopThreads[i].mainloopID = (*mainLoops)[i].mlID;
-		mainloopThreads.loopThreads[i].mainloopFunction = (*mainLoops)[i].mlFunction;
+	// Configure and launch main-loop.
+	glMainloopData->mainloopNode = sshsGetNode(sshsGetGlobal(), "/");
 
-		// '/', then uint16_t as string -> max. 5 characters, '/': 7 bytes.
-		char mlString[7 + 1]; // +1 for terminating NUL byte.
-		snprintf(mlString, 7, "/%" PRIu16 "/", mainloopThreads.loopThreads[i].mainloopID);
-		mlString[7] = '\0';
+	// Enable this main-loop.
+	atomic_store(&glMainloopData->running, true);
 
-		mainloopThreads.loopThreads[i].mainloopNode = sshsGetNode(sshsGetGlobal(), mlString);
+	// Add per-mainloop shutdown hooks to SSHS for external control.
+	sshsNodeCreateBool(glMainloopData->mainloopNode, "running", true, SSHS_FLAGS_NORMAL); // Always reset to true.
+	sshsNodeAddAttributeListener(glMainloopData->mainloopNode, NULL, &caerMainloopShutdownListener);
 
-		// Enable this main-loop.
-		atomic_store(&mainloopThreads.loopThreads[i].running, true);
-
-		// Add per-mainloop shutdown hooks to SSHS for external control.
-		sshsNodePutBool(mainloopThreads.loopThreads[i].mainloopNode, "running", true); // Always reset to true.
-		sshsNodeAddAttributeListener(mainloopThreads.loopThreads[i].mainloopNode,
-			&mainloopThreads.loopThreads[i].running, &caerMainloopShutdownListener);
-
-		if ((errno = thrd_create(&mainloopThreads.loopThreads[i].mainloop, &caerMainloopRunner,
-			&mainloopThreads.loopThreads[i])) != thrd_success) {
-			caerLog(CAER_LOG_EMERGENCY, sshsNodeGetName(mainloopThreads.loopThreads[i].mainloopNode),
-				"Failed to create main-loop %" PRIu16 " thread. Error: %d.", mainloopThreads.loopThreads[i].mainloopID,
-				errno);
-			// TODO: better cleanup on failure?
-			exit(EXIT_FAILURE);
-		}
-	}
-
-	// Wait for someone to toggle the global shutdown flag.
-	struct timespec oneSecondSleep = { .tv_sec = 1, .tv_nsec = 0 };
-
-	while (atomic_load_explicit(&mainloopThreads.running, memory_order_relaxed)) {
-		thrd_sleep(&oneSecondSleep, NULL);
-	}
-
-	// Notify shutdown to the main-loops ...
-	for (size_t i = 0; i < mainloopThreads.loopThreadsLength; i++) {
-		// Shutdown all loops that are still active.
-		sshsNodePutBool(mainloopThreads.loopThreads[i].mainloopNode, "running", false);
-	}
-
-	// ... and then wait for their clean shutdown.
-	for (size_t i = 0; i < mainloopThreads.loopThreadsLength; i++) {
-		if ((errno = thrd_join(mainloopThreads.loopThreads[i].mainloop, NULL) != thrd_success)) {
-			caerLog(CAER_LOG_EMERGENCY, sshsNodeGetName(mainloopThreads.loopThreads[i].mainloopNode),
-				"Failed to join main-loop %" PRIu16 " thread. Error: %d.", mainloopThreads.loopThreads[i].mainloopID,
-				errno);
-			// TODO: better cleanup on failure?
-			exit(EXIT_FAILURE);
-		}
-	}
+	caerMainloopRunner();
 
 	// Done with everything, free the remaining memory.
-	free(mainloopThreads.loopThreads);
+	free(glMainloopData);
 }
 
 // Only use this inside the mainloop-thread, not inside any other thread,
 // like additional data acquisition threads or output threads.
 caerModuleData caerMainloopFindModule(uint16_t moduleID, const char *moduleShortName, enum caer_module_type type) {
-	caerMainloopData mainloopData = glMainloopData;
 	caerModuleData moduleData;
 
 	// This is only ever called from within modules running in a main-loop.
 	// So always inside the same thread, needing thus no synchronization.
-	HASH_FIND(hh, mainloopData->modules, &moduleID, sizeof(uint16_t), moduleData);
+	HASH_FIND(hh, glMainloopData->modules, &moduleID, sizeof(uint16_t), moduleData);
 
 	if (moduleData == NULL) {
 		// Create module and initialize it. May fail!
-		moduleData = caerModuleInitialize(moduleID, moduleShortName, mainloopData->mainloopNode);
+		moduleData = caerModuleInitialize(moduleID, moduleShortName, glMainloopData->mainloopNode);
 		if (moduleData != NULL) {
-			HASH_ADD(hh, mainloopData->modules, moduleID, sizeof(uint16_t), moduleData);
+			HASH_ADD(hh, glMainloopData->modules, moduleID, sizeof(uint16_t), moduleData);
 
 			// Register with mainloop. Add to appropriate type.
 			if (type == CAER_MODULE_INPUT) {
-				utarray_push_back(mainloopData->inputModules, &moduleData);
+				utarray_push_back(glMainloopData->inputModules, &moduleData);
 			}
 			else if (type == CAER_MODULE_OUTPUT) {
-				utarray_push_back(mainloopData->outputModules, &moduleData);
+				utarray_push_back(glMainloopData->outputModules, &moduleData);
 			}
 			else {
-				utarray_push_back(mainloopData->processorModules, &moduleData);
+				utarray_push_back(glMainloopData->processorModules, &moduleData);
 			}
 		}
 	}
@@ -211,54 +143,39 @@ struct genericFree {
 
 static const UT_icd ut_genericFree_icd = { sizeof(struct genericFree), NULL, NULL, NULL };
 
-static int caerMainloopRunner(void *inPtr) {
-	caerMainloopData mainloopData = inPtr;
-
-	// Set thread name.
-	char threadName[16];
-	snprintf(threadName, 16, "Mainloop-%" PRIu16, mainloopData->mainloopID);
-	thrd_set_name(threadName);
-
-	// Set global reference to main-loop memory for this thread (for modules).
-	glMainloopData = mainloopData;
-
+static int caerMainloopRunner(void) {
 	// Enable memory recycling.
-	utarray_new(mainloopData->memoryToFree, &ut_genericFree_icd);
+	utarray_new(glMainloopData->memoryToFree, &ut_genericFree_icd);
 
 	// Store references to all active modules, separated by type.
-	utarray_new(mainloopData->inputModules, &ut_ptr_icd);
-	utarray_new(mainloopData->outputModules, &ut_ptr_icd);
-	utarray_new(mainloopData->processorModules, &ut_ptr_icd);
+	utarray_new(glMainloopData->inputModules, &ut_ptr_icd);
+	utarray_new(glMainloopData->outputModules, &ut_ptr_icd);
+	utarray_new(glMainloopData->processorModules, &ut_ptr_icd);
+
+	// TODO: init modules.
 
 	// If no data is available, sleep for a millisecond to avoid wasting resources.
 	struct timespec noDataSleep = { .tv_sec = 0, .tv_nsec = 1000000 };
-
-	// Make sure to call loop at least once to ensure initialization of data
-	// producers, else dataAvailable will never be > 0.
-	(*mainloopData->mainloopFunction)();
 
 	// Wait for someone to toggle the module shutdown flag OR for the loop
 	// itself to signal termination.
 	size_t sleepCount = 0;
 
-	while (atomic_load_explicit(&mainloopData->running, memory_order_relaxed)) {
+	while (atomic_load_explicit(&glMainloopData->running, memory_order_relaxed)) {
 		// Run only if data available to consume, else sleep. But make a run
 		// anyway each second, to detect new devices for example.
-		if (atomic_load_explicit(&mainloopData->dataAvailable, memory_order_acquire) > 0 || sleepCount > 1000) {
+		if (atomic_load_explicit(&glMainloopData->dataAvailable, memory_order_acquire) > 0 || sleepCount > 1000) {
 			sleepCount = 0;
 
-			if (!(*mainloopData->mainloopFunction)()) {
-				// Returning false from the main-loop: shutdown!
-				break;
-			}
+			// TODO: execute modules.
 
 			// After each successful main-loop run, free the memory that was
 			// accumulated for things like packets, valid only during the run.
 			struct genericFree *memFree = NULL;
-			while ((memFree = (struct genericFree *) utarray_next(mainloopData->memoryToFree, memFree)) != NULL) {
+			while ((memFree = (struct genericFree *) utarray_next(glMainloopData->memoryToFree, memFree)) != NULL) {
 				memFree->func(memFree->memPtr);
 			}
-			utarray_clear(mainloopData->memoryToFree);
+			utarray_clear(glMainloopData->memoryToFree);
 		}
 		else {
 			sleepCount++;
@@ -267,34 +184,25 @@ static int caerMainloopRunner(void *inPtr) {
 	}
 
 	// Shutdown all modules.
-	for (caerModuleData m = mainloopData->modules; m != NULL; m = m->hh.next) {
+	for (caerModuleData m = glMainloopData->modules; m != NULL; m = m->hh.next) {
 		sshsNodePutBool(m->moduleNode, "running", false);
 	}
 
 	// Run through the loop one last time to correctly shutdown all the modules.
-	(*mainloopData->mainloopFunction)();
-
-	// Free module memory, allocated in caerMainloopFindModule().
-	caerModuleData module, tmp;
-
-	HASH_ITER(hh, mainloopData->modules, module, tmp)
-	{
-		HASH_DEL(mainloopData->modules, module);
-		caerModuleDestroy(module);
-	}
+	// TODO: exit modules.
 
 	// Do one last memory recycle run.
 	struct genericFree *memFree = NULL;
-	while ((memFree = (struct genericFree *) utarray_next(mainloopData->memoryToFree, memFree)) != NULL) {
+	while ((memFree = (struct genericFree *) utarray_next(glMainloopData->memoryToFree, memFree)) != NULL) {
 		memFree->func(memFree->memPtr);
 	}
 
 	// Clear and free all allocated arrays.
-	utarray_free(mainloopData->memoryToFree);
+	utarray_free(glMainloopData->memoryToFree);
 
-	utarray_free(mainloopData->inputModules);
-	utarray_free(mainloopData->outputModules);
-	utarray_free(mainloopData->processorModules);
+	utarray_free(glMainloopData->inputModules);
+	utarray_free(glMainloopData->outputModules);
+	utarray_free(glMainloopData->processorModules);
 
 	return (EXIT_SUCCESS);
 }
@@ -302,11 +210,9 @@ static int caerMainloopRunner(void *inPtr) {
 // Only use this inside the mainloop-thread, not inside any other thread,
 // like additional data acquisition threads or output threads.
 void caerMainloopFreeAfterLoop(void (*func)(void *mem), void *memPtr) {
-	caerMainloopData mainloopData = glMainloopData;
-
 	struct genericFree memFree = { .func = func, .memPtr = memPtr };
 
-	utarray_push_back(mainloopData->memoryToFree, &memFree);
+	utarray_push_back(glMainloopData->memoryToFree, &memFree);
 }
 
 // Only use this inside the mainloop-thread, not inside any other thread,
@@ -316,17 +222,16 @@ caerMainloopData caerMainloopGetReference(void) {
 }
 
 static inline caerModuleData findSourceModule(uint16_t sourceID) {
-	caerMainloopData mainloopData = glMainloopData;
 	caerModuleData moduleData;
 
 	// This is only ever called from within modules running in a main-loop.
 	// So always inside the same thread, needing thus no synchronization.
-	HASH_FIND(hh, mainloopData->modules, &sourceID, sizeof(uint16_t), moduleData);
+	HASH_FIND(hh, glMainloopData->modules, &sourceID, sizeof(uint16_t), moduleData);
 
 	if (moduleData == NULL) {
 		// This is impossible if used correctly, you can't have a packet with
 		// an event source X and that event source doesn't exist ...
-		caerLog(CAER_LOG_ALERT, sshsNodeGetName(mainloopData->mainloopNode),
+		caerLog(CAER_LOG_ALERT, sshsNodeGetName(glMainloopData->mainloopNode),
 			"Impossible to get module data for source ID %" PRIu16 ".", sourceID);
 		return (NULL);
 	}
@@ -363,28 +268,25 @@ void *caerMainloopGetSourceState(uint16_t sourceID) {
 }
 
 void caerMainloopResetInputs(uint16_t sourceID) {
-	caerMainloopData mainloopData = glMainloopData;
 	caerModuleData *moduleData = NULL;
 
-	while ((moduleData = (caerModuleData *) utarray_next(mainloopData->inputModules, moduleData)) != NULL) {
+	while ((moduleData = (caerModuleData *) utarray_next(glMainloopData->inputModules, moduleData)) != NULL) {
 		atomic_store(&(*moduleData)->doReset, sourceID);
 	}
 }
 
 void caerMainloopResetOutputs(uint16_t sourceID) {
-	caerMainloopData mainloopData = glMainloopData;
 	caerModuleData *moduleData = NULL;
 
-	while ((moduleData = (caerModuleData *) utarray_next(mainloopData->outputModules, moduleData)) != NULL) {
+	while ((moduleData = (caerModuleData *) utarray_next(glMainloopData->outputModules, moduleData)) != NULL) {
 		atomic_store(&(*moduleData)->doReset, sourceID);
 	}
 }
 
 void caerMainloopResetProcessors(uint16_t sourceID) {
-	caerMainloopData mainloopData = glMainloopData;
 	caerModuleData *moduleData = NULL;
 
-	while ((moduleData = (caerModuleData *) utarray_next(mainloopData->processorModules, moduleData)) != NULL) {
+	while ((moduleData = (caerModuleData *) utarray_next(glMainloopData->processorModules, moduleData)) != NULL) {
 		atomic_store(&(*moduleData)->doReset, sourceID);
 	}
 }
@@ -393,18 +295,16 @@ static void caerMainloopSignalHandler(int signal) {
 	UNUSED_ARGUMENT(signal);
 
 	// Simply set the running flag to false on SIGTERM and SIGINT (CTRL+C) for global shutdown.
-	atomic_store(&mainloopThreads.running, false);
+	atomic_store(&glMainloopData->running, false);
 }
 
 static void caerMainloopShutdownListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue) {
 	UNUSED_ARGUMENT(node);
+	UNUSED_ARGUMENT(userData);
 
 	if (event == SSHS_ATTRIBUTE_MODIFIED && changeType == SSHS_BOOL && caerStrEquals(changeKey, "running")) {
-		// Running changed, let's see.
-		if (changeValue.boolean == false) {
-			// Shutdown requested! This goes to the mainloop/system 'running' atomic flags.
-			atomic_store((atomic_bool * ) userData, false);
-		}
+		// Shutdown requested! This goes to the mainloop/system 'running' atomic flags.
+		atomic_store(&glMainloopData->running, changeValue.boolean);
 	}
 }
