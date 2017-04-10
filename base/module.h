@@ -13,7 +13,9 @@
 #ifdef __cplusplus
 
 #include <atomic>
-using namespace std;
+using atomic_bool = std::atomic_bool;
+using atomic_uint_fast8_t = std::atomic_uint_fast8_t;
+using atomic_uint_fast32_t = std::atomic_uint_fast32_t;
 
 #else
 
