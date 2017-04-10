@@ -29,8 +29,6 @@ caerModuleInfo caerModuleGetInfo(void) {
 
 static void createDefaultConfiguration(caerModuleData moduleData);
 static void sendDefaultConfiguration(caerModuleData moduleData);
-static void mainloopDataNotifyIncrease(void *p);
-static void mainloopDataNotifyDecrease(void *p);
 static void moduleShutdownNotify(void *p);
 static void biasConfigSend(sshsNode node, caerModuleData moduleData);
 static void biasConfigListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
@@ -124,8 +122,8 @@ static bool caerInputDVS128Init(caerModuleData moduleData) {
 	sendDefaultConfiguration(moduleData);
 
 	// Start data acquisition.
-	bool ret = caerDeviceDataStart(moduleData->moduleState, &mainloopDataNotifyIncrease, &mainloopDataNotifyDecrease,
-		caerMainloopGetReference(), &moduleShutdownNotify, moduleData->moduleNode);
+	bool ret = caerDeviceDataStart(moduleData->moduleState, &caerMainloopDataNotifyIncrease, &caerMainloopDataNotifyDecrease,
+		NULL, &moduleShutdownNotify, moduleData->moduleNode);
 
 	if (!ret) {
 		// Failed to start data acquisition, close device and exit.
@@ -246,20 +244,6 @@ static void sendDefaultConfiguration(caerModuleData moduleData) {
 	systemConfigSend(sshsGetRelativeNode(moduleData->moduleNode, "system/"), moduleData);
 	usbConfigSend(sshsGetRelativeNode(moduleData->moduleNode, "usb/"), moduleData);
 	dvsConfigSend(sshsGetRelativeNode(moduleData->moduleNode, "dvs/"), moduleData);
-}
-
-static void mainloopDataNotifyIncrease(void *p) {
-	caerMainloopData mainloopData = p;
-
-	atomic_fetch_add_explicit(&mainloopData->dataAvailable, 1, memory_order_release);
-}
-
-static void mainloopDataNotifyDecrease(void *p) {
-	caerMainloopData mainloopData = p;
-
-	// No special memory order for decrease, because the acquire load to even start running
-	// through a mainloop already synchronizes with the release store above.
-	atomic_fetch_sub_explicit(&mainloopData->dataAvailable, 1, memory_order_relaxed);
 }
 
 static void moduleShutdownNotify(void *p) {

@@ -2,8 +2,6 @@
 
 static void createDefaultConfiguration(caerModuleData moduleData, struct caer_davis_info *devInfo);
 static void sendDefaultConfiguration(caerModuleData moduleData, struct caer_davis_info *devInfo);
-static void mainloopDataNotifyIncrease(void *p);
-static void mainloopDataNotifyDecrease(void *p);
 static void moduleShutdownNotify(void *p);
 static void biasConfigSend(sshsNode node, caerModuleData moduleData, struct caer_davis_info *devInfo);
 static void biasConfigListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
@@ -188,8 +186,8 @@ bool caerInputDAVISInit(caerModuleData moduleData, uint16_t deviceType) {
 	sendDefaultConfiguration(moduleData, &devInfo);
 
 	// Start data acquisition.
-	bool ret = caerDeviceDataStart(moduleData->moduleState, &mainloopDataNotifyIncrease, &mainloopDataNotifyDecrease,
-		caerMainloopGetReference(), &moduleShutdownNotify, moduleData->moduleNode);
+	bool ret = caerDeviceDataStart(moduleData->moduleState, &caerMainloopDataNotifyIncrease, &caerMainloopDataNotifyDecrease,
+		NULL, &moduleShutdownNotify, moduleData->moduleNode);
 
 	if (!ret) {
 		// Failed to start data acquisition, close device and exit.
@@ -712,20 +710,6 @@ static void sendDefaultConfiguration(caerModuleData moduleData, struct caer_davi
 	apsConfigSend(sshsGetRelativeNode(deviceConfigNode, "aps/"), moduleData, devInfo);
 	imuConfigSend(sshsGetRelativeNode(deviceConfigNode, "imu/"), moduleData);
 	extInputConfigSend(sshsGetRelativeNode(deviceConfigNode, "externalInput/"), moduleData, devInfo);
-}
-
-static void mainloopDataNotifyIncrease(void *p) {
-	caerMainloopData mainloopData = p;
-
-	atomic_fetch_add_explicit(&mainloopData->dataAvailable, 1, memory_order_release);
-}
-
-static void mainloopDataNotifyDecrease(void *p) {
-	caerMainloopData mainloopData = p;
-
-	// No special memory order for decrease, because the acquire load to even start running
-	// through a mainloop already synchronizes with the release store above.
-	atomic_fetch_sub_explicit(&mainloopData->dataAvailable, 1, memory_order_relaxed);
 }
 
 static void moduleShutdownNotify(void *p) {

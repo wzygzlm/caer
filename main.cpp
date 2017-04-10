@@ -21,7 +21,7 @@
 
 int main(int argc, char **argv) {
 	// Set thread name.
-	thrd_set_name("Main");
+	//thrd_set_name("Main");
 
 	// Initialize config storage from file, support command-line overrides.
 	// If no init from file needed, pass NULL.

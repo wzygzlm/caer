@@ -3,6 +3,10 @@
 
 #include "main.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // Control message format: 1 byte ACTION, 1 byte TYPE, 2 bytes EXTRA_LEN,
 // 2 bytes NODE_LEN, 2 bytes KEY_LEN, 2 bytes VALUE_LEN, then up to 4086
 // bytes split between EXTRA, NODE, KEY, VALUE (with 4 bytes for NUL).
@@ -26,5 +30,9 @@ enum caer_config_actions {
 
 void caerConfigServerStart(void);
 void caerConfigServerStop(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* CONFIG_SERVER_H_ */

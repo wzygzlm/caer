@@ -206,7 +206,7 @@ static int caerConfigServerRunner(void *inPtr) {
 	thrd_set_name("ConfigServer");
 
 	// Get the right configuration node first.
-	sshsNode serverNode = sshsGetNode(sshsGetGlobal(), "/server/");
+	sshsNode serverNode = sshsGetNode(sshsGetGlobal(), "/caer/server/");
 
 	// Ensure default values are present.
 	sshsNodeCreateString(serverNode, "ipAddress", "127.0.0.1", 7, 15, SSHS_FLAGS_NORMAL);

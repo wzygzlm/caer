@@ -14,7 +14,7 @@ static void caerLogLevelListener(sshsNode node, void *userData, enum sshs_node_a
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
 
 void caerLogInit(void) {
-	sshsNode logNode = sshsGetNode(sshsGetGlobal(), "/logger/");
+	sshsNode logNode = sshsGetNode(sshsGetGlobal(), "/caer/logger/");
 
 	// Ensure default log file and value are present.
 	// The default path is a file named caer.log inside the program's CWD.
