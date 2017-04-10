@@ -27,7 +27,8 @@ struct moduleInfo {
 	std::string type;
 	std::string inputDefinition;
 	sshsNode configNode;
-	caerModuleInfo internalInfo;
+	void *libraryHandle;
+	caerModuleInfo libraryInfo;
 };
 
 static struct {
@@ -173,7 +174,7 @@ static int caerMainloopRunner(void) {
 		moduleInfo info = { };
 		info.id = sshsNodeGetShort(module, "moduleId");
 		info.shortName = moduleName;
-		char *moduleType =  sshsNodeGetString(module, "moduleType");
+		char *moduleType = sshsNodeGetString(module, "moduleType");
 		info.type = moduleType;
 		free(moduleType);
 		char *moduleInput = sshsNodeGetString(module, "moduleInput");
@@ -229,9 +230,22 @@ static int caerMainloopRunner(void) {
 		if (moduleLibrary == NULL) {
 			// Failed to load shared library!
 			// TODO: notify.
-			log(logLevel::ERROR, "Mainloop", "Failed to load library '%s', error: '%s'.", modulePath.c_str(), dlerror());
+			log(logLevel::ERROR, "Mainloop", "Failed to load library '%s', error: '%s'.", modulePath.c_str(),
+				dlerror());
 			exit(EXIT_FAILURE);
 		}
+
+		caerModuleInfo (*getInfo)(void) = (caerModuleInfo (*)(void)) dlsym(moduleLibrary, "caerModuleGetInfo");
+		if (getInfo == NULL) {
+			// Failed to find symbol in shared library!
+			// TODO: notify.
+			log(logLevel::ERROR, "Mainloop", "Failed to find symbol in library '%s', error: '%s'.", modulePath.c_str(),
+				dlerror());
+			exit(EXIT_FAILURE);
+		}
+
+		m.second.libraryHandle = moduleLibrary;
+		m.second.libraryInfo = (*getInfo)();
 	}
 
 	// Now we must parse, validate and create the connectivity map between modules.
