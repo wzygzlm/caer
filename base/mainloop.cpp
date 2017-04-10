@@ -17,6 +17,9 @@
 #include <vector>
 #include <boost/filesystem.hpp>
 #include <dlfcn.h>
+#include <iostream>
+#include <libcaercpp/libcaer.hpp>
+using namespace libcaer::log;
 
 struct moduleInfo {
 	int16_t id;
@@ -27,16 +30,12 @@ struct moduleInfo {
 	caerModuleInfo internalInfo;
 };
 
-struct caer_mainloop_data {
+static struct {
 	sshsNode mainloopNode;
 	atomic_bool running;
 	atomic_uint_fast32_t dataAvailable;
 	std::unordered_map<int16_t, moduleInfo> modules;
-};
-
-typedef struct caer_mainloop_data *caerMainloopData;
-
-static caerMainloopData glMainloopData = NULL;
+} glMainloopData;
 
 static std::vector<boost::filesystem::path> modulePaths;
 
@@ -113,9 +112,9 @@ void caerMainloopRun(void) {
 	std::string moduleSearchPath = moduleSearchPathC;
 	free(moduleSearchPathC);
 
-	const std::regex moduleRegex("caer_\\w\\.(so|dll)");
+	const std::regex moduleRegex("\\w+\\.(so|dll)");
 
-	std::for_each(boost::filesystem::recursive_directory_iterator(moduleSearchPathC),
+	std::for_each(boost::filesystem::recursive_directory_iterator(moduleSearchPath),
 		boost::filesystem::recursive_directory_iterator(),
 		[&moduleRegex](const boost::filesystem::directory_entry &e) {
 			if (boost::filesystem::is_regular_file(e.path()) && std::regex_match(e.path().filename().string(), moduleRegex)) {
@@ -125,27 +124,17 @@ void caerMainloopRun(void) {
 
 	std::sort(modulePaths.begin(), modulePaths.end());
 
-	// Allocate memory for the main-loop.
-	glMainloopData = (caerMainloopData) calloc(1, sizeof(struct caer_mainloop_data));
-	if (glMainloopData == NULL) {
-		caerLog(CAER_LOG_EMERGENCY, "Mainloop", "Failed to allocate memory for the main-loop. Error: %d.", errno);
-		exit(EXIT_FAILURE);
-	}
-
 	// Configure and launch main-loop.
-	glMainloopData->mainloopNode = sshsGetNode(sshsGetGlobal(), "/");
+	glMainloopData.mainloopNode = sshsGetNode(sshsGetGlobal(), "/");
 
 	// Mainloop disabled by default
-	atomic_store(&glMainloopData->running, false);
+	atomic_store(&glMainloopData.running, false);
 
 	// Add per-mainloop shutdown hooks to SSHS for external control.
-	sshsNodeCreateBool(glMainloopData->mainloopNode, "running", false, SSHS_FLAGS_NORMAL);
-	sshsNodeAddAttributeListener(glMainloopData->mainloopNode, NULL, &caerMainloopRunningListener);
+	sshsNodeCreateBool(glMainloopData.mainloopNode, "running", false, SSHS_FLAGS_NORMAL);
+	sshsNodeAddAttributeListener(glMainloopData.mainloopNode, NULL, &caerMainloopRunningListener);
 
 	caerMainloopRunner();
-
-	// Done with everything, free the remaining memory.
-	free(glMainloopData);
 }
 
 static int caerMainloopRunner(void) {
@@ -156,10 +145,11 @@ static int caerMainloopRunner(void) {
 	// "moduleType") as attribute, and an attribute that defines connectivity
 	// to other modules (string, "moduleInput").
 	size_t numModules = 0;
-	sshsNode *modules = sshsNodeGetChildren(glMainloopData->mainloopNode, &numModules);
+	sshsNode *modules = sshsNodeGetChildren(glMainloopData.mainloopNode, &numModules);
 	if (modules == NULL || numModules == 0) {
 		// Empty config, notify and wait.
 		// TODO: notify and wait.
+		log(logLevel::ERROR, "Mainloop", "No module configuration found.");
 	}
 
 	for (size_t i = 0; i < numModules; i++) {
@@ -176,34 +166,45 @@ static int caerMainloopRunner(void) {
 			|| !sshsNodeAttributeExists(module, "moduleInput", SSHS_STRING)) {
 			// Missing required attributes, notify and skip.
 			// TODO: notify.
+			log(logLevel::ERROR, "Mainloop", "Missing core attributes.");
 			continue;
 		}
 
 		moduleInfo info = { };
 		info.id = sshsNodeGetShort(module, "moduleId");
 		info.shortName = moduleName;
-		info.type = sshsNodeGetString(module, "moduleType");
-		info.inputDefinition = sshsNodeGetString(module, "moduleInput");
+		char *moduleType =  sshsNodeGetString(module, "moduleType");
+		info.type = moduleType;
+		free(moduleType);
+		char *moduleInput = sshsNodeGetString(module, "moduleInput");
+		info.inputDefinition = moduleInput;
+		free(moduleInput);
 		info.configNode = module;
 
 		// Put data into unordered set that holds all valid modules.
 		// This also ensure the numerical ID is unique!
-		auto result = glMainloopData->modules.insert(std::make_pair(info.id, info));
+		auto result = glMainloopData.modules.insert(std::make_pair(info.id, info));
 		if (!result.second) {
 			// Failed insertion, key (ID) already exists!
 			// TODO: notify.
+			log(logLevel::ERROR, "Mainloop", "ID already exists.");
 			continue;
 		}
 	}
 
 	// At this point we have a map with all the valid modules and their info.
 	// If that map is empty, there was nothing valid...
-	if (glMainloopData->modules.empty()) {
+	if (glMainloopData.modules.empty()) {
 		// TODO: notify.
+		log(logLevel::ERROR, "Mainloop", "No modules.");
+		return (EXIT_FAILURE);
+	}
+	else {
+		log(logLevel::ERROR, "Mainloop", "%d modules found.", glMainloopData.modules.size());
 	}
 
 	// Let's load the modules and get their internal info.
-	for (auto m : glMainloopData->modules) {
+	for (auto m : glMainloopData.modules) {
 		// For each module, we search if a path exists to load it from.
 		// If yes, we do so. The various OS's shared library load mechanisms
 		// will keep track of reference count if same module is loaded
@@ -218,29 +219,33 @@ static int caerMainloopRunner(void) {
 		}
 
 		if (modulePath.empty()) {
+			log(logLevel::ERROR, "Mainloop", "No shared library found for module '%s'.", m.second.type.c_str());
 			continue;
 		}
+
+		log(logLevel::NOTICE, "Mainloop", "Loading module library '%s'.", modulePath.c_str());
 
 		void *moduleLibrary = dlopen(modulePath.c_str(), RTLD_NOW);
 		if (moduleLibrary == NULL) {
 			// Failed to load shared library!
 			// TODO: notify.
+			log(logLevel::ERROR, "Mainloop", "Failed to load library '%s', error: '%s'.", modulePath.c_str(), dlerror());
 			exit(EXIT_FAILURE);
 		}
 	}
 
 	// Now we must parse, validate and create the connectivity map between modules.
-	for (auto m : glMainloopData->modules) {
+	for (auto m : glMainloopData.modules) {
 
 	}
 
 //	// Enable memory recycling.
-//	utarray_new(glMainloopData->memoryToFree, &ut_genericFree_icd);
+//	utarray_new(glMainloopData.memoryToFree, &ut_genericFree_icd);
 //
 //	// Store references to all active modules, separated by type.
-//	utarray_new(glMainloopData->inputModules, &ut_ptr_icd);
-//	utarray_new(glMainloopData->outputModules, &ut_ptr_icd);
-//	utarray_new(glMainloopData->processorModules, &ut_ptr_icd);
+//	utarray_new(glMainloopData.inputModules, &ut_ptr_icd);
+//	utarray_new(glMainloopData.outputModules, &ut_ptr_icd);
+//	utarray_new(glMainloopData.processorModules, &ut_ptr_icd);
 //
 //	// TODO: init modules.
 //
@@ -251,10 +256,10 @@ static int caerMainloopRunner(void) {
 //	// itself to signal termination.
 //	size_t sleepCount = 0;
 //
-//	while (atomic_load_explicit(&glMainloopData->running, memory_order_relaxed)) {
+//	while (atomic_load_explicit(&glMainloopData.running, memory_order_relaxed)) {
 //		// Run only if data available to consume, else sleep. But make a run
 //		// anyway each second, to detect new devices for example.
-//		if (atomic_load_explicit(&glMainloopData->dataAvailable, memory_order_acquire) > 0 || sleepCount > 1000) {
+//		if (atomic_load_explicit(&glMainloopData.dataAvailable, memory_order_acquire) > 0 || sleepCount > 1000) {
 //			sleepCount = 0;
 //
 //			// TODO: execute modules.
@@ -262,10 +267,10 @@ static int caerMainloopRunner(void) {
 //			// After each successful main-loop run, free the memory that was
 //			// accumulated for things like packets, valid only during the run.
 //			struct genericFree *memFree = NULL;
-//			while ((memFree = (struct genericFree *) utarray_next(glMainloopData->memoryToFree, memFree)) != NULL) {
+//			while ((memFree = (struct genericFree *) utarray_next(glMainloopData.memoryToFree, memFree)) != NULL) {
 //				memFree->func(memFree->memPtr);
 //			}
-//			utarray_clear(glMainloopData->memoryToFree);
+//			utarray_clear(glMainloopData.memoryToFree);
 //		}
 //		else {
 //			sleepCount++;
@@ -274,7 +279,7 @@ static int caerMainloopRunner(void) {
 //	}
 //
 //	// Shutdown all modules.
-//	for (caerModuleData m = glMainloopData->modules; m != NULL; m = m->hh.next) {
+//	for (caerModuleData m = glMainloopData.modules; m != NULL; m = m->hh.next) {
 //		sshsNodePutBool(m->moduleNode, "running", false);
 //	}
 //
@@ -283,16 +288,16 @@ static int caerMainloopRunner(void) {
 //
 //	// Do one last memory recycle run.
 //	struct genericFree *memFree = NULL;
-//	while ((memFree = (struct genericFree *) utarray_next(glMainloopData->memoryToFree, memFree)) != NULL) {
+//	while ((memFree = (struct genericFree *) utarray_next(glMainloopData.memoryToFree, memFree)) != NULL) {
 //		memFree->func(memFree->memPtr);
 //	}
 //
 //	// Clear and free all allocated arrays.
-//	utarray_free(glMainloopData->memoryToFree);
+//	utarray_free(glMainloopData.memoryToFree);
 //
-//	utarray_free(glMainloopData->inputModules);
-//	utarray_free(glMainloopData->outputModules);
-//	utarray_free(glMainloopData->processorModules);
+//	utarray_free(glMainloopData.inputModules);
+//	utarray_free(glMainloopData.outputModules);
+//	utarray_free(glMainloopData.processorModules);
 
 	return (EXIT_SUCCESS);
 }
@@ -304,13 +309,13 @@ void caerMainloopFreeAfterLoop(void (*func)(void *mem), void *memPtr) {
 }
 
 void caerMainloopDataNotifyIncrease(void *p) {
-	glMainloopData->dataAvailable.fetch_add(1, std::memory_order_release);
+	glMainloopData.dataAvailable.fetch_add(1, std::memory_order_release);
 }
 
 void caerMainloopDataNotifyDecrease(void *p) {
 	// No special memory order for decrease, because the acquire load to even start running
 	// through a mainloop already synchronizes with the release store above.
-	glMainloopData->dataAvailable.fetch_sub(1, std::memory_order_relaxed);
+	glMainloopData.dataAvailable.fetch_sub(1, std::memory_order_relaxed);
 }
 
 static inline caerModuleData findSourceModule(uint16_t sourceID) {
@@ -361,7 +366,7 @@ static void caerMainloopSignalHandler(int signal) {
 	UNUSED_ARGUMENT(signal);
 
 	// Simply set the running flag to false on SIGTERM and SIGINT (CTRL+C) for global shutdown.
-	atomic_store(&glMainloopData->running, false);
+	atomic_store(&glMainloopData.running, false);
 }
 
 static void caerMainloopRunningListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
@@ -371,6 +376,6 @@ static void caerMainloopRunningListener(sshsNode node, void *userData, enum sshs
 
 	if (event == SSHS_ATTRIBUTE_MODIFIED && changeType == SSHS_BOOL && caerStrEquals(changeKey, "running")) {
 		// Shutdown requested! This goes to the mainloop/system 'running' atomic flags.
-		atomic_store(&glMainloopData->running, changeValue.boolean);
+		atomic_store(&glMainloopData.running, changeValue.boolean);
 	}
 }
