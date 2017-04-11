@@ -205,14 +205,14 @@ static int caerMainloopRunner(void) {
 	}
 
 	// Let's load the modules and get their internal info.
-	for (auto m : glMainloopData.modules) {
+	for (auto &m : glMainloopData.modules) {
 		// For each module, we search if a path exists to load it from.
 		// If yes, we do so. The various OS's shared library load mechanisms
 		// will keep track of reference count if same module is loaded
 		// multiple times.
 		boost::filesystem::path modulePath;
 
-		for (auto p : modulePaths) {
+		for (auto &p : modulePaths) {
 			if (m.second.type == p.stem().string()) {
 				// Found a module with same name!
 				modulePath = p;
@@ -246,6 +246,12 @@ static int caerMainloopRunner(void) {
 		}
 
 		caerModuleInfo info = (*getInfo)();
+		if (info == NULL) {
+			log(logLevel::ERROR, "Mainloop", "Failed to get info from library '%s', error: '%s'.", modulePath.c_str(),
+				dlerror());
+			dlclose(moduleLibrary);
+			continue;
+		}
 
 		// Check that the modules respect the basic I/O definition requirements.
 		if (info->type == CAER_MODULE_INPUT) {
@@ -281,8 +287,33 @@ static int caerMainloopRunner(void) {
 		m.second.libraryInfo = info;
 	}
 
+	std::vector<moduleInfo> execModules;
+	std::vector<moduleInfo> inputModules;
+	std::vector<moduleInfo> outputModules;
+	std::vector<moduleInfo> processorModules;
+
 	// Now we must parse, validate and create the connectivity map between modules.
-	for (auto m : glMainloopData.modules) {
+	for (auto &m : glMainloopData.modules) {
+		// If the module doesn't have any input definition (from where to take data),
+		// then it must be a module that exclusively creates data, an INPUT module.
+		if (m.second.inputDefinition.empty()) {
+			if (m.second.libraryInfo->type == CAER_MODULE_INPUT) {
+				// Good, is an input module. Add to list of inputs, and add to list
+				// of modules to execute at the top.
+				inputModules.push_back(m.second);
+				execModules.insert(execModules.begin(), m.second);
+			}
+			else {
+				// Error, invalid input definition on INPUT module.
+				log(logLevel::ERROR, "Mainloop",
+					"Invalid moduleInput config for module '%s', module is INPUT but config is not empty.",
+					m.second.shortName);
+				exit(EXIT_FAILURE);
+			}
+		}
+
+		// inputDefinition is not empty, so we're a module that consumes data,
+		// either an OUTPUT or a PROCESSOR.
 
 	}
 
