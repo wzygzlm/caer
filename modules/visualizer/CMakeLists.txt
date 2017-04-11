@@ -46,7 +46,7 @@ IF (ENABLE_VISUALIZER)
 	INCLUDE_DIRECTORIES(${VISUALIZER_INCDIRS})
 	LINK_DIRECTORIES(${VISUALIZER_LIBDIRS})
 
-	SET(VISUALIZER_SRC_FILES visualizer.c visualizer_renderers.c visualizer_handlers.c)
+	SET(VISUALIZER_SRC_FILES visualizer.c visualizer_renderers.c visualizer_handlers.c visualizer_handlers_frame.c)
 
 	ADD_LIBRARY(visualizer SHARED ${VISUALIZER_SRC_FILES})
 

@@ -70,6 +70,8 @@ typedef struct cluster {
 	float distanceToLastEvent_y;
 	float mass;
 	int64_t vFilterTime;
+	bool inBotZone;
+	bool inTopZone;
 } Cluster;
 
 typedef struct clusterList {
@@ -108,6 +110,17 @@ struct RTFilter_state {
 	bool showAllClusters;
 	struct OpenCV* cpp_class;
 	int64_t clusterCounter;
+	bool dontMergeEver;
+	int clusterMassDecayTauUs;
+	int pathLength;
+	float mixingFactor;
+	int peopleIn;
+	int peopleOut;
+	bool disableEvents;
+	int disableArea_small_x;
+	int disableArea_small_y;
+	int disableArea_big_x;
+	int disableArea_big_y;
 };
 
 // constants
@@ -122,8 +135,6 @@ static const float AVERAGE_VELOCITY_MIXING_FACTOR = 0.001f;
 static const float FULL_BRIGHTNESS_LIFETIME = 100000.0f;
 
 
-static int clusterMassDecayTauUs = 10000;
-static float mixingFactor = 0.005f;
 static float surround = 2.0f;
 static bool updateTimeInitialized = false;
 static int64_t nextUpdateTimeUs = 0;
@@ -135,7 +146,6 @@ static float smoothIntegral = 0.001f;
 static float velAngDiffDegToNotMerge = 60.0f;
 
 static float thresholdVelocityForVisibleCluster = 0.0f;
-static int pathLength = 100;
 
 //static bool useEllipticalClusters = false;
 //static bool colorClustersDifferentlyEnabled = false;
@@ -152,17 +162,10 @@ static bool enableClusterExitPurging = true;
 //static bool filterEventsEnabled = false;
 static float velocityTauMs = 100.0f;
 //static float frictionTauMs = 0.0 / 0.0; // Float.NaN in java;
-static bool dontMergeEver = false;
-
 
 static float initialAngle = 0.0f;
 static float averageVelocityPPT_x = 0.0f;
 static float averageVelocityPPT_y = 0.0f;
-
-static int nIn = 0;
-static int nOut = 0;
-//static bool inBotZone[10];
-//static bool inTopZone[10];
 
 // cluster list always begine from this pointer
 ClusterList * clusterBeginPointer = NULL;
@@ -182,25 +185,25 @@ static void pruneClusters(RTFilterState state, int64_t ts, int16_t sizeX, int16_
 static void mergeClusters(RTFilterState state);
 static void mergeC1C2(RTFilterState state, Cluster * C1, Cluster * C2);
 static int64_t getLifetime(Cluster *c);
-static float getMassNow(Cluster *c, int64_t ts);
+static float getMassNow(Cluster *c, int64_t ts, int clusterMassDecayTauUs);
 static float distanceToX(Cluster *c, uint16_t x, uint16_t y, int64_t ts);
 static float distanceToY(Cluster *c, uint16_t x, uint16_t y, int64_t ts);
 static float distanceC1C2(Cluster *c1, Cluster *c2);
 static float distanceToEvent(Cluster *c, uint16_t x, uint16_t y);
-static void updatePosition(Cluster *c, uint16_t x, uint16_t y, bool smoothMove);
+static void updatePosition(Cluster *c, uint16_t x, uint16_t y, bool smoothMove, float mixingFactor);
 static void checkAndSetClusterVisibilityFlag(RTFilterState state);
 static void setRadius(Cluster *c, float r);
-static void updateMass(Cluster *c, int64_t ts);
+static void updateMass(Cluster *c, int64_t ts, int clusterMassDecayTauUs);
 static void updateClusterMasses(RTFilterState state, int64_t ts);
 static void addEvent(RTFilterState state, Cluster *c, uint16_t x, uint16_t y, int64_t ts);
-static void updateEventRate(Cluster *c, int64_t ts);
+static void updateEventRate(Cluster *c, int64_t ts, float mixingFactor);
 static Cluster * generateNewCluster(RTFilterState state, uint16_t x, uint16_t y, int64_t ts);
-static void updateAverageEventDistance(Cluster *c);
+static void updateAverageEventDistance(Cluster *c, float mixingFactor);
 static void updateShape(RTFilterState state, Cluster *c, uint16_t x, uint16_t y);
-static void updateSize(Cluster *c, uint16_t x, uint16_t y, float defaultClusterRadius);
-static void updateAspectRatio(Cluster *c, uint16_t x, uint16_t y, bool dynamicAngleEnabled);
-static void updateAngle(Cluster *c, uint16_t x, uint16_t y);
-static void setAngle(Cluster *c, float angle);
+static void updateSize(Cluster *c, uint16_t x, uint16_t y, float defaultClusterRadius, float mixingFactor);
+static void updateAspectRatio(Cluster *c, uint16_t x, uint16_t y, bool dynamicAngleEnabled, float mixingFactor);
+static void updateAngle(Cluster *c, uint16_t x, uint16_t y, float mixingFactor);
+static void setAngle(Cluster *c, float angle, float mixingFactor);
 static bool hasHitEdge(Cluster *c, int16_t sizeX, int16_t sizeY);
 static bool isOverlapping(Cluster *c1, Cluster *c2);
 static float velocityAngleToRad(Cluster *c1, Cluster *c2);
@@ -212,7 +215,7 @@ static void addPath(Path ** head, float x, float y, int64_t t, int events);
 static void updateVelocity(Cluster *c, float thresholdMassForVisibleCluster);
 static void updateClusterPaths(RTFilterState state, int64_t ts);
 static void drawCluster(caerFrameEvent singleplot, Cluster *c, int sizeX, int sizeY, bool showPaths, bool forceBoundary);
-static void drawline(caerFrameEvent singleplot, float x1, float y1, float x2, float y2, int sizeX, int sizeY);
+static void drawline(caerFrameEvent singleplot, float x1, float y1, float x2, float y2, int sizeX, int sizeY, COLOUR color);
 static void drawpath(caerFrameEvent singleplot, Path *path, int sizeX);
 static void updateCurrentClusterNum(RTFilterState state);
 static void updateColor(Cluster *c);
@@ -261,6 +264,17 @@ static bool caerRectangulartrackerDynamicInit(caerModuleData moduleData) {
 	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "useOnePolarityOnlyEnabled", false);
 	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "useOffPolarityOnlyEnabled", false);
 	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "showAllClusters", false);
+	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "dontMergeEver", false);
+	sshsNodePutIntIfAbsent(moduleData->moduleNode, "clusterMassDecayTauUs", 10000);
+	sshsNodePutIntIfAbsent(moduleData->moduleNode, "pathLength", 100);
+	sshsNodePutFloatIfAbsent(moduleData->moduleNode, "mixingFactor", 0.005f);
+	sshsNodePutIntIfAbsent(moduleData->moduleNode, "peopleIn", 0);
+	sshsNodePutIntIfAbsent(moduleData->moduleNode, "peopleOut", 0);
+	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "disableEvents", false);
+	sshsNodePutIntIfAbsent(moduleData->moduleNode, "disableArea_small_x", 0);
+	sshsNodePutIntIfAbsent(moduleData->moduleNode, "disableArea_small_y", 0);
+	sshsNodePutIntIfAbsent(moduleData->moduleNode, "disableArea_big_x", 0);
+	sshsNodePutIntIfAbsent(moduleData->moduleNode, "disableArea_big_y", 0);
 
 	RTFilterState state = moduleData->moduleState;
 
@@ -290,18 +304,25 @@ static bool caerRectangulartrackerDynamicInit(caerModuleData moduleData) {
 	state->useOnePolarityOnlyEnabled = sshsNodeGetBool(moduleData->moduleNode, "useOnePolarityOnlyEnabled");
 	state->useOffPolarityOnlyEnabled = sshsNodeGetBool(moduleData->moduleNode, "useOffPolarityOnlyEnabled");
 	state->showAllClusters = sshsNodeGetBool(moduleData->moduleNode, "showAllClusters");
-
+	state->dontMergeEver = sshsNodeGetBool(moduleData->moduleNode, "dontMergeEver");
+	state->clusterMassDecayTauUs = sshsNodeGetInt(moduleData->moduleNode, "clusterMassDecayTauUs");
+	state->pathLength = sshsNodeGetInt(moduleData->moduleNode, "pathLength");
+	state->mixingFactor = sshsNodeGetFloat(moduleData->moduleNode, "mixingFactor");
 
 	state->currentClusterNum = 0;
 	state->clusterCounter = 0;
 	state->cpp_class = newOpenCV();
 
-	//TODO people counting initialization
-	// initialize all cluster as empty
-//	for (int i = 0; i < 10; i++) {
-//		inBotZone[i] = false;
-//		inTopZone[i] = false;
-//	}
+	// people counting initialization
+	state->peopleIn = 0;
+	state->peopleOut = 0;
+
+	// disable events initialization
+	state->disableEvents = false;
+	state->disableArea_small_x = 0;
+	state->disableArea_small_y = 0;
+	state->disableArea_big_x = 0;
+	state->disableArea_big_y = 0;
 
 	state->clusterBegin = &clusterBeginPointer;
 	// Add config listeners last, to avoid having them dangling if Init doesn't succeed.
@@ -359,6 +380,11 @@ static void caerRectangulartrackerDynamicRun(caerModuleData moduleData, size_t a
 	}
 	if ((x >= sizeX) || (y >= sizeY)) {
 		continue;
+	}
+	if (state->disableEvents){
+		if ((x > state->disableArea_small_x) && (x < state->disableArea_big_x) && (y > state->disableArea_small_y) && (y < state->disableArea_big_y)){
+			continue;
+		}
 	}
 
 	if (state->useOnePolarityOnlyEnabled) {
@@ -574,6 +600,8 @@ static Cluster * generateNewCluster(RTFilterState state, uint16_t x, uint16_t y,
 	clusterNew->mass = 1.0f;
 	clusterNew->vFilterTime = 0.0f;
 	clusterNew->path = NULL;
+	clusterNew->inBotZone = false;
+	clusterNew->inTopZone = false;
 	return (clusterNew);
 }
 
@@ -593,7 +621,7 @@ static void pruneClusters(RTFilterState state, int64_t ts, int16_t sizeX, int16_
 			lifetime = ts - current->cluster->firstEventTimestamp;
 		}
 		float massThreshold = state->thresholdMassForVisibleCluster;
-		if (((lifetime == 0) || (lifetime >= clusterMassDecayTauUs)) && (getMassNow(current->cluster, ts) < massThreshold)) {
+		if (((lifetime == 0) || (lifetime >= state->clusterMassDecayTauUs)) && (getMassNow(current->cluster, ts, state->clusterMassDecayTauUs) < massThreshold)) {
 			massTooSmall = true;
 		}
 		bool hitEdge = hasHitEdge(current->cluster, sizeX, sizeY);
@@ -613,7 +641,7 @@ static void pruneClusters(RTFilterState state, int64_t ts, int16_t sizeX, int16_
 
 static void mergeClusters(RTFilterState state) {
 	updateCurrentClusterNum(state);
-	if (dontMergeEver) {
+	if (state->dontMergeEver) {
 		return;
 	}
 
@@ -673,7 +701,7 @@ static void mergeC1C2(RTFilterState state, Cluster * C1, Cluster * C2) {
 
 	if (state->growMergedSizeEnabled) {
 		//float R = (C1->radius + C2->radius);
-		setRadius(stronger, stronger->radius + (mixingFactor * weaker->radius));
+		setRadius(stronger, stronger->radius + (state->mixingFactor * weaker->radius));
 	}
 
 	removeAllPath(weaker->path);
@@ -685,7 +713,7 @@ int64_t getLifetime(Cluster *c) {
 	return (c->lastUpdateTime - c->firstEventTimestamp);
 }
 
-float getMassNow(Cluster *c, int64_t ts) {
+float getMassNow(Cluster *c, int64_t ts, int clusterMassDecayTauUs) {
 	float m;
 	if ((c->lastEventTimestamp - ts) < 0) {
 		m = c->mass * (float) exp(((float) (c->lastEventTimestamp - ts)) / (float)clusterMassDecayTauUs);
@@ -791,7 +819,7 @@ static void updateClusterPaths(RTFilterState state, int64_t ts) {
 			updateVelocity(current->cluster, state->thresholdMassForVisibleCluster);
 		}
 		int count = getPathSize(current->cluster->path);
-		if (count > pathLength) {
+		if (count > state->pathLength) {
 			removeLastPath(current->cluster->path);
 		}
 		current = current->next;
@@ -906,15 +934,15 @@ static void setRadius(Cluster *c, float r) {
 
 static void addEvent(RTFilterState state, Cluster *c, uint16_t x, uint16_t y, int64_t ts) {
 
-	updateMass(c, ts);
-	updatePosition(c, x, y, state->smoothMove);
-	updateEventRate(c, ts);
-	updateAverageEventDistance(c);
+	updateMass(c, ts, state->clusterMassDecayTauUs);
+	updatePosition(c, x, y, state->smoothMove, state->mixingFactor);
+	updateEventRate(c, ts, state->mixingFactor);
+	updateAverageEventDistance(c, state->mixingFactor);
 	updateShape(state, c, x, y);
 	c->lastUpdateTime = ts;
 }
 
-static void updatePosition(Cluster *c, uint16_t x, uint16_t y, bool smoothMove) {
+static void updatePosition(Cluster *c, uint16_t x, uint16_t y, bool smoothMove, float mixingFactor) {
 	float m = mixingFactor;
 	float m1 = 1 - m;
 	float newX = (float)x;
@@ -935,7 +963,7 @@ static void updatePosition(Cluster *c, uint16_t x, uint16_t y, bool smoothMove) 
 	}
 }
 
-static void updateEventRate(Cluster *c, int64_t ts) {
+static void updateEventRate(Cluster *c, int64_t ts, float mixingFactor) {
 	float m = mixingFactor;
 	float m1 = 1 - m;
 	int64_t prevLastTimestamp = c->lastEventTimestamp;
@@ -951,7 +979,7 @@ static void updateEventRate(Cluster *c, int64_t ts) {
 	c->avgEventRate = (m1 * c->avgEventRate) + (m * c->instantaneousEventRate);
 }
 
-static void updateAverageEventDistance(Cluster *c) {
+static void updateAverageEventDistance(Cluster *c, float mixingFactor) {
 	float m = mixingFactor;
 	float m1 = 1 - m;
 	c->averageEventDistance = (m1 * c->averageEventDistance) + (m * c->distanceToLastEvent);
@@ -959,7 +987,7 @@ static void updateAverageEventDistance(Cluster *c) {
 	c->averageEventYDistance = (m1 * c->averageEventYDistance) + (m * c->distanceToLastEvent_y);
 }
 
-static void updateMass(Cluster *c, int64_t ts) {
+static void updateMass(Cluster *c, int64_t ts, int clusterMassDecayTauUs) {
 	int64_t dt = c->lastEventTimestamp - ts;
 	if (dt < 0){
 		c->mass = 1 + (c->mass * (float) exp((float)dt / (float)clusterMassDecayTauUs));
@@ -971,7 +999,7 @@ static void updateClusterMasses(RTFilterState state, int64_t ts) {
 
 	ClusterList * current = *(state->clusterBegin);
 	while (current != NULL) {
-		updateMass(current->cluster, ts);
+		updateMass(current->cluster, ts, state->clusterMassDecayTauUs);
 		current = current->next;
 	}
 
@@ -980,24 +1008,24 @@ static void updateClusterMasses(RTFilterState state, int64_t ts) {
 static void updateShape(RTFilterState state, Cluster *c, uint16_t x, uint16_t y) {
 
 	if (state->dynamicSizeEnabled) {
-		updateSize(c, x, y, state->defaultClusterRadius);
+		updateSize(c, x, y, state->defaultClusterRadius, state->mixingFactor);
 	}
 	if (state->dynamicAspectRatioEnabled) {
-		updateAspectRatio(c, x, y, state->dynamicAngleEnabled);
+		updateAspectRatio(c, x, y, state->dynamicAngleEnabled, state->mixingFactor);
 	}
 	// PI/2 for vertical positive, -Pi/2 for vertical negative event
 	if (state->dynamicAngleEnabled) {
-		updateAngle(c, x, y);
+		updateAngle(c, x, y, state->mixingFactor);
 	}
 
 	// turn cluster so that it is aligned along velocity
 	if (state->angleFollowsVelocity && c->velocityValid && state->useVelocity) {
 		float velAngle = (float) atan2(c->velocityPPS_y, c->velocityPPS_x);
-		setAngle(c, velAngle);
+		setAngle(c, velAngle, state->mixingFactor);
 	}
 }
 
-static void updateSize(Cluster *c, uint16_t x, uint16_t y, float defaultClusterRadius) {
+static void updateSize(Cluster *c, uint16_t x, uint16_t y, float defaultClusterRadius, float mixingFactor) {
 	float m = mixingFactor;
 	float m1 = 1 - m;
 
@@ -1014,7 +1042,7 @@ static void updateSize(Cluster *c, uint16_t x, uint16_t y, float defaultClusterR
 	setRadius(c, newr);
 }
 
-static void updateAspectRatio(Cluster *c, uint16_t x, uint16_t y, bool dynamicAngleEnabled) {
+static void updateAspectRatio(Cluster *c, uint16_t x, uint16_t y, bool dynamicAngleEnabled, float mixingFactor) {
 	float m = mixingFactor;
 	float m1 = 1 - m;
 	float dx = (float)x - c->location_x;
@@ -1043,7 +1071,7 @@ static void updateAspectRatio(Cluster *c, uint16_t x, uint16_t y, bool dynamicAn
 	setRadius(c, c->radius);
 }
 
-static void updateAngle(Cluster *c, uint16_t x, uint16_t y) {
+static void updateAngle(Cluster *c, uint16_t x, uint16_t y, float mixingFactor) {
 	float dx = c->location_x - (float)x;
 	float dy = c->location_y - (float)y;
 	float newAngle = (float) atan2(dy, dx);
@@ -1058,10 +1086,10 @@ static void updateAngle(Cluster *c, uint16_t x, uint16_t y) {
 		newAngle = -(float) M_PI + newAngle;
 	}
 	float angleDistance = newAngle - c->angle;
-	setAngle(c, c->angle + (mixingFactor * angleDistance));
+	setAngle(c, c->angle + (mixingFactor * angleDistance), mixingFactor);
 }
 
-static void setAngle(Cluster *c, float angle) {
+static void setAngle(Cluster *c, float angle, float mixingFactor) {
 	float m = mixingFactor;
 	float m1 = 1 - m;
 	if (c->angle != angle) {
@@ -1103,80 +1131,49 @@ static float velocityAngleToRad(Cluster *c1, Cluster *c2) {
 }
 
 static void drawCluster(caerFrameEvent singleplot, Cluster *c, int sizeX, int sizeY, bool showPaths, bool forceBoundary) {
-	if (c->angle != 0){
-		float A = c->angle;
-		float rx = c->radius_x;
-		float ry = c->radius_y;
-		float UL_x = c->location_x + rx * (float)cos(A) - ry * (float)sin(A);
-		float UL_y = c->location_y + ry * (float)cos(A) + rx * (float)sin(A);
-		float UR_x = c->location_x - rx * (float)cos(A) - ry * (float)sin(A);
-		float UR_y = c->location_y + ry * (float)cos(A) - rx * (float)sin(A);
-		float BL_x = c->location_x + rx * (float)cos(A) + ry * (float)sin(A);
-		float BL_y = c->location_y - ry * (float)cos(A) + rx * (float)sin(A);
-		float BR_x = c->location_x - rx * (float)cos(A) + ry * (float)sin(A);
-		float BR_y = c->location_y - ry * (float)cos(A) - rx * (float)sin(A);
 
-		if (forceBoundary){
-			UL_x = (UL_x > (float)sizeX) ? (float)sizeX : UL_x;
-			UL_x = (UL_x < 0) ? 0 : UL_x;
-			UL_y = (UL_y > (float)sizeY) ? (float)sizeY : UL_y;
-			UL_y = (UL_y < 0) ? 0 : UL_y;
-			UR_x = (UR_x > (float)sizeX) ? (float)sizeX : UR_x;
-			UR_x = (UR_x < 0) ? 0 : UR_x;
-			UR_y = (UR_y > (float)sizeY) ? (float)sizeY : UR_y;
-			UR_y = (UR_y < 0) ? 0 : UR_y;
-			BL_x = (BL_x > (float)sizeX) ? (float)sizeX : BL_x;
-			BL_x = (BL_x < 0) ? 0 : BL_x;
-			BL_y = (BL_y > (float)sizeY) ? (float)sizeY : BL_y;
-			BL_y = (BL_y < 0) ? 0 : BL_y;
-			BR_x = (BR_x > (float)sizeX) ? (float)sizeX : BR_x;
-			BR_x = (BR_x < 0) ? 0 : BR_x;
-			BR_y = (BR_y > (float)sizeY) ? (float)sizeY : BR_y;
-			BR_y = (BR_y < 0) ? 0 : BR_y;
-		}
+	float A = c->angle;
+	float rx = c->radius_x;
+	float ry = c->radius_y;
+	float UL_x = c->location_x + rx * (float)cos(A) - ry * (float)sin(A);
+	float UL_y = c->location_y + ry * (float)cos(A) + rx * (float)sin(A);
+	float UR_x = c->location_x - rx * (float)cos(A) - ry * (float)sin(A);
+	float UR_y = c->location_y + ry * (float)cos(A) - rx * (float)sin(A);
+	float BL_x = c->location_x + rx * (float)cos(A) + ry * (float)sin(A);
+	float BL_y = c->location_y - ry * (float)cos(A) + rx * (float)sin(A);
+	float BR_x = c->location_x - rx * (float)cos(A) + ry * (float)sin(A);
+	float BR_y = c->location_y - ry * (float)cos(A) - rx * (float)sin(A);
 
-		drawline(singleplot, UL_x, UL_y, UR_x, UR_y, sizeX, sizeY);
-		drawline(singleplot, UL_x, UL_y, BL_x, BL_y, sizeX, sizeY);
-		drawline(singleplot, BL_x, BL_y, BR_x, BR_y, sizeX, sizeY);
-		drawline(singleplot, UR_x, UR_y, BR_x, BR_y, sizeX, sizeY);
+	if (forceBoundary){
+		UL_x = (UL_x > (float)sizeX) ? (float)sizeX : UL_x;
+		UL_x = (UL_x < 0) ? 0 : UL_x;
+		UL_y = (UL_y > (float)sizeY) ? (float)sizeY : UL_y;
+		UL_y = (UL_y < 0) ? 0 : UL_y;
+		UR_x = (UR_x > (float)sizeX) ? (float)sizeX : UR_x;
+		UR_x = (UR_x < 0) ? 0 : UR_x;
+		UR_y = (UR_y > (float)sizeY) ? (float)sizeY : UR_y;
+		UR_y = (UR_y < 0) ? 0 : UR_y;
+		BL_x = (BL_x > (float)sizeX) ? (float)sizeX : BL_x;
+		BL_x = (BL_x < 0) ? 0 : BL_x;
+		BL_y = (BL_y > (float)sizeY) ? (float)sizeY : BL_y;
+		BL_y = (BL_y < 0) ? 0 : BL_y;
+		BR_x = (BR_x > (float)sizeX) ? (float)sizeX : BR_x;
+		BR_x = (BR_x < 0) ? 0 : BR_x;
+		BR_y = (BR_y > (float)sizeY) ? (float)sizeY : BR_y;
+		BR_y = (BR_y < 0) ? 0 : BR_y;
 	}
-	else {
-		uint32_t counter = 0;
-		int cx, cy, rx, lx, uy, dy;
-		for (size_t y = 0; y < sizeY; y++) {
-			for (size_t x = 0; x < sizeX; x++) {
-				cx = (int)c->location_x;
-				cy = (int)c->location_y;
-				rx = (int)(c->location_x + c->radius_x);
-				lx = (int)(c->location_x - c->radius_x);
-				uy = (int)(c->location_y + c->radius_y);
-				dy = (int)(c->location_y - c->radius_y);
 
-				rx = (rx > sizeX) ? sizeX : rx;
-				lx = (lx < 0) ? 0 : lx;
-				uy = (uy > sizeY) ? sizeY : uy;
-				dy = (dy < 0) ? 0 : dy;
+	drawline(singleplot, UL_x, UL_y, UR_x, UR_y, sizeX, sizeY, c->color);
+	drawline(singleplot, UL_x, UL_y, BL_x, BL_y, sizeX, sizeY, c->color);
+	drawline(singleplot, BL_x, BL_y, BR_x, BR_y, sizeX, sizeY, c->color);
+	drawline(singleplot, UR_x, UR_y, BR_x, BR_y, sizeX, sizeY, c->color);
 
-				if ((x == cx && y == cy)||
-					(x == rx && y <= uy && y >= dy) ||
-					(x == lx && y <= uy && y >= dy) ||
-					(y == uy && x <= rx && x >= lx) ||
-					(y == dy && x <= rx && x >= lx) )
-				{
-					singleplot->pixels[counter] =  c->color.r;		// red
-					singleplot->pixels[counter + 1] = c->color.g;		// green
-					singleplot->pixels[counter + 2] = c->color.b;	// blue
-				}
-				counter += 3;
-			}
-		}
-	}
 	if (showPaths) {
 		drawpath(singleplot, c->path, sizeX);
 	}
 }
 
-static void drawline(caerFrameEvent singleplot, float x1, float y1, float x2, float y2, int sizeX, int sizeY){
+static void drawline(caerFrameEvent singleplot, float x1, float y1, float x2, float y2, int sizeX, int sizeY, COLOUR color){
 	int x, y, xs, xl, ys, yl, dx, dy, p;
 	if (x1 < x2){
 		xs = round(x1);
@@ -1198,31 +1195,31 @@ static void drawline(caerFrameEvent singleplot, float x1, float y1, float x2, fl
 	if (xs == xl){
 		for(y = ys; y <= yl; y++) {
 			x = xs;
-			if ((x > sizeX) || (x < 0) || (y > sizeY) || (y < 0)){
-				return;
+			if ((x >= sizeX) || (x < 0) || (y >= sizeY) || (y < 0)){
+				continue;
 			}
 			p = 3*(y*sizeX + x);
-			if ((p < 0) || (p > 3 * sizeX * sizeY)){
-				return;
+			if ((p < 0) || (p >= 3 * sizeX * sizeY)){
+				continue;
 			}
-			singleplot->pixels[p] = (uint16_t) ( (int) 65000);			// red
-			singleplot->pixels[p + 1] = (uint16_t) ( (int) 65000);		// green
-			singleplot->pixels[p + 2] = (uint16_t) ( (int) 65000);	// blue
+			singleplot->pixels[p] = color.r;			// red
+			singleplot->pixels[p + 1] = color.g;		// green
+			singleplot->pixels[p + 2] = color.b;	// blue
 		}
 	}
 	else if (ys == yl){
 		for(x = xs; x <= xl; x++) {
 			y = ys;
-			if ((x > sizeX) || (x < 0) || (y > sizeY) || (y < 0)){
-				return;
+			if ((x >= sizeX) || (x < 0) || (y >= sizeY) || (y < 0)){
+				continue;
 			}
 			p = 3*(y*sizeX + x);
-			if ((p < 0) || (p > 3 * sizeX * sizeY)){
-				return;
+			if ((p < 0) || (p >= 3 * sizeX * sizeY)){
+				continue;
 			}
-			singleplot->pixels[p] = (uint16_t) ( (int) 65000);			// red
-			singleplot->pixels[p + 1] = (uint16_t) ( (int) 65000);		// green
-			singleplot->pixels[p + 2] = (uint16_t) ( (int) 65000);	// blue
+			singleplot->pixels[p] = color.r;			// red
+			singleplot->pixels[p + 1] = color.g;		// green
+			singleplot->pixels[p + 2] = color.b;	// blue
 		}
 	}
 	else {
@@ -1231,31 +1228,31 @@ static void drawline(caerFrameEvent singleplot, float x1, float y1, float x2, fl
 		if (dx > dy){
 			for(x = xs; x <= xl; x++) {
 				y = (round)(y2 - ((y2-y1)/(x2-x1)) * (x2-(float)x));
-				if ((x > sizeX) || (x < 0) || (y > sizeY) || (y < 0)){
-					return;
+				if ((x >= sizeX) || (x < 0) || (y >= sizeY) || (y < 0)){
+					continue;
 				}
 				p = 3*(y*sizeX + x);
-				if ((p < 0) || (p > 3 * sizeX * sizeY)){
-					return;
+				if ((p < 0) || (p >= 3 * sizeX * sizeY)){
+					continue;
 				}
-				singleplot->pixels[p] = (uint16_t) ( (int) 65000);			// red
-				singleplot->pixels[p + 1] = (uint16_t) ( (int) 65000);		// green
-				singleplot->pixels[p + 2] = (uint16_t) ( (int) 65000);	// blue
+				singleplot->pixels[p] = color.r;			// red
+				singleplot->pixels[p + 1] = color.g;		// green
+				singleplot->pixels[p + 2] = color.b;	// blue
 			}
 		}
 		else {
 			for(y = ys; y <= yl; y++) {
 				x = (round)(x2 - ((x2-x1)/(y2-y1)) * (y2-(float)y));
-				if ((x > sizeX) || (x < 0) || (y > sizeY) || (y < 0)){
-					return;
+				if ((x >= sizeX) || (x < 0) || (y >= sizeY) || (y < 0)){
+					continue;
 				}
 				p = 3*(y*sizeX + x);
-				if ((p < 0) || (p > 3 * sizeX * sizeY)){
-					return;
+				if ((p < 0) || (p >= 3 * sizeX * sizeY)){
+					continue;
 				}
-				singleplot->pixels[p] = (uint16_t) ( (int) 65000);			// red
-				singleplot->pixels[p + 1] = (uint16_t) ( (int) 65000);		// green
-				singleplot->pixels[p + 2] = (uint16_t) ( (int) 65000);	// blue
+				singleplot->pixels[p] = color.r;			// red
+				singleplot->pixels[p + 1] = color.g;		// green
+				singleplot->pixels[p + 2] = color.b;	// blue
 			}
 		}
 	}
@@ -1333,8 +1330,8 @@ static void countPeople(caerFrameEvent singleplot, caerModuleData moduleData, in
 	RTFilterState state = moduleData->moduleState;
 
 	if (state->resetCountingNum){
-		nIn = 0;
-		nOut = 0;
+		state->peopleIn = 0;
+		state->peopleOut = 0;
 		state->resetCountingNum = false;
 		sshsNodePutBool(moduleData->moduleNode, "resetCountingNum", false);
 	}
@@ -1344,56 +1341,47 @@ static void countPeople(caerFrameEvent singleplot, caerModuleData moduleData, in
 	float lx = state->leftLine * sizeX;
 	float rx = state->rightLine * sizeX;
 
-	uint32_t counter = 0;
-	for (size_t y = 0; y < sizeY; y++) {
-		for (size_t x = 0; x < sizeX; x++) {
-			if ((x == (int)rx && y <= ty && y >= by) ||
-					(x == (int)lx && y <= ty && y >= by) ||
-					(y == (int)ty && x <= rx && x >= lx) ||
-					(y == (int)by && x <= rx && x >= lx))
-			{
-				singleplot->pixels[counter] = (uint16_t) ( (int) 65000);			// red
-				singleplot->pixels[counter + 1] = (uint16_t) ( (int) 65000);		// green
-				singleplot->pixels[counter + 2] = (uint16_t) ( (int) 65000);	// blue
-			}
-			counter += 3;
-		}
-	}
+	COLOUR lineColor;
+	lineColor.b = 65535;
+	lineColor.r = 65535;
+	lineColor.g = 65535;
+
+	drawline(singleplot, lx, ty, rx, ty, sizeX, sizeY, lineColor);
+	drawline(singleplot, lx, by, rx, by, sizeX, sizeY, lineColor);
+	drawline(singleplot, lx, ty, lx, by, sizeX, sizeY, lineColor);
+	drawline(singleplot, rx, ty, rx, by, sizeX, sizeY, lineColor);
 
 	//TODO make algorithm for x dimension.
-	//updateCurrentClusterNum(state);
-	//ClusterList * current = *(state->clusterBegin);
-//	for (int i=0; i<state->currentClusterNum; i++){
-//		if((current->cluster == NULL) && inBotZone[i]){
-//			inBotZone[i] = false;
-//		}
-//		if(state->clusterList[i].isEmpty && inTopZone[i]){
-//			inTopZone[i] = false;
-//		}
-//		if(state->clusterList[i].isEmpty || !state->clusterList[i].visibilityFlag){
-//			continue;
-//		}
-//		if((state->clusterList[i].location_y < by) && !inBotZone[i]){
-//			inBotZone[i] = true;
-//		}
-//		if((state->clusterList[i].location_y > ty) && !inTopZone[i]){
-//			inTopZone[i] = true;
-//		}
-//		if((state->clusterList[i].location_y < by) && inTopZone[i]){
-//			inTopZone[i] = false;
-//			nIn++;
-//		}
-//		if((state->clusterList[i].location_y > ty) && inBotZone[i]){
-//			inBotZone[i] = false;
-//			nOut++;
-//		}
-//		current = current->next;
-//	}
-	state->totalPeopleNum = (nIn - nOut) > 0 ? (nIn-nOut) : 0;
+	updateCurrentClusterNum(state);
+	ClusterList * current = *(state->clusterBegin);
+	for (int i=0; i<state->currentClusterNum; i++){
+		if(!current->cluster->visibilityFlag){
+			current = current->next;
+			continue;
+		}
+		if((current->cluster->location_y < by) && !current->cluster->inBotZone){
+			current->cluster->inBotZone = true;
+		}
+		if((current->cluster->location_y > ty) && !current->cluster->inTopZone){
+			current->cluster->inTopZone = true;
+		}
+		if((current->cluster->location_y < by) && current->cluster->inTopZone){
+			current->cluster->inTopZone = false;
+			state->peopleIn++;
+		}
+		if((current->cluster->location_y > ty) && current->cluster->inBotZone){
+			current->cluster->inBotZone = false;
+			state->peopleOut++;
+		}
+		current = current->next;
+	}
+	state->totalPeopleNum = (state->peopleIn - state->peopleOut) > 0 ? (state->peopleIn-state->peopleOut) : 0;
+	sshsNodePutInt(moduleData->moduleNode, "peopleIn", state->peopleIn);
+	sshsNodePutInt(moduleData->moduleNode, "peopleOut", state->peopleOut);
 	sshsNodePutInt(moduleData->moduleNode, "totalPeopleNum", state->totalPeopleNum);
 
 	//add OpenCV info to the frame
-	OpenCV_generate(state->cpp_class, nIn, nOut, &singleplot, sizeX, sizeY);
+	OpenCV_generate(state->cpp_class, state->peopleIn, state->peopleOut, &singleplot, sizeX, sizeY);
 }
 
 static void addCluster(ClusterList ** head, Cluster * newClusterPointer) {
@@ -1499,6 +1487,15 @@ static void caerRectangulartrackerDynamicConfig(caerModuleData moduleData) {
 	state->useOnePolarityOnlyEnabled = sshsNodeGetBool(moduleData->moduleNode, "useOnePolarityOnlyEnabled");
 	state->useOffPolarityOnlyEnabled = sshsNodeGetBool(moduleData->moduleNode, "useOffPolarityOnlyEnabled");
 	state->showAllClusters = sshsNodeGetBool(moduleData->moduleNode, "showAllClusters");
+	state->dontMergeEver = sshsNodeGetBool(moduleData->moduleNode, "dontMergeEver");
+	state->clusterMassDecayTauUs = sshsNodeGetInt(moduleData->moduleNode, "clusterMassDecayTauUs");
+	state->pathLength = sshsNodeGetInt(moduleData->moduleNode, "pathLength");
+	state->mixingFactor = sshsNodeGetFloat(moduleData->moduleNode, "mixingFactor");
+	state->disableEvents = sshsNodeGetBool(moduleData->moduleNode, "disableEvents");
+	state->disableArea_small_x = sshsNodeGetInt(moduleData->moduleNode, "disableArea_small_x");
+	state->disableArea_small_y = sshsNodeGetInt(moduleData->moduleNode, "disableArea_small_y");
+	state->disableArea_big_x = sshsNodeGetInt(moduleData->moduleNode, "disableArea_big_x");
+	state->disableArea_big_y = sshsNodeGetInt(moduleData->moduleNode, "disableArea_big_y");
 }
 
 static void caerRectangulartrackerDynamicExit(caerModuleData moduleData) {
