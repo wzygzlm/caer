@@ -241,11 +241,44 @@ static int caerMainloopRunner(void) {
 			// TODO: notify.
 			log(logLevel::ERROR, "Mainloop", "Failed to find symbol in library '%s', error: '%s'.", modulePath.c_str(),
 				dlerror());
-			exit(EXIT_FAILURE);
+			dlclose(moduleLibrary);
+			continue;
+		}
+
+		caerModuleInfo info = (*getInfo)();
+
+		// Check that the modules respect the basic I/O definition requirements.
+		if (info->type == CAER_MODULE_INPUT) {
+			if (info->inputStreams != NULL || info->inputStreamsSize != 0 || info->outputStreams == NULL
+				|| info->outputStreamsSize == 0) {
+				log(logLevel::ERROR, "Mainloop", "Module '%s' type INPUT has wrong I/O event stream definitions.",
+					info->name);
+				dlclose(moduleLibrary);
+				continue;
+			}
+		}
+		else if (info->type == CAER_MODULE_OUTPUT) {
+			if (info->inputStreams == NULL || info->inputStreamsSize == 0 || info->outputStreams != NULL
+				|| info->outputStreamsSize != 0) {
+				log(logLevel::ERROR, "Mainloop", "Module '%s' type OUTPUT has wrong I/O event stream definitions.",
+					info->name);
+				dlclose(moduleLibrary);
+				continue;
+			}
+		}
+		else {
+			// CAER_MODULE_PROCESSOR
+			if (info->inputStreams == NULL || info->inputStreamsSize == 0 || info->outputStreams == NULL
+				|| info->outputStreamsSize == 0) {
+				log(logLevel::ERROR, "Mainloop", "Module '%s' type PROCESSOR has wrong I/O event stream definitions.",
+					info->name);
+				dlclose(moduleLibrary);
+				continue;
+			}
 		}
 
 		m.second.libraryHandle = moduleLibrary;
-		m.second.libraryInfo = (*getInfo)();
+		m.second.libraryInfo = info;
 	}
 
 	// Now we must parse, validate and create the connectivity map between modules.
