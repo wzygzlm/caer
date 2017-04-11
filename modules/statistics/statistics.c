@@ -13,7 +13,7 @@ static const struct caer_module_functions StatisticsFunctions = { .moduleInit = 
 
 static const struct caer_event_stream StatisticsInputs[] = { { .type = -1, .number = 1 } };
 
-static const struct caer_module_info StatisticsInfo = { .version = 1, .name = "Statistics", .type = CAER_MODULE_PROCESSOR,
+static const struct caer_module_info StatisticsInfo = { .version = 1, .name = "Statistics", .type = CAER_MODULE_OUTPUT,
 	.memSize = sizeof(struct caer_statistics_state), .functions = &StatisticsFunctions, .inputStreams = StatisticsInputs,
 	.inputStreamsSize = CAER_EVENT_STREAM_SIZE(StatisticsInputs), .outputStreams = NULL, .outputStreamsSize = 0, };
 

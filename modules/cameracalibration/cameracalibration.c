@@ -37,7 +37,8 @@ static const struct caer_event_stream CameraCalibrationInputs[] = { { .type = PO
 static const struct caer_module_info CameraCalibrationInfo = { .version = 1, .name = "CameraCalibration", .type =
 	CAER_MODULE_PROCESSOR, .memSize = sizeof(struct CameraCalibrationState_struct), .functions =
 	&CameraCalibrationFunctions, .inputStreams = CameraCalibrationInputs, .inputStreamsSize = CAER_EVENT_STREAM_SIZE(
-	CameraCalibrationInputs), .outputStreams = NULL, .outputStreamsSize = 0, };
+	CameraCalibrationInputs), .outputStreams = CameraCalibrationInputs, .outputStreamsSize = CAER_EVENT_STREAM_SIZE(
+	CameraCalibrationInputs), };
 
 caerModuleInfo caerModuleGetInfo(void) {
 	return (&CameraCalibrationInfo);

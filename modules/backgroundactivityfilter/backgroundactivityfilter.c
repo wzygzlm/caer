@@ -30,7 +30,8 @@ static const struct caer_event_stream BAFilterInputs[] = { { .type = POLARITY_EV
 
 static const struct caer_module_info BAFilterInfo = { .version = 1, .name = "BAFilter", .type = CAER_MODULE_PROCESSOR,
 	.memSize = sizeof(struct BAFilter_state), .functions = &BAFilterFunctions, .inputStreams = BAFilterInputs,
-	.inputStreamsSize = CAER_EVENT_STREAM_SIZE(BAFilterInputs), .outputStreams = NULL, .outputStreamsSize = 0, };
+	.inputStreamsSize = CAER_EVENT_STREAM_SIZE(BAFilterInputs), .outputStreams = BAFilterInputs, .outputStreamsSize =
+		CAER_EVENT_STREAM_SIZE(BAFilterInputs), };
 
 caerModuleInfo caerModuleGetInfo(void) {
 	return (&BAFilterInfo);

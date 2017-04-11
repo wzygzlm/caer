@@ -24,6 +24,7 @@ static const struct caer_module_functions FrameEnhancerFunctions = { .moduleInit
 
 static const struct caer_event_stream FrameEnhancerInputs[] = { { .type = FRAME_EVENT, .number = 1 } };
 
+// The output frame here is a _different_ frame than the above input!
 static const struct caer_event_stream FrameEnhancerOutputs[] = { { .type = FRAME_EVENT, .number = 1 } };
 
 static const struct caer_module_info FrameEnhancerInfo = { .version = 1, .name = "FrameEnhancer", .type =

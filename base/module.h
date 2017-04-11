@@ -33,6 +33,17 @@ enum caer_module_status {
 	CAER_MODULE_RUNNING = 1,
 };
 
+/**
+ * Input modules strictly create data, as such they have no input event
+ * streams and at least 1 output event stream.
+ * Output modules consume data, without modifying it, so they have at
+ * least 1 input event stream, and no output event streams.
+ * Processor modules do something with data, filtering it or creating
+ * new data out of it, as such they must have at least 1 input event
+ * stream, and at least 1 output event stream. If any of the data taken
+ * as input is modified, then it must also be declared again as an output
+ * event stream. If it is only read, then it must not be part of the outputs.
+ */
 enum caer_module_type {
 	CAER_MODULE_INPUT = 0,
 	CAER_MODULE_OUTPUT = 1,
