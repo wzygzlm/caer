@@ -22,7 +22,7 @@ static void caerFrameEnhancerExit(caerModuleData moduleData);
 static const struct caer_module_functions FrameEnhancerFunctions = { .moduleInit = &caerFrameEnhancerInit, .moduleRun =
 	&caerFrameEnhancerRun, .moduleConfig = &caerFrameEnhancerConfig, .moduleExit = &caerFrameEnhancerExit };
 
-static const struct caer_event_stream FrameEnhancerInputs[] = { { .type = FRAME_EVENT, .number = 1 } };
+static const struct caer_event_stream FrameEnhancerInputs[] = { { .type = FRAME_EVENT, .number = 1, .readOnly = true } };
 
 // The output frame here is a _different_ frame than the above input!
 static const struct caer_event_stream FrameEnhancerOutputs[] = { { .type = FRAME_EVENT, .number = 1 } };

@@ -314,7 +314,28 @@ static int caerMainloopRunner(void) {
 
 		// inputDefinition is not empty, so we're a module that consumes data,
 		// either an OUTPUT or a PROCESSOR.
+		if (m.second.libraryInfo->type == CAER_MODULE_OUTPUT) {
 
+		}
+		else {
+			// CAER_MODULE_PROCESSOR
+		}
+	}
+
+	for (auto m : inputModules) {
+		std::cout << m.id << "-INPUT-" << m.shortName << std::endl;
+	}
+
+	for (auto m : processorModules) {
+		std::cout << m.id << "-PROCESSOR-" << m.shortName << std::endl;
+	}
+
+	for (auto m : outputModules) {
+		std::cout << m.id << "-OUTPUT-" << m.shortName << std::endl;
+	}
+
+	for (auto m : execModules) {
+		std::cout << m.id << "-[Type: " << m.libraryInfo->type << "]-" << m.shortName << std::endl;
 	}
 
 //	// Enable memory recycling.

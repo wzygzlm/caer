@@ -42,7 +42,9 @@ enum caer_module_status {
  * new data out of it, as such they must have at least 1 input event
  * stream, and at least 1 output event stream. If any of the data taken
  * as input is modified, then it must also be declared again as an output
- * event stream. If it is only read, then it must not be part of the outputs.
+ * event stream. If it is only read, then it must not be part of the outputs,
+ * but the input has to be appropriately marked 'readOnly'; not doing so
+ * is considered an error, as it prevents important optimizations.
  */
 enum caer_module_type {
 	CAER_MODULE_INPUT = 0,
@@ -50,14 +52,24 @@ enum caer_module_type {
 	CAER_MODULE_PROCESSOR = 2,
 };
 
-struct caer_event_stream {
+struct caer_event_stream_in {
+	int16_t type; // Use -1 for any type.
+	int16_t number; // Use -1 for any number of.
+	bool readOnly; // True if input is never modified.
+};
+
+typedef struct caer_event_stream_in const *caerEventStreamIn;
+
+#define CAER_EVENT_STREAM_IN_SIZE(x) (sizeof(x) / sizeof(struct caer_event_stream_in))
+
+struct caer_event_stream_out {
 	int16_t type; // Use -1 for any type.
 	int16_t number; // Use -1 for any number of.
 };
 
-typedef struct caer_event_stream const *caerEventStream;
+typedef struct caer_event_stream_out const *caerEventStreamOut;
 
-#define CAER_EVENT_STREAM_SIZE(x) (sizeof(x) / sizeof(struct caer_event_stream))
+#define CAER_EVENT_STREAM_OUT_SIZE(x) (sizeof(x) / sizeof(struct caer_event_stream_out))
 
 struct caer_module_data {
 	uint16_t moduleID;
