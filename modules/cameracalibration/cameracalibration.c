@@ -31,14 +31,16 @@ static const struct caer_module_functions CameraCalibrationFunctions = { .module
 	.moduleRun = &caerCameraCalibrationRun, .moduleConfig = &caerCameraCalibrationConfig, .moduleExit =
 		&caerCameraCalibrationExit };
 
-static const struct caer_event_stream CameraCalibrationInputs[] = { { .type = POLARITY_EVENT, .number = 1 }, { .type =
-	FRAME_EVENT, .number = 1 } };
+static const struct caer_event_stream_in CameraCalibrationInputs[] = { { .type = POLARITY_EVENT, .number = 1 }, {
+	.type = FRAME_EVENT, .number = 1 } };
+static const struct caer_event_stream_out CameraCalibrationOutputs[] = { { .type = POLARITY_EVENT, .number = 1 }, {
+	.type = FRAME_EVENT, .number = 1 } };
 
 static const struct caer_module_info CameraCalibrationInfo = { .version = 1, .name = "CameraCalibration", .type =
 	CAER_MODULE_PROCESSOR, .memSize = sizeof(struct CameraCalibrationState_struct), .functions =
-	&CameraCalibrationFunctions, .inputStreams = CameraCalibrationInputs, .inputStreamsSize = CAER_EVENT_STREAM_SIZE(
-	CameraCalibrationInputs), .outputStreams = CameraCalibrationInputs, .outputStreamsSize = CAER_EVENT_STREAM_SIZE(
-	CameraCalibrationInputs), };
+	&CameraCalibrationFunctions, .inputStreams = CameraCalibrationInputs, .inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(
+	CameraCalibrationInputs), .outputStreams = CameraCalibrationOutputs, .outputStreamsSize =
+	CAER_EVENT_STREAM_OUT_SIZE(CameraCalibrationOutputs), };
 
 caerModuleInfo caerModuleGetInfo(void) {
 	return (&CameraCalibrationInfo);

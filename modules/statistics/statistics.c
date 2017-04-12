@@ -11,11 +11,11 @@ static void caerStatisticsReset(caerModuleData moduleData, uint16_t resetCallSou
 static const struct caer_module_functions StatisticsFunctions = { .moduleInit = &caerStatisticsInit, .moduleRun =
 	&caerStatisticsRun, .moduleConfig = NULL, .moduleExit = &caerStatisticsExit, .moduleReset = &caerStatisticsReset };
 
-static const struct caer_event_stream StatisticsInputs[] = { { .type = -1, .number = 1 } };
+static const struct caer_event_stream_in StatisticsInputs[] = { { .type = -1, .number = 1, .readOnly = true } };
 
 static const struct caer_module_info StatisticsInfo = { .version = 1, .name = "Statistics", .type = CAER_MODULE_OUTPUT,
 	.memSize = sizeof(struct caer_statistics_state), .functions = &StatisticsFunctions, .inputStreams = StatisticsInputs,
-	.inputStreamsSize = CAER_EVENT_STREAM_SIZE(StatisticsInputs), .outputStreams = NULL, .outputStreamsSize = 0, };
+	.inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(StatisticsInputs), .outputStreams = NULL, .outputStreamsSize = 0, };
 
 caerModuleInfo caerModuleGetInfo(void) {
 	return (&StatisticsInfo);

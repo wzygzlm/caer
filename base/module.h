@@ -103,9 +103,9 @@ struct caer_module_info {
 	size_t memSize;
 	caerModuleFunctions functions;
 	size_t inputStreamsSize;
-	caerEventStream inputStreams;
+	caerEventStreamIn inputStreams;
 	size_t outputStreamsSize;
-	caerEventStream outputStreams;
+	caerEventStreamOut outputStreams;
 };
 
 typedef struct caer_module_info const * caerModuleInfo;

@@ -22,15 +22,14 @@ static void caerFrameEnhancerExit(caerModuleData moduleData);
 static const struct caer_module_functions FrameEnhancerFunctions = { .moduleInit = &caerFrameEnhancerInit, .moduleRun =
 	&caerFrameEnhancerRun, .moduleConfig = &caerFrameEnhancerConfig, .moduleExit = &caerFrameEnhancerExit };
 
-static const struct caer_event_stream FrameEnhancerInputs[] = { { .type = FRAME_EVENT, .number = 1, .readOnly = true } };
-
+static const struct caer_event_stream_in FrameEnhancerInputs[] = { { .type = FRAME_EVENT, .number = 1, .readOnly = true } };
 // The output frame here is a _different_ frame than the above input!
-static const struct caer_event_stream FrameEnhancerOutputs[] = { { .type = FRAME_EVENT, .number = 1 } };
+static const struct caer_event_stream_out FrameEnhancerOutputs[] = { { .type = FRAME_EVENT, .number = 1 } };
 
 static const struct caer_module_info FrameEnhancerInfo = { .version = 1, .name = "FrameEnhancer", .type =
 	CAER_MODULE_PROCESSOR, .memSize = sizeof(struct FrameEnhancer_state), .functions = &FrameEnhancerFunctions,
-	.inputStreams = FrameEnhancerInputs, .inputStreamsSize = CAER_EVENT_STREAM_SIZE(FrameEnhancerInputs),
-	.outputStreams = FrameEnhancerOutputs, .outputStreamsSize = CAER_EVENT_STREAM_SIZE(FrameEnhancerOutputs), };
+	.inputStreams = FrameEnhancerInputs, .inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(FrameEnhancerInputs),
+	.outputStreams = FrameEnhancerOutputs, .outputStreamsSize = CAER_EVENT_STREAM_OUT_SIZE(FrameEnhancerOutputs), };
 
 caerModuleInfo caerModuleGetInfo(void) {
 	return (&FrameEnhancerInfo);
