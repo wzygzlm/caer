@@ -319,23 +319,31 @@ static int caerMainloopRunner(void) {
 				// of modules to execute at the top.
 				inputModules.push_back(m.second);
 				execModules.insert(execModules.begin(), m.second);
+				continue;
 			}
 			else {
 				// Error, invalid input definition on INPUT module.
 				log(logLevel::ERROR, "Mainloop",
-					"Invalid moduleInput config for module '%s', module is INPUT but config is not empty.",
+					"Invalid moduleInput config for module '%s', module is not INPUT but parameter is empty.",
 					m.second.shortName);
 				exit(EXIT_FAILURE);
 			}
 		}
 
 		// inputDefinition is not empty, so we're a module that consumes data,
-		// either an OUTPUT or a PROCESSOR.
+		// either an OUTPUT or a PROCESSOR. INPUT is an error here (handled later).
 		if (m.second.libraryInfo->type == CAER_MODULE_OUTPUT) {
 
 		}
+		else if (m.second.libraryInfo->type == CAER_MODULE_PROCESSOR) {
+
+		}
 		else {
-			// CAER_MODULE_PROCESSOR
+			// CAER_MODULE_INPUT is invalid in this case!
+			log(logLevel::ERROR, "Mainloop",
+				"Invalid moduleInput config for module '%s', module is an INPUT but parameter is not empty.",
+				m.second.shortName);
+			exit(EXIT_FAILURE);
 		}
 	}
 
