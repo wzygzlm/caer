@@ -332,6 +332,11 @@ static int caerMainloopRunner(void) {
 
 		// inputDefinition is not empty, so we're a module that consumes data,
 		// either an OUTPUT or a PROCESSOR. INPUT is an error here (handled later).
+		// moduleInput strings have the following format: different input IDs are
+		// separated by a white-space character, for each input ID the used input
+		// types are listed inside square-brackets [] and separated by a comma.
+		// For example: "1[1,2,3] 2[2] 4[1,2]" means the inputs are: types 1,2,3
+		// from module 1, type 2 from module 2, and types 1,2 from module 4.
 		if (m.second.libraryInfo->type == CAER_MODULE_OUTPUT) {
 
 		}
