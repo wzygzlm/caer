@@ -271,6 +271,23 @@ static int caerMainloopRunner(void) {
 				dlclose(moduleLibrary);
 				continue;
 			}
+
+			// Also ensure that all input streams of an output module are marked read-only.
+			bool readOnlyError = false;
+
+			for (size_t i = 0; i < info->inputStreamsSize; i++) {
+				if (!info->inputStreams[i].readOnly) {
+					readOnlyError = true;
+					break;
+				}
+			}
+
+			if (readOnlyError) {
+				log(logLevel::ERROR, "Mainloop",
+					"Module '%s' type OUTPUT has wrong input event streams not marked read-only.", info->name);
+				dlclose(moduleLibrary);
+				continue;
+			}
 		}
 		else {
 			// CAER_MODULE_PROCESSOR

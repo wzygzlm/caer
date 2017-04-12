@@ -37,7 +37,8 @@ enum caer_module_status {
  * Input modules strictly create data, as such they have no input event
  * streams and at least 1 output event stream.
  * Output modules consume data, without modifying it, so they have at
- * least 1 input event stream, and no output event streams.
+ * least 1 input event stream, and no output event streams. They must
+ * set the 'readOnly' flag to true on all their input event streams.
  * Processor modules do something with data, filtering it or creating
  * new data out of it, as such they must have at least 1 input event
  * stream, and at least 1 output event stream. If any of the data taken
