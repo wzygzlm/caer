@@ -131,17 +131,19 @@ void caerMainloopRun(void) {
 	caerMainloopRunner();
 }
 
-// Type must be either -1 or well defined (0-INT16_MAX).
-// Number must be either -1 or well defined (1-INT16_MAX). Zero not allowed.
-// The event stream array must be ordered by ascending type ID.
-// For each type, only one definition may exist.
-// If type is -1 (any), then number must also be -1; having a defined
-// number in this case makes no sense (N of any type???), a special exception
-// is made for the number 1 (1 of any type), which can be useful. Also this
-// must then be the only definition.
-// If number is -1, then either the type is also -1 and this is the
-// only event stream definition (same as rule above), OR the type is well
-// defined and this is the only event stream definition for that type.
+/**
+ * Type must be either -1 or well defined (0-INT16_MAX).
+ * Number must be either -1 or well defined (1-INT16_MAX). Zero not allowed.
+ * The event stream array must be ordered by ascending type ID.
+ * For each type, only one definition may exist.
+ * If type is -1 (any), then number must also be -1; having a defined
+ * number in this case makes no sense (N of any type???), a special exception
+ * is made for the number 1 (1 of any type) with inputs, which can be useful.
+ * Also this must then be the only definition.
+ * If number is -1, then either the type is also -1 and this is the
+ * only event stream definition (same as rule above), OR the type is well
+ * defined and this is the only event stream definition for that type.
+ */
 static bool checkInputStreamDefinitions(caerEventStreamIn inputStreams, size_t inputStreamsSize) {
 	for (size_t i = 0; i < inputStreamsSize; i++) {
 		// Check type range.
@@ -163,7 +165,7 @@ static bool checkInputStreamDefinitions(caerEventStreamIn inputStreams, size_t i
 			return (false);
 		}
 
-		// Check that any type is always together with any number and the
+		// Check that any type is always together with any number or 1, and the
 		// only definition present in that case.
 		if (inputStreams[i].type == -1
 			&& ((inputStreams[i].number != -1 && inputStreams[i].number != 1) || inputStreamsSize != 1)) {
@@ -421,14 +423,17 @@ static int caerMainloopRunner(void) {
 	std::vector<moduleInfo> outputModules;
 	std::vector<moduleInfo> processorModules;
 
+	/**
+	 *  moduleInput strings have the following format: different input IDs are
+	 * separated by a white-space character, for each input ID the used input
+	 * types are listed inside square-brackets [] and separated by a comma.
+	 * For example: "1[1,2,3] 2[2] 4[1,2]" means the inputs are: types 1,2,3
+	 * from module 1, type 2 from module 2, and types 1,2 from module 4.
+	 */
+
 	// Now we must parse, validate and create the connectivity map between modules.
 	// First we do some basic checks on the moduleInput config parameter and sort the
 	// modules into their three possible categories.
-	// moduleInput strings have the following format: different input IDs are
-	// separated by a white-space character, for each input ID the used input
-	// types are listed inside square-brackets [] and separated by a comma.
-	// For example: "1[1,2,3] 2[2] 4[1,2]" means the inputs are: types 1,2,3
-	// from module 1, type 2 from module 2, and types 1,2 from module 4.
 	for (auto &m : glMainloopData.modules) {
 		// If the module doesn't have any input definition (from where to take data),
 		// then it must be a module that exclusively creates data, an INPUT module.
@@ -466,17 +471,19 @@ static int caerMainloopRunner(void) {
 		}
 	}
 
-	// Input modules _must_ have all their outputs well defined, or it becomes impossible
-	// to validate and build the follow-up chain of processors and outputs correctly.
-	// Now, this may not always be the case, for example File Input modules don't know a-priori
-	// what their outputs are going to be (they're declared with type and number set to -1).
-	// For those cases, we need additional information, which we get from the 'moduleOutput'
-	// configuration parameter that is required to be set in this case.
+	/**
+	 * Input modules _must_ have all their outputs well defined, or it becomes impossible
+	 * to validate and build the follow-up chain of processors and outputs correctly.
+	 * Now, this may not always be the case, for example File Input modules don't know a-priori
+	 * what their outputs are going to be (they're declared with type and number set to -1).
+	 * For those cases, we need additional information, which we get from the 'moduleOutput'
+	 * configuration parameter that is required to be set in this case.
+	 */
 	for (auto &m : inputModules) {
-		for (size_t i = 0; i < m.libraryInfo->outputStreamsSize; i++) {
-			if (m.libraryInfo->outputStreams[i].type == -1 || m.libraryInfo->outputStreams[i].type == -1) {
+		// Output [-1,-1] has to be the only one.
+		if (m.libraryInfo->outputStreamsSize == 1 && m.libraryInfo->outputStreams[0].type == -1
+			&& m.libraryInfo->outputStreams[0].type == -1) {
 
-			}
 		}
 	}
 
