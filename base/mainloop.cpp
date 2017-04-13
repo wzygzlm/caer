@@ -304,21 +304,25 @@ static int caerMainloopRunner(void) {
 		m.second.libraryInfo = info;
 	}
 
-	std::vector<moduleInfo> execModules;
 	std::vector<moduleInfo> inputModules;
 	std::vector<moduleInfo> outputModules;
 	std::vector<moduleInfo> processorModules;
 
 	// Now we must parse, validate and create the connectivity map between modules.
+	// First we do some basic checks on the moduleInput config parameter and sort the
+	// modules into their three possible categories.
+	// moduleInput strings have the following format: different input IDs are
+	// separated by a white-space character, for each input ID the used input
+	// types are listed inside square-brackets [] and separated by a comma.
+	// For example: "1[1,2,3] 2[2] 4[1,2]" means the inputs are: types 1,2,3
+	// from module 1, type 2 from module 2, and types 1,2 from module 4.
 	for (auto &m : glMainloopData.modules) {
 		// If the module doesn't have any input definition (from where to take data),
 		// then it must be a module that exclusively creates data, an INPUT module.
 		if (m.second.inputDefinition.empty()) {
 			if (m.second.libraryInfo->type == CAER_MODULE_INPUT) {
-				// Good, is an input module. Add to list of inputs, and add to list
-				// of modules to execute at the top.
+				// Good, is an input module. Add to list of inputs.
 				inputModules.push_back(m.second);
-				execModules.insert(execModules.begin(), m.second);
 				continue;
 			}
 			else {
@@ -332,16 +336,13 @@ static int caerMainloopRunner(void) {
 
 		// inputDefinition is not empty, so we're a module that consumes data,
 		// either an OUTPUT or a PROCESSOR. INPUT is an error here (handled later).
-		// moduleInput strings have the following format: different input IDs are
-		// separated by a white-space character, for each input ID the used input
-		// types are listed inside square-brackets [] and separated by a comma.
-		// For example: "1[1,2,3] 2[2] 4[1,2]" means the inputs are: types 1,2,3
-		// from module 1, type 2 from module 2, and types 1,2 from module 4.
 		if (m.second.libraryInfo->type == CAER_MODULE_OUTPUT) {
-
+			outputModules.push_back(m.second);
+			continue;
 		}
 		else if (m.second.libraryInfo->type == CAER_MODULE_PROCESSOR) {
-
+			processorModules.push_back(m.second);
+			continue;
 		}
 		else {
 			// CAER_MODULE_INPUT is invalid in this case!
@@ -362,10 +363,6 @@ static int caerMainloopRunner(void) {
 
 	for (auto m : outputModules) {
 		std::cout << m.id << "-OUTPUT-" << m.shortName << std::endl;
-	}
-
-	for (auto m : execModules) {
-		std::cout << m.id << "-[Type: " << m.libraryInfo->type << "]-" << m.shortName << std::endl;
 	}
 
 //	// Enable memory recycling.

@@ -26,13 +26,12 @@ static const struct caer_module_functions BAFilterFunctions = { .moduleInit = &c
 	.moduleRun = &caerBackgroundActivityFilterRun, .moduleConfig = &caerBackgroundActivityFilterConfig, .moduleExit =
 		&caerBackgroundActivityFilterExit, .moduleReset = &caerBackgroundActivityFilterReset };
 
-static const struct caer_event_stream_in BAFilterInputs[] = { { .type = POLARITY_EVENT, .number = 1 } };
-static const struct caer_event_stream_out BAFilterOutputs[] = { { .type = POLARITY_EVENT, .number = 1 } };
+static const struct caer_event_stream_in BAFilterInputs[] =
+	{ { .type = POLARITY_EVENT, .number = 1, .readOnly = false } };
 
 static const struct caer_module_info BAFilterInfo = { .version = 1, .name = "BAFilter", .type = CAER_MODULE_PROCESSOR,
 	.memSize = sizeof(struct BAFilter_state), .functions = &BAFilterFunctions, .inputStreams = BAFilterInputs,
-	.inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(BAFilterInputs), .outputStreams = BAFilterOutputs, .outputStreamsSize =
-		CAER_EVENT_STREAM_OUT_SIZE(BAFilterOutputs), };
+	.inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(BAFilterInputs), .outputStreams = NULL, .outputStreamsSize = 0, };
 
 caerModuleInfo caerModuleGetInfo(void) {
 	return (&BAFilterInfo);

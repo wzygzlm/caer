@@ -41,11 +41,10 @@ enum caer_module_status {
  * set the 'readOnly' flag to true on all their input event streams.
  * Processor modules do something with data, filtering it or creating
  * new data out of it, as such they must have at least 1 input event
- * stream, and at least 1 output event stream. If any of the data taken
- * as input is modified, then it must also be declared again as an output
- * event stream. If it is only read, then it must not be part of the outputs,
- * but the input has to be appropriately marked 'readOnly'; not doing so
- * is considered an error, as it prevents important optimizations.
+ * stream, and at least 1 output event stream (implicit or explicit).
+ * Explicit output streams in this case are new data, while implicit
+ * are input streams with their 'readOnly' flag set to false, meaning
+ * the data is modified.
  */
 enum caer_module_type {
 	CAER_MODULE_INPUT = 0,
