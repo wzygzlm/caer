@@ -1,10 +1,3 @@
-/*
- * mainloops.c
- *
- *  Created on: Dec 9, 2013
- *      Author: chtekk
- */
-
 #include "mainloop.h"
 #include <csignal>
 #include <climits>
@@ -136,6 +129,82 @@ void caerMainloopRun(void) {
 	sshsNodeAddAttributeListener(glMainloopData.mainloopNode, NULL, &caerMainloopRunningListener);
 
 	caerMainloopRunner();
+}
+
+// Type must be either -1 or well defined (0-INT16_MAX).
+// Number must be either -1 or well defined (1-INT16_MAX). Zero not allowed.
+// The event stream array must be ordered by ascending type ID.
+// For each type, only one definition may exist.
+// If type is -1 (any), then number must also be -1; having a defined
+// number in this case makes no sense (N of any type???), a special exception
+// is made for the number 1 (1 of any type), which can be useful. Also this
+// must then be the only definition.
+// If number is -1, then either the type is also -1 and this is the
+// only event stream definition (same as rule above), OR the type is well
+// defined and this is the only event stream definition for that type.
+static bool checkInputStreamDefinitions(caerEventStreamIn inputStreams, size_t inputStreamsSize) {
+	for (size_t i = 0; i < inputStreamsSize; i++) {
+		// Check type range.
+		if (inputStreams[i].type < -1) {
+			log(logLevel::ERROR, "Mainloop", "Input stream has invalid type value.");
+			return (false);
+		}
+
+		// Check number range.
+		if (inputStreams[i].number < -1 || inputStreams[i].number == 0) {
+			log(logLevel::ERROR, "Mainloop", "Input stream has invalid number value.");
+			return (false);
+		}
+
+		// Check sorted array and only one definition per type; the two
+		// requirements together mean strict monotonicity for types.
+		if (i > 0 && inputStreams[i - 1].type >= inputStreams[i].type) {
+			log(logLevel::ERROR, "Mainloop", "Input stream has invalid order of declaration or duplicates.");
+			return (false);
+		}
+
+		// Check that any type is always together with any number and the
+		// only definition present in that case.
+		if (inputStreams[i].type == -1
+			&& ((inputStreams[i].number != -1 && inputStreams[i].number != 1) || inputStreamsSize != 1)) {
+			log(logLevel::ERROR, "Mainloop", "Input stream has invalid any declaration.");
+			return (false);
+		}
+	}
+
+	return (true);
+}
+
+static bool checkOutputStreamDefinitions(caerEventStreamOut outputStreams, size_t outputStreamsSize) {
+	for (size_t i = 0; i < outputStreamsSize; i++) {
+		// Check type range.
+		if (outputStreams[i].type < -1) {
+			log(logLevel::ERROR, "Mainloop", "Output stream has invalid type value.");
+			return (false);
+		}
+
+		// Check number range.
+		if (outputStreams[i].number < -1 || outputStreams[i].number == 0) {
+			log(logLevel::ERROR, "Mainloop", "Output stream has invalid number value.");
+			return (false);
+		}
+
+		// Check sorted array and only one definition per type; the two
+		// requirements together mean strict monotonicity for types.
+		if (i > 0 && outputStreams[i - 1].type >= outputStreams[i].type) {
+			log(logLevel::ERROR, "Mainloop", "Output stream has invalid order of declaration or duplicates.");
+			return (false);
+		}
+
+		// Check that any type is always together with any number and the
+		// only definition present in that case.
+		if (outputStreams[i].type == -1 && (outputStreams[i].number != -1 || outputStreamsSize != 1)) {
+			log(logLevel::ERROR, "Mainloop", "Output stream has invalid any declaration.");
+			return (false);
+		}
+	}
+
+	return (true);
 }
 
 static int caerMainloopRunner(void) {
@@ -291,17 +360,61 @@ static int caerMainloopRunner(void) {
 		}
 		else {
 			// CAER_MODULE_PROCESSOR
-			if (info->inputStreams == NULL || info->inputStreamsSize == 0 || info->outputStreams == NULL
-				|| info->outputStreamsSize == 0) {
+			if (info->inputStreams == NULL || info->inputStreamsSize == 0) {
 				log(logLevel::ERROR, "Mainloop", "Module '%s' type PROCESSOR has wrong I/O event stream definitions.",
 					info->name);
 				dlclose(moduleLibrary);
 				continue;
 			}
+
+			// If no output streams are defined, then at least one input event
+			// stream must not be readOnly, so that there is modified data to output.
+			if (info->outputStreams == NULL || info->outputStreamsSize == 0) {
+				bool readOnlyError = true;
+
+				for (size_t i = 0; i < info->inputStreamsSize; i++) {
+					if (!info->inputStreams[i].readOnly) {
+						readOnlyError = false;
+						break;
+					}
+				}
+
+				if (readOnlyError) {
+					log(logLevel::ERROR, "Mainloop",
+						"Module '%s' type PROCESSOR has no output streams and all input streams are marked read-only.",
+						info->name);
+					dlclose(moduleLibrary);
+					continue;
+				}
+			}
+		}
+
+		// Check I/O event stream definitions for correctness.
+		if (info->inputStreams != NULL) {
+			if (!checkInputStreamDefinitions(info->inputStreams, info->inputStreamsSize)) {
+				log(logLevel::ERROR, "Mainloop", "Module '%s' has incorrect I/O event stream definitions.", info->name);
+				dlclose(moduleLibrary);
+				continue;
+			}
+		}
+
+		if (info->outputStreams != NULL) {
+			if (!checkOutputStreamDefinitions(info->outputStreams, info->outputStreamsSize)) {
+				log(logLevel::ERROR, "Mainloop", "Module '%s' has incorrect I/O event stream definitions.", info->name);
+				dlclose(moduleLibrary);
+			}
 		}
 
 		m.second.libraryHandle = moduleLibrary;
 		m.second.libraryInfo = info;
+	}
+
+	// If any modules failed to load, exit program now. We didn't do that before, so that we
+	// could run through all modules and check them all in one go.
+	for (auto &m : glMainloopData.modules) {
+		if (m.second.libraryHandle == NULL) {
+			exit(EXIT_FAILURE);
+		}
 	}
 
 	std::vector<moduleInfo> inputModules;
@@ -350,6 +463,20 @@ static int caerMainloopRunner(void) {
 				"Invalid moduleInput config for module '%s', module is an INPUT but parameter is not empty.",
 				m.second.shortName);
 			exit(EXIT_FAILURE);
+		}
+	}
+
+	// Input modules _must_ have all their outputs well defined, or it becomes impossible
+	// to validate and build the follow-up chain of processors and outputs correctly.
+	// Now, this may not always be the case, for example File Input modules don't know a-priori
+	// what their outputs are going to be (they're declared with type and number set to -1).
+	// For those cases, we need additional information, which we get from the 'moduleOutput'
+	// configuration parameter that is required to be set in this case.
+	for (auto &m : inputModules) {
+		for (size_t i = 0; i < m.libraryInfo->outputStreamsSize; i++) {
+			if (m.libraryInfo->outputStreams[i].type == -1 || m.libraryInfo->outputStreams[i].type == -1) {
+
+			}
 		}
 	}
 
