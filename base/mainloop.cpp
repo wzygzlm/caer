@@ -43,6 +43,7 @@ struct moduleInfo {
 	sshsNode configNode;
 	std::vector<moduleConnectivity> inputs;
 	std::vector<moduleConnectivity> outputs;
+	bool IOFullyAnalyzed;
 	void *libraryHandle;
 	caerModuleInfo libraryInfo;
 };
@@ -501,9 +502,9 @@ static int caerMainloopRunner(void) {
 		}
 	}
 
-	std::vector<moduleInfo> inputModules;
-	std::vector<moduleInfo> outputModules;
-	std::vector<moduleInfo> processorModules;
+	std::vector<std::reference_wrapper<moduleInfo>> inputModules;
+	std::vector<std::reference_wrapper<moduleInfo>> outputModules;
+	std::vector<std::reference_wrapper<moduleInfo>> processorModules;
 
 	/**
 	 *  moduleInput strings have the following format: different input IDs are
@@ -564,46 +565,55 @@ static int caerMainloopRunner(void) {
 	 */
 	for (auto &m : inputModules) {
 		// Output [-1,-1] has to be the only one.
-		if (m.libraryInfo->outputStreamsSize == 1 && m.libraryInfo->outputStreams[0].type == -1
-			&& m.libraryInfo->outputStreams[0].type == -1) {
-			if (!sshsNodeAttributeExists(m.configNode, "moduleOutput", SSHS_STRING)) {
+		if (m.get().libraryInfo->outputStreamsSize == 1 && m.get().libraryInfo->outputStreams[0].type == -1
+			&& m.get().libraryInfo->outputStreams[0].type == -1) {
+			if (!sshsNodeAttributeExists(m.get().configNode, "moduleOutput", SSHS_STRING)) {
 				log(logLevel::ERROR, "Mainloop",
 					"Invalid moduleOutput config for module '%s', module has generic output definition, so parameter must be present.",
-					m.shortName.c_str());
+					m.get().shortName.c_str());
 				exit(EXIT_FAILURE);
 			}
 
 			// Get string and parse it.
-			char *moduleOutputStringC = sshsNodeGetString(m.configNode, "moduleOutput");
+			char *moduleOutputStringC = sshsNodeGetString(m.get().configNode, "moduleOutput");
 			std::string moduleOutputString = moduleOutputStringC;
 			free(moduleOutputStringC);
 
-			// m.actualInputStreams remains empty.
-			m.outputs = parseModuleOutput(moduleOutputString);
+			// m.get().inputs remains empty.
+			m.get().outputs = parseModuleOutput(moduleOutputString);
+			m.get().IOFullyAnalyzed = true;
 		}
 		else {
-			if (sshsNodeAttributeExists(m.configNode, "moduleOutput", SSHS_STRING)) {
+			if (sshsNodeAttributeExists(m.get().configNode, "moduleOutput", SSHS_STRING)) {
 				log(logLevel::ERROR, "Mainloop",
 					"Invalid moduleOutput config for module '%s', module is a well-defined INPUT, so parameter must not be present.",
-					m.shortName.c_str());
+					m.get().shortName.c_str());
 				exit(EXIT_FAILURE);
 			}
 
-			// m.actualInputStreams remains empty.
-			m.outputs = parseEventStreamOutDefinition(m.libraryInfo->outputStreams, m.libraryInfo->outputStreamsSize);
+			// m.get().inputs remains empty.
+			m.get().outputs = parseEventStreamOutDefinition(m.get().libraryInfo->outputStreams,
+				m.get().libraryInfo->outputStreamsSize);
+			m.get().IOFullyAnalyzed = true;
 		}
 	}
 
-	for (auto m : inputModules) {
-		std::cout << m.id << "-INPUT-" << m.shortName << std::endl;
+	// Now we can go through all processors and see if they link up to an input
+	// module or to another processor, and start creating the connectivity map.
+	for (auto &m : processorModules) {
+
 	}
 
-	for (auto m : processorModules) {
-		std::cout << m.id << "-PROCESSOR-" << m.shortName << std::endl;
-	}
+	for (auto m : glMainloopData.modules) {
+		std::cout << m.second.id << "-MOD:" << m.second.libraryInfo->type << "-" << m.second.shortName << std::endl;
 
-	for (auto m : outputModules) {
-		std::cout << m.id << "-OUTPUT-" << m.shortName << std::endl;
+		for (auto i : m.second.inputs) {
+			std::cout << i.type << "-IN-" << i.otherModule << std::endl;
+		}
+
+		for (auto o : m.second.outputs) {
+			std::cout << o.type << "-OUT-" << o.otherModule << std::endl;
+		}
 	}
 
 //	// Enable memory recycling.
