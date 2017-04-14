@@ -1,30 +1,29 @@
-#include "file.h"
+#include "main.h"
 #include "base/mainloop.h"
 #include "base/module.h"
 #include "input_common.h"
 #include <sys/types.h>
 #include <fcntl.h>
+#include <limits.h>
 
 static bool caerInputFileInit(caerModuleData moduleData);
 
-static struct caer_module_functions caerInputFileFunctions = { .moduleInit = &caerInputFileInit, .moduleRun =
+static const struct caer_module_functions InputFileFunctions = { .moduleInit = &caerInputFileInit, .moduleRun =
 	&caerInputCommonRun, .moduleConfig = NULL, .moduleExit = &caerInputCommonExit };
 
-caerEventPacketContainer caerInputFile(uint16_t moduleID) {
-	caerModuleData moduleData = caerMainloopFindModule(moduleID, "FileInput", CAER_MODULE_INPUT);
-	if (moduleData == NULL) {
-		return (NULL);
-	}
+static const struct caer_event_stream_out InputFileOutputs[] = { { .type = -1, .number = -1 } };
 
-	caerEventPacketContainer result = NULL;
+static const struct caer_module_info InputFileInfo = { .version = 1, .name = "FileInput", .type =
+	CAER_MODULE_INPUT, .memSize = sizeof(struct input_common_state), .functions = &InputFileFunctions,
+	.inputStreams = NULL, .inputStreamsSize = 0, .outputStreams = InputFileOutputs, .outputStreamsSize =
+		CAER_EVENT_STREAM_OUT_SIZE(InputFileOutputs), };
 
-	caerModuleSM(&caerInputFileFunctions, moduleData, CAER_INPUT_COMMON_STATE_STRUCT_SIZE, 1, &result);
-
-	return (result);
+caerModuleInfo caerModuleGetInfo(void) {
+	return (&InputFileInfo);
 }
 
 static bool caerInputFileInit(caerModuleData moduleData) {
-	sshsNodePutStringIfAbsent(moduleData->moduleNode, "filePath", "");
+	sshsNodeCreateString(moduleData->moduleNode, "filePath", "", 0, PATH_MAX, SSHS_FLAGS_NORMAL);
 
 	char *filePath = sshsNodeGetString(moduleData->moduleNode, "filePath");
 

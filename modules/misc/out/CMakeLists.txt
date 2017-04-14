@@ -7,27 +7,64 @@ IF (NOT ENABLE_NETWORK_OUTPUT)
 ENDIF()
 
 IF (ENABLE_FILE_OUTPUT)
-	SET(CAER_COMPILE_DEFINITIONS ${CAER_COMPILE_DEFINITIONS} -DENABLE_FILE_OUTPUT=1)
+	ADD_LIBRARY(output_file SHARED output_common.c file.c)
 
-	SET(CAER_FILE_OUTPUT_FILES modules/misc/out/output_common.c modules/misc/out/file.c)
+	SET_TARGET_PROPERTIES(output_file
+		PROPERTIES
+		PREFIX "caer_"
+	)
 
-	SET(CAER_C_SRC_FILES ${CAER_C_SRC_FILES} ${CAER_FILE_OUTPUT_FILES})
+	TARGET_LINK_LIBRARIES(output_file ${CAER_C_LIBS})
 ENDIF()
 
 IF (ENABLE_NETWORK_OUTPUT)
-	SET(CAER_COMPILE_DEFINITIONS ${CAER_COMPILE_DEFINITIONS} -DENABLE_NETWORK_OUTPUT=1)
+	# NET_TCP_SERVER
+	ADD_LIBRARY(output_net_tcp_server SHARED output_common.c net_tcp_server.c)
 
-	SET(CAER_NETWORK_OUTPUT_FILES
-		modules/misc/out/output_common.c
-		modules/misc/out/net_tcp_server.c
-		modules/misc/out/net_tcp.c
-		modules/misc/out/net_udp.c
-		modules/misc/out/unix_socket_server.c
-		modules/misc/out/unix_socket.c)
+	SET_TARGET_PROPERTIES(output_net_tcp_server
+		PROPERTIES
+		PREFIX "caer_"
+	)
 
-	SET(CAER_C_SRC_FILES ${CAER_C_SRC_FILES} ${CAER_NETWORK_OUTPUT_FILES})
+	TARGET_LINK_LIBRARIES(output_net_tcp_server ${CAER_C_LIBS})
+	
+	# NET_TCP_CLIENT
+	ADD_LIBRARY(output_net_tcp_client SHARED output_common.c net_tcp.c)
+
+	SET_TARGET_PROPERTIES(output_net_tcp_client
+		PROPERTIES
+		PREFIX "caer_"
+	)
+
+	TARGET_LINK_LIBRARIES(output_net_tcp_client ${CAER_C_LIBS})
+	
+	# NET_UDP
+	ADD_LIBRARY(output_net_udp SHARED output_common.c net_udp.c)
+
+	SET_TARGET_PROPERTIES(output_net_udp
+		PROPERTIES
+		PREFIX "caer_"
+	)
+
+	TARGET_LINK_LIBRARIES(output_net_udp ${CAER_C_LIBS})
+	
+	# NET_SOCKET_SERVER
+	ADD_LIBRARY(output_net_socket_server SHARED output_common.c unix_socket_server.c)
+
+	SET_TARGET_PROPERTIES(output_net_socket_server
+		PROPERTIES
+		PREFIX "caer_"
+	)
+
+	TARGET_LINK_LIBRARIES(output_net_socket_server ${CAER_C_LIBS})
+	
+	# NET_SOCKET_CLIENT
+	ADD_LIBRARY(output_net_socket_client SHARED output_common.c unix_socket.c)
+
+	SET_TARGET_PROPERTIES(output_net_socket_client
+		PROPERTIES
+		PREFIX "caer_"
+	)
+
+	TARGET_LINK_LIBRARIES(output_net_socket_client ${CAER_C_LIBS})
 ENDIF()
-
-# Propagate change to parent scope only once.
-SET(CAER_C_SRC_FILES ${CAER_C_SRC_FILES} PARENT_SCOPE)
-SET(CAER_COMPILE_DEFINITIONS ${CAER_COMPILE_DEFINITIONS} PARENT_SCOPE)

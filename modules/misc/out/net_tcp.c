@@ -1,32 +1,31 @@
-#include "net_tcp.h"
+#include "main.h"
 #include "base/mainloop.h"
 #include "base/module.h"
 #include "output_common.h"
 
 static bool caerOutputNetTCPInit(caerModuleData moduleData);
 
-static struct caer_module_functions caerOutputNetTCPFunctions = { .moduleInit = &caerOutputNetTCPInit, .moduleRun =
+static const struct caer_module_functions OutputNetTCPFunctions = { .moduleInit = &caerOutputNetTCPInit, .moduleRun =
 	&caerOutputCommonRun, .moduleConfig = NULL, .moduleExit = &caerOutputCommonExit, .moduleReset =
 	&caerOutputCommonReset };
 
-void caerOutputNetTCP(uint16_t moduleID, size_t outputTypesNumber, ...) {
-	caerModuleData moduleData = caerMainloopFindModule(moduleID, "NetTCPOutput", CAER_MODULE_OUTPUT);
-	if (moduleData == NULL) {
-		return;
-	}
+static const struct caer_event_stream_in OutputNetTCPInputs[] = {
+	{ .type = -1, .number = -1, .readOnly = true } };
 
-	va_list args;
-	va_start(args, outputTypesNumber);
-	caerModuleSMv(&caerOutputNetTCPFunctions, moduleData, CAER_OUTPUT_COMMON_STATE_STRUCT_SIZE, outputTypesNumber,
-		args);
-	va_end(args);
+static const struct caer_module_info OutputNetTCPInfo = { .version = 1, .name = "NetTCPOutput",
+	.type = CAER_MODULE_OUTPUT, .memSize = sizeof(struct output_common_state), .functions =
+		&OutputNetTCPFunctions, .inputStreams = OutputNetTCPInputs, .inputStreamsSize =
+		CAER_EVENT_STREAM_IN_SIZE(OutputNetTCPInputs), .outputStreams = NULL, .outputStreamsSize = 0, };
+
+caerModuleInfo caerModuleGetInfo(void) {
+	return (&OutputNetTCPInfo);
 }
 
 static bool caerOutputNetTCPInit(caerModuleData moduleData) {
 	// First, always create all needed setting nodes, set their default values
 	// and add their listeners.
-	sshsNodePutStringIfAbsent(moduleData->moduleNode, "ipAddress", "127.0.0.1");
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "portNumber", 8888);
+	sshsNodeCreateString(moduleData->moduleNode, "ipAddress", "127.0.0.1", 7, 15, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateInt(moduleData->moduleNode, "portNumber", 8888, 1, UINT16_MAX, SSHS_FLAGS_NORMAL);
 
 	int retVal;
 

@@ -1,33 +1,32 @@
-#include "unix_socket_server.h"
+#include "main.h"
 #include "base/mainloop.h"
 #include "base/module.h"
 #include "output_common.h"
 
 static bool caerOutputUnixSocketServerInit(caerModuleData moduleData);
 
-static struct caer_module_functions caerOutputUnixSocketServerFunctions = { .moduleInit =
+static const struct caer_module_functions OutputUnixSocketServerFunctions = { .moduleInit =
 	&caerOutputUnixSocketServerInit, .moduleRun = &caerOutputCommonRun, .moduleConfig = NULL, .moduleExit =
 	&caerOutputCommonExit, .moduleReset = &caerOutputCommonReset };
 
-void caerOutputUnixSocketServer(uint16_t moduleID, size_t outputTypesNumber, ...) {
-	caerModuleData moduleData = caerMainloopFindModule(moduleID, "UnixSocketServerOutput", CAER_MODULE_OUTPUT);
-	if (moduleData == NULL) {
-		return;
-	}
+static const struct caer_event_stream_in OutputUnixSocketServerInputs[] = {
+	{ .type = -1, .number = -1, .readOnly = true } };
 
-	va_list args;
-	va_start(args, outputTypesNumber);
-	caerModuleSMv(&caerOutputUnixSocketServerFunctions, moduleData, CAER_OUTPUT_COMMON_STATE_STRUCT_SIZE,
-		outputTypesNumber, args);
-	va_end(args);
+static const struct caer_module_info OutputUnixSockeServertInfo = { .version = 1, .name = "UnixSocketServerOutput",
+	.type = CAER_MODULE_OUTPUT, .memSize = sizeof(struct output_common_state), .functions =
+		&OutputUnixSocketServerFunctions, .inputStreams = OutputUnixSocketServerInputs, .inputStreamsSize =
+		CAER_EVENT_STREAM_IN_SIZE(OutputUnixSocketServerInputs), .outputStreams = NULL, .outputStreamsSize = 0, };
+
+caerModuleInfo caerModuleGetInfo(void) {
+	return (&OutputUnixSockeServertInfo);
 }
 
 static bool caerOutputUnixSocketServerInit(caerModuleData moduleData) {
 	// First, always create all needed setting nodes, set their default values
 	// and add their listeners.
-	sshsNodePutStringIfAbsent(moduleData->moduleNode, "socketPath", "/tmp/caer.sock");
-	sshsNodePutShortIfAbsent(moduleData->moduleNode, "backlogSize", 5);
-	sshsNodePutShortIfAbsent(moduleData->moduleNode, "concurrentConnections", 10);
+	sshsNodeCreateString(moduleData->moduleNode, "socketPath", "/tmp/caer.sock", 2, PATH_MAX, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateShort(moduleData->moduleNode, "backlogSize", 5, 1, 32, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateShort(moduleData->moduleNode, "concurrentConnections", 10, 1, 128, SSHS_FLAGS_NORMAL);
 
 	// Allocate memory.
 	size_t numClients = (size_t) sshsNodeGetShort(moduleData->moduleNode, "concurrentConnections");

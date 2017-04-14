@@ -1,4 +1,4 @@
-#include "file.h"
+#include "main.h"
 #include "base/mainloop.h"
 #include "base/module.h"
 #include "output_common.h"
@@ -6,27 +6,27 @@
 #include <fcntl.h>
 #include <time.h>
 
-#if __APPLE__
+#if defined(__APPLE__)
 #include <sys/syslimits.h>
 #endif
 
+#define DEFAULT_PREFIX "caerOut"
+#define MAX_PREFIX_LENGTH 128
 
 static bool caerOutputFileInit(caerModuleData moduleData);
 
-static struct caer_module_functions caerOutputFileFunctions = { .moduleInit = &caerOutputFileInit, .moduleRun =
+static const struct caer_module_functions OutputFileFunctions = { .moduleInit = &caerOutputFileInit, .moduleRun =
 	&caerOutputCommonRun, .moduleConfig = NULL, .moduleExit = &caerOutputCommonExit, .moduleReset =
 	&caerOutputCommonReset };
 
-void caerOutputFile(uint16_t moduleID, size_t outputTypesNumber, ...) {
-	caerModuleData moduleData = caerMainloopFindModule(moduleID, "FileOutput", CAER_MODULE_OUTPUT);
-	if (moduleData == NULL) {
-		return;
-	}
+static const struct caer_event_stream_in OutputFileInputs[] = { { .type = -1, .number = -1, .readOnly = true } };
 
-	va_list args;
-	va_start(args, outputTypesNumber);
-	caerModuleSMv(&caerOutputFileFunctions, moduleData, CAER_OUTPUT_COMMON_STATE_STRUCT_SIZE, outputTypesNumber, args);
-	va_end(args);
+static const struct caer_module_info OutputFileInfo = { .version = 1, .name = "FileOutput", .type = CAER_MODULE_OUTPUT,
+	.memSize = sizeof(struct output_common_state), .functions = &OutputFileFunctions, .inputStreams = OutputFileInputs,
+	.inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(OutputFileInputs), .outputStreams = NULL, .outputStreamsSize = 0, };
+
+caerModuleInfo caerModuleGetInfo(void) {
+	return (&OutputFileInfo);
 }
 
 static char *getUserHomeDirectory(const char *subSystemString);
@@ -106,10 +106,11 @@ static bool caerOutputFileInit(caerModuleData moduleData) {
 		return (false);
 	}
 
-	sshsNodePutStringIfAbsent(moduleData->moduleNode, "directory", userHomeDir);
+	sshsNodeCreateString(moduleData->moduleNode, "directory", userHomeDir, 1, (PATH_MAX - MAX_PREFIX_LENGTH),
+		SSHS_FLAGS_NORMAL);
 	free(userHomeDir);
 
-	sshsNodePutStringIfAbsent(moduleData->moduleNode, "prefix", DEFAULT_PREFIX);
+	sshsNodeCreateString(moduleData->moduleNode, "prefix", DEFAULT_PREFIX, 1, MAX_PREFIX_LENGTH, SSHS_FLAGS_NORMAL);
 
 	// Generate current file name and open it.
 	char *directory = sshsNodeGetString(moduleData->moduleNode, "directory");

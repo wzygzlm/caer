@@ -1,4 +1,4 @@
-#include "net_tcp.h"
+#include "main.h"
 #include "base/mainloop.h"
 #include "base/module.h"
 #include "input_common.h"
@@ -8,27 +8,25 @@
 
 static bool caerInputNetTCPInit(caerModuleData moduleData);
 
-static struct caer_module_functions caerInputNetTCPFunctions = { .moduleInit = &caerInputNetTCPInit, .moduleRun =
+static const struct caer_module_functions InputNetTCPFunctions = { .moduleInit = &caerInputNetTCPInit, .moduleRun =
 	&caerInputCommonRun, .moduleConfig = NULL, .moduleExit = &caerInputCommonExit };
 
-caerEventPacketContainer caerInputNetTCP(uint16_t moduleID) {
-	caerModuleData moduleData = caerMainloopFindModule(moduleID, "NetTCPInput", CAER_MODULE_INPUT);
-	if (moduleData == NULL) {
-		return (NULL);
-	}
+static const struct caer_event_stream_out InputNetTCPOutputs[] = { { .type = -1, .number = -1 } };
 
-	caerEventPacketContainer result = NULL;
+static const struct caer_module_info InputNetTCPInfo = { .version = 1, .name = "NetTCPInput", .type =
+	CAER_MODULE_INPUT, .memSize = sizeof(struct input_common_state), .functions = &InputNetTCPFunctions,
+	.inputStreams = NULL, .inputStreamsSize = 0, .outputStreams = InputNetTCPOutputs, .outputStreamsSize =
+		CAER_EVENT_STREAM_OUT_SIZE(InputNetTCPOutputs), };
 
-	caerModuleSM(&caerInputNetTCPFunctions, moduleData, CAER_INPUT_COMMON_STATE_STRUCT_SIZE, 1, &result);
-
-	return (result);
+caerModuleInfo caerModuleGetInfo(void) {
+	return (&InputNetTCPInfo);
 }
 
 static bool caerInputNetTCPInit(caerModuleData moduleData) {
 	// First, always create all needed setting nodes, set their default values
 	// and add their listeners.
-	sshsNodePutStringIfAbsent(moduleData->moduleNode, "ipAddress", "127.0.0.1");
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "portNumber", 7777);
+	sshsNodeCreateString(moduleData->moduleNode, "ipAddress", "127.0.0.1", 7, 15, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateInt(moduleData->moduleNode, "portNumber", 7777, 1, UINT16_MAX, SSHS_FLAGS_NORMAL);
 
 	// Open a TCP socket to the remote client, to which we'll send data packets.
 	int sockFd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);

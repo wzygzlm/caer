@@ -69,12 +69,9 @@
 #include "output_common.h"
 #include "base/mainloop.h"
 #include "ext/portable_misc.h"
-#include "ext/ringbuffer/ringbuffer.h"
 #include "ext/buffers.h"
 #include "ext/nets.h"
-#ifdef HAVE_PTHREADS
-#include "ext/c11threads_posix.h"
-#endif
+
 #ifdef ENABLE_INOUT_PNG_COMPRESSION
 #include <png.h>
 #endif
@@ -84,62 +81,6 @@
 #include <libcaer/events/packetContainer.h>
 #include <libcaer/events/frame.h>
 #include <libcaer/events/special.h>
-
-struct output_common_statistics {
-	uint64_t packetsNumber;
-	uint64_t packetsTotalSize;
-	uint64_t packetsHeaderSize;
-	uint64_t packetsDataSize;
-	uint64_t dataWritten;
-};
-
-struct output_common_state {
-	/// Control flag for output handling thread.
-	atomic_bool running;
-	/// The compression handling thread (separate as to not hold up processing).
-	thrd_t compressorThread;
-	/// The output handling thread (separate as to not hold up processing).
-	thrd_t outputThread;
-	/// Detect unrecoverable failure of output thread. Used so that the compressor
-	/// thread can break out of trying to send data to the output thread, if that
-	/// one is incapable of accepting it.
-	atomic_bool outputThreadFailure;
-	/// Track source ID (cannot change!). One source per I/O module!
-	atomic_int_fast16_t sourceID;
-	/// Source information node for that particular source ID.
-	/// Must be set by mainloop, external threads cannot get it directly!
-	sshsNode sourceInfoNode;
-	/// The file descriptor for file writing.
-	int fileIO;
-	/// Network-like stream or file-like stream. Matters for header format.
-	bool isNetworkStream;
-	/// The libuv stream descriptors for network writing and server mode.
-	outputCommonNetIO networkIO;
-	/// Filter out invalidated events or not.
-	atomic_bool validOnly;
-	/// Force all incoming packets to be committed to the transfer ring-buffer.
-	/// This results in no loss of data, but may slow down processing considerably.
-	/// It may also block it altogether, if the output goes away for any reason.
-	atomic_bool keepPackets;
-	/// Transfer packets coming from a mainloop run to the compression handling thread.
-	/// We use EventPacketContainers as data structure for convenience, they do exactly
-	/// keep track of the data we do want to transfer and are part of libcaer.
-	RingBuffer compressorRing;
-	/// Transfer buffers to output handling thread.
-	RingBuffer outputRing;
-	/// Track last packet container's highest event timestamp that was sent out.
-	int64_t lastTimestamp;
-	/// Support different formats, providing data compression.
-	int8_t formatID;
-	/// Output module statistics collection.
-	struct output_common_statistics statistics;
-	/// Reference to parent module's original data.
-	caerModuleData parentModule;
-};
-
-typedef struct output_common_state *outputCommonState;
-
-size_t CAER_OUTPUT_COMMON_STATE_STRUCT_SIZE = sizeof(struct output_common_state);
 
 static void caerOutputCommonConfigListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
@@ -152,12 +93,14 @@ static void caerOutputCommonConfigListener(sshsNode node, void *userData, enum s
  * the transferRing for processing by the compressor thread.
  * ============================================================================
  */
-static void copyPacketsToTransferRing(outputCommonState state, size_t packetsListSize, va_list packetsList);
+static void copyPacketsToTransferRing(outputCommonState state, caerEventPacketContainer packetsContainer);
 
-void caerOutputCommonRun(caerModuleData moduleData, size_t argsNumber, va_list args) {
+void caerOutputCommonRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out) {
+	UNUSED_ARGUMENT(out);
+
 	outputCommonState state = moduleData->moduleState;
 
-	copyPacketsToTransferRing(state, argsNumber, args);
+	copyPacketsToTransferRing(state, in);
 }
 
 void caerOutputCommonReset(caerModuleData moduleData, uint16_t resetCallSourceID) {
@@ -208,10 +151,9 @@ void caerOutputCommonReset(caerModuleData moduleData, uint16_t resetCallSourceID
  * Copy event packets to the ring buffer for transfer to the output handler thread.
  *
  * @param state output module state.
- * @param packetsListSize the length of the variable-length argument list of event packets.
- * @param packetsList a variable-length argument list of event packets.
+ * @param packetsContainer a container with all the event packets to send out.
  */
-static void copyPacketsToTransferRing(outputCommonState state, size_t packetsListSize, va_list packetsList) {
+static void copyPacketsToTransferRing(outputCommonState state, caerEventPacketContainer packetsContainer) {
 	caerEventPacketHeader packets[packetsListSize];
 	size_t packetsSize = 0;
 
@@ -589,7 +531,6 @@ static size_t compressEventPacket(outputCommonState state, caerEventPacketHeader
  *
  * @param state common output state.
  * @param packet the packet to timestamp-compress.
- * @param packetSize the current event packet size (header + data).
  *
  * @return the event packet size (header + data) after compression.
  *         Must be equal or smaller than the input packetSize.
@@ -611,7 +552,7 @@ static size_t compressTimestampSerialize(outputCommonState state, caerEventPacke
 		// Iterate until one element past the end, to flush the last run. In that particular case,
 		// we don't get a new element or TS, as we'd be past the end of the array.
 		if (caerIteratorCounter < caerEventPacketHeaderGetEventNumber(packet)) {
-			void *caerIteratorElement = caerGenericEventGetEvent(packet, caerIteratorCounter);
+			const void *caerIteratorElement = caerGenericEventGetEvent(packet, caerIteratorCounter);
 
 			currTS = caerGenericEventGetTimestamp(caerIteratorElement, packet);
 			if (currTS == lastTS) {
@@ -625,13 +566,13 @@ static size_t compressTimestampSerialize(outputCommonState state, caerEventPacke
 		// and if it makes sense to compress. It does starting with 3 events.
 		if (tsRun >= 3) {
 			// First event to remains there, we set its TS highest bit.
-			uint8_t *firstEvent = caerGenericEventGetEvent(packet, caerIteratorCounter - (int32_t) tsRun--);
-			caerGenericEventSetTimestamp(firstEvent, packet,
+			const uint8_t *firstEvent = caerGenericEventGetEvent(packet, caerIteratorCounter - (int32_t) tsRun--);
+			caerGenericEventSetTimestamp((void *) firstEvent, packet,
 				caerGenericEventGetTimestamp(firstEvent, packet) | I32T(0x80000000));
 
 			// Now use second event's timestamp for storing how many further events.
-			uint8_t *secondEvent = caerGenericEventGetEvent(packet, caerIteratorCounter - (int32_t) tsRun--);
-			caerGenericEventSetTimestamp(secondEvent, packet, I32T(tsRun)); // Is at least 1.
+			const uint8_t *secondEvent = caerGenericEventGetEvent(packet, caerIteratorCounter - (int32_t) tsRun--);
+			caerGenericEventSetTimestamp((void *) secondEvent, packet, I32T(tsRun)); // Is at least 1.
 
 			// Finally move modified memory where it needs to go.
 			if (doMemMove) {
@@ -644,7 +585,7 @@ static size_t compressTimestampSerialize(outputCommonState state, caerEventPacke
 
 			// Now go through remaining events and move their data close together.
 			while (tsRun > 0) {
-				uint8_t *thirdEvent = caerGenericEventGetEvent(packet, caerIteratorCounter - (int32_t) tsRun--);
+				const uint8_t *thirdEvent = caerGenericEventGetEvent(packet, caerIteratorCounter - (int32_t) tsRun--);
 				memmove(((uint8_t *) packet) + currPacketOffset, thirdEvent, (size_t) eventTSOffset);
 				currPacketOffset += (size_t) eventTSOffset;
 			}
@@ -652,7 +593,7 @@ static size_t compressTimestampSerialize(outputCommonState state, caerEventPacke
 		else {
 			// Just copy data unchanged if no compression is possible.
 			if (doMemMove) {
-				uint8_t *startEvent = caerGenericEventGetEvent(packet, caerIteratorCounter - (int32_t) tsRun);
+				const uint8_t *startEvent = caerGenericEventGetEvent(packet, caerIteratorCounter - (int32_t) tsRun);
 				memmove(((uint8_t *) packet) + currPacketOffset, startEvent, (size_t) eventSize * tsRun);
 			}
 			currPacketOffset += (size_t) eventSize * tsRun;
@@ -1458,9 +1399,9 @@ bool caerOutputCommonInit(caerModuleData moduleData, int fileDescriptor, outputC
 	atomic_store(&state->sourceID, -1);
 
 	// Handle configuration.
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "validOnly", false); // only send valid events
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "keepPackets", false); // ensure all packets are kept
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "ringBufferSize", 128); // in packet containers
+	sshsNodeCreateBool(moduleData->moduleNode, "validOnly", false, SSHS_FLAGS_NORMAL); // only send valid events
+	sshsNodeCreateBool(moduleData->moduleNode, "keepPackets", false, SSHS_FLAGS_NORMAL); // ensure all packets are kept
+	sshsNodeCreateInt(moduleData->moduleNode, "ringBufferSize", 128, 8, 1024, SSHS_FLAGS_NORMAL); // in packet containers
 
 	atomic_store(&state->validOnly, sshsNodeGetBool(moduleData->moduleNode, "validOnly"));
 	atomic_store(&state->keepPackets, sshsNodeGetBool(moduleData->moduleNode, "keepPackets"));

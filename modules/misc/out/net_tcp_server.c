@@ -1,34 +1,33 @@
-#include "net_tcp_server.h"
+#include "main.h"
 #include "base/mainloop.h"
 #include "base/module.h"
 #include "output_common.h"
 
 static bool caerOutputNetTCPServerInit(caerModuleData moduleData);
 
-static struct caer_module_functions caerOutputNetTCPServerFunctions = { .moduleInit = &caerOutputNetTCPServerInit,
+static const struct caer_module_functions OutputNetTCPServerFunctions = { .moduleInit = &caerOutputNetTCPServerInit,
 	.moduleRun = &caerOutputCommonRun, .moduleConfig = NULL, .moduleExit = &caerOutputCommonExit, .moduleReset =
 		&caerOutputCommonReset };
 
-void caerOutputNetTCPServer(uint16_t moduleID, size_t outputTypesNumber, ...) {
-	caerModuleData moduleData = caerMainloopFindModule(moduleID, "NetTCPServerOutput", CAER_MODULE_OUTPUT);
-	if (moduleData == NULL) {
-		return;
-	}
+static const struct caer_event_stream_in OutputNetTCPServerInputs[] = {
+	{ .type = -1, .number = -1, .readOnly = true } };
 
-	va_list args;
-	va_start(args, outputTypesNumber);
-	caerModuleSMv(&caerOutputNetTCPServerFunctions, moduleData, CAER_OUTPUT_COMMON_STATE_STRUCT_SIZE, outputTypesNumber,
-		args);
-	va_end(args);
+static const struct caer_module_info OutputNetTCPServerInfo = { .version = 1, .name = "NetTCPServerOutput",
+	.type = CAER_MODULE_OUTPUT, .memSize = sizeof(struct output_common_state), .functions =
+		&OutputNetTCPServerFunctions, .inputStreams = OutputNetTCPServerInputs, .inputStreamsSize =
+		CAER_EVENT_STREAM_IN_SIZE(OutputNetTCPServerInputs), .outputStreams = NULL, .outputStreamsSize = 0, };
+
+caerModuleInfo caerModuleGetInfo(void) {
+	return (&OutputNetTCPServerInfo);
 }
 
 static bool caerOutputNetTCPServerInit(caerModuleData moduleData) {
 	// First, always create all needed setting nodes, set their default values
 	// and add their listeners.
-	sshsNodePutStringIfAbsent(moduleData->moduleNode, "ipAddress", "127.0.0.1");
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "portNumber", 7777);
-	sshsNodePutShortIfAbsent(moduleData->moduleNode, "backlogSize", 5);
-	sshsNodePutShortIfAbsent(moduleData->moduleNode, "concurrentConnections", 10);
+	sshsNodeCreateString(moduleData->moduleNode, "ipAddress", "127.0.0.1", 7, 15, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateInt(moduleData->moduleNode, "portNumber", 7777, 1, UINT16_MAX, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateShort(moduleData->moduleNode, "backlogSize", 5, 1, 32, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateShort(moduleData->moduleNode, "concurrentConnections", 10, 1, 128, SSHS_FLAGS_NORMAL);
 
 	int retVal;
 
