@@ -11,8 +11,29 @@
 #include <boost/filesystem.hpp>
 #include <dlfcn.h>
 #include <iostream>
+#include <sstream>
 #include <libcaercpp/libcaer.hpp>
 using namespace libcaer::log;
+
+struct moduleInfo;
+
+struct moduleConnectivity {
+	moduleInfo *otherModule;
+	int16_t type;
+	bool copyNeeded;
+
+	moduleConnectivity(int16_t eventType) {
+		otherModule = NULL;
+		type = eventType;
+		copyNeeded = false;
+	}
+
+	moduleConnectivity(int16_t eventType, bool copy) {
+		otherModule = NULL;
+		type = eventType;
+		copyNeeded = copy;
+	}
+};
 
 struct moduleInfo {
 	int16_t id;
@@ -20,6 +41,8 @@ struct moduleInfo {
 	std::string type;
 	std::string inputDefinition;
 	sshsNode configNode;
+	std::vector<moduleConnectivity> inputs;
+	std::vector<moduleConnectivity> outputs;
 	void *libraryHandle;
 	caerModuleInfo libraryInfo;
 };
@@ -143,6 +166,7 @@ void caerMainloopRun(void) {
  * If number is -1, then either the type is also -1 and this is the
  * only event stream definition (same as rule above), OR the type is well
  * defined and this is the only event stream definition for that type.
+ * Output streams do not allow -1 (any) for the well defined type case.
  */
 static bool checkInputStreamDefinitions(caerEventStreamIn inputStreams, size_t inputStreamsSize) {
 	for (size_t i = 0; i < inputStreamsSize; i++) {
@@ -204,9 +228,67 @@ static bool checkOutputStreamDefinitions(caerEventStreamOut outputStreams, size_
 			log(logLevel::ERROR, "Mainloop", "Output stream has invalid any declaration.");
 			return (false);
 		}
+
+		// Check that if type is defined, -1 (any) is not allowed as number
+		// for outputs. With an unbound any, there would be no way to actually
+		// determined how many suck outputs exist. It is unclear if this
+		// would even be useful at all, so we forbid it for now.
+		if (outputStreams[i].type != -1 && outputStreams[i].number == -1) {
+			log(logLevel::ERROR, "Mainloop", "Output stream has invalid type declaration with any number.");
+			return (false);
+		}
 	}
 
 	return (true);
+}
+
+static std::vector<moduleConnectivity> parseModuleOutput(const std::string &moduleOutput) {
+	if (moduleOutput.empty()) {
+		log(logLevel::ERROR, "Mainloop", "'moduleOutput' config parameter is empty.");
+		exit(EXIT_FAILURE);
+	}
+
+	std::vector<moduleConnectivity> outStreams;
+	std::stringstream moduleOutputStream(moduleOutput);
+	std::string eventTypeString;
+
+	while (std::getline(moduleOutputStream, eventTypeString, ',')) {
+		int eventType = std::stoi(eventTypeString);
+
+		if (eventType < 0 || eventType > INT16_MAX) {
+			// Negative event types cannot exist!
+			log(logLevel::ERROR, "Mainloop",
+				"'moduleOutput' config parameter is invalid, negative or too big event type ID found.");
+			exit(EXIT_FAILURE);
+		}
+
+		outStreams.push_back(moduleConnectivity(static_cast<int16_t>(eventType)));
+	}
+
+	if (outStreams.empty()) {
+		log(logLevel::ERROR, "Mainloop", "'moduleOutput' config parameter is invalid.");
+		exit(EXIT_FAILURE);
+	}
+
+	return (outStreams);
+}
+
+static std::vector<moduleConnectivity> parseEventStreamOutDefinition(caerEventStreamOut eventStreams,
+	size_t eventStreamsSize) {
+	if (eventStreams == NULL || eventStreamsSize == 0) {
+		log(logLevel::ERROR, "Mainloop", "Cannot parse empty output stream definition.");
+		exit(EXIT_FAILURE);
+	}
+
+	std::vector<moduleConnectivity> outStreams;
+
+	for (size_t i = 0; i < eventStreamsSize; i++) {
+		for (size_t n = 0; n < static_cast<size_t>(eventStreams[i].number); n++) {
+			outStreams.push_back(moduleConnectivity(eventStreams[i].type));
+		}
+	}
+
+	return (outStreams);
 }
 
 static int caerMainloopRunner(void) {
@@ -447,7 +529,7 @@ static int caerMainloopRunner(void) {
 				// Error, invalid input definition on INPUT module.
 				log(logLevel::ERROR, "Mainloop",
 					"Invalid moduleInput config for module '%s', module is not INPUT but parameter is empty.",
-					m.second.shortName);
+					m.second.shortName.c_str());
 				exit(EXIT_FAILURE);
 			}
 		}
@@ -466,7 +548,7 @@ static int caerMainloopRunner(void) {
 			// CAER_MODULE_INPUT is invalid in this case!
 			log(logLevel::ERROR, "Mainloop",
 				"Invalid moduleInput config for module '%s', module is an INPUT but parameter is not empty.",
-				m.second.shortName);
+				m.second.shortName.c_str());
 			exit(EXIT_FAILURE);
 		}
 	}
@@ -477,13 +559,38 @@ static int caerMainloopRunner(void) {
 	 * Now, this may not always be the case, for example File Input modules don't know a-priori
 	 * what their outputs are going to be (they're declared with type and number set to -1).
 	 * For those cases, we need additional information, which we get from the 'moduleOutput'
-	 * configuration parameter that is required to be set in this case.
+	 * configuration parameter that is required to be set in this case. For other input modules,
+	 * where the outputs are well known, like devices, this cannot be set.
 	 */
 	for (auto &m : inputModules) {
 		// Output [-1,-1] has to be the only one.
 		if (m.libraryInfo->outputStreamsSize == 1 && m.libraryInfo->outputStreams[0].type == -1
 			&& m.libraryInfo->outputStreams[0].type == -1) {
+			if (!sshsNodeAttributeExists(m.configNode, "moduleOutput", SSHS_STRING)) {
+				log(logLevel::ERROR, "Mainloop",
+					"Invalid moduleOutput config for module '%s', module has generic output definition, so parameter must be present.",
+					m.shortName.c_str());
+				exit(EXIT_FAILURE);
+			}
 
+			// Get string and parse it.
+			char *moduleOutputStringC = sshsNodeGetString(m.configNode, "moduleOutput");
+			std::string moduleOutputString = moduleOutputStringC;
+			free(moduleOutputStringC);
+
+			// m.actualInputStreams remains empty.
+			m.outputs = parseModuleOutput(moduleOutputString);
+		}
+		else {
+			if (sshsNodeAttributeExists(m.configNode, "moduleOutput", SSHS_STRING)) {
+				log(logLevel::ERROR, "Mainloop",
+					"Invalid moduleOutput config for module '%s', module is a well-defined INPUT, so parameter must not be present.",
+					m.shortName.c_str());
+				exit(EXIT_FAILURE);
+			}
+
+			// m.actualInputStreams remains empty.
+			m.outputs = parseEventStreamOutDefinition(m.libraryInfo->outputStreams, m.libraryInfo->outputStreamsSize);
 		}
 	}
 
