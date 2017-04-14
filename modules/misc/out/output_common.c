@@ -154,12 +154,12 @@ void caerOutputCommonReset(caerModuleData moduleData, uint16_t resetCallSourceID
  * @param packetsContainer a container with all the event packets to send out.
  */
 static void copyPacketsToTransferRing(outputCommonState state, caerEventPacketContainer packetsContainer) {
-	caerEventPacketHeader packets[packetsListSize];
+	caerEventPacketHeaderConst packets[caerEventPacketContainerGetEventPacketsNumber(packetsContainer)];
 	size_t packetsSize = 0;
 
 	// Count how many packets are really there, skipping empty event packets.
-	for (size_t i = 0; i < packetsListSize; i++) {
-		caerEventPacketHeader packetHeader = va_arg(packetsList, caerEventPacketHeader);
+	for (int32_t i = 0; i < caerEventPacketContainerGetEventPacketsNumber(packetsContainer); i++) {
+		caerEventPacketHeaderConst packetHeader = caerEventPacketContainerGetEventPacketConst(packetsContainer, i);
 
 		// Found non-empty event packet.
 		if (packetHeader != NULL) {
@@ -205,7 +205,8 @@ static void copyPacketsToTransferRing(outputCommonState state, caerEventPacketCo
 	// packetContainer/mainloop cycle, so we can check for this very efficiently.
 	if ((packetsSize == 1) && (caerEventPacketHeaderGetEventType(packets[0]) == SPECIAL_EVENT)
 		&& (caerEventPacketHeaderGetEventNumber(packets[0]) == 1)
-		&& (caerSpecialEventPacketFindEventByType((caerSpecialEventPacket) packets[0], TIMESTAMP_RESET) != NULL)) {
+		&& (caerSpecialEventPacketFindEventByTypeConst((caerSpecialEventPacketConst) packets[0], TIMESTAMP_RESET)
+			!= NULL)) {
 		return;
 	}
 
@@ -232,7 +233,7 @@ static void copyPacketsToTransferRing(outputCommonState state, caerEventPacketCo
 			continue;
 		}
 
-		void *cpFirstEvent = caerGenericEventGetEvent(packets[i], 0);
+		const void *cpFirstEvent = caerGenericEventGetEvent(packets[i], 0);
 		int64_t cpFirstEventTimestamp = caerGenericEventGetTimestamp64(cpFirstEvent, packets[i]);
 
 		if (cpFirstEventTimestamp < state->lastTimestamp) {
@@ -248,7 +249,7 @@ static void copyPacketsToTransferRing(outputCommonState state, caerEventPacketCo
 			// Bigger or equal TS than already sent, this is good. Strict TS ordering ensures
 			// that all other packets in this container are the same.
 			// Update highest timestamp for this packet container, based upon its valid packets.
-			void *cpLastEvent = caerGenericEventGetEvent(packets[i],
+			const void *cpLastEvent = caerGenericEventGetEvent(packets[i],
 				caerEventPacketHeaderGetEventNumber(packets[i]) - 1);
 			int64_t cpLastEventTimestamp = caerGenericEventGetTimestamp64(cpLastEvent, packets[i]);
 
