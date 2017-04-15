@@ -429,7 +429,7 @@ void updateSramKernelData(caerModuleData moduleData) {
 		}
 
 		caerLog(CAER_LOG_NOTICE, __func__, "Writing SRAM kernel table... ");
-		caerDynapseWriteSramWords(eventSource->deviceState, sramTable, state->sramBaseAddr, 1024*32);
+		caerDynapseWriteSramWords(eventSource->deviceState, sramTable, state->sramBaseAddr << 15, 1024*32);
 		caerLog(CAER_LOG_NOTICE, __func__, "Done!\n");
 	}
 				
