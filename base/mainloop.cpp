@@ -18,21 +18,17 @@ using namespace libcaer::log;
 
 struct moduleInfo;
 
-struct moduleConnectivity {
+struct moduleConnection {
 	moduleInfo *otherModule;
-	int16_t type;
 	bool copyNeeded;
+};
+
+struct moduleConnectivity {
+	int16_t type;
+	std::vector<moduleConnection> connections;
 
 	moduleConnectivity(int16_t eventType) {
-		otherModule = NULL;
 		type = eventType;
-		copyNeeded = false;
-	}
-
-	moduleConnectivity(int16_t eventType, bool copy) {
-		otherModule = NULL;
-		type = eventType;
-		copyNeeded = copy;
 	}
 };
 
@@ -745,11 +741,11 @@ static int caerMainloopRunner(void) {
 		std::cout << m.second.id << "-MOD:" << m.second.libraryInfo->type << "-" << m.second.name << std::endl;
 
 		for (auto i : m.second.inputs) {
-			std::cout << i.type << "-IN-" << i.otherModule << std::endl;
+			std::cout << " -->" << i.type << "-IN" << std::endl;
 		}
 
 		for (auto o : m.second.outputs) {
-			std::cout << o.type << "-OUT-" << o.otherModule << std::endl;
+			std::cout << " -->" << o.type << "-OUT" << std::endl;
 		}
 	}
 
