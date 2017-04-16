@@ -788,34 +788,13 @@ static int caerMainloopRunner(void) {
 //
 //	// TODO: init modules.
 //
-//	// If no data is available, sleep for a millisecond to avoid wasting resources.
-//	struct timespec noDataSleep = { .tv_sec = 0, .tv_nsec = 1000000 };
-//
-//	// Wait for someone to toggle the module shutdown flag OR for the loop
-//	// itself to signal termination.
-//	size_t sleepCount = 0;
-//
-//	while (atomic_load_explicit(&glMainloopData.running, memory_order_relaxed)) {
-//		// Run only if data available to consume, else sleep. But make a run
-//		// anyway each second, to detect new devices for example.
-//		if (atomic_load_explicit(&glMainloopData.dataAvailable, memory_order_acquire) > 0 || sleepCount > 1000) {
-//			sleepCount = 0;
-//
-//			// TODO: execute modules.
-//
-//			// After each successful main-loop run, free the memory that was
-//			// accumulated for things like packets, valid only during the run.
-//			struct genericFree *memFree = NULL;
-//			while ((memFree = (struct genericFree *) utarray_next(glMainloopData.memoryToFree, memFree)) != NULL) {
-//				memFree->func(memFree->memPtr);
-//			}
-//			utarray_clear(glMainloopData.memoryToFree);
-//		}
-//		else {
-//			sleepCount++;
-//			thrd_sleep(&noDataSleep, NULL);
-//		}
+//	// After each successful main-loop run, free the memory that was
+//	// accumulated for things like packets, valid only during the run.
+//	struct genericFree *memFree = NULL;
+//	while ((memFree = (struct genericFree *) utarray_next(glMainloopData.memoryToFree, memFree)) != NULL) {
+//		memFree->func(memFree->memPtr);
 //	}
+//	utarray_clear(glMainloopData.memoryToFree);
 //
 //	// Shutdown all modules.
 //	for (caerModuleData m = glMainloopData.modules; m != NULL; m = m->hh.next) {
@@ -837,6 +816,25 @@ static int caerMainloopRunner(void) {
 //	utarray_free(glMainloopData.inputModules);
 //	utarray_free(glMainloopData.outputModules);
 //	utarray_free(glMainloopData.processorModules);
+
+	// If no data is available, sleep for a millisecond to avoid wasting resources.
+	// Wait for someone to toggle the module shutdown flag OR for the loop
+	// itself to signal termination.
+	size_t sleepCount = 0;
+
+	while (glMainloopData.running.load(std::memory_order_relaxed)) {
+		// Run only if data available to consume, else sleep. But make a run
+		// anyway each second, to detect new devices for example.
+		if (glMainloopData.dataAvailable.load(std::memory_order_acquire) > 0 || sleepCount > 1000) {
+			sleepCount = 0;
+
+			// TODO: execute modules.
+		}
+		else {
+			sleepCount++;
+			std::this_thread::sleep_for(std::chrono::milliseconds(1));
+		}
+	}
 
 	// Cleanup modules.
 	glMainloopData.modules.clear();
