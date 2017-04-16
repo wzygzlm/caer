@@ -13,6 +13,8 @@
 #include <dlfcn.h>
 #include <iostream>
 #include <sstream>
+#include <chrono>
+#include <thread>
 #include <libcaercpp/libcaer.hpp>
 using namespace libcaer::log;
 
@@ -51,7 +53,8 @@ struct moduleInfo {
 };
 
 static struct {
-	sshsNode mainloopNode;
+	sshsNode configNode;
+	atomic_bool systemRunning;
 	atomic_bool running;
 	atomic_uint_fast32_t dataAvailable;
 	std::unordered_map<int16_t, moduleInfo> modules;
@@ -61,6 +64,8 @@ static std::vector<boost::filesystem::path> modulePaths;
 
 static int caerMainloopRunner(void);
 static void caerMainloopSignalHandler(int signal);
+static void caerMainloopSystemRunningListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
+	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
 static void caerMainloopRunningListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
 
@@ -144,17 +149,38 @@ void caerMainloopRun(void) {
 
 	std::sort(modulePaths.begin(), modulePaths.end());
 
-	// Configure and launch main-loop.
-	glMainloopData.mainloopNode = sshsGetNode(sshsGetGlobal(), "/");
+	// No data at start-up.
+	glMainloopData.dataAvailable.store(0);
 
-	// Mainloop disabled by default
-	atomic_store(&glMainloopData.running, false);
+	// System running control, separate to allow mainloop stop/start.
+	glMainloopData.systemRunning.store(true);
 
-	// Add per-mainloop shutdown hooks to SSHS for external control.
-	sshsNodeCreateBool(glMainloopData.mainloopNode, "running", false, SSHS_FLAGS_NORMAL);
-	sshsNodeAddAttributeListener(glMainloopData.mainloopNode, NULL, &caerMainloopRunningListener);
+	sshsNode systemNode = sshsGetNode(sshsGetGlobal(), "/caer/");
+	sshsNodeCreateBool(systemNode, "running", true, SSHS_FLAGS_NORMAL);
+	sshsNodeAddAttributeListener(systemNode, NULL, &caerMainloopSystemRunningListener);
 
-	caerMainloopRunner();
+	// Mainloop running control.
+	glMainloopData.running.store(true);
+
+	glMainloopData.configNode = sshsGetNode(sshsGetGlobal(), "/");
+	sshsNodeCreateBool(glMainloopData.configNode, "running", true, SSHS_FLAGS_NORMAL);
+	sshsNodeAddAttributeListener(glMainloopData.configNode, NULL, &caerMainloopRunningListener);
+
+	while (glMainloopData.systemRunning.load()) {
+		if (!glMainloopData.running.load()) {
+			std::this_thread::sleep_for(std::chrono::seconds(1));
+			continue;
+		}
+
+		int result = caerMainloopRunner();
+
+		// On failure, make sure to disable mainloop, user will have to fix it.
+		if (result == EXIT_FAILURE) {
+			sshsNodePutBool(glMainloopData.configNode, "running", false);
+
+			log(logLevel::CRITICAL, "Mainloop", "Failed to start mainloop, please fix the configuration!");
+		}
+	}
 }
 
 static bool checkInputOutputStreamDefinitions(caerModuleInfo info) {
@@ -512,7 +538,7 @@ static int caerMainloopRunner(void) {
 	// an ID (16-bit integer, "moduleId") as attribute, and the module's library
 	// (string, "moduleLibrary") as attribute.
 	size_t modulesSize = 0;
-	sshsNode *modules = sshsNodeGetChildren(glMainloopData.mainloopNode, &modulesSize);
+	sshsNode *modules = sshsNodeGetChildren(glMainloopData.configNode, &modulesSize);
 	if (modules == NULL || modulesSize == 0) {
 		// Empty configuration.
 		log(logLevel::ERROR, "Mainloop", "No module configuration found.");
@@ -553,6 +579,9 @@ static int caerMainloopRunner(void) {
 			continue;
 		}
 	}
+
+	// Free temporary result nodes array.
+	free(modules);
 
 	// At this point we have a map with all the valid modules and their info.
 	// If that map is empty, there was nothing valid present.
@@ -809,23 +838,30 @@ static int caerMainloopRunner(void) {
 //	utarray_free(glMainloopData.outputModules);
 //	utarray_free(glMainloopData.processorModules);
 
+	// Cleanup modules.
+	glMainloopData.modules.clear();
+
 	return (EXIT_SUCCESS);
+}
+
+void caerMainloopDataNotifyIncrease(void *p) {
+	UNUSED_ARGUMENT(p);
+
+	glMainloopData.dataAvailable.fetch_add(1, std::memory_order_release);
+}
+
+void caerMainloopDataNotifyDecrease(void *p) {
+	UNUSED_ARGUMENT(p);
+
+	// No special memory order for decrease, because the acquire load to even start running
+	// through a mainloop already synchronizes with the release store above.
+	glMainloopData.dataAvailable.fetch_sub(1, std::memory_order_relaxed);
 }
 
 // Only use this inside the mainloop-thread, not inside any other thread,
 // like additional data acquisition threads or output threads.
 void caerMainloopFreeAfterLoop(void (*func)(void *mem), void *memPtr) {
 
-}
-
-void caerMainloopDataNotifyIncrease(void *p) {
-	glMainloopData.dataAvailable.fetch_add(1, std::memory_order_release);
-}
-
-void caerMainloopDataNotifyDecrease(void *p) {
-	// No special memory order for decrease, because the acquire load to even start running
-	// through a mainloop already synchronizes with the release store above.
-	glMainloopData.dataAvailable.fetch_sub(1, std::memory_order_relaxed);
 }
 
 static inline caerModuleData findSourceModule(uint16_t sourceID) {
@@ -875,8 +911,21 @@ void caerMainloopResetProcessors(uint16_t sourceID) {
 static void caerMainloopSignalHandler(int signal) {
 	UNUSED_ARGUMENT(signal);
 
-	// Simply set the running flag to false on SIGTERM and SIGINT (CTRL+C) for global shutdown.
-	atomic_store(&glMainloopData.running, false);
+	// Simply set all the running flags to false on SIGTERM and SIGINT (CTRL+C) for global shutdown.
+	glMainloopData.systemRunning.store(false);
+	glMainloopData.running.store(false);
+}
+
+static void caerMainloopSystemRunningListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
+	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue) {
+	UNUSED_ARGUMENT(node);
+	UNUSED_ARGUMENT(userData);
+	UNUSED_ARGUMENT(changeValue);
+
+	if (event == SSHS_ATTRIBUTE_MODIFIED && changeType == SSHS_BOOL && caerStrEquals(changeKey, "running")) {
+		glMainloopData.systemRunning.store(false);
+		glMainloopData.running.store(false);
+	}
 }
 
 static void caerMainloopRunningListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
@@ -885,7 +934,6 @@ static void caerMainloopRunningListener(sshsNode node, void *userData, enum sshs
 	UNUSED_ARGUMENT(userData);
 
 	if (event == SSHS_ATTRIBUTE_MODIFIED && changeType == SSHS_BOOL && caerStrEquals(changeKey, "running")) {
-		// Shutdown requested! This goes to the mainloop/system 'running' atomic flags.
-		atomic_store(&glMainloopData.running, changeValue.boolean);
+		glMainloopData.running.store(changeValue.boolean);
 	}
 }
