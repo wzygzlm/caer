@@ -498,6 +498,11 @@ static bool parseModuleInput(const std::string &inputDefinition,
 	return (true);
 }
 
+static bool checkInputDefinitionAgainstEventStreamIn(std::unordered_map<int16_t, std::vector<int16_t>> &inputDefinition,
+	caerEventStreamIn eventStreams, size_t eventStreamsSize) {
+	return (true);
+}
+
 /**
  * Input modules _must_ have all their outputs well defined, or it becomes impossible
  * to validate and build the follow-up chain of processors and outputs correctly.
@@ -713,7 +718,22 @@ static int caerMainloopRunner(void) {
 
 		if (!parseModuleInput(inputDefinition, m.get().inputDefinition)) {
 			log(logLevel::ERROR, "Mainloop", "Failed to parse 'moduleInput' configuration.");
-			continue;
+
+			// Clean up generated data on failure.
+			glMainloopData.modules.clear();
+
+			return (EXIT_FAILURE);
+		}
+
+		if (!checkInputDefinitionAgainstEventStreamIn(m.get().inputDefinition, m.get().libraryInfo->inputStreams,
+			m.get().libraryInfo->inputStreamsSize)) {
+			log(logLevel::ERROR, "Mainloop",
+				"Failed to verify 'moduleInput' configuration against input event stream definitions.");
+
+			// Clean up generated data on failure.
+			glMainloopData.modules.clear();
+
+			return (EXIT_FAILURE);
 		}
 	}
 
@@ -731,13 +751,21 @@ static int caerMainloopRunner(void) {
 
 			if (!parseModuleOutput(outputDefinition, m.get().outputs)) {
 				log(logLevel::ERROR, "Mainloop", "Failed to parse 'moduleOutput' configuration.");
-				continue;
+
+				// Clean up generated data on failure.
+				glMainloopData.modules.clear();
+
+				return (EXIT_FAILURE);
 			}
 		}
 		else if (info->outputStreams != NULL) {
 			if (!parseEventStreamOutDefinition(info->outputStreams, info->outputStreamsSize, m.get().outputs)) {
 				log(logLevel::ERROR, "Mainloop", "Failed to parse output event stream configuration.");
-				continue;
+
+				// Clean up generated data on failure.
+				glMainloopData.modules.clear();
+
+				return (EXIT_FAILURE);
 			}
 		}
 	}
