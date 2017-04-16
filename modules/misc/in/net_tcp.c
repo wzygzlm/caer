@@ -11,7 +11,7 @@ static bool caerInputNetTCPInit(caerModuleData moduleData);
 static const struct caer_module_functions InputNetTCPFunctions = { .moduleInit = &caerInputNetTCPInit, .moduleRun =
 	&caerInputCommonRun, .moduleConfig = NULL, .moduleExit = &caerInputCommonExit };
 
-static const struct caer_event_stream_out InputNetTCPOutputs[] = { { .type = -1, .number = -1 } };
+static const struct caer_event_stream_out InputNetTCPOutputs[] = { { .type = -1, .name = NULL } };
 
 static const struct caer_module_info InputNetTCPInfo = { .version = 1, .name = "NetTCPInput", .type =
 	CAER_MODULE_INPUT, .memSize = sizeof(struct input_common_state), .functions = &InputNetTCPFunctions,

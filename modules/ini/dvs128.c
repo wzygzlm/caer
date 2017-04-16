@@ -16,8 +16,8 @@ static void caerInputDVS128Exit(caerModuleData moduleData);
 static const struct caer_module_functions DVS128Functions = { .moduleInit = &caerInputDVS128Init, .moduleRun =
 	&caerInputDVS128Run, .moduleConfig = NULL, .moduleExit = &caerInputDVS128Exit };
 
-static const struct caer_event_stream_out DVS128Outputs[] = { { .type = SPECIAL_EVENT, .number = 1 }, { .type =
-	POLARITY_EVENT, .number = 1 } };
+static const struct caer_event_stream_out DVS128Outputs[] = { { .type = SPECIAL_EVENT, .name = "Special" }, { .type =
+	POLARITY_EVENT, .name = "Polarity" } };
 
 static const struct caer_module_info DVS128Info = { .version = 1, .name = "DVS128", .type = CAER_MODULE_INPUT,
 	.memSize = 0, .functions = &DVS128Functions, .inputStreams = NULL, .inputStreamsSize = 0, .outputStreams =

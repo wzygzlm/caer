@@ -63,8 +63,8 @@ typedef struct caer_event_stream_in const *caerEventStreamIn;
 #define CAER_EVENT_STREAM_IN_SIZE(x) (sizeof(x) / sizeof(struct caer_event_stream_in))
 
 struct caer_event_stream_out {
-	int16_t type; // Use -1 for any type.
-	int16_t number; // Use -1 for any number of.
+	int16_t type; // Use -1 for undefined output (determined at runtime from configuration).
+	const char *name; // Unique name to disambiguate (NULL if type == -1).
 };
 
 typedef struct caer_event_stream_out const *caerEventStreamOut;

@@ -9,9 +9,9 @@ static bool caerInputDAVISFX3Init(caerModuleData moduleData);
 static const struct caer_module_functions DAVISFX3Functions = { .moduleInit = &caerInputDAVISFX3Init, .moduleRun =
 	&caerInputDAVISRun, .moduleConfig = NULL, .moduleExit = &caerInputDAVISExit };
 
-static const struct caer_event_stream_out DAVISFX3Outputs[] = { { .type = SPECIAL_EVENT, .number = 1 }, { .type =
-	POLARITY_EVENT, .number = 1 }, { .type = FRAME_EVENT, .number = 1 }, { .type = IMU6_EVENT, .number = 1 }, { .type =
-	SAMPLE_EVENT, .number = 1 } };
+static const struct caer_event_stream_out DAVISFX3Outputs[] = { { .type = SPECIAL_EVENT, .name = "Special" }, { .type =
+	POLARITY_EVENT, .name = "Polarity" }, { .type = FRAME_EVENT, .name = "Frame" }, { .type = IMU6_EVENT, .name = "IMU" }, { .type =
+	SAMPLE_EVENT, .name = "Microphones" } };
 
 static const struct caer_module_info DAVISFX3Info = { .version = 1, .name = "DAVISFX3", .type = CAER_MODULE_INPUT,
 	.memSize = 0, .functions = &DAVISFX3Functions, .inputStreams = NULL, .inputStreamsSize = 0, .outputStreams =
