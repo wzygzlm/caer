@@ -11,7 +11,7 @@ static bool caerInputFileInit(caerModuleData moduleData);
 static const struct caer_module_functions InputFileFunctions = { .moduleInit = &caerInputFileInit, .moduleRun =
 	&caerInputCommonRun, .moduleConfig = NULL, .moduleExit = &caerInputCommonExit };
 
-static const struct caer_event_stream_out InputFileOutputs[] = { { .type = -1, .name = NULL } };
+static const struct caer_event_stream_out InputFileOutputs[] = { { .type = -1 } };
 
 static const struct caer_module_info InputFileInfo = { .version = 1, .name = "FileInput", .type =
 	CAER_MODULE_INPUT, .memSize = sizeof(struct input_common_state), .functions = &InputFileFunctions,

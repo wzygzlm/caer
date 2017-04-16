@@ -16,8 +16,7 @@ static void caerInputDVS128Exit(caerModuleData moduleData);
 static const struct caer_module_functions DVS128Functions = { .moduleInit = &caerInputDVS128Init, .moduleRun =
 	&caerInputDVS128Run, .moduleConfig = NULL, .moduleExit = &caerInputDVS128Exit };
 
-static const struct caer_event_stream_out DVS128Outputs[] = { { .type = SPECIAL_EVENT, .name = "Special" }, { .type =
-	POLARITY_EVENT, .name = "Polarity" } };
+static const struct caer_event_stream_out DVS128Outputs[] = { { .type = SPECIAL_EVENT }, { .type = POLARITY_EVENT } };
 
 static const struct caer_module_info DVS128Info = { .version = 1, .name = "DVS128", .type = CAER_MODULE_INPUT,
 	.memSize = 0, .functions = &DVS128Functions, .inputStreams = NULL, .inputStreamsSize = 0, .outputStreams =
@@ -122,7 +121,8 @@ static bool caerInputDVS128Init(caerModuleData moduleData) {
 	sendDefaultConfiguration(moduleData);
 
 	// Start data acquisition.
-	bool ret = caerDeviceDataStart(moduleData->moduleState, &caerMainloopDataNotifyIncrease, &caerMainloopDataNotifyDecrease,
+	bool ret = caerDeviceDataStart(moduleData->moduleState, &caerMainloopDataNotifyIncrease,
+		&caerMainloopDataNotifyDecrease,
 		NULL, &moduleShutdownNotify, moduleData->moduleNode);
 
 	if (!ret) {

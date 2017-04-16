@@ -9,8 +9,8 @@ static bool caerInputDAVISFX2Init(caerModuleData moduleData);
 static const struct caer_module_functions DAVISFX2Functions = { .moduleInit = &caerInputDAVISFX2Init, .moduleRun =
 	&caerInputDAVISRun, .moduleConfig = NULL, .moduleExit = &caerInputDAVISExit };
 
-static const struct caer_event_stream_out DAVISFX2Outputs[] = { { .type = SPECIAL_EVENT, .name = "Special" }, { .type =
-	POLARITY_EVENT, .name = "Polarity" }, { .type = FRAME_EVENT, .name = "Frame" }, { .type = IMU6_EVENT, .name = "IMU" } };
+static const struct caer_event_stream_out DAVISFX2Outputs[] = { { .type = SPECIAL_EVENT }, { .type = POLARITY_EVENT }, {
+	.type = FRAME_EVENT }, { .type = IMU6_EVENT } };
 
 static const struct caer_module_info DAVISFX2Info = { .version = 1, .name = "DAVISFX2", .type = CAER_MODULE_INPUT,
 	.memSize = 0, .functions = &DAVISFX2Functions, .inputStreams = NULL, .inputStreamsSize = 0, .outputStreams =

@@ -42,9 +42,11 @@ enum caer_module_status {
  * Processor modules do something with data, filtering it or creating
  * new data out of it, as such they must have at least 1 input event
  * stream, and at least 1 output event stream (implicit or explicit).
- * Explicit output streams in this case are new data, while implicit
- * are input streams with their 'readOnly' flag set to false, meaning
- * the data is modified.
+ * Explicit output streams in this case are new data that is declared
+ * as output event stream explicitly, while implicit are input streams
+ * with their 'readOnly' flag set to false, meaning the data is modified.
+ * Output streams can either be undefined and later be determined at
+ * runtime, or be well defined. Only one output stream per type is allowed.
  */
 enum caer_module_type {
 	CAER_MODULE_INPUT = 0,
@@ -64,7 +66,6 @@ typedef struct caer_event_stream_in const *caerEventStreamIn;
 
 struct caer_event_stream_out {
 	int16_t type; // Use -1 for undefined output (determined at runtime from configuration).
-	const char *name; // Unique name to disambiguate (NULL if type == -1).
 };
 
 typedef struct caer_event_stream_out const *caerEventStreamOut;
