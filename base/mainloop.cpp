@@ -18,23 +18,23 @@
 #include <libcaercpp/libcaer.hpp>
 using namespace libcaer::log;
 
-struct moduleInfo;
+struct ModuleInfo;
 
-struct moduleConnection {
-	moduleInfo *otherModule;
+struct ModuleConnection {
+	ModuleInfo *otherModule;
 	bool copyNeeded;
 };
 
-struct moduleConnectivity {
+struct ModuleConnectivity {
 	int16_t type;
-	std::vector<moduleConnection> connections;
+	std::vector<ModuleConnection> connections;
 
-	moduleConnectivity(int16_t eventType) {
+	ModuleConnectivity(int16_t eventType) {
 		type = eventType;
 	}
 };
 
-struct moduleInfo {
+struct ModuleInfo {
 	// Module identification.
 	int16_t id;
 	std::string name;
@@ -44,12 +44,17 @@ struct moduleInfo {
 	std::unordered_map<int16_t, std::vector<int16_t>> inputDefinition;
 	// Connectivity graph (I/O).
 	bool IODone;
-	std::vector<moduleConnectivity> inputs;
-	std::vector<moduleConnectivity> outputs;
+	std::vector<ModuleConnectivity> inputs;
+	std::vector<ModuleConnectivity> outputs;
 	// Loadable module support.
 	std::string library;
 	void *libraryHandle;
 	caerModuleInfo libraryInfo;
+};
+
+struct ActiveStreams {
+	int16_t sourceId;
+	int16_t typeId;
 };
 
 static struct {
@@ -57,7 +62,7 @@ static struct {
 	atomic_bool systemRunning;
 	atomic_bool running;
 	atomic_uint_fast32_t dataAvailable;
-	std::unordered_map<int16_t, moduleInfo> modules;
+	std::unordered_map<int16_t, ModuleInfo> modules;
 } glMainloopData;
 
 static std::vector<boost::filesystem::path> modulePaths;
@@ -142,12 +147,20 @@ void caerMainloopRun(void) {
 	std::for_each(boost::filesystem::recursive_directory_iterator(moduleSearchPath),
 		boost::filesystem::recursive_directory_iterator(),
 		[&moduleRegex](const boost::filesystem::directory_entry &e) {
-			if (boost::filesystem::is_regular_file(e.path()) && std::regex_match(e.path().filename().string(), moduleRegex)) {
+			if (boost::filesystem::exists(e.path()) && boost::filesystem::is_regular_file(e.path()) && std::regex_match(e.path().filename().string(), moduleRegex)) {
 				modulePaths.push_back(e.path());
 			}
 		});
 
+	// Sort and unique.
 	std::sort(modulePaths.begin(), modulePaths.end());
+	modulePaths.erase(std::unique(modulePaths.begin(), modulePaths.end()), modulePaths.end());
+
+	// No modules, cannot start!
+	if (modulePaths.empty()) {
+		log(logLevel::CRITICAL, "Mainloop", "Failed to find any modules on path '%s'.", moduleSearchPath.c_str());
+		return;
+	}
 
 	// No data at start-up.
 	glMainloopData.dataAvailable.store(0);
@@ -178,7 +191,8 @@ void caerMainloopRun(void) {
 		if (result == EXIT_FAILURE) {
 			sshsNodePutBool(glMainloopData.configNode, "running", false);
 
-			log(logLevel::CRITICAL, "Mainloop", "Failed to start mainloop, please fix the configuration!");
+			log(logLevel::CRITICAL, "Mainloop",
+				"Failed to start mainloop, please fix the configuration and try again!");
 		}
 	}
 }
@@ -558,7 +572,7 @@ static bool checkInputDefinitionAgainstEventStreamIn(std::unordered_map<int16_t,
  * configuration parameter that is required to be set in this case. For other input modules,
  * where the outputs are well known, like devices, this must not be set.
  */
-static bool parseModuleOutput(const std::string &moduleOutput, std::vector<moduleConnectivity> &outputs) {
+static bool parseModuleOutput(const std::string &moduleOutput, std::vector<ModuleConnectivity> &outputs) {
 	std::vector<int16_t> results;
 
 	if (!parseTypeIDString(moduleOutput, results)) {
@@ -567,16 +581,16 @@ static bool parseModuleOutput(const std::string &moduleOutput, std::vector<modul
 	}
 
 	for (auto type : results) {
-		outputs.push_back(moduleConnectivity(type));
+		outputs.push_back(ModuleConnectivity(type));
 	}
 
 	return (true);
 }
 
 static bool parseEventStreamOutDefinition(caerEventStreamOut eventStreams, size_t eventStreamsSize,
-	std::vector<moduleConnectivity> &outputs) {
+	std::vector<ModuleConnectivity> &outputs) {
 	for (size_t i = 0; i < eventStreamsSize; i++) {
-		outputs.push_back(moduleConnectivity(eventStreams[i].type));
+		outputs.push_back(ModuleConnectivity(eventStreams[i].type));
 	}
 
 	return (true);
@@ -612,7 +626,7 @@ static int caerMainloopRunner(void) {
 			continue;
 		}
 
-		moduleInfo info = { };
+		ModuleInfo info = { };
 		info.id = sshsNodeGetShort(module, "moduleId");
 		info.name = moduleName;
 		info.configNode = module;
@@ -737,9 +751,9 @@ static int caerMainloopRunner(void) {
 		}
 	}
 
-	std::vector<std::reference_wrapper<moduleInfo>> inputModules;
-	std::vector<std::reference_wrapper<moduleInfo>> outputModules;
-	std::vector<std::reference_wrapper<moduleInfo>> processorModules;
+	std::vector<std::reference_wrapper<ModuleInfo>> inputModules;
+	std::vector<std::reference_wrapper<ModuleInfo>> outputModules;
+	std::vector<std::reference_wrapper<ModuleInfo>> processorModules;
 
 	// Now we must parse, validate and create the connectivity map between modules.
 	// First we sort the modules into their three possible categories.
