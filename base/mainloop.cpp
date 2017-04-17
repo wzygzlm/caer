@@ -535,6 +535,8 @@ static bool checkInputDefinitionAgainstEventStreamIn(std::unordered_map<int16_t,
 				"Module '%s': ANY_TYPE/ANY_NUMBER definition has no connected input streams.", name);
 			return (false);
 		}
+
+		return (true);
 	}
 
 	// Any_Type/1 means there must be exactly one type with count of 1.
@@ -544,14 +546,16 @@ static bool checkInputDefinitionAgainstEventStreamIn(std::unordered_map<int16_t,
 				"Module '%s': ANY_TYPE/1 definition requires 1 connected input stream of some type.", name);
 			return (false);
 		}
+
+		return (true);
 	}
 
 	// All other cases involve possibly multiple definitions with a defined type.
 	// Since EventStreamIn definitions are strictly monotonic in this case, we
 	// first check that the number of definitions and counted types match.
 	if (typeCount.size() != eventStreamsSize) {
-		log(logLevel::ERROR, "Mainloop", "Module '%s': DEF_TYPE definitions require as many connected types as given.",
-			name);
+		log(logLevel::ERROR, "Mainloop",
+			"Module '%s': DEFINED_TYPE definitions require as many connected types as given.", name);
 		return (false);
 	}
 
@@ -560,7 +564,7 @@ static bool checkInputDefinitionAgainstEventStreamIn(std::unordered_map<int16_t,
 		if (eventStreams[i].type >= 0 && eventStreams[i].number == -1) {
 			if (typeCount[eventStreams[i].type] < 1) {
 				log(logLevel::ERROR, "Mainloop",
-					"Module '%s': DEF_TYPE/ANY_NUMBER definition requires at least one connected input stream of that type.",
+					"Module '%s': DEFINED_TYPE/ANY_NUMBER definition requires at least one connected input stream of that type.",
 					name);
 				return (false);
 			}
@@ -570,7 +574,7 @@ static bool checkInputDefinitionAgainstEventStreamIn(std::unordered_map<int16_t,
 		if (eventStreams[i].type >= 0 && eventStreams[i].number > 0) {
 			if (typeCount[eventStreams[i].type] != eventStreams[i].number) {
 				log(logLevel::ERROR, "Mainloop",
-					"Module '%s': DEF_TYPE/DEF_NUMBER definition requires exactly that many connected input streams of that type.",
+					"Module '%s': DEFINED_TYPE/DEFINED_NUMBER definition requires exactly that many connected input streams of that type.",
 					name);
 				return (false);
 			}
