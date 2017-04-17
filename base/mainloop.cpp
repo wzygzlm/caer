@@ -201,7 +201,7 @@ static bool checkInputOutputStreamDefinitions(caerModuleInfo info) {
 	if (info->type == CAER_MODULE_INPUT) {
 		if (info->inputStreams != NULL || info->inputStreamsSize != 0 || info->outputStreams == NULL
 			|| info->outputStreamsSize == 0) {
-			log(logLevel::ERROR, "Mainloop", "Module '%s' type INPUT has wrong I/O event stream definitions.",
+			log(logLevel::ERROR, "Mainloop", "Module '%s': Wrong I/O event stream definitions for type INPUT.",
 				info->name);
 			return (false);
 		}
@@ -209,7 +209,7 @@ static bool checkInputOutputStreamDefinitions(caerModuleInfo info) {
 	else if (info->type == CAER_MODULE_OUTPUT) {
 		if (info->inputStreams == NULL || info->inputStreamsSize == 0 || info->outputStreams != NULL
 			|| info->outputStreamsSize != 0) {
-			log(logLevel::ERROR, "Mainloop", "Module '%s' type OUTPUT has wrong I/O event stream definitions.",
+			log(logLevel::ERROR, "Mainloop", "Module '%s': Wrong I/O event stream definitions for type OUTPUT.",
 				info->name);
 			return (false);
 		}
@@ -225,7 +225,7 @@ static bool checkInputOutputStreamDefinitions(caerModuleInfo info) {
 		}
 
 		if (readOnlyError) {
-			log(logLevel::ERROR, "Mainloop", "Module '%s' type OUTPUT has input event streams not marked read-only.",
+			log(logLevel::ERROR, "Mainloop", "Module '%s': Input event streams not marked read-only for type OUTPUT.",
 				info->name);
 			return (false);
 		}
@@ -233,7 +233,7 @@ static bool checkInputOutputStreamDefinitions(caerModuleInfo info) {
 	else {
 		// CAER_MODULE_PROCESSOR
 		if (info->inputStreams == NULL || info->inputStreamsSize == 0) {
-			log(logLevel::ERROR, "Mainloop", "Module '%s' type PROCESSOR has wrong I/O event stream definitions.",
+			log(logLevel::ERROR, "Mainloop", "Module '%s': Wrong I/O event stream definitions for type PROCESSOR.",
 				info->name);
 			return (false);
 		}
@@ -252,7 +252,7 @@ static bool checkInputOutputStreamDefinitions(caerModuleInfo info) {
 
 			if (readOnlyError) {
 				log(logLevel::ERROR, "Mainloop",
-					"Module '%s' type PROCESSOR has no output streams and all input streams are marked read-only.",
+					"Module '%s': No output streams and all input streams are marked read-only for type PROCESSOR.",
 					info->name);
 				return (false);
 			}
@@ -275,24 +275,25 @@ static bool checkInputOutputStreamDefinitions(caerModuleInfo info) {
  * only event stream definition (same as rule above), OR the type is well
  * defined and this is the only event stream definition for that type.
  */
-static bool checkInputStreamDefinitions(caerEventStreamIn inputStreams, size_t inputStreamsSize) {
+static bool checkInputStreamDefinitions(caerEventStreamIn inputStreams, size_t inputStreamsSize, const char *name) {
 	for (size_t i = 0; i < inputStreamsSize; i++) {
 		// Check type range.
 		if (inputStreams[i].type < -1) {
-			log(logLevel::ERROR, "Mainloop", "Input stream has invalid type value.");
+			log(logLevel::ERROR, "Mainloop", "Module '%s': Input stream has invalid type value.", name);
 			return (false);
 		}
 
 		// Check number range.
 		if (inputStreams[i].number < -1 || inputStreams[i].number == 0) {
-			log(logLevel::ERROR, "Mainloop", "Input stream has invalid number value.");
+			log(logLevel::ERROR, "Mainloop", "Module '%s': Input stream has invalid number value.", name);
 			return (false);
 		}
 
 		// Check sorted array and only one definition per type; the two
 		// requirements together mean strict monotonicity for types.
 		if (i > 0 && inputStreams[i - 1].type >= inputStreams[i].type) {
-			log(logLevel::ERROR, "Mainloop", "Input stream has invalid order of declaration or duplicates.");
+			log(logLevel::ERROR, "Mainloop",
+				"Module '%s': Input stream has invalid order of declaration or duplicates.", name);
 			return (false);
 		}
 
@@ -300,7 +301,7 @@ static bool checkInputStreamDefinitions(caerEventStreamIn inputStreams, size_t i
 		// only definition present in that case.
 		if (inputStreams[i].type == -1
 			&& ((inputStreams[i].number != -1 && inputStreams[i].number != 1) || inputStreamsSize != 1)) {
-			log(logLevel::ERROR, "Mainloop", "Input stream has invalid any declaration.");
+			log(logLevel::ERROR, "Mainloop", "Module '%s': Input stream has invalid any declaration.", name);
 			return (false);
 		}
 	}
@@ -314,7 +315,7 @@ static bool checkInputStreamDefinitions(caerEventStreamIn inputStreams, size_t i
  * For each type, only one definition can exist.
  * If type is -1 (any), then this must then be the only definition.
  */
-static bool checkOutputStreamDefinitions(caerEventStreamOut outputStreams, size_t outputStreamsSize) {
+static bool checkOutputStreamDefinitions(caerEventStreamOut outputStreams, size_t outputStreamsSize, const char *name) {
 	// If type is any, must be the only definition.
 	if (outputStreamsSize == 1 && outputStreams[0].type == -1) {
 		return (true);
@@ -323,14 +324,15 @@ static bool checkOutputStreamDefinitions(caerEventStreamOut outputStreams, size_
 	for (size_t i = 0; i < outputStreamsSize; i++) {
 		// Check type range.
 		if (outputStreams[i].type < 0) {
-			log(logLevel::ERROR, "Mainloop", "Output stream has invalid type value.");
+			log(logLevel::ERROR, "Mainloop", "Module '%s': Output stream has invalid type value.", name);
 			return (false);
 		}
 
 		// Check sorted array and only one definition per type; the two
 		// requirements together mean strict monotonicity for types.
 		if (i > 0 && outputStreams[i - 1].type >= outputStreams[i].type) {
-			log(logLevel::ERROR, "Mainloop", "Output stream has invalid order of declaration or duplicates.");
+			log(logLevel::ERROR, "Mainloop",
+				"Module '%s': Output stream has invalid order of declaration or duplicates.", name);
 			return (false);
 		}
 	}
@@ -346,7 +348,8 @@ static bool checkModuleInputOutput(caerModuleInfo info, sshsNode configNode) {
 	if (info->type == CAER_MODULE_INPUT) {
 		// moduleInput must not exist for INPUT modules.
 		if (sshsNodeAttributeExists(configNode, "moduleInput", SSHS_STRING)) {
-			log(logLevel::ERROR, "Mainloop", "Module '%s' type INPUT has 'moduleInput' attribute.", info->name);
+			log(logLevel::ERROR, "Mainloop", "Module '%s': INPUT type cannot have a 'moduleInput' attribute.",
+				info->name);
 			return (false);
 		}
 	}
@@ -354,7 +357,7 @@ static bool checkModuleInputOutput(caerModuleInfo info, sshsNode configNode) {
 		// CAER_MODULE_OUTPUT / CAER_MODULE_PROCESSOR
 		// moduleInput must exist for OUTPUT and PROCESSOR modules.
 		if (!sshsNodeAttributeExists(configNode, "moduleInput", SSHS_STRING)) {
-			log(logLevel::ERROR, "Mainloop", "Module '%s' type OUTPUT/PROCESSOR has no 'moduleInput' attribute.",
+			log(logLevel::ERROR, "Mainloop", "Module '%s': OUTPUT/PROCESSOR types must have a 'moduleInput' attribute.",
 				info->name);
 			return (false);
 		}
@@ -363,7 +366,8 @@ static bool checkModuleInputOutput(caerModuleInfo info, sshsNode configNode) {
 	if (info->type == CAER_MODULE_OUTPUT) {
 		// moduleOutput must not exist for OUTPUT modules.
 		if (sshsNodeAttributeExists(configNode, "moduleOutput", SSHS_STRING)) {
-			log(logLevel::ERROR, "Mainloop", "Module '%s' type OUTPUT has 'moduleOutput' present.", info->name);
+			log(logLevel::ERROR, "Mainloop", "Module '%s': OUTPUT type cannot have a 'moduleOutput' attribute.",
+				info->name);
 			return (false);
 		}
 	}
@@ -374,7 +378,8 @@ static bool checkModuleInputOutput(caerModuleInfo info, sshsNode configNode) {
 		if (info->outputStreams != NULL && info->outputStreamsSize == 1 && info->outputStreams[0].type == -1
 			&& !sshsNodeAttributeExists(configNode, "moduleOutput", SSHS_STRING)) {
 			log(logLevel::ERROR, "Mainloop",
-				"Module '%s' type INPUT/PROCESSOR with ANY type definition has no 'moduleOutput' present.", info->name);
+				"Module '%s': INPUT/PROCESSOR types with ANY_TYPE definition must have a 'moduleOutput' attribute.",
+				info->name);
 			return (false);
 		}
 	}
@@ -445,7 +450,7 @@ static bool parseTypeIDString(const std::string &types, std::vector<int16_t> &re
  * from module 1, type 2 from module 2, and types 1,2 from module 4.
  */
 static bool parseModuleInput(const std::string &inputDefinition,
-	std::unordered_map<int16_t, std::vector<int16_t>> &resultMap) {
+	std::unordered_map<int16_t, std::vector<int16_t>> &resultMap, const char *name) {
 	// Empty string, cannot be!
 	if (inputDefinition.empty()) {
 		return (false);
@@ -504,7 +509,7 @@ static bool parseModuleInput(const std::string &inputDefinition,
 		// Clean map of any partial results on failure.
 		resultMap.clear();
 
-		log(logLevel::ERROR, "Mainloop", "Invalid 'moduleInput' configuration: %s", e.what());
+		log(logLevel::ERROR, "Mainloop", "Module '%s': Invalid 'moduleInput' configuration: %s", name, e.what());
 
 		return (false);
 	}
@@ -513,7 +518,7 @@ static bool parseModuleInput(const std::string &inputDefinition,
 }
 
 static bool checkInputDefinitionAgainstEventStreamIn(std::unordered_map<int16_t, std::vector<int16_t>> &inputDefinition,
-	caerEventStreamIn eventStreams, size_t eventStreamsSize) {
+	caerEventStreamIn eventStreams, size_t eventStreamsSize, const char *name) {
 	// Use parsed moduleInput configuration to get per-type count.
 	std::unordered_map<int, int> typeCount;
 
@@ -525,15 +530,19 @@ static bool checkInputDefinitionAgainstEventStreamIn(std::unordered_map<int16_t,
 
 	// Any_Type/Any_Number means there just needs to be something.
 	if (eventStreamsSize == 1 && eventStreams[0].type == -1 && eventStreams[0].number == -1) {
-		if (!typeCount.empty()) {
-			return (true);
+		if (typeCount.empty()) {
+			log(logLevel::ERROR, "Mainloop",
+				"Module '%s': ANY_TYPE/ANY_NUMBER definition has no connected input streams.", name);
+			return (false);
 		}
 	}
 
 	// Any_Type/1 means there must be exactly one type with count of 1.
 	if (eventStreamsSize == 1 && eventStreams[0].type == -1 && eventStreams[0].number == 1) {
-		if (typeCount.size() == 1 && typeCount.cbegin()->second == 1) {
-			return (true);
+		if (typeCount.size() != 1 || typeCount.cbegin()->second != 1) {
+			log(logLevel::ERROR, "Mainloop",
+				"Module '%s': ANY_TYPE/1 definition requires 1 connected input stream of some type.", name);
+			return (false);
 		}
 	}
 
@@ -541,6 +550,8 @@ static bool checkInputDefinitionAgainstEventStreamIn(std::unordered_map<int16_t,
 	// Since EventStreamIn definitions are strictly monotonic in this case, we
 	// first check that the number of definitions and counted types match.
 	if (typeCount.size() != eventStreamsSize) {
+		log(logLevel::ERROR, "Mainloop", "Module '%s': DEF_TYPE definitions require as many connected types as given.",
+			name);
 		return (false);
 	}
 
@@ -548,6 +559,9 @@ static bool checkInputDefinitionAgainstEventStreamIn(std::unordered_map<int16_t,
 		// Defined_Type/Any_Number means there must be 1 or more such types present.
 		if (eventStreams[i].type >= 0 && eventStreams[i].number == -1) {
 			if (typeCount[eventStreams[i].type] < 1) {
+				log(logLevel::ERROR, "Mainloop",
+					"Module '%s': DEF_TYPE/ANY_NUMBER definition requires at least one connected input stream of that type.",
+					name);
 				return (false);
 			}
 		}
@@ -555,6 +569,9 @@ static bool checkInputDefinitionAgainstEventStreamIn(std::unordered_map<int16_t,
 		// Defined_Type/Defined_Number means there must be exactly as many such types present.
 		if (eventStreams[i].type >= 0 && eventStreams[i].number > 0) {
 			if (typeCount[eventStreams[i].type] != eventStreams[i].number) {
+				log(logLevel::ERROR, "Mainloop",
+					"Module '%s': DEF_TYPE/DEF_NUMBER definition requires exactly that many connected input streams of that type.",
+					name);
 				return (false);
 			}
 		}
@@ -576,7 +593,6 @@ static bool parseModuleOutput(const std::string &moduleOutput, std::vector<Modul
 	std::vector<int16_t> results;
 
 	if (!parseTypeIDString(moduleOutput, results)) {
-		log(logLevel::ERROR, "Mainloop", "'moduleOutput' configuration is invalid.");
 		return (false);
 	}
 
@@ -622,7 +638,9 @@ static int caerMainloopRunner(void) {
 		if (!sshsNodeAttributeExists(module, "moduleId", SSHS_SHORT)
 			|| !sshsNodeAttributeExists(module, "moduleLibrary", SSHS_STRING)) {
 			// Missing required attributes, notify and skip.
-			log(logLevel::ERROR, "Mainloop", "Module configuration is missing core attributes.");
+			log(logLevel::ERROR, "Mainloop",
+				"Module '%s': Configuration is missing core attributes 'moduleId' and/or 'moduleLibrary'.",
+				moduleName.c_str());
 			continue;
 		}
 
@@ -640,7 +658,8 @@ static int caerMainloopRunner(void) {
 		auto result = glMainloopData.modules.insert(std::make_pair(info.id, info));
 		if (!result.second) {
 			// Failed insertion, key (ID) already exists!
-			log(logLevel::ERROR, "Mainloop", "ID already exists.");
+			log(logLevel::ERROR, "Mainloop", "Module '%s': Module with ID %d already exists.", moduleName.c_str(),
+				info.id);
 			continue;
 		}
 	}
@@ -674,34 +693,36 @@ static int caerMainloopRunner(void) {
 		}
 
 		if (modulePath.empty()) {
-			log(logLevel::ERROR, "Mainloop", "No module library '%s' found.", m.second.library.c_str());
+			log(logLevel::ERROR, "Mainloop", "Module '%s': No module library '%s' found.", m.second.name.c_str(),
+				m.second.library.c_str());
 			continue;
 		}
 
-		log(logLevel::NOTICE, "Mainloop", "Loading module library '%s'.", modulePath.c_str());
+		log(logLevel::NOTICE, "Mainloop", "Module '%s': Loading module library '%s'.", m.second.name.c_str(),
+			modulePath.c_str());
 
 		// TODO: Windows support.
 		void *moduleLibrary = dlopen(modulePath.c_str(), RTLD_NOW);
 		if (moduleLibrary == NULL) {
 			// Failed to load shared library!
-			log(logLevel::ERROR, "Mainloop", "Failed to load library '%s', error: '%s'.", modulePath.c_str(),
-				dlerror());
+			log(logLevel::ERROR, "Mainloop", "Module '%s': Failed to load library '%s', error: '%s'.",
+				m.second.name.c_str(), modulePath.c_str(), dlerror());
 			continue;
 		}
 
 		caerModuleInfo (*getInfo)(void) = (caerModuleInfo (*)(void)) dlsym(moduleLibrary, "caerModuleGetInfo");
 		if (getInfo == NULL) {
 			// Failed to find symbol in shared library!
-			log(logLevel::ERROR, "Mainloop", "Failed to find symbol in library '%s', error: '%s'.", modulePath.c_str(),
-				dlerror());
+			log(logLevel::ERROR, "Mainloop", "Module '%s': Failed to find symbol in library '%s', error: '%s'.",
+				m.second.name.c_str(), modulePath.c_str(), dlerror());
 			dlclose(moduleLibrary);
 			continue;
 		}
 
 		caerModuleInfo info = (*getInfo)();
 		if (info == NULL) {
-			log(logLevel::ERROR, "Mainloop", "Failed to get info from library '%s', error: '%s'.", modulePath.c_str(),
-				dlerror());
+			log(logLevel::ERROR, "Mainloop", "Module '%s': Failed to get info from library '%s', error: '%s'.",
+				m.second.name.c_str(), modulePath.c_str(), dlerror());
 			dlclose(moduleLibrary);
 			continue;
 		}
@@ -714,18 +735,14 @@ static int caerMainloopRunner(void) {
 
 		// Check I/O event stream definitions for correctness.
 		if (info->inputStreams != NULL) {
-			if (!checkInputStreamDefinitions(info->inputStreams, info->inputStreamsSize)) {
-				log(logLevel::ERROR, "Mainloop", "Module '%s' has incorrect INPUT event stream definition.",
-					info->name);
+			if (!checkInputStreamDefinitions(info->inputStreams, info->inputStreamsSize, info->name)) {
 				dlclose(moduleLibrary);
 				continue;
 			}
 		}
 
 		if (info->outputStreams != NULL) {
-			if (!checkOutputStreamDefinitions(info->outputStreams, info->outputStreamsSize)) {
-				log(logLevel::ERROR, "Mainloop", "Module '%s' has incorrect OUTPUT event stream definition.",
-					info->name);
+			if (!checkOutputStreamDefinitions(info->outputStreams, info->outputStreamsSize, info->name)) {
 				dlclose(moduleLibrary);
 				continue;
 			}
@@ -746,6 +763,8 @@ static int caerMainloopRunner(void) {
 		if (m.second.libraryHandle == NULL || m.second.libraryInfo == NULL) {
 			// Clean up generated data on failure.
 			glMainloopData.modules.clear();
+
+			log(logLevel::ERROR, "Mainloop", "Errors in module library loading, terminating mainloop now.");
 
 			return (EXIT_FAILURE);
 		}
@@ -776,8 +795,9 @@ static int caerMainloopRunner(void) {
 		std::string inputDefinition = moduleInput;
 		free(moduleInput);
 
-		if (!parseModuleInput(inputDefinition, m.get().inputDefinition)) {
-			log(logLevel::ERROR, "Mainloop", "Failed to parse 'moduleInput' configuration.");
+		if (!parseModuleInput(inputDefinition, m.get().inputDefinition, m.get().name.c_str())) {
+			log(logLevel::ERROR, "Mainloop", "Module '%s': Failed to parse 'moduleInput' configuration.",
+				m.get().name.c_str());
 
 			// Clean up generated data on failure.
 			glMainloopData.modules.clear();
@@ -786,9 +806,10 @@ static int caerMainloopRunner(void) {
 		}
 
 		if (!checkInputDefinitionAgainstEventStreamIn(m.get().inputDefinition, m.get().libraryInfo->inputStreams,
-			m.get().libraryInfo->inputStreamsSize)) {
+			m.get().libraryInfo->inputStreamsSize, m.get().name.c_str())) {
 			log(logLevel::ERROR, "Mainloop",
-				"Failed to verify 'moduleInput' configuration against input event stream definitions.");
+				"Module '%s': Failed to verify 'moduleInput' configuration against input event stream definitions.",
+				m.get().name.c_str());
 
 			// Clean up generated data on failure.
 			glMainloopData.modules.clear();
@@ -810,7 +831,8 @@ static int caerMainloopRunner(void) {
 			free(moduleOutput);
 
 			if (!parseModuleOutput(outputDefinition, m.get().outputs)) {
-				log(logLevel::ERROR, "Mainloop", "Failed to parse 'moduleOutput' configuration.");
+				log(logLevel::ERROR, "Mainloop", "Module '%s': Failed to parse 'moduleOutput' configuration.",
+					m.get().name.c_str());
 
 				// Clean up generated data on failure.
 				glMainloopData.modules.clear();
@@ -820,7 +842,8 @@ static int caerMainloopRunner(void) {
 		}
 		else if (info->outputStreams != NULL) {
 			if (!parseEventStreamOutDefinition(info->outputStreams, info->outputStreamsSize, m.get().outputs)) {
-				log(logLevel::ERROR, "Mainloop", "Failed to parse output event stream configuration.");
+				log(logLevel::ERROR, "Mainloop", "Module '%s': Failed to parse output event stream configuration.",
+					m.get().name.c_str());
 
 				// Clean up generated data on failure.
 				glMainloopData.modules.clear();
