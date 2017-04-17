@@ -500,6 +500,52 @@ static bool parseModuleInput(const std::string &inputDefinition,
 
 static bool checkInputDefinitionAgainstEventStreamIn(std::unordered_map<int16_t, std::vector<int16_t>> &inputDefinition,
 	caerEventStreamIn eventStreams, size_t eventStreamsSize) {
+	// Use parsed moduleInput configuration to get per-type count.
+	std::unordered_map<int, int> typeCount;
+
+	for (auto &in : inputDefinition) {
+		for (auto type : in.second) {
+			typeCount[type]++;
+		}
+	}
+
+	// Any_Type/Any_Number means there just needs to be something.
+	if (eventStreamsSize == 1 && eventStreams[0].type == -1 && eventStreams[0].number == -1) {
+		if (!typeCount.empty()) {
+			return (true);
+		}
+	}
+
+	// Any_Type/1 means there must be exactly one type with count of 1.
+	if (eventStreamsSize == 1 && eventStreams[0].type == -1 && eventStreams[0].number == 1) {
+		if (typeCount.size() == 1 && typeCount.cbegin()->second == 1) {
+			return (true);
+		}
+	}
+
+	// All other cases involve possibly multiple definitions with a defined type.
+	// Since EventStreamIn definitions are strictly monotonic in this case, we
+	// first check that the number of definitions and counted types match.
+	if (typeCount.size() != eventStreamsSize) {
+		return (false);
+	}
+
+	for (size_t i = 0; i < eventStreamsSize; i++) {
+		// Defined_Type/Any_Number means there must be 1 or more such types present.
+		if (eventStreams[i].type >= 0 && eventStreams[i].number == -1) {
+			if (typeCount[eventStreams[i].type] < 1) {
+				return (false);
+			}
+		}
+
+		// Defined_Type/Defined_Number means there must be exactly as many such types present.
+		if (eventStreams[i].type >= 0 && eventStreams[i].number > 0) {
+			if (typeCount[eventStreams[i].type] != eventStreams[i].number) {
+				return (false);
+			}
+		}
+	}
+
 	return (true);
 }
 
