@@ -521,9 +521,14 @@ static std::vector<OrderedInput> parseAugmentedTypeIDString(const std::string &t
 
 			afterModuleOrder = std::stoi(orderString);
 
-			// Check Module ID value.
+			// Check module ID value.
 			if (afterModuleOrder < 0 || afterModuleOrder > INT16_MAX) {
 				throw std::out_of_range("Module ID negative or too big.");
+			}
+
+			// Check that the module ID actually exists in the system.
+			if (!caerMainloopModuleExists(static_cast<int16_t>(afterModuleOrder))) {
+				throw std::out_of_range("Unknown module ID found.");
 			}
 		}
 
@@ -597,7 +602,7 @@ static bool parseModuleInput(const std::string &inputDefinition,
 			}
 
 			// Check that the referenced module ID actually exists in the system.
-			if (glMainloopData.modules.count(static_cast<int16_t>(id)) == 0) {
+			if (!caerMainloopModuleExists(static_cast<int16_t>(id))) {
 				throw std::out_of_range("Unknown referenced module ID found.");
 			}
 
@@ -1082,6 +1087,10 @@ void caerMainloopDataNotifyDecrease(void *p) {
 	// No special memory order for decrease, because the acquire load to even start running
 	// through a mainloop already synchronizes with the release store above.
 	glMainloopData.dataAvailable.fetch_sub(1, std::memory_order_relaxed);
+}
+
+bool caerMainloopModuleExists(int16_t id) {
+	return (glMainloopData.modules.count(id) != 0);
 }
 
 // Only use this inside the mainloop-thread, not inside any other thread,

@@ -16,10 +16,12 @@ extern "C" {
 #endif
 
 void caerMainloopRun(void);
-caerModuleData caerMainloopFindModule(uint16_t moduleID, const char *moduleShortName, enum caer_module_type type);
-void caerMainloopFreeAfterLoop(void (*func)(void *mem), void *memPtr);
 void caerMainloopDataNotifyIncrease(void *p);
 void caerMainloopDataNotifyDecrease(void *p);
+bool caerMainloopModuleExists(int16_t id);
+
+void caerMainloopFreeAfterLoop(void (*func)(void *mem), void *memPtr);
+caerModuleData caerMainloopFindModule(uint16_t moduleID, const char *moduleShortName, enum caer_module_type type);
 sshsNode caerMainloopGetSourceNode(uint16_t sourceID);
 sshsNode caerMainloopGetSourceInfo(uint16_t sourceID);
 void *caerMainloopGetSourceState(uint16_t sourceID);
