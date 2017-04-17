@@ -26,11 +26,71 @@ struct ModuleConnection {
 };
 
 struct ModuleConnectivity {
-	int16_t type;
+	int16_t typeId;
 	std::vector<ModuleConnection> connections;
 
-	ModuleConnectivity(int16_t eventType) {
-		type = eventType;
+	ModuleConnectivity(int16_t t) {
+		typeId = t;
+	}
+
+	// Comparison operators.
+	bool operator==(const ModuleConnectivity &rhs) const noexcept {
+		return (typeId == rhs.typeId);
+	}
+
+	bool operator!=(const ModuleConnectivity &rhs) const noexcept {
+		return (typeId != rhs.typeId);
+	}
+
+	bool operator<(const ModuleConnectivity &rhs) const noexcept {
+		return (typeId < rhs.typeId);
+	}
+
+	bool operator>(const ModuleConnectivity &rhs) const noexcept {
+		return (typeId > rhs.typeId);
+	}
+
+	bool operator<=(const ModuleConnectivity &rhs) const noexcept {
+		return (typeId <= rhs.typeId);
+	}
+
+	bool operator>=(const ModuleConnectivity &rhs) const noexcept {
+		return (typeId >= rhs.typeId);
+	}
+};
+
+struct OrderedInput {
+	int16_t typeId;
+	int16_t afterModuleId;
+
+	OrderedInput(int16_t t, int16_t m) {
+		typeId = t;
+		afterModuleId = m;
+	}
+
+	// Comparison operators.
+	bool operator==(const OrderedInput &rhs) const noexcept {
+		return (typeId == rhs.typeId);
+	}
+
+	bool operator!=(const OrderedInput &rhs) const noexcept {
+		return (typeId != rhs.typeId);
+	}
+
+	bool operator<(const OrderedInput &rhs) const noexcept {
+		return (typeId < rhs.typeId);
+	}
+
+	bool operator>(const OrderedInput &rhs) const noexcept {
+		return (typeId > rhs.typeId);
+	}
+
+	bool operator<=(const OrderedInput &rhs) const noexcept {
+		return (typeId <= rhs.typeId);
+	}
+
+	bool operator>=(const OrderedInput &rhs) const noexcept {
+		return (typeId >= rhs.typeId);
 	}
 };
 
@@ -41,7 +101,7 @@ struct ModuleInfo {
 	// SSHS configuration node.
 	sshsNode configNode;
 	// Parsed moduleInput configuration.
-	std::unordered_map<int16_t, std::vector<int16_t>> inputDefinition;
+	std::unordered_map<int16_t, std::vector<OrderedInput>> inputDefinition;
 	// Connectivity graph (I/O).
 	bool IODone;
 	std::vector<ModuleConnectivity> inputs;
@@ -387,39 +447,33 @@ static bool checkModuleInputOutput(caerModuleInfo info, sshsNode configNode) {
 	return (true);
 }
 
-static bool parseTypeIDString(const std::string &types, std::vector<int16_t> &results) {
+static std::vector<int16_t> parseTypeIDString(const std::string &types) {
 	// Empty string, cannot be!
 	if (types.empty()) {
-		return (false);
+		throw std::length_error("Empty Type ID string.");
 	}
+
+	std::vector<int16_t> results;
 
 	// Extract all type IDs from comma-separated string.
 	std::stringstream typesStream(types);
 	std::string typeString;
 
 	while (std::getline(typesStream, typeString, ',')) {
-		try {
-			int type = std::stoi(typeString);
+		int type = std::stoi(typeString);
 
-			// Check type ID value.
-			if (type < 0 || type > INT16_MAX) {
-				throw std::out_of_range("Type ID negative or too big.");
-			}
-
-			// Add extracted type IDs to the result map.
-			results.push_back(static_cast<int16_t>(type));
+		// Check type ID value.
+		if (type < 0 || type > INT16_MAX) {
+			throw std::out_of_range("Type ID negative or too big.");
 		}
-		catch (std::logic_error &) {
-			// Clean any partial results on failure.
-			results.clear();
 
-			return (false);
-		}
+		// Add extracted Type IDs to the result vector.
+		results.push_back(static_cast<int16_t>(type));
 	}
 
 	// Ensure that something was extracted.
 	if (results.empty()) {
-		return (false);
+		throw std::length_error("Empty extracted Type ID vector.");
 	}
 
 	// Detect duplicates.
@@ -433,13 +487,70 @@ static bool parseTypeIDString(const std::string &types, std::vector<int16_t> &re
 	// If size changed, duplicates must have been removed, so they existed
 	// in the first place, which is not allowed.
 	if (sizeAfter != sizeBefore) {
-		// Clean any partial results on failure.
-		results.clear();
-
-		return (false);
+		throw std::invalid_argument("Duplicate Type ID found.");
 	}
 
-	return (true);
+	return (results);
+}
+
+static std::vector<OrderedInput> parseAugmentedTypeIDString(const std::string &types) {
+	// Empty string, cannot be!
+	if (types.empty()) {
+		throw std::length_error("Empty Augmented Type ID string.");
+	}
+
+	std::vector<OrderedInput> results;
+
+	// Extract all type IDs from comma-separated string.
+	std::stringstream typesStream(types);
+	std::string typeString;
+
+	while (std::getline(typesStream, typeString, ',')) {
+		size_t modifierPosition = 0;
+		int type = std::stoi(typeString, &modifierPosition);
+
+		// Check type ID value.
+		if (type < 0 || type > INT16_MAX) {
+			throw std::out_of_range("Type ID negative or too big.");
+		}
+
+		int afterModuleOrder = -1;
+
+		if (modifierPosition != typeString.length() && typeString.at(modifierPosition) == 'a') {
+			std::string orderString = typeString.substr(modifierPosition + 1);
+
+			afterModuleOrder = std::stoi(orderString);
+
+			// Check Module ID value.
+			if (afterModuleOrder < 0 || afterModuleOrder > INT16_MAX) {
+				throw std::out_of_range("Module ID negative or too big.");
+			}
+		}
+
+		// Add extracted Type IDs to the result vector.
+		results.push_back(OrderedInput(static_cast<int16_t>(type), static_cast<int16_t>(afterModuleOrder)));
+	}
+
+	// Ensure that something was extracted.
+	if (results.empty()) {
+		throw std::length_error("Empty extracted Augmented Type ID vector.");
+	}
+
+	// Detect duplicates.
+	size_t sizeBefore = results.size();
+
+	std::sort(results.begin(), results.end());
+	results.erase(std::unique(results.begin(), results.end()), results.end());
+
+	size_t sizeAfter = results.size();
+
+	// If size changed, duplicates must have been removed, so they existed
+	// in the first place, which is not allowed.
+	if (sizeAfter != sizeBefore) {
+		throw std::invalid_argument("Duplicate Type ID found.");
+	}
+
+	return (results);
 }
 
 /**
@@ -450,7 +561,7 @@ static bool parseTypeIDString(const std::string &types, std::vector<int16_t> &re
  * from module 1, type 2 from module 2, and types 1,2 from module 4.
  */
 static bool parseModuleInput(const std::string &inputDefinition,
-	std::unordered_map<int16_t, std::vector<int16_t>> &resultMap, const char *name) {
+	std::unordered_map<int16_t, std::vector<OrderedInput>> &resultMap, const char *name) {
 	// Empty string, cannot be!
 	if (inputDefinition.empty()) {
 		return (false);
@@ -461,7 +572,7 @@ static bool parseModuleInput(const std::string &inputDefinition,
 		auto iter = std::sregex_token_iterator(inputDefinition.begin(), inputDefinition.end(), wsRegex, -1);
 
 		while (iter != std::sregex_token_iterator()) {
-			std::regex typeRegex("(\\d+)\\[(\\d+(?:,\\d+)*)\\]"); // Single Input Definition Regex.
+			std::regex typeRegex("(\\d+)\\[(\\w+(?:,\\w+)*)\\]"); // Single Input Definition Regex.
 			std::smatch matches;
 			std::regex_match(iter->first, iter->second, matches, typeRegex);
 
@@ -493,9 +604,7 @@ static bool parseModuleInput(const std::string &inputDefinition,
 			// Then get the various type IDs for that module.
 			std::string typeString = matches[2];
 
-			if (!parseTypeIDString(typeString, resultMap[static_cast<int16_t>(id)])) {
-				throw std::out_of_range("Type ID negative or too big.");
-			}
+			resultMap[static_cast<int16_t>(id)] = parseAugmentedTypeIDString(typeString);
 
 			iter++;
 		}
@@ -517,14 +626,15 @@ static bool parseModuleInput(const std::string &inputDefinition,
 	return (true);
 }
 
-static bool checkInputDefinitionAgainstEventStreamIn(std::unordered_map<int16_t, std::vector<int16_t>> &inputDefinition,
-	caerEventStreamIn eventStreams, size_t eventStreamsSize, const char *name) {
+static bool checkInputDefinitionAgainstEventStreamIn(
+	std::unordered_map<int16_t, std::vector<OrderedInput>> &inputDefinition, caerEventStreamIn eventStreams,
+	size_t eventStreamsSize, const char *name) {
 	// Use parsed moduleInput configuration to get per-type count.
 	std::unordered_map<int, int> typeCount;
 
 	for (auto &in : inputDefinition) {
-		for (auto type : in.second) {
-			typeCount[type]++;
+		for (auto typeAndOrder : in.second) {
+			typeCount[typeAndOrder.typeId]++;
 		}
 	}
 
@@ -596,7 +706,10 @@ static bool checkInputDefinitionAgainstEventStreamIn(std::unordered_map<int16_t,
 static bool parseModuleOutput(const std::string &moduleOutput, std::vector<ModuleConnectivity> &outputs) {
 	std::vector<int16_t> results;
 
-	if (!parseTypeIDString(moduleOutput, results)) {
+	try {
+		results = parseTypeIDString(moduleOutput);
+	}
+	catch (...) {
 		return (false);
 	}
 
@@ -885,11 +998,11 @@ static int caerMainloopRunner(void) {
 		std::cout << m.second.id << "-MOD:" << m.second.libraryInfo->type << "-" << m.second.name << std::endl;
 
 		for (auto i : m.second.inputs) {
-			std::cout << " -->" << i.type << "-IN" << std::endl;
+			std::cout << " -->" << i.typeId << "-IN" << std::endl;
 		}
 
 		for (auto o : m.second.outputs) {
-			std::cout << " -->" << o.type << "-OUT" << std::endl;
+			std::cout << " -->" << o.typeId << "-OUT" << std::endl;
 		}
 	}
 
