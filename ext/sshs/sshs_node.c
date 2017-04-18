@@ -1159,52 +1159,63 @@ bool sshsNodeStringToNodeConverter(sshsNode node, const char *key, const char *t
 	enum sshs_node_attr_value_type type;
 	type = sshsHelperStringToTypeConverter(typeStr);
 
-	union sshs_node_attr_value value;
-	bool conversionSuccess = sshsHelperStringToValueConverter(type, valueStr, &value);
-
-	if ((type == SSHS_UNKNOWN) || !conversionSuccess) {
+	if (type == SSHS_UNKNOWN) {
 		return (false);
 	}
 
-	// Create config parameters with maximum range and read-only enabled
-	// on XML load. More restrictive ranges and working parameters can be
+	union sshs_node_attr_value value;
+	bool conversionSuccess = sshsHelperStringToValueConverter(type, valueStr, &value);
+
+	if (!conversionSuccess) {
+		return (false);
+	}
+
+	// IFF attribute already exists, we update it using sshsNodePut(), else
+	// we create the attribute with maximum range and read-only enabled
+	// (on XML load fex.). More restrictive ranges and working parameters can be
 	// enabled later by calling sshsNodeCreate*() again as needed.
-	switch (type) {
-		case SSHS_BOOL:
-			sshsNodeCreateBool(node, key, value.boolean, SSHS_FLAGS_READ_ONLY);
-			break;
+	bool result = false;
 
-		case SSHS_BYTE:
-			sshsNodeCreateByte(node, key, value.ibyte, INT8_MIN, INT8_MAX, SSHS_FLAGS_READ_ONLY);
-			break;
+	if (sshsNodeAttributeExists(node, key, type)) {
+		result = sshsNodePutAttribute(node, key, type, value);
+	}
+	else {
+		switch (type) {
+			case SSHS_BOOL:
+				sshsNodeCreateBool(node, key, value.boolean, SSHS_FLAGS_READ_ONLY);
+				break;
 
-		case SSHS_SHORT:
-			sshsNodeCreateShort(node, key, value.ishort, INT16_MIN, INT16_MAX, SSHS_FLAGS_READ_ONLY);
-			break;
+			case SSHS_BYTE:
+				sshsNodeCreateByte(node, key, value.ibyte, INT8_MIN, INT8_MAX, SSHS_FLAGS_READ_ONLY);
+				break;
 
-		case SSHS_INT:
-			sshsNodeCreateInt(node, key, value.iint, INT32_MIN, INT32_MAX, SSHS_FLAGS_READ_ONLY);
-			break;
+			case SSHS_SHORT:
+				sshsNodeCreateShort(node, key, value.ishort, INT16_MIN, INT16_MAX, SSHS_FLAGS_READ_ONLY);
+				break;
 
-		case SSHS_LONG:
-			sshsNodeCreateLong(node, key, value.ilong, INT64_MIN, INT64_MAX, SSHS_FLAGS_READ_ONLY);
-			break;
+			case SSHS_INT:
+				sshsNodeCreateInt(node, key, value.iint, INT32_MIN, INT32_MAX, SSHS_FLAGS_READ_ONLY);
+				break;
 
-		case SSHS_FLOAT:
-			sshsNodeCreateFloat(node, key, value.ffloat, FLT_MIN, FLT_MAX, SSHS_FLAGS_READ_ONLY);
-			break;
+			case SSHS_LONG:
+				sshsNodeCreateLong(node, key, value.ilong, INT64_MIN, INT64_MAX, SSHS_FLAGS_READ_ONLY);
+				break;
 
-		case SSHS_DOUBLE:
-			sshsNodeCreateDouble(node, key, value.ddouble, DBL_MIN, DBL_MAX, SSHS_FLAGS_READ_ONLY);
-			break;
+			case SSHS_FLOAT:
+				sshsNodeCreateFloat(node, key, value.ffloat, FLT_MIN, FLT_MAX, SSHS_FLAGS_READ_ONLY);
+				break;
 
-		case SSHS_STRING:
-			sshsNodeCreateString(node, key, value.string, 0, SIZE_MAX, SSHS_FLAGS_READ_ONLY);
-			break;
+			case SSHS_DOUBLE:
+				sshsNodeCreateDouble(node, key, value.ddouble, DBL_MIN, DBL_MAX, SSHS_FLAGS_READ_ONLY);
+				break;
 
-		case SSHS_UNKNOWN:
-		default:
-			return (false); // UNKNOWN TYPE.
+			case SSHS_STRING:
+				sshsNodeCreateString(node, key, value.string, 0, SIZE_MAX, SSHS_FLAGS_READ_ONLY);
+				break;
+		}
+
+		// Create never fails!
+		result = true;
 	}
 
 	// Free string copy from helper.
@@ -1212,7 +1223,7 @@ bool sshsNodeStringToNodeConverter(sshsNode node, const char *key, const char *t
 		free(value.string);
 	}
 
-	return (true);
+	return (result);
 }
 
 const char **sshsNodeGetChildNames(sshsNode node, size_t *numNames) {

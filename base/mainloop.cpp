@@ -1154,6 +1154,8 @@ static int caerMainloopRunner(void) {
 //	utarray_free(glMainloopData.outputModules);
 //	utarray_free(glMainloopData.processorModules);
 
+	log(logLevel::INFO, "Mainloop", "Started successfully.");
+
 	// If no data is available, sleep for a millisecond to avoid wasting resources.
 	// Wait for someone to toggle the module shutdown flag OR for the loop
 	// itself to signal termination.
@@ -1175,6 +1177,8 @@ static int caerMainloopRunner(void) {
 
 	// Cleanup modules.
 	glMainloopData.modules.clear();
+
+	log(logLevel::INFO, "Mainloop", "Terminated successfully.");
 
 	return (EXIT_SUCCESS);
 }
