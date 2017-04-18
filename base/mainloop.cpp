@@ -6,7 +6,6 @@
 #include <algorithm>
 #include <regex>
 #include <unordered_map>
-#include <unordered_set>
 #include <vector>
 #include <boost/filesystem.hpp>
 #include <boost/range/join.hpp>
@@ -115,10 +114,12 @@ struct ModuleInfo {
 struct ActiveStreams {
 	int16_t sourceId;
 	int16_t typeId;
+	bool active;
 
 	ActiveStreams(int16_t s, int16_t t) {
 		sourceId = s;
 		typeId = t;
+		active = false;
 	}
 
 	// Comparison operators.
@@ -147,25 +148,13 @@ struct ActiveStreams {
 	}
 };
 
-namespace std {
-template<>
-struct hash<ActiveStreams> {
-	typedef ActiveStreams argument_type;
-	typedef size_t result_type;
-
-	size_t operator()(const ActiveStreams &stream) const {
-		return (static_cast<size_t>((stream.sourceId << 16) | stream.typeId));
-	}
-};
-}
-
 static struct {
 	sshsNode configNode;
 	atomic_bool systemRunning;
 	atomic_bool running;
 	atomic_uint_fast32_t dataAvailable;
 	std::unordered_map<int16_t, ModuleInfo> modules;
-	std::unordered_set<ActiveStreams> streams;
+	std::vector<ActiveStreams> streams;
 } glMainloopData;
 
 static std::vector<boost::filesystem::path> modulePaths;
@@ -666,9 +655,16 @@ static bool parseModuleInput(const std::string &inputDefinition,
 			// Verify that the resulting event streams (sourceId, typeId) are
 			// correct and do in fact exist.
 			for (auto &o : resultMap[mId]) {
-				if (glMainloopData.streams.count(ActiveStreams(mId, o.typeId)) == 0) {
+				auto foundEventStream = std::find(glMainloopData.streams.begin(), glMainloopData.streams.end(),
+					ActiveStreams(mId, o.typeId));
+
+				if (foundEventStream == glMainloopData.streams.end()) {
 					// Specified event stream doesn't exist!
 					throw std::out_of_range("Unknown event stream.");
+				}
+				else {
+					// Event stream exists and is used here, mark it as active.
+					foundEventStream->active = true;
 				}
 			}
 
@@ -947,7 +943,7 @@ static int caerMainloopRunner(void) {
 			// Clean up generated data on failure.
 			glMainloopData.modules.clear();
 
-			log(logLevel::ERROR, "Mainloop", "Errors in module library loading, terminating mainloop now.");
+			log(logLevel::ERROR, "Mainloop", "Errors in module library loading.");
 
 			return (EXIT_FAILURE);
 		}
@@ -969,6 +965,17 @@ static int caerMainloopRunner(void) {
 		else {
 			processorModules.push_back(m.second);
 		}
+	}
+
+	// Simple sanity check: at least 1 input and 1 output module must exist
+	// to have a minimal, working system.
+	if (inputModules.size() < 1 || outputModules.size() < 1) {
+		// Clean up generated data on failure.
+		glMainloopData.modules.clear();
+
+		log(logLevel::ERROR, "Mainloop", "No input or output modules defined.");
+
+		return (EXIT_FAILURE);
 	}
 
 	// Then we parse all the 'moduleOutput' configurations for certain INPUT
@@ -1010,7 +1017,7 @@ static int caerMainloopRunner(void) {
 
 			// Now add discovered outputs to possible active streams.
 			for (auto &o : m.get().outputs) {
-				glMainloopData.streams.insert(ActiveStreams(m.get().id, o.typeId));
+				glMainloopData.streams.push_back(ActiveStreams(m.get().id, o.typeId));
 			}
 		}
 	}
@@ -1045,14 +1052,41 @@ static int caerMainloopRunner(void) {
 		}
 	}
 
+	// At this point we can prune all event streams that are not marked active,
+	// since this means nobody is referring to them.
+	glMainloopData.streams.erase(
+		std::remove_if(glMainloopData.streams.begin(), glMainloopData.streams.end(),
+			[](const ActiveStreams &st) {return (!st.active);}), glMainloopData.streams.end());
+
+	// If all event streams of an INPUT module are dropped, the module itself
+	// is unconnected and useless, and that is a user configuration error.
+	for (auto &m : inputModules) {
+		int16_t id = m.get().id;
+
+		auto iter = std::find_if(glMainloopData.streams.begin(), glMainloopData.streams.end(),
+			[id](const ActiveStreams &st) {return (st.sourceId == id);});
+
+		// No stream found for source ID corresponding to this module's ID.
+		if (iter == glMainloopData.streams.end()) {
+			log(logLevel::ERROR, "Mainloop",
+				"Module '%s': INPUT module is not connected to anything and will not be used.", m.get().name.c_str());
+
+			// Clean up generated data on failure.
+			glMainloopData.modules.clear();
+
+			return (EXIT_FAILURE);
+		}
+	}
+
 	// There's multiple ways now to build the full connectivity graph once we
 	// have all the starting points. Simple and efficient is to take an input
 	// and follow along until either we've reached all the end points (outputs)
 	// that are reachable, or until we need some other input, at which point we
 	// stop and continue with the next input, until we've processed all inputs,
-	// and then necessarily resolved the whole connected graph. Whatever inputs
-	// remain with no outgoing connection, or whatever processors and outputs
-	// have no incoming connections reaching them, can then be pruned as invalid.
+	// and then necessarily resolved the whole connected graph.
+	// TODO: be sure to detect cycles! Use IODone as check.
+	// TODO: detect processors that serve no purpose, ie. no output or unused
+	// output, as well as no further users of modified inputs.
 	for (auto &m : inputModules) {
 		int16_t currInputModuleId = m.get().id;
 
