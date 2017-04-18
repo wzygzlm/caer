@@ -30,7 +30,7 @@
         </node>
         <node name="demosaic" path="/demosaic/">
             <attr key="moduleId" type="short">17</attr>
-            <attr key="moduleInput" type="string">1[2]</attr>
+            <attr key="moduleInput" type="string">12[2]</attr>
             <attr key="moduleLibrary" type="string">caer_frameenhancer</attr>
         </node>
         <node name="eventVisualizer" path="/eventVisualizer/">
@@ -41,7 +41,7 @@
         <node name="fileInput" path="/fileInput/">
             <attr key="moduleId" type="short">12</attr>
             <attr key="moduleLibrary" type="string">caer_input_file</attr>
-            <attr key="moduleOutput" type="string">1,3</attr>
+            <attr key="moduleOutput" type="string">1,2,3</attr>
         </node>
         <node name="fileOutput" path="/fileOutput/">
             <attr key="moduleId" type="short">11</attr>
