@@ -19,6 +19,7 @@ void caerMainloopRun(void);
 void caerMainloopDataNotifyIncrease(void *p);
 void caerMainloopDataNotifyDecrease(void *p);
 bool caerMainloopModuleExists(int16_t id);
+bool caerMainloopModuleIsType(int16_t id, enum caer_module_type type);
 
 void caerMainloopFreeAfterLoop(void (*func)(void *mem), void *memPtr);
 caerModuleData caerMainloopFindModule(uint16_t moduleID, const char *moduleShortName, enum caer_module_type type);

@@ -115,7 +115,49 @@ struct ModuleInfo {
 struct ActiveStreams {
 	int16_t sourceId;
 	int16_t typeId;
+
+	ActiveStreams(int16_t s, int16_t t) {
+		sourceId = s;
+		typeId = t;
+	}
+
+	// Comparison operators.
+	bool operator==(const ActiveStreams &rhs) const noexcept {
+		return (sourceId == rhs.sourceId && typeId == rhs.typeId);
+	}
+
+	bool operator!=(const ActiveStreams &rhs) const noexcept {
+		return (sourceId != rhs.sourceId || typeId != rhs.typeId);
+	}
+
+	bool operator<(const ActiveStreams &rhs) const noexcept {
+		return (sourceId < rhs.sourceId || (sourceId == rhs.sourceId && typeId < rhs.typeId));
+	}
+
+	bool operator>(const ActiveStreams &rhs) const noexcept {
+		return (sourceId > rhs.sourceId || (sourceId == rhs.sourceId && typeId > rhs.typeId));
+	}
+
+	bool operator<=(const ActiveStreams &rhs) const noexcept {
+		return (sourceId < rhs.sourceId || (sourceId == rhs.sourceId && typeId <= rhs.typeId));
+	}
+
+	bool operator>=(const ActiveStreams &rhs) const noexcept {
+		return (sourceId > rhs.sourceId || (sourceId == rhs.sourceId && typeId >= rhs.typeId));
+	}
 };
+
+namespace std {
+template<>
+struct hash<ActiveStreams> {
+	typedef ActiveStreams argument_type;
+	typedef size_t result_type;
+
+	size_t operator()(const ActiveStreams &stream) const {
+		return (static_cast<size_t>((stream.sourceId << 16) | stream.typeId));
+	}
+};
+}
 
 static struct {
 	sshsNode configNode;
@@ -123,6 +165,7 @@ static struct {
 	atomic_bool running;
 	atomic_uint_fast32_t dataAvailable;
 	std::unordered_map<int16_t, ModuleInfo> modules;
+	std::unordered_set<ActiveStreams> streams;
 } glMainloopData;
 
 static std::vector<boost::filesystem::path> modulePaths;
@@ -530,6 +573,13 @@ static std::vector<OrderedInput> parseAugmentedTypeIDString(const std::string &t
 			if (!caerMainloopModuleExists(static_cast<int16_t>(afterModuleOrder))) {
 				throw std::out_of_range("Unknown module ID found.");
 			}
+
+			// Verify that the module ID belongs to a PROCESSOR module,
+			// as only those can ever modify event streams and thus impose
+			// an ordering on it and modules using it.
+			if (!caerMainloopModuleIsType(static_cast<int16_t>(afterModuleOrder), CAER_MODULE_PROCESSOR)) {
+				throw std::out_of_range("Module ID doesn't belong to a PROCESSOR type modules.");
+			}
 		}
 
 		// Add extracted Type IDs to the result vector.
@@ -595,21 +645,32 @@ static bool parseModuleInput(const std::string &inputDefinition,
 				throw std::out_of_range("Referenced module ID negative or too big.");
 			}
 
+			int16_t mId = static_cast<int16_t>(id);
+
 			// If this module ID already exists in the map, it means there are
 			// multiple definitions for the same ID; this is not allowed!
-			if (resultMap.count(static_cast<int16_t>(id)) == 1) {
+			if (resultMap.count(mId) == 1) {
 				throw std::out_of_range("Duplicate referenced module ID found.");
 			}
 
 			// Check that the referenced module ID actually exists in the system.
-			if (!caerMainloopModuleExists(static_cast<int16_t>(id))) {
+			if (!caerMainloopModuleExists(mId)) {
 				throw std::out_of_range("Unknown referenced module ID found.");
 			}
 
 			// Then get the various type IDs for that module.
 			std::string typeString = matches[2];
 
-			resultMap[static_cast<int16_t>(id)] = parseAugmentedTypeIDString(typeString);
+			resultMap[mId] = parseAugmentedTypeIDString(typeString);
+
+			// Verify that the resulting event streams (sourceId, typeId) are
+			// correct and do in fact exist.
+			for (auto &o : resultMap[mId]) {
+				if (glMainloopData.streams.count(ActiveStreams(mId, o.typeId)) == 0) {
+					// Specified event stream doesn't exist!
+					throw std::out_of_range("Unknown event stream.");
+				}
+			}
 
 			iter++;
 		}
@@ -910,8 +971,52 @@ static int caerMainloopRunner(void) {
 		}
 	}
 
+	// Then we parse all the 'moduleOutput' configurations for certain INPUT
+	// and PROCESSOR modules that have an ANY type declaration. If the types
+	// are instead well defined, we parse the event stream definition directly.
+	// We do this first so we can build up the map of all possible active event
+	// streams, which we then can use for checking 'moduleInput' for correctness.
+	for (auto &m : boost::join(inputModules, processorModules)) {
+		caerModuleInfo info = m.get().libraryInfo;
+
+		if (info->outputStreams != NULL) {
+			// ANY type declaration.
+			if (info->outputStreamsSize == 1 && info->outputStreams[0].type == -1) {
+				char *moduleOutput = sshsNodeGetString(m.get().configNode, "moduleOutput");
+				std::string outputDefinition = moduleOutput;
+				free(moduleOutput);
+
+				if (!parseModuleOutput(outputDefinition, m.get().outputs)) {
+					log(logLevel::ERROR, "Mainloop", "Module '%s': Failed to parse 'moduleOutput' configuration.",
+						m.get().name.c_str());
+
+					// Clean up generated data on failure.
+					glMainloopData.modules.clear();
+
+					return (EXIT_FAILURE);
+				}
+			}
+			else {
+				if (!parseEventStreamOutDefinition(info->outputStreams, info->outputStreamsSize, m.get().outputs)) {
+					log(logLevel::ERROR, "Mainloop", "Module '%s': Failed to parse output event stream configuration.",
+						m.get().name.c_str());
+
+					// Clean up generated data on failure.
+					glMainloopData.modules.clear();
+
+					return (EXIT_FAILURE);
+				}
+			}
+
+			// Now add discovered outputs to possible active streams.
+			for (auto &o : m.get().outputs) {
+				glMainloopData.streams.insert(ActiveStreams(m.get().id, o.typeId));
+			}
+		}
+	}
+
 	// Then we parse all the 'moduleInput' configurations for OUTPUT and
-	// PROCESSOR modules, ...
+	// PROCESSOR modules, which we can now verify against possible streams.
 	for (auto &m : boost::join(outputModules, processorModules)) {
 		char *moduleInput = sshsNodeGetString(m.get().configNode, "moduleInput");
 		std::string inputDefinition = moduleInput;
@@ -937,41 +1042,6 @@ static int caerMainloopRunner(void) {
 			glMainloopData.modules.clear();
 
 			return (EXIT_FAILURE);
-		}
-	}
-
-	// ... as well as the 'moduleOutput' configurations for certain INPUT
-	// and PROCESSOR modules that have an ANY type declaration. If the types
-	// are instead well defined, we parse the event stream definition directly.
-	for (auto &m : boost::join(inputModules, processorModules)) {
-		caerModuleInfo info = m.get().libraryInfo;
-
-		// ANY type declaration.
-		if (info->outputStreams != NULL && info->outputStreamsSize == 1 && info->outputStreams[0].type == -1) {
-			char *moduleOutput = sshsNodeGetString(m.get().configNode, "moduleOutput");
-			std::string outputDefinition = moduleOutput;
-			free(moduleOutput);
-
-			if (!parseModuleOutput(outputDefinition, m.get().outputs)) {
-				log(logLevel::ERROR, "Mainloop", "Module '%s': Failed to parse 'moduleOutput' configuration.",
-					m.get().name.c_str());
-
-				// Clean up generated data on failure.
-				glMainloopData.modules.clear();
-
-				return (EXIT_FAILURE);
-			}
-		}
-		else if (info->outputStreams != NULL) {
-			if (!parseEventStreamOutDefinition(info->outputStreams, info->outputStreamsSize, m.get().outputs)) {
-				log(logLevel::ERROR, "Mainloop", "Module '%s': Failed to parse output event stream configuration.",
-					m.get().name.c_str());
-
-				// Clean up generated data on failure.
-				glMainloopData.modules.clear();
-
-				return (EXIT_FAILURE);
-			}
 		}
 	}
 
@@ -1090,7 +1160,11 @@ void caerMainloopDataNotifyDecrease(void *p) {
 }
 
 bool caerMainloopModuleExists(int16_t id) {
-	return (glMainloopData.modules.count(id) != 0);
+	return (glMainloopData.modules.count(id) == 1);
+}
+
+bool caerMainloopModuleIsType(int16_t id, enum caer_module_type type) {
+	return (glMainloopData.modules.at(id).libraryInfo->type == type);
 }
 
 // Only use this inside the mainloop-thread, not inside any other thread,
