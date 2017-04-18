@@ -114,12 +114,11 @@ struct ModuleInfo {
 struct ActiveStreams {
 	int16_t sourceId;
 	int16_t typeId;
-	bool active;
+	std::vector<int16_t> users;
 
 	ActiveStreams(int16_t s, int16_t t) {
 		sourceId = s;
 		typeId = t;
-		active = false;
 	}
 
 	// Comparison operators.
@@ -605,7 +604,7 @@ static std::vector<OrderedInput> parseAugmentedTypeIDString(const std::string &t
  * from module 1, type 2 from module 2, and types 1,2 from module 4.
  */
 static bool parseModuleInput(const std::string &inputDefinition,
-	std::unordered_map<int16_t, std::vector<OrderedInput>> &resultMap, const char *name) {
+	std::unordered_map<int16_t, std::vector<OrderedInput>> &resultMap, const char *name, int16_t currId) {
 	// Empty string, cannot be!
 	if (inputDefinition.empty()) {
 		return (false);
@@ -663,8 +662,9 @@ static bool parseModuleInput(const std::string &inputDefinition,
 					throw std::out_of_range("Unknown event stream.");
 				}
 				else {
-					// Event stream exists and is used here, mark it as active.
-					foundEventStream->active = true;
+					// Event stream exists and is used here, mark it as used by
+					// adding the current module ID to its users.
+					foundEventStream->users.push_back(currId);
 				}
 			}
 
@@ -1029,7 +1029,7 @@ static int caerMainloopRunner(void) {
 		std::string inputDefinition = moduleInput;
 		free(moduleInput);
 
-		if (!parseModuleInput(inputDefinition, m.get().inputDefinition, m.get().name.c_str())) {
+		if (!parseModuleInput(inputDefinition, m.get().inputDefinition, m.get().name.c_str(), m.get().id)) {
 			log(logLevel::ERROR, "Mainloop", "Module '%s': Failed to parse 'moduleInput' configuration.",
 				m.get().name.c_str());
 
@@ -1056,7 +1056,7 @@ static int caerMainloopRunner(void) {
 	// since this means nobody is referring to them.
 	glMainloopData.streams.erase(
 		std::remove_if(glMainloopData.streams.begin(), glMainloopData.streams.end(),
-			[](const ActiveStreams &st) {return (!st.active);}), glMainloopData.streams.end());
+			[](const ActiveStreams &st) {return (st.users.empty());}), glMainloopData.streams.end());
 
 	// If all event streams of an INPUT module are dropped, the module itself
 	// is unconnected and useless, and that is a user configuration error.
@@ -1102,6 +1102,14 @@ static int caerMainloopRunner(void) {
 //			++iter;
 //		}
 //	}
+
+	for (auto st : glMainloopData.streams) {
+		std::cout << "(" << st.sourceId << ", " << st.typeId << ") - ";
+		for (auto mid : st.users) {
+			std::cout << mid << ", ";
+		}
+		std::cout << std::endl;
+	}
 
 	for (auto m : glMainloopData.modules) {
 		std::cout << m.second.id << "-MOD:" << m.second.libraryInfo->type << "-" << m.second.name << std::endl;
