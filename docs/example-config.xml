@@ -19,9 +19,19 @@
                 <attr key="portNumber" type="int">4040</attr>
             </node>
         </node>
+        <node name="colorFrameVisualizer" path="/colorFrameVisualizer/">
+            <attr key="moduleId" type="short">18</attr>
+            <attr key="moduleInput" type="string">17[2]</attr>
+            <attr key="moduleLibrary" type="string">caer_visualizer</attr>
+        </node>
         <node name="davis240" path="/davis240/">
             <attr key="moduleId" type="short">1</attr>
             <attr key="moduleLibrary" type="string">caer_davisfx2</attr>
+        </node>
+        <node name="demosaic" path="/demosaic/">
+            <attr key="moduleId" type="short">17</attr>
+            <attr key="moduleInput" type="string">1[2]</attr>
+            <attr key="moduleLibrary" type="string">caer_frameenhancer</attr>
         </node>
         <node name="eventVisualizer" path="/eventVisualizer/">
             <attr key="moduleId" type="short">5</attr>
