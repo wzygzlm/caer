@@ -170,17 +170,17 @@ void caerMainloopRun(void) {
 	// Install signal handler for global shutdown.
 #if defined(OS_WINDOWS)
 	if (signal(SIGTERM, &caerMainloopSignalHandler) == SIG_ERR) {
-		caerLog(CAER_LOG_EMERGENCY, "Mainloop", "Failed to set signal handler for SIGTERM. Error: %d.", errno);
+		log(logLevel::EMERGENCY, "Mainloop", "Failed to set signal handler for SIGTERM. Error: %d.", errno);
 		exit(EXIT_FAILURE);
 	}
 
 	if (signal(SIGINT, &caerMainloopSignalHandler) == SIG_ERR) {
-		caerLog(CAER_LOG_EMERGENCY, "Mainloop", "Failed to set signal handler for SIGINT. Error: %d.", errno);
+		log(logLevel::EMERGENCY, "Mainloop", "Failed to set signal handler for SIGINT. Error: %d.", errno);
 		exit(EXIT_FAILURE);
 	}
 
 	if (signal(SIGBREAK, &caerMainloopSignalHandler) == SIG_ERR) {
-		caerLog(CAER_LOG_EMERGENCY, "Mainloop", "Failed to set signal handler for SIGBREAK. Error: %d.", errno);
+		log(logLevel::EMERGENCY, "Mainloop", "Failed to set signal handler for SIGBREAK. Error: %d.", errno);
 		exit(EXIT_FAILURE);
 	}
 
@@ -206,12 +206,12 @@ void caerMainloopRun(void) {
 	sigaddset(&shutdown.sa_mask, SIGINT);
 
 	if (sigaction(SIGTERM, &shutdown, NULL) == -1) {
-		caerLog(CAER_LOG_EMERGENCY, "Mainloop", "Failed to set signal handler for SIGTERM. Error: %d.", errno);
+		log(logLevel::EMERGENCY, "Mainloop", "Failed to set signal handler for SIGTERM. Error: %d.", errno);
 		exit(EXIT_FAILURE);
 	}
 
 	if (sigaction(SIGINT, &shutdown, NULL) == -1) {
-		caerLog(CAER_LOG_EMERGENCY, "Mainloop", "Failed to set signal handler for SIGINT. Error: %d.", errno);
+		log(logLevel::EMERGENCY, "Mainloop", "Failed to set signal handler for SIGINT. Error: %d.", errno);
 		exit(EXIT_FAILURE);
 	}
 
@@ -289,21 +289,17 @@ void caerMainloopRun(void) {
 	}
 }
 
-static bool checkInputOutputStreamDefinitions(caerModuleInfo info) {
+static void checkInputOutputStreamDefinitions(caerModuleInfo info) {
 	if (info->type == CAER_MODULE_INPUT) {
 		if (info->inputStreams != NULL || info->inputStreamsSize != 0 || info->outputStreams == NULL
 			|| info->outputStreamsSize == 0) {
-			log(logLevel::ERROR, "Mainloop", "Module '%s': Wrong I/O event stream definitions for type INPUT.",
-				info->name);
-			return (false);
+			throw std::domain_error("Wrong I/O event stream definitions for type INPUT.");
 		}
 	}
 	else if (info->type == CAER_MODULE_OUTPUT) {
 		if (info->inputStreams == NULL || info->inputStreamsSize == 0 || info->outputStreams != NULL
 			|| info->outputStreamsSize != 0) {
-			log(logLevel::ERROR, "Mainloop", "Module '%s': Wrong I/O event stream definitions for type OUTPUT.",
-				info->name);
-			return (false);
+			throw std::domain_error("Wrong I/O event stream definitions for type OUTPUT.");
 		}
 
 		// Also ensure that all input streams of an output module are marked read-only.
@@ -317,17 +313,13 @@ static bool checkInputOutputStreamDefinitions(caerModuleInfo info) {
 		}
 
 		if (readOnlyError) {
-			log(logLevel::ERROR, "Mainloop", "Module '%s': Input event streams not marked read-only for type OUTPUT.",
-				info->name);
-			return (false);
+			throw std::domain_error("Input event streams not marked read-only for type OUTPUT.");
 		}
 	}
 	else {
 		// CAER_MODULE_PROCESSOR
 		if (info->inputStreams == NULL || info->inputStreamsSize == 0) {
-			log(logLevel::ERROR, "Mainloop", "Module '%s': Wrong I/O event stream definitions for type PROCESSOR.",
-				info->name);
-			return (false);
+			throw std::domain_error("Wrong I/O event stream definitions for type PROCESSOR.");
 		}
 
 		// If no output streams are defined, then at least one input event
@@ -343,15 +335,11 @@ static bool checkInputOutputStreamDefinitions(caerModuleInfo info) {
 			}
 
 			if (readOnlyError) {
-				log(logLevel::ERROR, "Mainloop",
-					"Module '%s': No output streams and all input streams are marked read-only for type PROCESSOR.",
-					info->name);
-				return (false);
+				throw std::domain_error(
+					"No output streams and all input streams are marked read-only for type PROCESSOR.");
 			}
 		}
 	}
-
-	return (true);
 }
 
 /**
@@ -367,38 +355,31 @@ static bool checkInputOutputStreamDefinitions(caerModuleInfo info) {
  * only event stream definition (same as rule above), OR the type is well
  * defined and this is the only event stream definition for that type.
  */
-static bool checkInputStreamDefinitions(caerEventStreamIn inputStreams, size_t inputStreamsSize, const char *name) {
+static void checkInputStreamDefinitions(caerEventStreamIn inputStreams, size_t inputStreamsSize) {
 	for (size_t i = 0; i < inputStreamsSize; i++) {
 		// Check type range.
 		if (inputStreams[i].type < -1) {
-			log(logLevel::ERROR, "Mainloop", "Module '%s': Input stream has invalid type value.", name);
-			return (false);
+			throw std::domain_error("Input stream has invalid type value.");
 		}
 
 		// Check number range.
 		if (inputStreams[i].number < -1 || inputStreams[i].number == 0) {
-			log(logLevel::ERROR, "Mainloop", "Module '%s': Input stream has invalid number value.", name);
-			return (false);
+			throw std::domain_error("Input stream has invalid number value.");
 		}
 
 		// Check sorted array and only one definition per type; the two
 		// requirements together mean strict monotonicity for types.
 		if (i > 0 && inputStreams[i - 1].type >= inputStreams[i].type) {
-			log(logLevel::ERROR, "Mainloop",
-				"Module '%s': Input stream has invalid order of declaration or duplicates.", name);
-			return (false);
+			throw std::domain_error("Input stream has invalid order of declaration or duplicates.");
 		}
 
 		// Check that any type is always together with any number or 1, and the
 		// only definition present in that case.
 		if (inputStreams[i].type == -1
 			&& ((inputStreams[i].number != -1 && inputStreams[i].number != 1) || inputStreamsSize != 1)) {
-			log(logLevel::ERROR, "Mainloop", "Module '%s': Input stream has invalid any declaration.", name);
-			return (false);
+			throw std::domain_error("Input stream has invalid any declaration.");
 		}
 	}
-
-	return (true);
 }
 
 /**
@@ -407,60 +388,49 @@ static bool checkInputStreamDefinitions(caerEventStreamIn inputStreams, size_t i
  * For each type, only one definition can exist.
  * If type is -1 (any), then this must then be the only definition.
  */
-static bool checkOutputStreamDefinitions(caerEventStreamOut outputStreams, size_t outputStreamsSize, const char *name) {
+static void checkOutputStreamDefinitions(caerEventStreamOut outputStreams, size_t outputStreamsSize) {
 	// If type is any, must be the only definition.
 	if (outputStreamsSize == 1 && outputStreams[0].type == -1) {
-		return (true);
+		return;
 	}
 
 	for (size_t i = 0; i < outputStreamsSize; i++) {
 		// Check type range.
 		if (outputStreams[i].type < 0) {
-			log(logLevel::ERROR, "Mainloop", "Module '%s': Output stream has invalid type value.", name);
-			return (false);
+			throw std::domain_error("Output stream has invalid type value.");
 		}
 
 		// Check sorted array and only one definition per type; the two
 		// requirements together mean strict monotonicity for types.
 		if (i > 0 && outputStreams[i - 1].type >= outputStreams[i].type) {
-			log(logLevel::ERROR, "Mainloop",
-				"Module '%s': Output stream has invalid order of declaration or duplicates.", name);
-			return (false);
+			throw std::domain_error("Output stream has invalid order of declaration or duplicates.");
 		}
 	}
-
-	return (true);
 }
 
 /**
  * Check for the presence of the 'moduleInput' and 'moduleOutput' configuration
  * parameters, depending on the type of module and its requirements.
  */
-static bool checkModuleInputOutput(caerModuleInfo info, sshsNode configNode) {
+static void checkModuleInputOutput(caerModuleInfo info, sshsNode configNode) {
 	if (info->type == CAER_MODULE_INPUT) {
 		// moduleInput must not exist for INPUT modules.
 		if (sshsNodeAttributeExists(configNode, "moduleInput", SSHS_STRING)) {
-			log(logLevel::ERROR, "Mainloop", "Module '%s': INPUT type cannot have a 'moduleInput' attribute.",
-				info->name);
-			return (false);
+			throw std::domain_error("INPUT type cannot have a 'moduleInput' attribute.");
 		}
 	}
 	else {
 		// CAER_MODULE_OUTPUT / CAER_MODULE_PROCESSOR
 		// moduleInput must exist for OUTPUT and PROCESSOR modules.
 		if (!sshsNodeAttributeExists(configNode, "moduleInput", SSHS_STRING)) {
-			log(logLevel::ERROR, "Mainloop", "Module '%s': OUTPUT/PROCESSOR types must have a 'moduleInput' attribute.",
-				info->name);
-			return (false);
+			throw std::domain_error("OUTPUT/PROCESSOR types must have a 'moduleInput' attribute.");
 		}
 	}
 
 	if (info->type == CAER_MODULE_OUTPUT) {
 		// moduleOutput must not exist for OUTPUT modules.
 		if (sshsNodeAttributeExists(configNode, "moduleOutput", SSHS_STRING)) {
-			log(logLevel::ERROR, "Mainloop", "Module '%s': OUTPUT type cannot have a 'moduleOutput' attribute.",
-				info->name);
-			return (false);
+			throw std::domain_error("OUTPUT type cannot have a 'moduleOutput' attribute.");
 		}
 	}
 	else {
@@ -469,14 +439,10 @@ static bool checkModuleInputOutput(caerModuleInfo info, sshsNode configNode) {
 		// if their outputs are undefined (-1).
 		if (info->outputStreams != NULL && info->outputStreamsSize == 1 && info->outputStreams[0].type == -1
 			&& !sshsNodeAttributeExists(configNode, "moduleOutput", SSHS_STRING)) {
-			log(logLevel::ERROR, "Mainloop",
-				"Module '%s': INPUT/PROCESSOR types with ANY_TYPE definition must have a 'moduleOutput' attribute.",
-				info->name);
-			return (false);
+			throw std::domain_error(
+				"INPUT/PROCESSOR types with ANY_TYPE definition must have a 'moduleOutput' attribute.");
 		}
 	}
-
-	return (true);
 }
 
 template<class T>
@@ -501,7 +467,7 @@ static bool detectDuplicatesInVector(std::vector<T> &vec) {
 static std::vector<int16_t> parseTypeIDString(const std::string &types) {
 	// Empty string, cannot be!
 	if (types.empty()) {
-		throw std::length_error("Empty Type ID string.");
+		throw std::invalid_argument("Empty Type ID string.");
 	}
 
 	std::vector<int16_t> results;
@@ -538,7 +504,7 @@ static std::vector<int16_t> parseTypeIDString(const std::string &types) {
 static std::vector<OrderedInput> parseAugmentedTypeIDString(const std::string &types) {
 	// Empty string, cannot be!
 	if (types.empty()) {
-		throw std::length_error("Empty Augmented Type ID string.");
+		throw std::invalid_argument("Empty Augmented Type ID string.");
 	}
 
 	std::vector<OrderedInput> results;
@@ -605,11 +571,11 @@ static std::vector<OrderedInput> parseAugmentedTypeIDString(const std::string &t
  * For example: "1[1,2,3] 2[2] 4[1,2]" means the inputs are: types 1,2,3
  * from module 1, type 2 from module 2, and types 1,2 from module 4.
  */
-static bool parseModuleInput(const std::string &inputDefinition,
-	std::unordered_map<int16_t, std::vector<OrderedInput>> &resultMap, const char *name, int16_t currId) {
+static void parseModuleInput(const std::string &inputDefinition,
+	std::unordered_map<int16_t, std::vector<OrderedInput>> &resultMap, int16_t currId) {
 	// Empty string, cannot be!
 	if (inputDefinition.empty()) {
-		return (false);
+		throw std::invalid_argument("Empty 'moduleInput' attribute.");
 	}
 
 	try {
@@ -675,24 +641,20 @@ static bool parseModuleInput(const std::string &inputDefinition,
 
 		// inputDefinition was not empty, but we didn't manage to parse anything.
 		if (resultMap.empty()) {
-			throw std::length_error("Invalid input definition.");
+			throw std::length_error("Empty extracted input definition vector.");
 		}
 	}
-	catch (std::logic_error &e) {
+	catch (const std::logic_error &ex) {
 		// Clean map of any partial results on failure.
 		resultMap.clear();
 
-		log(logLevel::ERROR, "Mainloop", "Module '%s': Invalid 'moduleInput' configuration: %s", name, e.what());
-
-		return (false);
+		throw std::logic_error(std::string("Invalid 'moduleInput' attribute: ") + typeid(ex).name() + ": " + ex.what());
 	}
-
-	return (true);
 }
 
-static bool checkInputDefinitionAgainstEventStreamIn(
+static void checkInputDefinitionAgainstEventStreamIn(
 	std::unordered_map<int16_t, std::vector<OrderedInput>> &inputDefinition, caerEventStreamIn eventStreams,
-	size_t eventStreamsSize, const char *name) {
+	size_t eventStreamsSize) {
 	// Use parsed moduleInput configuration to get per-type count.
 	std::unordered_map<int, int> typeCount;
 
@@ -705,57 +667,45 @@ static bool checkInputDefinitionAgainstEventStreamIn(
 	// Any_Type/Any_Number means there just needs to be something.
 	if (eventStreamsSize == 1 && eventStreams[0].type == -1 && eventStreams[0].number == -1) {
 		if (typeCount.empty()) {
-			log(logLevel::ERROR, "Mainloop",
-				"Module '%s': ANY_TYPE/ANY_NUMBER definition has no connected input streams.", name);
-			return (false);
+			throw std::domain_error("ANY_TYPE/ANY_NUMBER definition has no connected input streams.");
 		}
 
-		return (true);
+		return; // We're good!
 	}
 
 	// Any_Type/1 means there must be exactly one type with count of 1.
 	if (eventStreamsSize == 1 && eventStreams[0].type == -1 && eventStreams[0].number == 1) {
 		if (typeCount.size() != 1 || typeCount.cbegin()->second != 1) {
-			log(logLevel::ERROR, "Mainloop",
-				"Module '%s': ANY_TYPE/1 definition requires 1 connected input stream of some type.", name);
-			return (false);
+			throw std::domain_error("ANY_TYPE/1 definition requires 1 connected input stream of some type.");
 		}
 
-		return (true);
+		return; // We're good!
 	}
 
 	// All other cases involve possibly multiple definitions with a defined type.
 	// Since EventStreamIn definitions are strictly monotonic in this case, we
 	// first check that the number of definitions and counted types match.
 	if (typeCount.size() != eventStreamsSize) {
-		log(logLevel::ERROR, "Mainloop",
-			"Module '%s': DEFINED_TYPE definitions require as many connected types as given.", name);
-		return (false);
+		throw std::domain_error("DEFINED_TYPE definitions require as many connected types as given.");
 	}
 
 	for (size_t i = 0; i < eventStreamsSize; i++) {
 		// Defined_Type/Any_Number means there must be 1 or more such types present.
 		if (eventStreams[i].type >= 0 && eventStreams[i].number == -1) {
 			if (typeCount[eventStreams[i].type] < 1) {
-				log(logLevel::ERROR, "Mainloop",
-					"Module '%s': DEFINED_TYPE/ANY_NUMBER definition requires at least one connected input stream of that type.",
-					name);
-				return (false);
+				throw std::domain_error(
+					"DEFINED_TYPE/ANY_NUMBER definition requires at least one connected input stream of that type.");
 			}
 		}
 
 		// Defined_Type/Defined_Number means there must be exactly as many such types present.
 		if (eventStreams[i].type >= 0 && eventStreams[i].number > 0) {
 			if (typeCount[eventStreams[i].type] != eventStreams[i].number) {
-				log(logLevel::ERROR, "Mainloop",
-					"Module '%s': DEFINED_TYPE/DEFINED_NUMBER definition requires exactly that many connected input streams of that type.",
-					name);
-				return (false);
+				throw std::domain_error(
+					"DEFINED_TYPE/DEFINED_NUMBER definition requires exactly that many connected input streams of that type.");
 			}
 		}
 	}
-
-	return (true);
 }
 
 /**
@@ -767,30 +717,19 @@ static bool checkInputDefinitionAgainstEventStreamIn(
  * configuration parameter that is required to be set in this case. For other input modules,
  * where the outputs are well known, like devices, this must not be set.
  */
-static bool parseModuleOutput(const std::string &moduleOutput, std::vector<ModuleConnectivity> &outputs) {
-	std::vector<int16_t> results;
-
-	try {
-		results = parseTypeIDString(moduleOutput);
-	}
-	catch (...) {
-		return (false);
-	}
+static void parseModuleOutput(const std::string &moduleOutput, std::vector<ModuleConnectivity> &outputs) {
+	std::vector<int16_t> results = parseTypeIDString(moduleOutput);
 
 	for (auto type : results) {
 		outputs.push_back(ModuleConnectivity(type));
 	}
-
-	return (true);
 }
 
-static bool parseEventStreamOutDefinition(caerEventStreamOut eventStreams, size_t eventStreamsSize,
+static void parseEventStreamOutDefinition(caerEventStreamOut eventStreams, size_t eventStreamsSize,
 	std::vector<ModuleConnectivity> &outputs) {
 	for (size_t i = 0; i < eventStreamsSize; i++) {
 		outputs.push_back(ModuleConnectivity(eventStreams[i].type));
 	}
-
-	return (true);
 }
 
 /**
@@ -827,7 +766,7 @@ static int caerMainloopRunner(void) {
 	sshsNode *modules = sshsNodeGetChildren(glMainloopData.configNode, &modulesSize);
 	if (modules == NULL || modulesSize == 0) {
 		// Empty configuration.
-		log(logLevel::ERROR, "Mainloop", "No module configuration found.");
+		log(logLevel::ERROR, "Mainloop", "No modules configuration found.");
 		return (EXIT_FAILURE);
 	}
 
@@ -869,7 +808,7 @@ static int caerMainloopRunner(void) {
 		}
 	}
 
-	// Free temporary result nodes array.
+	// Free temporary configuration nodes array.
 	free(modules);
 
 	// At this point we have a map with all the valid modules and their info.
@@ -932,28 +871,23 @@ static int caerMainloopRunner(void) {
 			continue;
 		}
 
-		// Check that the modules respect the basic I/O definition requirements.
-		if (!checkInputOutputStreamDefinitions(info)) {
-			dlclose(moduleLibrary);
-			continue;
-		}
+		try {
+			// Check that the modules respect the basic I/O definition requirements.
+			checkInputOutputStreamDefinitions(info);
 
-		// Check I/O event stream definitions for correctness.
-		if (info->inputStreams != NULL) {
-			if (!checkInputStreamDefinitions(info->inputStreams, info->inputStreamsSize, info->name)) {
-				dlclose(moduleLibrary);
-				continue;
+			// Check I/O event stream definitions for correctness.
+			if (info->inputStreams != NULL) {
+				checkInputStreamDefinitions(info->inputStreams, info->inputStreamsSize);
 			}
-		}
 
-		if (info->outputStreams != NULL) {
-			if (!checkOutputStreamDefinitions(info->outputStreams, info->outputStreamsSize, info->name)) {
-				dlclose(moduleLibrary);
-				continue;
+			if (info->outputStreams != NULL) {
+				checkOutputStreamDefinitions(info->outputStreams, info->outputStreamsSize);
 			}
-		}
 
-		if (!checkModuleInputOutput(info, m.second.configNode)) {
+			checkModuleInputOutput(info, m.second.configNode);
+		}
+		catch (const std::logic_error &ex) {
+			log(logLevel::ERROR, "Mainloop", "Module '%s': %s", m.second.name.c_str(), ex.what());
 			dlclose(moduleLibrary);
 			continue;
 		}
@@ -1004,123 +938,98 @@ static int caerMainloopRunner(void) {
 		return (EXIT_FAILURE);
 	}
 
-	// Then we parse all the 'moduleOutput' configurations for certain INPUT
-	// and PROCESSOR modules that have an ANY type declaration. If the types
-	// are instead well defined, we parse the event stream definition directly.
-	// We do this first so we can build up the map of all possible active event
-	// streams, which we then can use for checking 'moduleInput' for correctness.
-	for (auto &m : boost::join(inputModules, processorModules)) {
-		caerModuleInfo info = m.get().libraryInfo;
+	try {
+		// Then we parse all the 'moduleOutput' configurations for certain INPUT
+		// and PROCESSOR modules that have an ANY type declaration. If the types
+		// are instead well defined, we parse the event stream definition directly.
+		// We do this first so we can build up the map of all possible active event
+		// streams, which we then can use for checking 'moduleInput' for correctness.
+		for (auto &m : boost::join(inputModules, processorModules)) {
+			caerModuleInfo info = m.get().libraryInfo;
 
-		if (info->outputStreams != NULL) {
-			// ANY type declaration.
-			if (info->outputStreamsSize == 1 && info->outputStreams[0].type == -1) {
-				char *moduleOutput = sshsNodeGetString(m.get().configNode, "moduleOutput");
-				std::string outputDefinition = moduleOutput;
-				free(moduleOutput);
+			if (info->outputStreams != NULL) {
+				// ANY type declaration.
+				if (info->outputStreamsSize == 1 && info->outputStreams[0].type == -1) {
+					char *moduleOutput = sshsNodeGetString(m.get().configNode, "moduleOutput");
+					std::string outputDefinition = moduleOutput;
+					free(moduleOutput);
 
-				if (!parseModuleOutput(outputDefinition, m.get().outputs)) {
-					log(logLevel::ERROR, "Mainloop", "Module '%s': Failed to parse 'moduleOutput' configuration.",
-						m.get().name.c_str());
+					parseModuleOutput(outputDefinition, m.get().outputs);
+				}
+				else {
+					parseEventStreamOutDefinition(info->outputStreams, info->outputStreamsSize, m.get().outputs);
+				}
 
-					// Clean up generated data on failure.
-					glMainloopData.modules.clear();
-
-					return (EXIT_FAILURE);
+				// Now add discovered outputs to possible active streams.
+				for (auto &o : m.get().outputs) {
+					glMainloopData.streams.push_back(ActiveStreams(m.get().id, o.typeId));
 				}
 			}
-			else {
-				if (!parseEventStreamOutDefinition(info->outputStreams, info->outputStreamsSize, m.get().outputs)) {
-					log(logLevel::ERROR, "Mainloop", "Module '%s': Failed to parse output event stream configuration.",
-						m.get().name.c_str());
+		}
 
-					// Clean up generated data on failure.
-					glMainloopData.modules.clear();
+		// Then we parse all the 'moduleInput' configurations for OUTPUT and
+		// PROCESSOR modules, which we can now verify against possible streams.
+		for (auto &m : boost::join(outputModules, processorModules)) {
+			char *moduleInput = sshsNodeGetString(m.get().configNode, "moduleInput");
+			std::string inputDefinition = moduleInput;
+			free(moduleInput);
 
-					return (EXIT_FAILURE);
-				}
+			parseModuleInput(inputDefinition, m.get().inputDefinition, m.get().id);
+
+			checkInputDefinitionAgainstEventStreamIn(m.get().inputDefinition, m.get().libraryInfo->inputStreams,
+				m.get().libraryInfo->inputStreamsSize);
+		}
+
+		// At this point we can prune all event streams that are not marked active,
+		// since this means nobody is referring to them.
+		glMainloopData.streams.erase(
+			std::remove_if(glMainloopData.streams.begin(), glMainloopData.streams.end(),
+				[](const ActiveStreams &st) {return (st.users.empty());}), glMainloopData.streams.end());
+
+		// If all event streams of an INPUT module are dropped, the module itself
+		// is unconnected and useless, and that is a user configuration error.
+		for (auto &m : inputModules) {
+			int16_t id = m.get().id;
+
+			auto iter = std::find_if(glMainloopData.streams.begin(), glMainloopData.streams.end(),
+				[id](const ActiveStreams &st) {return (st.sourceId == id);});
+
+			// No stream found for source ID corresponding to this module's ID.
+			if (iter == glMainloopData.streams.end()) {
+				boost::format exMsg = boost::format(
+					"Module '%s': INPUT module is not connected to anything and will not be used.")
+					% m.get().name.c_str();
+				throw std::domain_error(exMsg.str());
 			}
-
-			// Now add discovered outputs to possible active streams.
-			for (auto &o : m.get().outputs) {
-				glMainloopData.streams.push_back(ActiveStreams(m.get().id, o.typeId));
-			}
-		}
-	}
-
-	// Then we parse all the 'moduleInput' configurations for OUTPUT and
-	// PROCESSOR modules, which we can now verify against possible streams.
-	for (auto &m : boost::join(outputModules, processorModules)) {
-		char *moduleInput = sshsNodeGetString(m.get().configNode, "moduleInput");
-		std::string inputDefinition = moduleInput;
-		free(moduleInput);
-
-		if (!parseModuleInput(inputDefinition, m.get().inputDefinition, m.get().name.c_str(), m.get().id)) {
-			log(logLevel::ERROR, "Mainloop", "Module '%s': Failed to parse 'moduleInput' configuration.",
-				m.get().name.c_str());
-
-			// Clean up generated data on failure.
-			glMainloopData.modules.clear();
-
-			return (EXIT_FAILURE);
 		}
 
-		if (!checkInputDefinitionAgainstEventStreamIn(m.get().inputDefinition, m.get().libraryInfo->inputStreams,
-			m.get().libraryInfo->inputStreamsSize, m.get().name.c_str())) {
-			log(logLevel::ERROR, "Mainloop",
-				"Module '%s': Failed to verify 'moduleInput' configuration against input event stream definitions.",
-				m.get().name.c_str());
+		// Detect cycles inside an active event stream.
+		for (auto &st : glMainloopData.streams) {
+			checkForActiveStreamCycles(st);
+		}
 
-			// Clean up generated data on failure.
-			glMainloopData.modules.clear();
+		// There's multiple ways now to build the full connectivity graph once we
+		// have all the starting points. Simple and efficient is to take an input
+		// and follow along until either we've reached all the end points (outputs)
+		// that are reachable, or until we need some other input, at which point we
+		// stop and continue with the next input, until we've processed all inputs,
+		// and then necessarily resolved the whole connected graph.
+		// TODO: be sure to detect cycles! Use IODone as check.
+		// TODO: detect processors that serve no purpose, ie. no output or unused
+		// output, as well as no further users of modified inputs.
+		for (auto &m : inputModules) {
+			int16_t currInputModuleId = m.get().id;
 
-			return (EXIT_FAILURE);
 		}
 	}
+	catch (const std::exception &ex) {
+		// Cleanup modules and streams on exit.
+		glMainloopData.modules.clear();
+		glMainloopData.streams.clear();
 
-	// At this point we can prune all event streams that are not marked active,
-	// since this means nobody is referring to them.
-	glMainloopData.streams.erase(
-		std::remove_if(glMainloopData.streams.begin(), glMainloopData.streams.end(),
-			[](const ActiveStreams &st) {return (st.users.empty());}), glMainloopData.streams.end());
+		log(logLevel::ERROR, "Mainloop", ex.what());
 
-	// If all event streams of an INPUT module are dropped, the module itself
-	// is unconnected and useless, and that is a user configuration error.
-	for (auto &m : inputModules) {
-		int16_t id = m.get().id;
-
-		auto iter = std::find_if(glMainloopData.streams.begin(), glMainloopData.streams.end(),
-			[id](const ActiveStreams &st) {return (st.sourceId == id);});
-
-		// No stream found for source ID corresponding to this module's ID.
-		if (iter == glMainloopData.streams.end()) {
-			log(logLevel::ERROR, "Mainloop",
-				"Module '%s': INPUT module is not connected to anything and will not be used.", m.get().name.c_str());
-
-			// Clean up generated data on failure.
-			glMainloopData.modules.clear();
-
-			return (EXIT_FAILURE);
-		}
-	}
-
-	// Detect cycles inside an active event stream.
-	for (auto &st : glMainloopData.streams) {
-		checkForActiveStreamCycles(st);
-	}
-
-	// There's multiple ways now to build the full connectivity graph once we
-	// have all the starting points. Simple and efficient is to take an input
-	// and follow along until either we've reached all the end points (outputs)
-	// that are reachable, or until we need some other input, at which point we
-	// stop and continue with the next input, until we've processed all inputs,
-	// and then necessarily resolved the whole connected graph.
-	// TODO: be sure to detect cycles! Use IODone as check.
-	// TODO: detect processors that serve no purpose, ie. no output or unused
-	// output, as well as no further users of modified inputs.
-	for (auto &m : inputModules) {
-		int16_t currInputModuleId = m.get().id;
-
+		return (EXIT_FAILURE);
 	}
 
 //	for (auto iter = processorModules.begin(); iter != processorModules.end();) {
@@ -1214,8 +1123,9 @@ static int caerMainloopRunner(void) {
 		}
 	}
 
-	// Cleanup modules.
+	// Cleanup modules and streams on exit.
 	glMainloopData.modules.clear();
+	glMainloopData.streams.clear();
 
 	log(logLevel::INFO, "Mainloop", "Terminated successfully.");
 
