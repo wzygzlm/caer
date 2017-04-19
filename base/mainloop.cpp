@@ -561,6 +561,16 @@ static std::vector<OrderedInput> parseAugmentedTypeIDString(const std::string &t
 	}
 
 	// Detect duplicates, which are not allowed.
+	// This because having the same type from the same source multiple times, even
+	// if from different after-module points, would violate the event stream
+	// uniqueness requirement for inputs and outputs, which is needed because it
+	// would be impossible to distinguish packets inside a module if that were not
+	// the case. For example we thus disallow 1[2a3,2a4] because inside the module
+	// we would then have two packets with stream (1, 2), and no way to understand
+	// which one was after being filtered by module ID 3 and which after module ID 4.
+	// Augmenting the whole system to support such things is currently outside the
+	// scope of this project, as it adds significant complexity with little or no
+	// known gain, at least for the current use cases.
 	if (detectDuplicatesInVector(results)) {
 		throw std::invalid_argument("Duplicate Type ID found.");
 	}
