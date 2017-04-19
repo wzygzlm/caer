@@ -9,6 +9,7 @@
 #include <vector>
 #include <boost/filesystem.hpp>
 #include <boost/range/join.hpp>
+#include <boost/format.hpp>
 #include <dlfcn.h>
 #include <iostream>
 #include <sstream>
@@ -478,6 +479,25 @@ static bool checkModuleInputOutput(caerModuleInfo info, sshsNode configNode) {
 	return (true);
 }
 
+template<class T>
+static bool detectDuplicatesInVector(std::vector<T> &vec) {
+	// Detect duplicates.
+	size_t sizeBefore = vec.size();
+
+	std::sort(vec.begin(), vec.end());
+	vec.erase(std::unique(vec.begin(), vec.end()), vec.end());
+
+	size_t sizeAfter = vec.size();
+
+	// If size changed, duplicates must have been removed, so they existed
+	// in the first place!
+	if (sizeAfter != sizeBefore) {
+		return (true);
+	}
+
+	return (false);
+}
+
 static std::vector<int16_t> parseTypeIDString(const std::string &types) {
 	// Empty string, cannot be!
 	if (types.empty()) {
@@ -507,17 +527,8 @@ static std::vector<int16_t> parseTypeIDString(const std::string &types) {
 		throw std::length_error("Empty extracted Type ID vector.");
 	}
 
-	// Detect duplicates.
-	size_t sizeBefore = results.size();
-
-	std::sort(results.begin(), results.end());
-	results.erase(std::unique(results.begin(), results.end()), results.end());
-
-	size_t sizeAfter = results.size();
-
-	// If size changed, duplicates must have been removed, so they existed
-	// in the first place, which is not allowed.
-	if (sizeAfter != sizeBefore) {
+	// Detect duplicates, which are not allowed.
+	if (detectDuplicatesInVector(results)) {
 		throw std::invalid_argument("Duplicate Type ID found.");
 	}
 
@@ -579,17 +590,8 @@ static std::vector<OrderedInput> parseAugmentedTypeIDString(const std::string &t
 		throw std::length_error("Empty extracted Augmented Type ID vector.");
 	}
 
-	// Detect duplicates.
-	size_t sizeBefore = results.size();
-
-	std::sort(results.begin(), results.end());
-	results.erase(std::unique(results.begin(), results.end()), results.end());
-
-	size_t sizeAfter = results.size();
-
-	// If size changed, duplicates must have been removed, so they existed
-	// in the first place, which is not allowed.
-	if (sizeAfter != sizeBefore) {
+	// Detect duplicates, which are not allowed.
+	if (detectDuplicatesInVector(results)) {
 		throw std::invalid_argument("Duplicate Type ID found.");
 	}
 
@@ -789,6 +791,30 @@ static bool parseEventStreamOutDefinition(caerEventStreamOut eventStreams, size_
 	}
 
 	return (true);
+}
+
+/**
+ * An active event stream knows its origin (sourceId) and all of its users
+ * (users vector). If the sourceId appears again inside the users vector
+ * (possible for PROCESSORS that generate output data), there is a cycle.
+ * Also if any of the users appear multiple times within the users vector,
+ * there is a cycle. Cycles are not allowed and will result in an exception!
+ */
+static void checkForActiveStreamCycles(ActiveStreams &stream) {
+	auto foundSourceID = std::find(stream.users.begin(), stream.users.end(), stream.sourceId);
+
+	if (foundSourceID != stream.users.end()) {
+		// SourceId found inside users vector!
+		throw std::domain_error(
+			boost::str(
+				boost::format("Found cycle back to Source ID in stream (%d, %d).") % stream.sourceId % stream.typeId));
+	}
+
+	// Detect duplicates, which are not allowed, as they signal a cycle.
+	if (detectDuplicatesInVector(stream.users)) {
+		throw std::domain_error(
+			boost::str(boost::format("Found cycles in stream (%d, %d).") % stream.sourceId % stream.typeId));
+	}
 }
 
 static int caerMainloopRunner(void) {
@@ -1076,6 +1102,11 @@ static int caerMainloopRunner(void) {
 
 			return (EXIT_FAILURE);
 		}
+	}
+
+	// Detect cycles inside an active event stream.
+	for (auto &st : glMainloopData.streams) {
+		checkForActiveStreamCycles(st);
 	}
 
 	// There's multiple ways now to build the full connectivity graph once we
