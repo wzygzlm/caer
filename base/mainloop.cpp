@@ -158,6 +158,7 @@ static struct {
 	atomic_uint_fast32_t dataAvailable;
 	std::unordered_map<int16_t, ModuleInfo> modules;
 	std::vector<ActiveStreams> streams;
+	std::vector<std::reference_wrapper<ModuleInfo>> globalExecution;
 } glMainloopData;
 
 static std::vector<boost::filesystem::path> modulePaths;
@@ -1011,13 +1012,18 @@ static int caerMainloopRunner(void) {
 			checkForActiveStreamCycles(st);
 		}
 
+		// Order event stream users according to the configuration.
+		// TODO:
+
+		// Now merge all streams and their users into one global order over
+		// all modules. If this cannot be resolved, wrong connections or a
+		// cycle involving multiple streams are present.
+		// TODO:
+
 		// There's multiple ways now to build the full connectivity graph once we
-		// have all the starting points. Simple and efficient is to take an input
-		// and follow along until either we've reached all the end points (outputs)
-		// that are reachable, or until we need some other input, at which point we
-		// stop and continue with the next input, until we've processed all inputs,
-		// and then necessarily resolved the whole connected graph.
-		// TODO: be sure to detect cycles! Use IODone as check.
+		// have all the starting points. Since we do have a global execution order
+		// (see above), we can just visit the modules in that order and build
+		// all the inputs and outputs.
 		// TODO: detect processors that serve no purpose, ie. no output or unused
 		// output, as well as no further users of modified inputs.
 		for (auto &m : inputModules) {
