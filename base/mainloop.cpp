@@ -2,19 +2,22 @@
 #include <csignal>
 #include <climits>
 #include <unistd.h>
+#include <dlfcn.h>
+
 #include <string>
-#include <algorithm>
 #include <regex>
+#include <algorithm>
 #include <unordered_map>
 #include <vector>
+#include <sstream>
+#include <iostream>
+#include <chrono>
+#include <thread>
+
 #include <boost/filesystem.hpp>
 #include <boost/range/join.hpp>
 #include <boost/format.hpp>
-#include <dlfcn.h>
-#include <iostream>
-#include <sstream>
-#include <chrono>
-#include <thread>
+
 #include <libcaercpp/libcaer.hpp>
 using namespace libcaer::log;
 
