@@ -118,11 +118,13 @@ struct ModuleInfo {
 struct ActiveStreams {
 	int16_t sourceId;
 	int16_t typeId;
+	bool isProcessor;
 	std::vector<int16_t> users;
 
 	ActiveStreams(int16_t s, int16_t t) {
 		sourceId = s;
 		typeId = t;
+		isProcessor = false;
 	}
 
 	// Comparison operators.
@@ -976,7 +978,14 @@ static int caerMainloopRunner(void) {
 
 				// Now add discovered outputs to possible active streams.
 				for (auto &o : m.get().outputs) {
-					glMainloopData.streams.push_back(ActiveStreams(m.get().id, o.typeId));
+					ActiveStreams st = ActiveStreams(m.get().id, o.typeId);
+
+					// Store if stream originates from a PROCESSOR (default from INPUT).
+					if (info->type == CAER_MODULE_PROCESSOR) {
+						st.isProcessor = true;
+					}
+
+					glMainloopData.streams.push_back(st);
 				}
 			}
 		}
@@ -1063,7 +1072,7 @@ static int caerMainloopRunner(void) {
 //	}
 
 	for (auto st : glMainloopData.streams) {
-		std::cout << "(" << st.sourceId << ", " << st.typeId << ") - ";
+		std::cout << "(" << st.sourceId << ", " << st.typeId << ") - IS_PROC: " << st.isProcessor << " - ";
 		for (auto mid : st.users) {
 			std::cout << mid << ", ";
 		}
