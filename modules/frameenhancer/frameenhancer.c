@@ -39,7 +39,7 @@ static bool caerFrameEnhancerInit(caerModuleData moduleData) {
 	sshsNodeCreateBool(moduleData->moduleNode, "doDemosaic", false, SSHS_FLAGS_NORMAL);
 	sshsNodeCreateBool(moduleData->moduleNode, "doContrast", false, SSHS_FLAGS_NORMAL);
 
-#ifdef LIBCAER_HAVE_OPENCV
+#if defined(LIBCAER_HAVE_OPENCV) && LIBCAER_HAVE_OPENCV == 1
 	sshsNodeCreateString(moduleData->moduleNode, "demosaicType", "opencv_edge_aware", 8, 17, SSHS_FLAGS_NORMAL);
 	sshsNodeCreateString(moduleData->moduleNode, "contrastType", "opencv_normalization", 8, 29, SSHS_FLAGS_NORMAL);
 #else
@@ -70,7 +70,7 @@ static void caerFrameEnhancerRun(caerModuleData moduleData, caerEventPacketConta
 	caerFrameEventPacket enhancedFrame = NULL;
 
 	if (state->doDemosaic) {
-#ifdef LIBCAER_HAVE_OPENCV
+#if defined(LIBCAER_HAVE_OPENCV) && LIBCAER_HAVE_OPENCV == 1
 		switch (state->demosaicType) {
 			case 0:
 				enhancedFrame = caerFrameUtilsDemosaic(frame);
@@ -100,7 +100,7 @@ static void caerFrameEnhancerRun(caerModuleData moduleData, caerEventPacketConta
 			}
 		}
 
-#ifdef LIBCAER_HAVE_OPENCV
+#if defined(LIBCAER_HAVE_OPENCV) && LIBCAER_HAVE_OPENCV == 1
 		switch (state->contrastType) {
 			case 0:
 				caerFrameUtilsContrast(enhancedFrame);
