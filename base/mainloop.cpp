@@ -115,11 +115,17 @@ struct ModuleInfo {
 	caerModuleInfo libraryInfo;
 };
 
+struct DependencyNode {
+	int16_t id;
+	std::shared_ptr<std::vector<DependencyNode>> next;
+};
+
 struct ActiveStreams {
 	int16_t sourceId;
 	int16_t typeId;
 	bool isProcessor;
 	std::vector<int16_t> users;
+	std::shared_ptr<std::vector<DependencyNode>> dependencies;
 
 	ActiveStreams(int16_t s, int16_t t) {
 		sourceId = s;
@@ -772,6 +778,50 @@ static void checkForActiveStreamCycles(ActiveStreams &stream) {
 	}
 }
 
+static std::vector<int16_t> getAllUsersForStreamAfterID(ActiveStreams &stream, int16_t afterCheckId) {
+	std::vector<int16_t> tmpOrder;
+
+	for (auto id : stream.users) {
+		for (auto order : glMainloopData.modules[id].inputDefinition[stream.sourceId]) {
+			if (order.typeId == stream.typeId && order.afterModuleId == afterCheckId) {
+				tmpOrder.push_back(id);
+			}
+		}
+	}
+
+	std::sort(tmpOrder.begin(), tmpOrder.end());
+
+	return (tmpOrder);
+}
+
+static void orderActiveStream(ActiveStreams &stream, std::shared_ptr<std::vector<DependencyNode>> &deps,
+	int16_t checkId) {
+	std::vector<int16_t> users = getAllUsersForStreamAfterID(stream, checkId);
+
+	if (!users.empty()) {
+		deps = std::make_shared<std::vector<DependencyNode>>();
+
+		for (auto id : users) {
+			DependencyNode d;
+			d.id = id;
+			orderActiveStream(stream, d.next, id);
+			deps->push_back(d);
+		}
+	}
+}
+
+static void printDeps(std::shared_ptr<std::vector<DependencyNode>> deps, size_t depth) {
+	for (auto d : *deps) {
+		for (size_t i = 0; i < depth; i++) {
+			std::cout << "    ";
+		}
+		std::cout << d.id << std::endl;
+		if (d.next) {
+			printDeps(d.next, depth + 1);
+		}
+	}
+}
+
 static int caerMainloopRunner(void) {
 	// At this point configuration is already loaded, so let's see if everything
 	// we need to build and run a mainloop is really there.
@@ -1032,7 +1082,9 @@ static int caerMainloopRunner(void) {
 		}
 
 		// Order event stream users according to the configuration.
-		// TODO:
+		for (auto &st : glMainloopData.streams) {
+			orderActiveStream(st, st.dependencies, -1);
+		}
 
 		// Now merge all streams and their users into one global order over
 		// all modules. If this cannot be resolved, wrong connections or a
@@ -1077,6 +1129,7 @@ static int caerMainloopRunner(void) {
 			std::cout << mid << ", ";
 		}
 		std::cout << std::endl;
+		printDeps(st.dependencies, 0);
 	}
 
 	for (auto m : glMainloopData.modules) {
