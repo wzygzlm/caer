@@ -117,6 +117,7 @@ struct ModuleInfo {
 
 struct DependencyNode {
 	int16_t id;
+	size_t depth;
 	std::shared_ptr<std::vector<DependencyNode>> next;
 };
 
@@ -795,7 +796,7 @@ static std::vector<int16_t> getAllUsersForStreamAfterID(ActiveStreams &stream, i
 }
 
 static void orderActiveStream(ActiveStreams &stream, std::shared_ptr<std::vector<DependencyNode>> &deps,
-	int16_t checkId) {
+	int16_t checkId, size_t depth) {
 	std::vector<int16_t> users = getAllUsersForStreamAfterID(stream, checkId);
 
 	if (!users.empty()) {
@@ -804,20 +805,21 @@ static void orderActiveStream(ActiveStreams &stream, std::shared_ptr<std::vector
 		for (auto id : users) {
 			DependencyNode d;
 			d.id = id;
-			orderActiveStream(stream, d.next, id);
+			d.depth = depth;
+			orderActiveStream(stream, d.next, id, depth + 1);
 			deps->push_back(d);
 		}
 	}
 }
 
-static void printDeps(std::shared_ptr<std::vector<DependencyNode>> deps, size_t depth) {
+static void printDeps(std::shared_ptr<std::vector<DependencyNode>> deps) {
 	for (auto d : *deps) {
-		for (size_t i = 0; i < depth; i++) {
+		for (size_t i = 0; i < d.depth; i++) {
 			std::cout << "    ";
 		}
 		std::cout << d.id << std::endl;
 		if (d.next) {
-			printDeps(d.next, depth + 1);
+			printDeps(d.next);
 		}
 	}
 }
@@ -1083,7 +1085,7 @@ static int caerMainloopRunner(void) {
 
 		// Order event stream users according to the configuration.
 		for (auto &st : glMainloopData.streams) {
-			orderActiveStream(st, st.dependencies, -1);
+			orderActiveStream(st, st.dependencies, -1, 1);
 		}
 
 		// Now merge all streams and their users into one global order over
@@ -1129,7 +1131,7 @@ static int caerMainloopRunner(void) {
 			std::cout << mid << ", ";
 		}
 		std::cout << std::endl;
-		printDeps(st.dependencies, 0);
+		printDeps(st.dependencies);
 	}
 
 	for (auto m : glMainloopData.modules) {
