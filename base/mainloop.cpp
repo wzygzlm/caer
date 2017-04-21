@@ -795,7 +795,7 @@ static std::vector<int16_t> getAllUsersForStreamAfterID(ActiveStreams &stream, i
 	return (tmpOrder);
 }
 
-static void orderActiveStream(ActiveStreams &stream, std::shared_ptr<std::vector<DependencyNode>> &deps,
+static void orderActiveStreamDeps(ActiveStreams &stream, std::shared_ptr<std::vector<DependencyNode>> &deps,
 	int16_t checkId, size_t depth) {
 	std::vector<int16_t> users = getAllUsersForStreamAfterID(stream, checkId);
 
@@ -806,7 +806,7 @@ static void orderActiveStream(ActiveStreams &stream, std::shared_ptr<std::vector
 			DependencyNode d;
 			d.id = id;
 			d.depth = depth;
-			orderActiveStream(stream, d.next, id, depth + 1);
+			orderActiveStreamDeps(stream, d.next, id, depth + 1);
 			deps->push_back(d);
 		}
 	}
@@ -822,6 +822,10 @@ static void printDeps(std::shared_ptr<std::vector<DependencyNode>> deps) {
 			printDeps(d.next);
 		}
 	}
+}
+
+static void mergeActiveStreamDeps(std::vector<ActiveStreams> &streams) {
+
 }
 
 static int caerMainloopRunner(void) {
@@ -1085,13 +1089,13 @@ static int caerMainloopRunner(void) {
 
 		// Order event stream users according to the configuration.
 		for (auto &st : glMainloopData.streams) {
-			orderActiveStream(st, st.dependencies, -1, 1);
+			orderActiveStreamDeps(st, st.dependencies, -1, 1);
 		}
 
 		// Now merge all streams and their users into one global order over
 		// all modules. If this cannot be resolved, wrong connections or a
 		// cycle involving multiple streams are present.
-		// TODO:
+		mergeActiveStreamDeps(glMainloopData.streams);
 
 		// There's multiple ways now to build the full connectivity graph once we
 		// have all the starting points. Since we do have a global execution order
