@@ -100,7 +100,7 @@ struct OrderedInput {
 struct ModuleInfo {
 	// Module identification.
 	int16_t id;
-	std::string name;
+	const std::string name;
 	// SSHS configuration node.
 	sshsNode configNode;
 	// Parsed moduleInput configuration.
@@ -110,9 +110,29 @@ struct ModuleInfo {
 	std::vector<ModuleConnectivity> inputs;
 	std::vector<ModuleConnectivity> outputs;
 	// Loadable module support.
-	std::string library;
+	const std::string library;
 	void *libraryHandle;
 	caerModuleInfo libraryInfo;
+
+	ModuleInfo() :
+			id(-1),
+			name(),
+			configNode(NULL),
+			IODone(false),
+			library(),
+			libraryHandle(NULL),
+			libraryInfo(NULL) {
+	}
+
+	ModuleInfo(int16_t i, const std::string &n, sshsNode c, const std::string &l) :
+			id(i),
+			name(n),
+			configNode(c),
+			IODone(false),
+			library(l),
+			libraryHandle(NULL),
+			libraryInfo(NULL) {
+	}
 };
 
 struct DependencyNode {
@@ -244,7 +264,7 @@ void caerMainloopRun(void) {
 
 	// Now get actual search directory.
 	char *moduleSearchPathC = sshsNodeGetString(moduleSearchNode, "moduleSearchPath");
-	std::string moduleSearchPath = moduleSearchPathC;
+	const std::string moduleSearchPath = moduleSearchPathC;
 	free(moduleSearchPathC);
 
 	const std::regex moduleRegex("\\w+\\.(so|dll)");
@@ -538,7 +558,7 @@ static std::vector<OrderedInput> parseAugmentedTypeIDString(const std::string &t
 		int afterModuleOrder = -1;
 
 		if (modifierPosition != typeString.length() && typeString.at(modifierPosition) == 'a') {
-			std::string orderString = typeString.substr(modifierPosition + 1);
+			const std::string orderString = typeString.substr(modifierPosition + 1);
 
 			afterModuleOrder = std::stoi(orderString);
 
@@ -616,7 +636,7 @@ static void parseModuleInput(const std::string &inputDefinition,
 			}
 
 			// Get referenced module ID first.
-			std::string idString = matches[1];
+			const std::string idString = matches[1];
 			int id = std::stoi(idString);
 
 			// Check module ID value.
@@ -638,14 +658,14 @@ static void parseModuleInput(const std::string &inputDefinition,
 			}
 
 			// Then get the various type IDs for that module.
-			std::string typeString = matches[2];
+			const std::string typeString = matches[2];
 
 			resultMap[mId] = parseAugmentedTypeIDString(typeString);
 
 			// Verify that the resulting event streams (sourceId, typeId) are
 			// correct and do in fact exist.
-			for (auto &o : resultMap[mId]) {
-				auto foundEventStream = std::find(glMainloopData.streams.begin(), glMainloopData.streams.end(),
+			for (const auto &o : resultMap[mId]) {
+				const auto foundEventStream = std::find(glMainloopData.streams.begin(), glMainloopData.streams.end(),
 					ActiveStreams(mId, o.typeId));
 
 				if (foundEventStream == glMainloopData.streams.end()) {
@@ -681,8 +701,8 @@ static void checkInputDefinitionAgainstEventStreamIn(
 	// Use parsed moduleInput configuration to get per-type count.
 	std::unordered_map<int, int> typeCount;
 
-	for (auto &in : inputDefinition) {
-		for (auto typeAndOrder : in.second) {
+	for (const auto &in : inputDefinition) {
+		for (const auto &typeAndOrder : in.second) {
 			typeCount[typeAndOrder.typeId]++;
 		}
 	}
@@ -763,7 +783,7 @@ static void parseEventStreamOutDefinition(caerEventStreamOut eventStreams, size_
  * there is a cycle. Cycles are not allowed and will result in an exception!
  */
 static void checkForActiveStreamCycles(ActiveStreams &stream) {
-	auto foundSourceID = std::find(stream.users.begin(), stream.users.end(), stream.sourceId);
+	const auto foundSourceID = std::find(stream.users.begin(), stream.users.end(), stream.sourceId);
 
 	if (foundSourceID != stream.users.end()) {
 		// SourceId found inside users vector!
@@ -779,11 +799,11 @@ static void checkForActiveStreamCycles(ActiveStreams &stream) {
 	}
 }
 
-static std::vector<int16_t> getAllUsersForStreamAfterID(ActiveStreams &stream, int16_t afterCheckId) {
+static std::vector<int16_t> getAllUsersForStreamAfterID(const ActiveStreams &stream, int16_t afterCheckId) {
 	std::vector<int16_t> tmpOrder;
 
 	for (auto id : stream.users) {
-		for (auto order : glMainloopData.modules[id].inputDefinition[stream.sourceId]) {
+		for (const auto &order : glMainloopData.modules[id].inputDefinition[stream.sourceId]) {
 			if (order.typeId == stream.typeId && order.afterModuleId == afterCheckId) {
 				tmpOrder.push_back(id);
 			}
@@ -795,7 +815,7 @@ static std::vector<int16_t> getAllUsersForStreamAfterID(ActiveStreams &stream, i
 	return (tmpOrder);
 }
 
-static void orderActiveStreamDeps(ActiveStreams &stream, std::shared_ptr<std::vector<DependencyNode>> &deps,
+static void orderActiveStreamDeps(const ActiveStreams &stream, std::shared_ptr<std::vector<DependencyNode>> &deps,
 	int16_t checkId, size_t depth) {
 	std::vector<int16_t> users = getAllUsersForStreamAfterID(stream, checkId);
 
@@ -813,7 +833,11 @@ static void orderActiveStreamDeps(ActiveStreams &stream, std::shared_ptr<std::ve
 }
 
 static void printDeps(std::shared_ptr<std::vector<DependencyNode>> deps) {
-	for (auto d : *deps) {
+	if (deps == nullptr) {
+		return;
+	}
+
+	for (const auto &d : *deps) {
 		for (size_t i = 0; i < d.depth; i++) {
 			std::cout << "    ";
 		}
@@ -844,7 +868,7 @@ static int caerMainloopRunner(void) {
 
 	for (size_t i = 0; i < modulesSize; i++) {
 		sshsNode module = modules[i];
-		std::string moduleName = sshsNodeGetName(module);
+		const std::string moduleName = sshsNodeGetName(module);
 
 		if (moduleName == "caer") {
 			// Skip system configuration, not a module.
@@ -860,14 +884,13 @@ static int caerMainloopRunner(void) {
 			continue;
 		}
 
-		ModuleInfo info = { };
-		info.id = sshsNodeGetShort(module, "moduleId");
-		info.name = moduleName;
-		info.configNode = module;
+		int16_t moduleId = sshsNodeGetShort(module, "moduleId");
 
-		char *moduleLibrary = sshsNodeGetString(module, "moduleLibrary");
-		info.library = moduleLibrary;
-		free(moduleLibrary);
+		char *moduleLibraryC = sshsNodeGetString(module, "moduleLibrary");
+		const std::string moduleLibrary = moduleLibraryC;
+		free(moduleLibraryC);
+
+		ModuleInfo info = ModuleInfo(moduleId, moduleName, module, moduleLibrary);
 
 		// Put data into an unordered map that holds all valid modules.
 		// This also ensure the numerical ID is unique!
@@ -901,7 +924,7 @@ static int caerMainloopRunner(void) {
 		// multiple times.
 		boost::filesystem::path modulePath;
 
-		for (auto &p : modulePaths) {
+		for (const auto &p : modulePaths) {
 			if (m.second.library == p.stem().string()) {
 				// Found a module with same name!
 				modulePath = p;
@@ -970,7 +993,7 @@ static int caerMainloopRunner(void) {
 
 	// If any modules failed to load, exit program now. We didn't do that before, so that we
 	// could run through all modules and check them all in one go.
-	for (auto &m : glMainloopData.modules) {
+	for (const auto &m : glMainloopData.modules) {
 		if (m.second.libraryHandle == NULL || m.second.libraryInfo == NULL) {
 			// Clean up generated data on failure.
 			glMainloopData.modules.clear();
@@ -1016,14 +1039,14 @@ static int caerMainloopRunner(void) {
 		// are instead well defined, we parse the event stream definition directly.
 		// We do this first so we can build up the map of all possible active event
 		// streams, which we then can use for checking 'moduleInput' for correctness.
-		for (auto &m : boost::join(inputModules, processorModules)) {
+		for (const auto &m : boost::join(inputModules, processorModules)) {
 			caerModuleInfo info = m.get().libraryInfo;
 
 			if (info->outputStreams != NULL) {
 				// ANY type declaration.
 				if (info->outputStreamsSize == 1 && info->outputStreams[0].type == -1) {
 					char *moduleOutput = sshsNodeGetString(m.get().configNode, "moduleOutput");
-					std::string outputDefinition = moduleOutput;
+					const std::string outputDefinition = moduleOutput;
 					free(moduleOutput);
 
 					parseModuleOutput(outputDefinition, m.get().outputs);
@@ -1033,7 +1056,7 @@ static int caerMainloopRunner(void) {
 				}
 
 				// Now add discovered outputs to possible active streams.
-				for (auto &o : m.get().outputs) {
+				for (const auto &o : m.get().outputs) {
 					ActiveStreams st = ActiveStreams(m.get().id, o.typeId);
 
 					// Store if stream originates from a PROCESSOR (default from INPUT).
@@ -1048,9 +1071,9 @@ static int caerMainloopRunner(void) {
 
 		// Then we parse all the 'moduleInput' configurations for OUTPUT and
 		// PROCESSOR modules, which we can now verify against possible streams.
-		for (auto &m : boost::join(outputModules, processorModules)) {
+		for (const auto &m : boost::join(outputModules, processorModules)) {
 			char *moduleInput = sshsNodeGetString(m.get().configNode, "moduleInput");
-			std::string inputDefinition = moduleInput;
+			const std::string inputDefinition = moduleInput;
 			free(moduleInput);
 
 			parseModuleInput(inputDefinition, m.get().inputDefinition, m.get().id);
@@ -1067,10 +1090,10 @@ static int caerMainloopRunner(void) {
 
 		// If all event streams of an INPUT module are dropped, the module itself
 		// is unconnected and useless, and that is a user configuration error.
-		for (auto &m : inputModules) {
+		for (const auto &m : inputModules) {
 			int16_t id = m.get().id;
 
-			auto iter = std::find_if(glMainloopData.streams.begin(), glMainloopData.streams.end(),
+			const auto iter = std::find_if(glMainloopData.streams.begin(), glMainloopData.streams.end(),
 				[id](const ActiveStreams &st) {return (st.sourceId == id);});
 
 			// No stream found for source ID corresponding to this module's ID.
@@ -1103,7 +1126,7 @@ static int caerMainloopRunner(void) {
 		// all the inputs and outputs.
 		// TODO: detect processors that serve no purpose, ie. no output or unused
 		// output, as well as no further users of modified inputs.
-		for (auto &m : inputModules) {
+		for (const auto &m : inputModules) {
 			int16_t currInputModuleId = m.get().id;
 
 		}
@@ -1129,7 +1152,7 @@ static int caerMainloopRunner(void) {
 //		}
 //	}
 
-	for (auto st : glMainloopData.streams) {
+	for (const auto &st : glMainloopData.streams) {
 		std::cout << "(" << st.sourceId << ", " << st.typeId << ") - IS_PROC: " << st.isProcessor << " - ";
 		for (auto mid : st.users) {
 			std::cout << mid << ", ";
@@ -1138,14 +1161,14 @@ static int caerMainloopRunner(void) {
 		printDeps(st.dependencies);
 	}
 
-	for (auto m : glMainloopData.modules) {
+	for (const auto &m : glMainloopData.modules) {
 		std::cout << m.second.id << "-MOD:" << m.second.libraryInfo->type << "-" << m.second.name << std::endl;
 
-		for (auto i : m.second.inputs) {
+		for (const auto &i : m.second.inputs) {
 			std::cout << " -->" << i.typeId << "-IN" << std::endl;
 		}
 
-		for (auto o : m.second.outputs) {
+		for (const auto &o : m.second.outputs) {
 			std::cout << " -->" << o.typeId << "-OUT" << std::endl;
 		}
 	}
