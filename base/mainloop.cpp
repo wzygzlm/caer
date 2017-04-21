@@ -199,6 +199,30 @@ static void caerMainloopSystemRunningListener(sshsNode node, void *userData, enu
 static void caerMainloopRunningListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
 
+template<class T>
+static void vectorSortUnique(std::vector<T> &vec) {
+	std::sort(vec.begin(), vec.end());
+	vec.erase(std::unique(vec.begin(), vec.end()), vec.end());
+}
+
+template<class T>
+static bool vectorDetectDuplicates(std::vector<T> &vec) {
+	// Detect duplicates.
+	size_t sizeBefore = vec.size();
+
+	vectorSortUnique(vec);
+
+	size_t sizeAfter = vec.size();
+
+	// If size changed, duplicates must have been removed, so they existed
+	// in the first place!
+	if (sizeAfter != sizeBefore) {
+		return (true);
+	}
+
+	return (false);
+}
+
 void caerMainloopRun(void) {
 	// Install signal handler for global shutdown.
 #if defined(OS_WINDOWS)
@@ -278,8 +302,7 @@ void caerMainloopRun(void) {
 		});
 
 	// Sort and unique.
-	std::sort(modulePaths.begin(), modulePaths.end());
-	modulePaths.erase(std::unique(modulePaths.begin(), modulePaths.end()), modulePaths.end());
+	vectorSortUnique(modulePaths);
 
 	// No modules, cannot start!
 	if (modulePaths.empty()) {
@@ -478,25 +501,6 @@ static void checkModuleInputOutput(caerModuleInfo info, sshsNode configNode) {
 	}
 }
 
-template<class T>
-static bool detectDuplicatesInVector(std::vector<T> &vec) {
-	// Detect duplicates.
-	size_t sizeBefore = vec.size();
-
-	std::sort(vec.begin(), vec.end());
-	vec.erase(std::unique(vec.begin(), vec.end()), vec.end());
-
-	size_t sizeAfter = vec.size();
-
-	// If size changed, duplicates must have been removed, so they existed
-	// in the first place!
-	if (sizeAfter != sizeBefore) {
-		return (true);
-	}
-
-	return (false);
-}
-
 static std::vector<int16_t> parseTypeIDString(const std::string &types) {
 	// Empty string, cannot be!
 	if (types.empty()) {
@@ -527,7 +531,7 @@ static std::vector<int16_t> parseTypeIDString(const std::string &types) {
 	}
 
 	// Detect duplicates, which are not allowed.
-	if (detectDuplicatesInVector(results)) {
+	if (vectorDetectDuplicates(results)) {
 		throw std::invalid_argument("Duplicate Type ID found.");
 	}
 
@@ -600,7 +604,7 @@ static std::vector<OrderedInput> parseAugmentedTypeIDString(const std::string &t
 	// Augmenting the whole system to support such things is currently outside the
 	// scope of this project, as it adds significant complexity with little or no
 	// known gain, at least for the current use cases.
-	if (detectDuplicatesInVector(results)) {
+	if (vectorDetectDuplicates(results)) {
 		throw std::invalid_argument("Duplicate Type ID found.");
 	}
 
@@ -793,7 +797,7 @@ static void checkForActiveStreamCycles(ActiveStreams &stream) {
 	}
 
 	// Detect duplicates, which are not allowed, as they signal a cycle.
-	if (detectDuplicatesInVector(stream.users)) {
+	if (vectorDetectDuplicates(stream.users)) {
 		throw std::domain_error(
 			boost::str(boost::format("Found cycles in stream (%d, %d).") % stream.sourceId % stream.typeId));
 	}
