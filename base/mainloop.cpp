@@ -1099,9 +1099,39 @@ static int caerMainloopRunner(void) {
 			// No stream found for source ID corresponding to this module's ID.
 			if (iter == glMainloopData.streams.end()) {
 				boost::format exMsg = boost::format(
-					"Module '%s': INPUT module is not connected to anything and will not be used.")
-					% m.get().name.c_str();
+					"Module '%s': INPUT module is not connected to anything and will not be used.") % m.get().name;
 				throw std::domain_error(exMsg.str());
+			}
+		}
+
+		// At this point we know that all active event stream do come from some
+		// active input module. We also know all of its follow-up users. Now those
+		// user can specify data dependencies on that event stream, by telling after
+		// which module they want to tap the stream for themselves. The only check
+		// done on that specification up till now is that the module ID is valid and
+		// exists, but it could refer to a module that's completely unrelated with
+		// this event stream, and as such cannot be a valid point to tap into it.
+		// We detect this now, as we have all the users of a stream listed in it.
+		for (auto &st : glMainloopData.streams) {
+			for (auto id : st.users) {
+				for (auto &order : glMainloopData.modules[id].inputDefinition[st.sourceId]) {
+					if (order.typeId == st.typeId && order.afterModuleId != -1) {
+						// For each corresponding afterModuleId (that is not -1
+						// which refers to original source ID and is always valid),
+						// we check if we can find that ID inside of the stream's
+						// users. If yes, then that's a valid tap point and we're
+						// good; if no, this is a user configuration error.
+						const auto iter = std::find_if(st.users.begin(), st.users.end(),
+							[&order](int16_t moduleId) {return (order.afterModuleId == moduleId);});
+
+						if (iter == st.users.end()) {
+							boost::format exMsg = boost::format(
+								"Module '%s': found invalid afterModuleID declaration of '%d' for stream (%d, %d).")
+								% glMainloopData.modules[id].name % order.afterModuleId % st.sourceId % st.typeId;
+							throw std::domain_error(exMsg.str());
+						}
+					}
+				}
 			}
 		}
 
