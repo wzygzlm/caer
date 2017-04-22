@@ -896,19 +896,34 @@ static void printDeps(std::shared_ptr<DependencyNode> deps) {
 	}
 }
 
-static std::pair<DependencyNode *, DependencyLink *> IDExistsInDependencyTree(DependencyNode *root, int16_t searchId) {
+static std::pair<DependencyNode *, DependencyLink *> IDExistsInDependencyTree(DependencyNode *root, int16_t searchId,
+	bool directionUp) {
 	if (root == nullptr) {
 		return (std::make_pair(nullptr, nullptr));
 	}
 
 	// Check if any of the nodes here match the searched for ID.
-	// If no match, search in all children then.
+	// If no match, search in all children if we're going down, else
+	// go up the hierarchy from parent to parent.
 	for (auto &depLink : root->links) {
 		if (depLink.id == searchId) {
 			return (std::make_pair(root, &depLink));
 		}
 
-		auto found = IDExistsInDependencyTree(depLink.next.get(), searchId);
+		if (!directionUp) {
+			// Direction of recursion is down (children). Multiple children
+			// need to be searched, one per DependencyLink.
+			auto found = IDExistsInDependencyTree(depLink.next.get(), searchId, false);
+			if (found.first != nullptr) {
+				return (found);
+			}
+		}
+	}
+
+	if (directionUp) {
+		// Direction of recursion is up (parents). There is only one parent
+		// node per DependencyNode, so this is outside the above loop.
+		auto found = IDExistsInDependencyTree(root->parentLink, searchId, true);
 		if (found.first != nullptr) {
 			return (found);
 		}
@@ -916,6 +931,30 @@ static std::pair<DependencyNode *, DependencyLink *> IDExistsInDependencyTree(De
 
 	// Nothing found!
 	return (std::make_pair(nullptr, nullptr));
+}
+
+static std::vector<int16_t> getAllChildIDs(const DependencyNode *depNode) {
+	std::vector<int16_t> results;
+
+	if (depNode == nullptr) {
+		return (results); // Empty vector.
+	}
+
+	for (const auto &depLink : depNode->links) {
+		// Add current ID.
+		results.push_back(depLink.id);
+
+		// Recurse down.
+		std::vector<int16_t> recResults = getAllChildIDs(depLink.next.get());
+
+		// Append recursion result to end of current results.
+		results.insert(results.end(), recResults.begin(), recResults.end());
+	}
+
+	// Sort results.
+	std::sort(results.begin(), results.end());
+
+	return (results);
 }
 
 static void mergeDependencyTrees(std::shared_ptr<DependencyNode> destRoot,
@@ -933,10 +972,30 @@ static void mergeDependencyTrees(std::shared_ptr<DependencyNode> destRoot,
 		for (const auto &srcLink : srcNode->links) {
 			// Process element. First we check if this module ID already exists in
 			// the merge destination tree.
-			auto destNodeLink = IDExistsInDependencyTree(destRoot.get(), srcLink.id);
+			auto destNodeLink = IDExistsInDependencyTree(destRoot.get(), srcLink.id, false);
 
 			if (destNodeLink.first != nullptr) {
-				// TODO: check for cycles, check for dep compliance.
+				// It exists! To ensure the resulting tree after insertion is
+				// good, we first search for any possible dependency cycles that
+				// could arise between multiple event streams. To do so, we check
+				// if any of the source link's children (modules that depend on
+				// that particular module ID) exist in the destination tree as
+				// any direct parent of that particular module ID.
+				std::vector<int16_t> moduleIDsToCheck = getAllChildIDs(srcLink.next.get());
+
+				for (auto modId : moduleIDsToCheck) {
+					auto checkNodeLink = IDExistsInDependencyTree(destNodeLink.first->parentLink, modId, true);
+
+					if (checkNodeLink.first != nullptr) {
+						// Dependency cycle found!
+						boost::format exMsg =
+							boost::format(
+								"Found dependency cycle involving multiple streams between modules '%s' (ID %d) and '%s' (ID %d).")
+								% glMainloopData.modules[srcLink.id].name % srcLink.id
+								% glMainloopData.modules[modId].name % modId;
+						throw std::domain_error(exMsg.str());
+					}
+				}
 			}
 			else {
 				// If it doesn't exist, we want to add it to the parent as another
@@ -954,7 +1013,7 @@ static void mergeDependencyTrees(std::shared_ptr<DependencyNode> destRoot,
 				else {
 					// Normal node in src, doesn't exist in dest, find parent, which
 					// must exist, and add to it.
-					auto destParentNodeLink = IDExistsInDependencyTree(destRoot.get(), srcNode->parentId);
+					auto destParentNodeLink = IDExistsInDependencyTree(destRoot.get(), srcNode->parentId, false);
 
 					// The parent's DependencyLink.next can be NULL the first time any child
 					// is added to that particular ID.
