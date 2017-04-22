@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <unordered_map>
 #include <vector>
+#include <queue>
 #include <sstream>
 #include <iostream>
 #include <chrono>
@@ -32,8 +33,8 @@ struct ModuleConnectivity {
 	int16_t typeId;
 	std::vector<ModuleConnection> connections;
 
-	ModuleConnectivity(int16_t t) {
-		typeId = t;
+	ModuleConnectivity(int16_t t) :
+			typeId(t) {
 	}
 
 	// Comparison operators.
@@ -66,9 +67,9 @@ struct OrderedInput {
 	int16_t typeId;
 	int16_t afterModuleId;
 
-	OrderedInput(int16_t t, int16_t m) {
-		typeId = t;
-		afterModuleId = m;
+	OrderedInput(int16_t t, int16_t m) :
+			typeId(t),
+			afterModuleId(m) {
 	}
 
 	// Comparison operators.
@@ -135,11 +136,53 @@ struct ModuleInfo {
 	}
 };
 
-struct DependencyNode {
+struct DependencyNode;
+
+struct DependencyLink {
 	int16_t id;
+	std::shared_ptr<DependencyNode> next;
+
+	DependencyLink(int16_t i) :
+			id(i) {
+	}
+
+	// Comparison operators.
+	bool operator==(const DependencyLink &rhs) const noexcept {
+		return (id == rhs.id);
+	}
+
+	bool operator!=(const DependencyLink &rhs) const noexcept {
+		return (id != rhs.id);
+	}
+
+	bool operator<(const DependencyLink &rhs) const noexcept {
+		return (id < rhs.id);
+	}
+
+	bool operator>(const DependencyLink &rhs) const noexcept {
+		return (id > rhs.id);
+	}
+
+	bool operator<=(const DependencyLink &rhs) const noexcept {
+		return (id <= rhs.id);
+	}
+
+	bool operator>=(const DependencyLink &rhs) const noexcept {
+		return (id >= rhs.id);
+	}
+};
+
+struct DependencyNode {
 	size_t depth;
-	std::vector<DependencyNode> *parent;
-	std::shared_ptr<std::vector<DependencyNode>> next;
+	int16_t parentId;
+	DependencyNode *parentLink;
+	std::vector<DependencyLink> links;
+
+	DependencyNode(size_t d, int16_t pId, DependencyNode *pLink) :
+			depth(d),
+			parentId(pId),
+			parentLink(pLink) {
+	}
 };
 
 struct ActiveStreams {
@@ -147,12 +190,12 @@ struct ActiveStreams {
 	int16_t typeId;
 	bool isProcessor;
 	std::vector<int16_t> users;
-	std::shared_ptr<std::vector<DependencyNode>> dependencies;
+	std::shared_ptr<DependencyNode> dependencies;
 
-	ActiveStreams(int16_t s, int16_t t) {
-		sourceId = s;
-		typeId = t;
-		isProcessor = false;
+	ActiveStreams(int16_t s, int16_t t) :
+			sourceId(s),
+			typeId(t),
+			isProcessor(false) {
 	}
 
 	// Comparison operators.
@@ -820,31 +863,30 @@ static std::vector<int16_t> getAllUsersForStreamAfterID(const ActiveStreams &str
 	return (tmpOrder);
 }
 
-static void orderActiveStreamDeps(const ActiveStreams &stream, std::shared_ptr<std::vector<DependencyNode>> &deps,
-	int16_t checkId, size_t depth, std::vector<DependencyNode> *parent) {
+static void orderActiveStreamDeps(const ActiveStreams &stream, std::shared_ptr<DependencyNode> &deps, int16_t checkId,
+	size_t depth, DependencyNode *parentLink, int16_t parentId) {
 	std::vector<int16_t> users = getAllUsersForStreamAfterID(stream, checkId);
 
 	if (!users.empty()) {
-		deps = std::make_shared<std::vector<DependencyNode>>();
+		deps = std::make_shared<DependencyNode>(depth, parentId, parentLink);
 
 		for (auto id : users) {
-			DependencyNode d;
-			d.id = id;
-			d.depth = depth;
-			d.parent = parent;
-			orderActiveStreamDeps(stream, d.next, id, depth + 1, deps.get());
-			deps->push_back(d);
+			DependencyLink dep(id);
+
+			orderActiveStreamDeps(stream, dep.next, id, depth + 1, deps.get(), dep.id);
+
+			deps->links.push_back(dep);
 		}
 	}
 }
 
-static void printDeps(std::shared_ptr<std::vector<DependencyNode>> deps) {
+static void printDeps(std::shared_ptr<DependencyNode> deps) {
 	if (deps == nullptr) {
 		return;
 	}
 
-	for (const auto &d : *deps) {
-		for (size_t i = 0; i < d.depth; i++) {
+	for (const auto &d : deps->links) {
+		for (size_t i = 0; i < deps->depth; i++) {
 			std::cout << "    ";
 		}
 		std::cout << d.id << std::endl;
@@ -854,8 +896,100 @@ static void printDeps(std::shared_ptr<std::vector<DependencyNode>> deps) {
 	}
 }
 
-static void mergeActiveStreamDeps(std::vector<ActiveStreams> &streams) {
+static std::pair<DependencyNode *, DependencyLink *> IDExistsInDependencyTree(DependencyNode *root, int16_t searchId) {
+	if (root == nullptr) {
+		return (std::make_pair(nullptr, nullptr));
+	}
 
+	// Check if any of the nodes here match the searched for ID.
+	// If no match, search in all children then.
+	for (auto &depLink : root->links) {
+		if (depLink.id == searchId) {
+			return (std::make_pair(root, &depLink));
+		}
+
+		auto found = IDExistsInDependencyTree(depLink.next.get(), searchId);
+		if (found.first != nullptr) {
+			return (found);
+		}
+	}
+
+	// Nothing found!
+	return (std::make_pair(nullptr, nullptr));
+}
+
+static void mergeDependencyTrees(std::shared_ptr<DependencyNode> destRoot,
+	const std::shared_ptr<const DependencyNode> srcRoot) {
+	std::queue<const DependencyNode *> queue;
+
+	// Initialize traversal queue with level 0 content, always has one element.
+	queue.push(srcRoot.get());
+
+	while (!queue.empty()) {
+		// Take out first element from queue.
+		const DependencyNode *srcNode = queue.front();
+		queue.pop();
+
+		for (const auto &srcLink : srcNode->links) {
+			// Process element. First we check if this module ID already exists in
+			// the merge destination tree.
+			auto destNodeLink = IDExistsInDependencyTree(destRoot.get(), srcLink.id);
+
+			if (destNodeLink.first != nullptr) {
+				// TODO: check for cycles, check for dep compliance.
+			}
+			else {
+				// If it doesn't exist, we want to add it to the parent as another
+				// child. Due to us going down the tree breadth-first, we can be
+				// sure the parent ID exists (as previous calls either discovered
+				// it or added it), so we just search for it and add the child.
+				// The only exception is the root node, which has no parent, and
+				// gets added to the destination root node in this case (level 0).
+				if (srcNode->parentLink == nullptr) {
+					// Root node in src, doesn't exist in dest, add at top level.
+					destRoot->links.push_back(DependencyLink(srcLink.id));
+
+					std::sort(destRoot->links.begin(), destRoot->links.end());
+				}
+				else {
+					// Normal node in src, doesn't exist in dest, find parent, which
+					// must exist, and add to it.
+					auto destParentNodeLink = IDExistsInDependencyTree(destRoot.get(), srcNode->parentId);
+
+					// The parent's DependencyLink.next can be NULL the first time any child
+					// is added to that particular ID.
+					if (destParentNodeLink.second->next == nullptr) {
+						destParentNodeLink.second->next = std::make_shared<DependencyNode>(
+							destParentNodeLink.first->depth + 1, destParentNodeLink.second->id,
+							destParentNodeLink.first);
+					}
+
+					destParentNodeLink.second->next->links.push_back(DependencyLink(srcLink.id));
+
+					std::sort(destParentNodeLink.second->next->links.begin(),
+						destParentNodeLink.second->next->links.end());
+				}
+			}
+		}
+
+		// Continue traversal.
+		for (const auto &srcLink : srcNode->links) {
+			if (srcLink.next != nullptr) {
+				queue.push(srcLink.next.get());
+			}
+		}
+	}
+}
+
+static void mergeActiveStreamDeps(std::vector<ActiveStreams> &streams) {
+	std::shared_ptr<DependencyNode> mergeResult = std::make_shared<DependencyNode>(0, -1, nullptr);
+
+	for (const auto &st : streams) {
+		// Merge the current stream's dependency tree to the global tree.
+		mergeDependencyTrees(mergeResult, st.dependencies);
+	}
+
+	printDeps(mergeResult);
 }
 
 static int caerMainloopRunner(void) {
@@ -1148,14 +1282,13 @@ static int caerMainloopRunner(void) {
 
 		// Order event stream users according to the configuration.
 		for (auto &st : glMainloopData.streams) {
-			st.dependencies = std::make_shared<std::vector<DependencyNode>>();
+			st.dependencies = std::make_shared<DependencyNode>(0, -1, nullptr);
 
-			DependencyNode dRoot;
-			dRoot.id = st.sourceId;
-			dRoot.depth = 0;
-			dRoot.parent = NULL;
-			orderActiveStreamDeps(st, dRoot.next, -1, 1, st.dependencies.get());
-			st.dependencies->push_back(dRoot);
+			DependencyLink depRoot(st.sourceId);
+
+			orderActiveStreamDeps(st, depRoot.next, -1, 1, st.dependencies.get(), depRoot.id);
+
+			st.dependencies->links.push_back(depRoot);
 		}
 
 		// Now merge all streams and their users into one global order over
