@@ -1227,6 +1227,20 @@ static void mergeActiveStreamDeps() {
 	}
 }
 
+static void buildConnectivity(ModuleInfo &m) {
+	// Skip INPUT modules, they have no input to build and their output
+	// is already as built as possible by "looking ahead".
+	if (m.libraryInfo->type == CAER_MODULE_INPUT) {
+		return;
+	}
+
+	// PROCESSOR or OUTPUT, let's connect their inputs and update the outputs
+	// in the modules they originate from. By this point the original
+	// inputDefinition has been checked deeply for validity and can be used,
+	// same for the active event streams.
+
+}
+
 static int caerMainloopRunner(void) {
 	// At this point configuration is already loaded, so let's see if everything
 	// we need to build and run a mainloop is really there.
@@ -1538,12 +1552,11 @@ static int caerMainloopRunner(void) {
 		// There's multiple ways now to build the full connectivity graph once we
 		// have all the starting points. Since we do have a global execution order
 		// (see above), we can just visit the modules in that order and build
-		// all the inputs and outputs.
+		// all the input and output connections.
 		// TODO: detect processors that serve no purpose, ie. no output or unused
 		// output, as well as no further users of modified inputs.
-		for (const auto &m : inputModules) {
-			int16_t currInputModuleId = m.get().id;
-
+		for (auto &m : glMainloopData.globalExecution) {
+			buildConnectivity(m.get());
 		}
 	}
 	catch (const std::exception &ex) {
