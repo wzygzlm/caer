@@ -1161,6 +1161,40 @@ static void mergeActiveStreamDeps(std::vector<ActiveStreams> &streams) {
 	}
 
 	printDeps(mergeResult);
+
+	// Now generate the final traversal order over all modules by going
+	// through the merged tree in BFS (level) order.
+	std::vector<int16_t> finalModuleOrder;
+
+	std::queue<const DependencyNode *> queue;
+
+	// Initialize traversal queue with level 0 content, always has one element.
+	queue.push(mergeResult.get());
+
+	while (!queue.empty()) {
+		// Take out first element from queue.
+		const DependencyNode *node = queue.front();
+		queue.pop();
+
+		for (const auto &link : node->links) {
+			// Ignore dummy nodes (-1).
+			if (link.id != -1) {
+				finalModuleOrder.push_back(link.id);
+			}
+		}
+
+		// Continue traversal.
+		for (const auto &link : node->links) {
+			if (link.next != nullptr) {
+				queue.push(link.next.get());
+			}
+		}
+	}
+
+	// Publish result to global module execution order.
+	for (auto id : finalModuleOrder) {
+		glMainloopData.globalExecution.push_back(glMainloopData.modules[id]);
+	}
 }
 
 static int caerMainloopRunner(void) {
@@ -1482,6 +1516,7 @@ static int caerMainloopRunner(void) {
 		// Cleanup modules and streams on exit.
 		glMainloopData.modules.clear();
 		glMainloopData.streams.clear();
+		glMainloopData.globalExecution.clear();
 
 		log(logLevel::ERROR, "Mainloop", ex.what());
 
@@ -1583,6 +1618,7 @@ static int caerMainloopRunner(void) {
 	// Cleanup modules and streams on exit.
 	glMainloopData.modules.clear();
 	glMainloopData.streams.clear();
+	glMainloopData.globalExecution.clear();
 
 	log(logLevel::INFO, "Mainloop", "Terminated successfully.");
 
