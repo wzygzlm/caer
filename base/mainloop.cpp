@@ -994,8 +994,8 @@ static void printDeps(std::shared_ptr<DependencyNode> deps) {
 static std::pair<DependencyNode *, DependencyLink *> IDExistsInDependencyTree(DependencyNode *root, int16_t searchId,
 	bool directionUp) {
 	if (searchId == -1) {
-		throw std::out_of_range(
-			"Cannot search for dummy nodes. This should never happen, please report this to the developers and attach your XML configuration file.");
+		throw std::out_of_range("Cannot search for dummy nodes. "
+			"This should never happen, please report this to the developers and attach your XML configuration file.");
 	}
 
 	if (root == nullptr) {
@@ -1294,6 +1294,17 @@ static void unloadLibrary(ModuleLibrary &moduleLibrary) {
 #endif
 }
 
+static void cleanupGlobals() {
+	for (auto &m : glMainloopData.modules) {
+		m.second.libraryInfo = nullptr;
+		unloadLibrary(m.second.libraryHandle);
+	}
+
+	glMainloopData.modules.clear();
+	glMainloopData.streams.clear();
+	glMainloopData.globalExecution.clear();
+}
+
 static int caerMainloopRunner(void) {
 	// At this point configuration is already loaded, so let's see if everything
 	// we need to build and run a mainloop is really there.
@@ -1462,7 +1473,7 @@ static int caerMainloopRunner(void) {
 	for (const auto &m : glMainloopData.modules) {
 		if (m.second.libraryInfo == nullptr) {
 			// Clean up generated data on failure.
-			glMainloopData.modules.clear();
+			cleanupGlobals();
 
 			log(logLevel::ERROR, "Mainloop", "Errors in module library loading.");
 
@@ -1492,7 +1503,7 @@ static int caerMainloopRunner(void) {
 	// to have a minimal, working system.
 	if (inputModules.size() < 1 || outputModules.size() < 1) {
 		// Clean up generated data on failure.
-		glMainloopData.modules.clear();
+		cleanupGlobals();
 
 		log(logLevel::ERROR, "Mainloop", "No input or output modules defined.");
 
@@ -1657,9 +1668,7 @@ static int caerMainloopRunner(void) {
 	}
 	catch (const std::exception &ex) {
 		// Cleanup modules and streams on exit.
-		glMainloopData.modules.clear();
-		glMainloopData.streams.clear();
-		glMainloopData.globalExecution.clear();
+		cleanupGlobals();
 
 		log(logLevel::ERROR, "Mainloop", ex.what());
 
@@ -1759,9 +1768,7 @@ static int caerMainloopRunner(void) {
 	}
 
 	// Cleanup modules and streams on exit.
-	glMainloopData.modules.clear();
-	glMainloopData.streams.clear();
-	glMainloopData.globalExecution.clear();
+	cleanupGlobals();
 
 	log(logLevel::INFO, "Mainloop", "Terminated successfully.");
 
