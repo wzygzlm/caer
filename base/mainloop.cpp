@@ -40,8 +40,34 @@ using namespace libcaer::log;
 struct ModuleInfo;
 
 struct ModuleConnection {
-	ModuleInfo *otherModule;
+	std::reference_wrapper<ModuleInfo> otherModule;
 	bool copyNeeded;
+
+	// Comparison operators.
+	// Separate into do not need copy and need copy after sort().
+	bool operator==(const ModuleConnection &rhs) const noexcept {
+		return (copyNeeded == rhs.copyNeeded);
+	}
+
+	bool operator!=(const ModuleConnection &rhs) const noexcept {
+		return (copyNeeded != rhs.copyNeeded);
+	}
+
+	bool operator<(const ModuleConnection &rhs) const noexcept {
+		return (copyNeeded < rhs.copyNeeded);
+	}
+
+	bool operator>(const ModuleConnection &rhs) const noexcept {
+		return (copyNeeded > rhs.copyNeeded);
+	}
+
+	bool operator<=(const ModuleConnection &rhs) const noexcept {
+		return (copyNeeded <= rhs.copyNeeded);
+	}
+
+	bool operator>=(const ModuleConnection &rhs) const noexcept {
+		return (copyNeeded >= rhs.copyNeeded);
+	}
 };
 
 struct ModuleConnectivity {
@@ -801,7 +827,8 @@ static void checkInputDefinitionAgainstEventStreamIn(
 	// first check that the number of definitions and counted types match.
 	if (typeCount.size() != eventStreamsSize) {
 		boost::format exMsg = boost::format(
-			"Module '%s': DEFINED_TYPE definitions require as many connected types as given.") % moduleName;
+			"Module '%s': DEFINED_TYPE definitions require as many connected different types as specified.")
+			% moduleName;
 		throw std::domain_error(exMsg.str());
 	}
 
@@ -1253,7 +1280,9 @@ static void buildConnectivity(ModuleInfo &m) {
 	// in the modules they originate from. By this point the original
 	// inputDefinition has been checked deeply for validity and can be used,
 	// same for the active event streams.
+	for (const auto &in : m.inputDefinition) {
 
+	}
 }
 
 // Small helper to unload libraries on error.
@@ -1552,9 +1581,9 @@ static int caerMainloopRunner(void) {
 		// exists, but it could refer to a module that's completely unrelated with
 		// this event stream, and as such cannot be a valid point to tap into it.
 		// We detect this now, as we have all the users of a stream listed in it.
-		for (auto &st : glMainloopData.streams) {
+		for (const auto &st : glMainloopData.streams) {
 			for (auto id : st.users) {
-				for (auto &order : glMainloopData.modules[id].inputDefinition[st.sourceId]) {
+				for (const auto &order : glMainloopData.modules[id].inputDefinition[st.sourceId]) {
 					if (order.typeId == st.typeId && order.afterModuleId != -1) {
 						// For each corresponding afterModuleId (that is not -1
 						// which refers to original source ID and is always valid),
@@ -1565,10 +1594,29 @@ static int caerMainloopRunner(void) {
 							[&order](int16_t moduleId) {return (order.afterModuleId == moduleId);});
 
 						if (iter == st.users.end()) {
-							boost::format exMsg = boost::format(
-								"Module '%s': found invalid afterModuleID declaration of '%d' for stream (%d, %d).")
-								% glMainloopData.modules[id].name % order.afterModuleId % st.sourceId % st.typeId;
+							boost::format exMsg =
+								boost::format(
+									"Module '%s': found invalid afterModuleID declaration of '%d' for stream (%d, %d); referenced module is not part of stream.")
+									% glMainloopData.modules[id].name % order.afterModuleId % st.sourceId % st.typeId;
 							throw std::domain_error(exMsg.str());
+						}
+
+						// Now we do a second check: the module is part of the stream,
+						// which means it does indeed take in such data itself. But it
+						// only makes sense to use as it as afterModuleID if that data
+						// got modified by this module, if nothing is modified, then
+						// other modules should refer to whatever prior module is
+						// actually changing or generating data!
+						for (const auto &orderAfter : glMainloopData.modules[order.afterModuleId].inputDefinition[st
+							.sourceId]) {
+							if (orderAfter.typeId == order.typeId && !orderAfter.copyNeeded) {
+								boost::format exMsg =
+									boost::format(
+										"Module '%s': found invalid afterModuleID declaration of '%d' for stream (%d, %d); referenced module does not modify this event stream.")
+										% glMainloopData.modules[id].name % order.afterModuleId % st.sourceId
+										% st.typeId;
+								throw std::domain_error(exMsg.str());
+							}
 						}
 					}
 				}
