@@ -896,8 +896,13 @@ static void printDeps(std::shared_ptr<DependencyNode> deps) {
 	}
 }
 
+// Search ID must not be a dummy node (-1).
 static std::pair<DependencyNode *, DependencyLink *> IDExistsInDependencyTree(DependencyNode *root, int16_t searchId,
 	bool directionUp) {
+	if (searchId == -1) {
+		throw std::out_of_range("Cannot search for dummy nodes.");
+	}
+
 	if (root == nullptr) {
 		return (std::make_pair(nullptr, nullptr));
 	}
@@ -933,6 +938,7 @@ static std::pair<DependencyNode *, DependencyLink *> IDExistsInDependencyTree(De
 	return (std::make_pair(nullptr, nullptr));
 }
 
+// Dummy nodes (-1) are ignored.
 static std::vector<int16_t> getAllChildIDs(const DependencyNode *depNode) {
 	std::vector<int16_t> results;
 
@@ -941,8 +947,10 @@ static std::vector<int16_t> getAllChildIDs(const DependencyNode *depNode) {
 	}
 
 	for (const auto &depLink : depNode->links) {
-		// Add current ID.
-		results.push_back(depLink.id);
+		// Add current ID. Only if not -1 (dummy node). Those are skipped.
+		if (depLink.id != -1) {
+			results.push_back(depLink.id);
+		}
 
 		// Recurse down.
 		std::vector<int16_t> recResults = getAllChildIDs(depLink.next.get());
@@ -955,6 +963,18 @@ static std::vector<int16_t> getAllChildIDs(const DependencyNode *depNode) {
 	std::sort(results.begin(), results.end());
 
 	return (results);
+}
+
+static void updateDepth(DependencyNode *depNode, size_t addToDepth) {
+	if (depNode == nullptr) {
+		return;
+	}
+
+	depNode->depth += addToDepth;
+
+	for (auto &depLink : depNode->links) {
+		updateDepth(depLink.next.get(), addToDepth);
+	}
 }
 
 static void mergeDependencyTrees(std::shared_ptr<DependencyNode> destRoot,
@@ -996,6 +1016,73 @@ static void mergeDependencyTrees(std::shared_ptr<DependencyNode> destRoot,
 						throw std::domain_error(exMsg.str());
 					}
 				}
+
+				// Now we know there cannot be cycles. This is important so that
+				// the possible modifications to the tree that may be done to keep
+				// the dependencies satisfied cannot result in an invalid tree.
+				// So the ID exists already, which means we have to ensure both its
+				// previous as well as its new dependencies hold after this operation.
+				// We do that by checking the source node's parent ID in the destination
+				// tree (exists or root): if we find it in a level of the tree that
+				// is higher than here, it means the dependency from the source tree
+				// is still kept and we're done. If on the other hand we find it on
+				// the same level or any lower one, we must move this node down by N
+				// levels, so that it is in the level below where we found the parent
+				// ID, and the dependency then holds again. The final order will be
+				// BFS (level-based), so it's enough to make dependencies hold between
+				// levels, it's not necessary to move nodes between branches; we just
+				// need to add dummy nodes to lengthen the current branch. Dummy nodes
+				// have only one link with ID of -1, so they can be skipped easily.
+				if (srcNode->parentId == -1) {
+					// If the source node is the root node (only node in source tree
+					// with a parent ID of -1), then we're good, it has no dependencies
+					// that need to be verified.
+					continue;
+				}
+
+				auto destParentNodeLink = IDExistsInDependencyTree(destRoot.get(), srcNode->parentId, false);
+
+				// Parent is on a higher level, we're good, dependency holds!
+				if (destParentNodeLink.first->depth < destNodeLink.first->depth) {
+					continue;
+				}
+
+				// Parent is on same level or below, must insert dummy nodes.
+				size_t numDummyNodes = (destParentNodeLink.first->depth - destNodeLink.first->depth);
+				size_t moveDepth = numDummyNodes + 1;
+				size_t currDepth = destNodeLink.first->depth;
+
+				// First dummy is in the current node itself, where we change ID to -1.
+				destNodeLink.second->id = -1;
+				std::shared_ptr<DependencyNode> oldNextNode = destNodeLink.second->next;
+				std::shared_ptr<DependencyNode> currNextNode = std::make_shared<DependencyNode>(++currDepth, -1,
+					destNodeLink.first);
+				destNodeLink.second->next = currNextNode;
+
+				// Then we add any further needed dummy-only nodes.
+				while (numDummyNodes-- > 0) {
+					DependencyLink dummyDepLink(-1);
+
+					currNextNode = std::make_shared<DependencyNode>(++currDepth, -1, currNextNode.get());
+					dummyDepLink.next = currNextNode;
+
+					currNextNode->links.push_back(dummyDepLink);
+				}
+
+				// Now currNextNode points to an empty node, where we add the
+				// original ID we wanted to move down.
+				DependencyLink origDepLink(srcLink.id);
+				origDepLink.next = oldNextNode;
+
+				currNextNode->links.push_back(origDepLink);
+
+				// All insertions done, now we need to make sure the rest of the
+				// tree we just moved down is still good: the parentLink of the
+				// next node down needs to be updated, the IDs are still fine,
+				// and all the depths have to be augmented by N.
+				oldNextNode->parentLink = currNextNode.get();
+
+				updateDepth(oldNextNode.get(), moveDepth);
 			}
 			else {
 				// If it doesn't exist, we want to add it to the parent as another
