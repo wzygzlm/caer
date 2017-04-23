@@ -66,10 +66,12 @@ struct ModuleConnectivity {
 struct OrderedInput {
 	int16_t typeId;
 	int16_t afterModuleId;
+	bool copyNeeded;
 
 	OrderedInput(int16_t t, int16_t m) :
 			typeId(t),
-			afterModuleId(m) {
+			afterModuleId(m),
+			copyNeeded(false) {
 	}
 
 	// Comparison operators.
@@ -813,6 +815,34 @@ static void checkInputDefinitionAgainstEventStreamIn(
 	}
 }
 
+static void updateInputDefinitionCopyNeeded(std::unordered_map<int16_t, std::vector<OrderedInput>> &inputDefinition,
+	caerEventStreamIn eventStreams, size_t eventStreamsSize) {
+	for (size_t i = 0; i < eventStreamsSize; i++) {
+		// By default all inputs are marked as copyNeeded = false (readOnly = true).
+		// So if we see any that are not readOnly, we must updated copyNeeded now.
+		if (!eventStreams[i].readOnly) {
+			// ANY_TYPE/ANY_NUMBER or 1, is the only definition in that case, and
+			// means not-readOnly applies to all inputs.
+			if (eventStreams[i].type == -1) {
+				for (auto &in : inputDefinition) {
+					for (auto &order : in.second) {
+						order.copyNeeded = true;
+					}
+				}
+			}
+
+			// Else we have a DEFINED_TYPE, so this applies only to that type.
+			for (auto &in : inputDefinition) {
+				for (auto &order : in.second) {
+					if (order.typeId == eventStreams[i].type) {
+						order.copyNeeded = true;
+					}
+				}
+			}
+		}
+	}
+}
+
 /**
  * Input modules _must_ have all their outputs well defined, or it becomes impossible
  * to validate and build the follow-up chain of processors and outputs correctly.
@@ -1425,6 +1455,9 @@ static int caerMainloopRunner(void) {
 
 			checkInputDefinitionAgainstEventStreamIn(m.get().inputDefinition, m.get().libraryInfo->inputStreams,
 				m.get().libraryInfo->inputStreamsSize, m.get().name);
+
+			updateInputDefinitionCopyNeeded(m.get().inputDefinition, m.get().libraryInfo->inputStreams,
+				m.get().libraryInfo->inputStreamsSize);
 		}
 
 		// At this point we can prune all event streams that are not marked active,
