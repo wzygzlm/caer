@@ -663,7 +663,7 @@ static std::vector<OrderedInput> parseAugmentedTypeIDString(const std::string &t
  * from module 1, type 2 from module 2, and types 1,2 from module 4.
  */
 static void parseModuleInput(const std::string &inputDefinition,
-	std::unordered_map<int16_t, std::vector<OrderedInput>> &resultMap, int16_t currId) {
+	std::unordered_map<int16_t, std::vector<OrderedInput>> &resultMap, int16_t currId, const std::string &moduleName) {
 	// Empty string, cannot be!
 	if (inputDefinition.empty()) {
 		throw std::invalid_argument("Empty 'moduleInput' attribute.");
@@ -739,13 +739,15 @@ static void parseModuleInput(const std::string &inputDefinition,
 		// Clean map of any partial results on failure.
 		resultMap.clear();
 
-		throw std::logic_error(std::string("Invalid 'moduleInput' attribute: ") + typeid(ex).name() + ": " + ex.what());
+		boost::format exMsg = boost::format("Module '%s': Invalid 'moduleInput' attribute: %s") % moduleName
+			% ex.what();
+		throw std::logic_error(exMsg.str());
 	}
 }
 
 static void checkInputDefinitionAgainstEventStreamIn(
 	std::unordered_map<int16_t, std::vector<OrderedInput>> &inputDefinition, caerEventStreamIn eventStreams,
-	size_t eventStreamsSize) {
+	size_t eventStreamsSize, const std::string &moduleName) {
 	// Use parsed moduleInput configuration to get per-type count.
 	std::unordered_map<int, int> typeCount;
 
@@ -758,7 +760,9 @@ static void checkInputDefinitionAgainstEventStreamIn(
 	// Any_Type/Any_Number means there just needs to be something.
 	if (eventStreamsSize == 1 && eventStreams[0].type == -1 && eventStreams[0].number == -1) {
 		if (typeCount.empty()) {
-			throw std::domain_error("ANY_TYPE/ANY_NUMBER definition has no connected input streams.");
+			boost::format exMsg = boost::format(
+				"Module '%s': ANY_TYPE/ANY_NUMBER definition has no connected input streams.") % moduleName;
+			throw std::domain_error(exMsg.str());
 		}
 
 		return; // We're good!
@@ -767,7 +771,9 @@ static void checkInputDefinitionAgainstEventStreamIn(
 	// Any_Type/1 means there must be exactly one type with count of 1.
 	if (eventStreamsSize == 1 && eventStreams[0].type == -1 && eventStreams[0].number == 1) {
 		if (typeCount.size() != 1 || typeCount.cbegin()->second != 1) {
-			throw std::domain_error("ANY_TYPE/1 definition requires 1 connected input stream of some type.");
+			boost::format exMsg = boost::format(
+				"Module '%s': ANY_TYPE/1 definition requires 1 connected input stream of some type.") % moduleName;
+			throw std::domain_error(exMsg.str());
 		}
 
 		return; // We're good!
@@ -777,23 +783,31 @@ static void checkInputDefinitionAgainstEventStreamIn(
 	// Since EventStreamIn definitions are strictly monotonic in this case, we
 	// first check that the number of definitions and counted types match.
 	if (typeCount.size() != eventStreamsSize) {
-		throw std::domain_error("DEFINED_TYPE definitions require as many connected types as given.");
+		boost::format exMsg = boost::format(
+			"Module '%s': DEFINED_TYPE definitions require as many connected types as given.") % moduleName;
+		throw std::domain_error(exMsg.str());
 	}
 
 	for (size_t i = 0; i < eventStreamsSize; i++) {
 		// Defined_Type/Any_Number means there must be 1 or more such types present.
 		if (eventStreams[i].type >= 0 && eventStreams[i].number == -1) {
 			if (typeCount[eventStreams[i].type] < 1) {
-				throw std::domain_error(
-					"DEFINED_TYPE/ANY_NUMBER definition requires at least one connected input stream of that type.");
+				boost::format exMsg =
+					boost::format(
+						"Module '%s': DEFINED_TYPE/ANY_NUMBER definition requires at least one connected input stream of that type.")
+						% moduleName;
+				throw std::domain_error(exMsg.str());
 			}
 		}
 
 		// Defined_Type/Defined_Number means there must be exactly as many such types present.
 		if (eventStreams[i].type >= 0 && eventStreams[i].number > 0) {
 			if (typeCount[eventStreams[i].type] != eventStreams[i].number) {
-				throw std::domain_error(
-					"DEFINED_TYPE/DEFINED_NUMBER definition requires exactly that many connected input streams of that type.");
+				boost::format exMsg =
+					boost::format(
+						"Module '%s': DEFINED_TYPE/DEFINED_NUMBER definition requires exactly that many connected input streams of that type.")
+						% moduleName;
+				throw std::domain_error(exMsg.str());
 			}
 		}
 	}
@@ -808,11 +822,19 @@ static void checkInputDefinitionAgainstEventStreamIn(
  * configuration parameter that is required to be set in this case. For other input modules,
  * where the outputs are well known, like devices, this must not be set.
  */
-static void parseModuleOutput(const std::string &moduleOutput, std::vector<ModuleConnectivity> &outputs) {
-	std::vector<int16_t> results = parseTypeIDString(moduleOutput);
+static void parseModuleOutput(const std::string &moduleOutput, std::vector<ModuleConnectivity> &outputs,
+	const std::string &moduleName) {
+	try {
+		std::vector<int16_t> results = parseTypeIDString(moduleOutput);
 
-	for (auto type : results) {
-		outputs.push_back(ModuleConnectivity(type));
+		for (auto type : results) {
+			outputs.push_back(ModuleConnectivity(type));
+		}
+	}
+	catch (const std::logic_error &ex) {
+		boost::format exMsg = boost::format("Module '%s': Invalid 'moduleOutput' attribute: %s") % moduleName
+			% ex.what();
+		throw std::logic_error(exMsg.str());
 	}
 }
 
@@ -900,7 +922,8 @@ static void printDeps(std::shared_ptr<DependencyNode> deps) {
 static std::pair<DependencyNode *, DependencyLink *> IDExistsInDependencyTree(DependencyNode *root, int16_t searchId,
 	bool directionUp) {
 	if (searchId == -1) {
-		throw std::out_of_range("Cannot search for dummy nodes.");
+		throw std::out_of_range(
+			"Cannot search for dummy nodes. This should never happen, please report this to the developers and attach your XML configuration file.");
 	}
 
 	if (root == nullptr) {
@@ -1335,7 +1358,7 @@ static int caerMainloopRunner(void) {
 					const std::string outputDefinition = moduleOutput;
 					free(moduleOutput);
 
-					parseModuleOutput(outputDefinition, m.get().outputs);
+					parseModuleOutput(outputDefinition, m.get().outputs, m.get().name);
 				}
 				else {
 					parseEventStreamOutDefinition(info->outputStreams, info->outputStreamsSize, m.get().outputs);
@@ -1362,10 +1385,10 @@ static int caerMainloopRunner(void) {
 			const std::string inputDefinition = moduleInput;
 			free(moduleInput);
 
-			parseModuleInput(inputDefinition, m.get().inputDefinition, m.get().id);
+			parseModuleInput(inputDefinition, m.get().inputDefinition, m.get().id, m.get().name);
 
 			checkInputDefinitionAgainstEventStreamIn(m.get().inputDefinition, m.get().libraryInfo->inputStreams,
-				m.get().libraryInfo->inputStreamsSize);
+				m.get().libraryInfo->inputStreamsSize, m.get().name);
 		}
 
 		// At this point we can prune all event streams that are not marked active,
