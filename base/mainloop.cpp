@@ -1182,10 +1182,10 @@ static void mergeDependencyTrees(std::shared_ptr<DependencyNode> destRoot,
 	}
 }
 
-static void mergeActiveStreamDeps(std::vector<ActiveStreams> &streams) {
+static void mergeActiveStreamDeps() {
 	std::shared_ptr<DependencyNode> mergeResult = std::make_shared<DependencyNode>(0, -1, nullptr);
 
-	for (const auto &st : streams) {
+	for (const auto &st : glMainloopData.streams) {
 		// Merge the current stream's dependency tree to the global tree.
 		mergeDependencyTrees(mergeResult, st.dependencies);
 	}
@@ -1519,6 +1519,7 @@ static int caerMainloopRunner(void) {
 		}
 
 		// Order event stream users according to the configuration.
+		// Add single root node/link manually here, before recursion.
 		for (auto &st : glMainloopData.streams) {
 			st.dependencies = std::make_shared<DependencyNode>(0, -1, nullptr);
 
@@ -1532,7 +1533,7 @@ static int caerMainloopRunner(void) {
 		// Now merge all streams and their users into one global order over
 		// all modules. If this cannot be resolved, wrong connections or a
 		// cycle involving multiple streams are present.
-		mergeActiveStreamDeps(glMainloopData.streams);
+		mergeActiveStreamDeps();
 
 		// There's multiple ways now to build the full connectivity graph once we
 		// have all the starting points. Since we do have a global execution order
