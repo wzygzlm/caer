@@ -2,7 +2,6 @@
 #include <csignal>
 #include <climits>
 #include <unistd.h>
-#include <dlfcn.h>
 
 #include <string>
 #include <regex>
@@ -18,6 +17,22 @@
 #include <boost/filesystem.hpp>
 #include <boost/range/join.hpp>
 #include <boost/format.hpp>
+
+// If Boost version recent enough, use their portable DLL loading support.
+// Else use dlopen() on POSIX systems.
+#if defined(BOOST_VERSION) && (BOOST_VERSION / 100000) >= 1 && (BOOST_VERSION / 100 % 1000) >= 61
+#define BOOST_HAS_DLL_LOAD 1
+#else
+#define BOOST_HAS_DLL_LOAD 0
+#endif
+
+#if BOOST_HAS_DLL_LOAD
+#include <boost/dll.hpp>
+using ModuleLibrary = boost::dll::shared_library;
+#else
+#include <dlfcn.h>
+using ModuleLibrary = void *;
+#endif
 
 #include <libcaercpp/libcaer.hpp>
 using namespace libcaer::log;
@@ -114,17 +129,17 @@ struct ModuleInfo {
 	std::vector<ModuleConnectivity> outputs;
 	// Loadable module support.
 	const std::string library;
-	void *libraryHandle;
+	ModuleLibrary libraryHandle;
 	caerModuleInfo libraryInfo;
 
 	ModuleInfo() :
 			id(-1),
 			name(),
-			configNode(NULL),
+			configNode(nullptr),
 			IODone(false),
 			library(),
-			libraryHandle(NULL),
-			libraryInfo(NULL) {
+			libraryHandle(),
+			libraryInfo(nullptr) {
 	}
 
 	ModuleInfo(int16_t i, const std::string &n, sshsNode c, const std::string &l) :
@@ -133,8 +148,8 @@ struct ModuleInfo {
 			configNode(c),
 			IODone(false),
 			library(l),
-			libraryHandle(NULL),
-			libraryInfo(NULL) {
+			libraryHandle(),
+			libraryInfo(nullptr) {
 	}
 };
 
@@ -295,7 +310,7 @@ void caerMainloopRun(void) {
 	// cases within that time period (multiple cameras, modules etc. make this worse).
 	// So we just disable that and force the user to CTRL+C, which works fine.
 	HWND consoleWindow = GetConsoleWindow();
-	if (consoleWindow != NULL) {
+	if (consoleWindow != nullptr) {
 		HMENU systemMenu = GetSystemMenu(consoleWindow, false);
 		EnableMenuItem(systemMenu, SC_CLOSE, MF_GRAYED);
 	}
@@ -308,12 +323,12 @@ void caerMainloopRun(void) {
 	sigaddset(&shutdown.sa_mask, SIGTERM);
 	sigaddset(&shutdown.sa_mask, SIGINT);
 
-	if (sigaction(SIGTERM, &shutdown, NULL) == -1) {
+	if (sigaction(SIGTERM, &shutdown, nullptr) == -1) {
 		log(logLevel::EMERGENCY, "Mainloop", "Failed to set signal handler for SIGTERM. Error: %d.", errno);
 		exit(EXIT_FAILURE);
 	}
 
-	if (sigaction(SIGINT, &shutdown, NULL) == -1) {
+	if (sigaction(SIGINT, &shutdown, nullptr) == -1) {
 		log(logLevel::EMERGENCY, "Mainloop", "Failed to set signal handler for SIGINT. Error: %d.", errno);
 		exit(EXIT_FAILURE);
 	}
@@ -364,14 +379,14 @@ void caerMainloopRun(void) {
 
 	sshsNode systemNode = sshsGetNode(sshsGetGlobal(), "/caer/");
 	sshsNodeCreateBool(systemNode, "running", true, SSHS_FLAGS_NORMAL);
-	sshsNodeAddAttributeListener(systemNode, NULL, &caerMainloopSystemRunningListener);
+	sshsNodeAddAttributeListener(systemNode, nullptr, &caerMainloopSystemRunningListener);
 
 	// Mainloop running control.
 	glMainloopData.running.store(true);
 
 	glMainloopData.configNode = sshsGetNode(sshsGetGlobal(), "/");
 	sshsNodeCreateBool(glMainloopData.configNode, "running", true, SSHS_FLAGS_NORMAL);
-	sshsNodeAddAttributeListener(glMainloopData.configNode, NULL, &caerMainloopRunningListener);
+	sshsNodeAddAttributeListener(glMainloopData.configNode, nullptr, &caerMainloopRunningListener);
 
 	while (glMainloopData.systemRunning.load()) {
 		if (!glMainloopData.running.load()) {
@@ -393,13 +408,13 @@ void caerMainloopRun(void) {
 
 static void checkInputOutputStreamDefinitions(caerModuleInfo info) {
 	if (info->type == CAER_MODULE_INPUT) {
-		if (info->inputStreams != NULL || info->inputStreamsSize != 0 || info->outputStreams == NULL
+		if (info->inputStreams != nullptr || info->inputStreamsSize != 0 || info->outputStreams == nullptr
 			|| info->outputStreamsSize == 0) {
 			throw std::domain_error("Wrong I/O event stream definitions for type INPUT.");
 		}
 	}
 	else if (info->type == CAER_MODULE_OUTPUT) {
-		if (info->inputStreams == NULL || info->inputStreamsSize == 0 || info->outputStreams != NULL
+		if (info->inputStreams == nullptr || info->inputStreamsSize == 0 || info->outputStreams != nullptr
 			|| info->outputStreamsSize != 0) {
 			throw std::domain_error("Wrong I/O event stream definitions for type OUTPUT.");
 		}
@@ -420,13 +435,13 @@ static void checkInputOutputStreamDefinitions(caerModuleInfo info) {
 	}
 	else {
 		// CAER_MODULE_PROCESSOR
-		if (info->inputStreams == NULL || info->inputStreamsSize == 0) {
+		if (info->inputStreams == nullptr || info->inputStreamsSize == 0) {
 			throw std::domain_error("Wrong I/O event stream definitions for type PROCESSOR.");
 		}
 
 		// If no output streams are defined, then at least one input event
 		// stream must not be readOnly, so that there is modified data to output.
-		if (info->outputStreams == NULL || info->outputStreamsSize == 0) {
+		if (info->outputStreams == nullptr || info->outputStreamsSize == 0) {
 			bool readOnlyError = true;
 
 			for (size_t i = 0; i < info->inputStreamsSize; i++) {
@@ -539,7 +554,7 @@ static void checkModuleInputOutput(caerModuleInfo info, sshsNode configNode) {
 		// CAER_MODULE_INPUT / CAER_MODULE_PROCESSOR
 		// moduleOutput must exist for INPUT and PROCESSOR modules, only
 		// if their outputs are undefined (-1).
-		if (info->outputStreams != NULL && info->outputStreamsSize == 1 && info->outputStreams[0].type == -1
+		if (info->outputStreams != nullptr && info->outputStreamsSize == 1 && info->outputStreams[0].type == -1
 			&& !sshsNodeAttributeExists(configNode, "moduleOutput", SSHS_STRING)) {
 			throw std::domain_error(
 				"INPUT/PROCESSOR types with ANY_TYPE definition must have a 'moduleOutput' attribute.");
@@ -1241,6 +1256,15 @@ static void buildConnectivity(ModuleInfo &m) {
 
 }
 
+// Small helper to unload libraries on error.
+static void unloadLibrary(ModuleLibrary &moduleLibrary) {
+#if BOOST_HAS_DLL_LOAD
+	moduleLibrary.unload();
+#else
+	dlclose(moduleLibrary);
+#endif
+}
+
 static int caerMainloopRunner(void) {
 	// At this point configuration is already loaded, so let's see if everything
 	// we need to build and run a mainloop is really there.
@@ -1249,7 +1273,7 @@ static int caerMainloopRunner(void) {
 	// (string, "moduleLibrary") as attribute.
 	size_t modulesSize = 0;
 	sshsNode *modules = sshsNodeGetChildren(glMainloopData.configNode, &modulesSize);
-	if (modules == NULL || modulesSize == 0) {
+	if (modules == nullptr || modulesSize == 0) {
 		// Empty configuration.
 		log(logLevel::ERROR, "Mainloop", "No modules configuration found.");
 		return (EXIT_FAILURE);
@@ -1329,9 +1353,32 @@ static int caerMainloopRunner(void) {
 		log(logLevel::NOTICE, "Mainloop", "Module '%s': Loading module library '%s'.", m.second.name.c_str(),
 			modulePath.c_str());
 
-		// TODO: Windows support.
+#if BOOST_HAS_DLL_LOAD
+		ModuleLibrary moduleLibrary;
+		try {
+			moduleLibrary.load(modulePath.c_str(), boost::dll::load_mode::rtld_now);
+		}
+		catch (const std::exception &ex) {
+			// Failed to load shared library!
+			log(logLevel::ERROR, "Mainloop", "Module '%s': Failed to load library '%s', error: '%s'.",
+				m.second.name.c_str(), modulePath.c_str(), ex.what());
+			continue;
+		}
+
+		caerModuleInfo (*getInfo)(void);
+		try {
+			getInfo = moduleLibrary.get<caerModuleInfo(void)>("caerModuleGetInfo");
+		}
+		catch (const std::exception &ex) {
+			// Failed to find symbol in shared library!
+			log(logLevel::ERROR, "Mainloop", "Module '%s': Failed to find symbol in library '%s', error: '%s'.",
+				m.second.name.c_str(), modulePath.c_str(), ex.what());
+			unloadLibrary(moduleLibrary);
+			continue;
+		}
+#else
 		void *moduleLibrary = dlopen(modulePath.c_str(), RTLD_NOW);
-		if (moduleLibrary == NULL) {
+		if (moduleLibrary == nullptr) {
 			// Failed to load shared library!
 			log(logLevel::ERROR, "Mainloop", "Module '%s': Failed to load library '%s', error: '%s'.",
 				m.second.name.c_str(), modulePath.c_str(), dlerror());
@@ -1339,19 +1386,20 @@ static int caerMainloopRunner(void) {
 		}
 
 		caerModuleInfo (*getInfo)(void) = (caerModuleInfo (*)(void)) dlsym(moduleLibrary, "caerModuleGetInfo");
-		if (getInfo == NULL) {
+		if (getInfo == nullptr) {
 			// Failed to find symbol in shared library!
 			log(logLevel::ERROR, "Mainloop", "Module '%s': Failed to find symbol in library '%s', error: '%s'.",
 				m.second.name.c_str(), modulePath.c_str(), dlerror());
-			dlclose(moduleLibrary);
+			unloadLibrary(moduleLibrary);
 			continue;
 		}
+#endif
 
 		caerModuleInfo info = (*getInfo)();
-		if (info == NULL) {
+		if (info == nullptr) {
 			log(logLevel::ERROR, "Mainloop", "Module '%s': Failed to get info from library '%s', error: '%s'.",
 				m.second.name.c_str(), modulePath.c_str(), dlerror());
-			dlclose(moduleLibrary);
+			unloadLibrary(moduleLibrary);
 			continue;
 		}
 
@@ -1360,11 +1408,11 @@ static int caerMainloopRunner(void) {
 			checkInputOutputStreamDefinitions(info);
 
 			// Check I/O event stream definitions for correctness.
-			if (info->inputStreams != NULL) {
+			if (info->inputStreams != nullptr) {
 				checkInputStreamDefinitions(info->inputStreams, info->inputStreamsSize);
 			}
 
-			if (info->outputStreams != NULL) {
+			if (info->outputStreams != nullptr) {
 				checkOutputStreamDefinitions(info->outputStreams, info->outputStreamsSize);
 			}
 
@@ -1372,7 +1420,7 @@ static int caerMainloopRunner(void) {
 		}
 		catch (const std::logic_error &ex) {
 			log(logLevel::ERROR, "Mainloop", "Module '%s': %s", m.second.name.c_str(), ex.what());
-			dlclose(moduleLibrary);
+			unloadLibrary(moduleLibrary);
 			continue;
 		}
 
@@ -1383,7 +1431,7 @@ static int caerMainloopRunner(void) {
 	// If any modules failed to load, exit program now. We didn't do that before, so that we
 	// could run through all modules and check them all in one go.
 	for (const auto &m : glMainloopData.modules) {
-		if (m.second.libraryHandle == NULL || m.second.libraryInfo == NULL) {
+		if (m.second.libraryInfo == nullptr) {
 			// Clean up generated data on failure.
 			glMainloopData.modules.clear();
 
@@ -1431,7 +1479,7 @@ static int caerMainloopRunner(void) {
 		for (const auto &m : boost::join(inputModules, processorModules)) {
 			caerModuleInfo info = m.get().libraryInfo;
 
-			if (info->outputStreams != NULL) {
+			if (info->outputStreams != nullptr) {
 				// ANY type declaration.
 				if (info->outputStreamsSize == 1 && info->outputStreams[0].type == -1) {
 					char *moduleOutput = sshsNodeGetString(m.get().configNode, "moduleOutput");
