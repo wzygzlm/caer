@@ -1103,7 +1103,9 @@ static void mergeDependencyTrees(std::shared_ptr<DependencyNode> destRoot,
 				// tree we just moved down is still good: the parentLink of the
 				// next node down needs to be updated, the IDs are still fine,
 				// and all the depths have to be augmented by N.
-				oldNextNode->parentLink = currNextNode.get();
+				if (oldNextNode != nullptr) {
+					oldNextNode->parentLink = currNextNode.get();
+				}
 
 				updateDepth(oldNextNode.get(), moveDepth);
 			}
