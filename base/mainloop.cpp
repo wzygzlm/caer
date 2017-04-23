@@ -43,6 +43,11 @@ struct ModuleConnection {
 	std::reference_wrapper<ModuleInfo> otherModule;
 	bool copyNeeded;
 
+	ModuleConnection(ModuleInfo &o, bool c) :
+			otherModule(o),
+			copyNeeded(c) {
+	}
+
 	// Comparison operators.
 	// Separate into do not need copy and need copy after sort().
 	bool operator==(const ModuleConnection &rhs) const noexcept {
@@ -150,7 +155,6 @@ struct ModuleInfo {
 	// Parsed moduleInput configuration.
 	std::unordered_map<int16_t, std::vector<OrderedInput>> inputDefinition;
 	// Connectivity graph (I/O).
-	bool IODone;
 	std::vector<ModuleConnectivity> inputs;
 	std::vector<ModuleConnectivity> outputs;
 	// Loadable module support.
@@ -162,7 +166,6 @@ struct ModuleInfo {
 			id(-1),
 			name(),
 			configNode(nullptr),
-			IODone(false),
 			library(),
 			libraryHandle(),
 			libraryInfo(nullptr) {
@@ -172,7 +175,6 @@ struct ModuleInfo {
 			id(i),
 			name(n),
 			configNode(c),
-			IODone(false),
 			library(l),
 			libraryHandle(),
 			libraryInfo(nullptr) {
@@ -1276,12 +1278,31 @@ static void buildConnectivity(ModuleInfo &m) {
 		return;
 	}
 
-	// PROCESSOR or OUTPUT, let's connect their inputs and update the outputs
-	// in the modules they originate from. By this point the original
+	// PROCESSOR or OUTPUT, let's update their referenced source's outputs
+	// based on the current inputDefinition. By this point the original
 	// inputDefinition has been checked deeply for validity and can be used,
 	// same for the active event streams.
-	for (const auto &in : m.inputDefinition) {
+	for (const auto &inDef : m.inputDefinition) {
+		auto &originModule = glMainloopData.modules[inDef.first];
 
+		for (const auto &input : inDef.second) {
+			auto iter = std::find(originModule.outputs.begin(), originModule.outputs.end(), input.typeId);
+
+			if (iter == originModule.outputs.end()) {
+				boost::format exMsg =
+					boost::format(
+						"No match found for type '%d' in module '%s' (ID %d) outputs, which is where input for module '%s' (ID %d) should be generated. "
+							"This should never happen, please report this to the developers and attach your XML configuration file.")
+						% input.typeId % originModule.name % inDef.first % m.name % m.id;
+				throw std::domain_error(exMsg.str());
+			}
+
+			// Found match in origin's output connectivity, we can now add
+			// this module as a destination.
+			iter->connections.push_back(ModuleConnection(m, input.copyNeeded));
+
+			std::sort(iter->connections.begin(), iter->connections.end());
+		}
 	}
 }
 
@@ -1704,6 +1725,9 @@ static int caerMainloopRunner(void) {
 
 		for (const auto &o : m.second.outputs) {
 			std::cout << " -->" << o.typeId << "-OUT" << std::endl;
+			for (const auto &conn : o.connections) {
+				std::cout << "     -->" << conn.otherModule.get().id << "-COPY: " << conn.copyNeeded << std::endl;
+			}
 		}
 	}
 
