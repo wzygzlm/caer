@@ -1266,6 +1266,11 @@ static void mergeActiveStreamDeps() {
 		}
 	}
 
+	// TODO: the final traversal order shoult try to take into account data copies.
+	// To do so, for each depth-level, module IDs should be ordered by how many
+	// inputs with copyNeeded=true they have. If same number, simple integer sort.
+	// This might be implemented efficiently with an std::multimap.
+
 	// Publish result to global module execution order.
 	for (auto id : finalModuleOrder) {
 		glMainloopData.globalExecution.push_back(glMainloopData.modules[id]);
