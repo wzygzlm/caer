@@ -7,6 +7,7 @@
 #include <regex>
 #include <algorithm>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 #include <queue>
 #include <sstream>
@@ -1271,6 +1272,33 @@ static void mergeActiveStreamDeps() {
 	}
 }
 
+static void updateStreamUsersWithGlobalExecutionOrder() {
+	for (auto &stream : glMainloopData.streams) {
+		// Reorder list of stream users to follow the same ordering as
+		// the global execution order resulting from the merged dep-trees.
+		std::unordered_set<int16_t> userSet;
+
+		// First put all users into a set for fast existence tests.
+		for (auto &user : stream.users) {
+			userSet.insert(user);
+		}
+
+		// Then clear users vector.
+		stream.users.clear();
+
+		// And now repopulate it in the right order: iterate through the
+		// whole global execution order, and if an ID exists in the local
+		// set, push it to the users vector.
+		for (const auto &globalMod : glMainloopData.globalExecution) {
+			int16_t globalModID = globalMod.get().id;
+
+			if (userSet.count(globalModID) == 1) {
+				stream.users.push_back(globalModID);
+			}
+		}
+	}
+}
+
 static void buildConnectivity(ModuleInfo &m) {
 	// Skip INPUT modules, they have no input to build and their output
 	// is already as built as possible by "looking ahead".
@@ -1677,6 +1705,9 @@ static int caerMainloopRunner(void) {
 		// cycle involving multiple streams are present.
 		mergeActiveStreamDeps();
 
+		// Reorder stream.users to follow global execution order.
+		updateStreamUsersWithGlobalExecutionOrder();
+
 		// There's multiple ways now to build the full connectivity graph once we
 		// have all the starting points. Since we do have a global execution order
 		// (see above), we can just visit the modules in that order and build
@@ -1706,6 +1737,12 @@ static int caerMainloopRunner(void) {
 //			++iter;
 //		}
 //	}
+
+	std::cout << "Global order: ";
+	for (const auto &m : glMainloopData.globalExecution) {
+		std::cout << m.get().id << ", ";
+	}
+	std::cout << std::endl;
 
 	for (const auto &st : glMainloopData.streams) {
 		std::cout << "(" << st.sourceId << ", " << st.typeId << ") - IS_PROC: " << st.isProcessor << " - ";
