@@ -84,7 +84,7 @@ struct ModuleInfo {
 	// Parsed moduleInput configuration.
 	std::unordered_map<int16_t, std::vector<OrderedInput>> inputDefinition;
 	// Connectivity graph (I/O).
-	std::vector<size_t> inputs;
+	std::vector<std::pair<size_t, size_t>> inputs;
 	std::unordered_map<int16_t, ssize_t> outputs;
 	// Loadable module support.
 	const std::string library;
