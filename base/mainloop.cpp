@@ -38,78 +38,6 @@ using ModuleLibrary = void *;
 #include <libcaercpp/libcaer.hpp>
 using namespace libcaer::log;
 
-struct ModuleInfo;
-
-struct ModuleConnection {
-	std::reference_wrapper<ModuleInfo> otherModule;
-	bool copyNeeded;
-
-	ModuleConnection(ModuleInfo &o, bool c) :
-			otherModule(o),
-			copyNeeded(c) {
-	}
-
-	// Comparison operators.
-	// Separate into do not need copy and need copy after sort().
-	bool operator==(const ModuleConnection &rhs) const noexcept {
-		return (copyNeeded == rhs.copyNeeded);
-	}
-
-	bool operator!=(const ModuleConnection &rhs) const noexcept {
-		return (copyNeeded != rhs.copyNeeded);
-	}
-
-	bool operator<(const ModuleConnection &rhs) const noexcept {
-		return (copyNeeded < rhs.copyNeeded);
-	}
-
-	bool operator>(const ModuleConnection &rhs) const noexcept {
-		return (copyNeeded > rhs.copyNeeded);
-	}
-
-	bool operator<=(const ModuleConnection &rhs) const noexcept {
-		return (copyNeeded <= rhs.copyNeeded);
-	}
-
-	bool operator>=(const ModuleConnection &rhs) const noexcept {
-		return (copyNeeded >= rhs.copyNeeded);
-	}
-};
-
-struct ModuleConnectivity {
-	int16_t typeId;
-	std::vector<ModuleConnection> connections;
-
-	ModuleConnectivity(int16_t t) :
-			typeId(t) {
-	}
-
-	// Comparison operators.
-	bool operator==(const ModuleConnectivity &rhs) const noexcept {
-		return (typeId == rhs.typeId);
-	}
-
-	bool operator!=(const ModuleConnectivity &rhs) const noexcept {
-		return (typeId != rhs.typeId);
-	}
-
-	bool operator<(const ModuleConnectivity &rhs) const noexcept {
-		return (typeId < rhs.typeId);
-	}
-
-	bool operator>(const ModuleConnectivity &rhs) const noexcept {
-		return (typeId > rhs.typeId);
-	}
-
-	bool operator<=(const ModuleConnectivity &rhs) const noexcept {
-		return (typeId <= rhs.typeId);
-	}
-
-	bool operator>=(const ModuleConnectivity &rhs) const noexcept {
-		return (typeId >= rhs.typeId);
-	}
-};
-
 struct OrderedInput {
 	int16_t typeId;
 	int16_t afterModuleId;
@@ -156,8 +84,8 @@ struct ModuleInfo {
 	// Parsed moduleInput configuration.
 	std::unordered_map<int16_t, std::vector<OrderedInput>> inputDefinition;
 	// Connectivity graph (I/O).
-	std::vector<ModuleConnectivity> inputs;
-	std::vector<ModuleConnectivity> outputs;
+	std::vector<size_t> inputs;
+	std::unordered_map<int16_t, ssize_t> outputs;
 	// Loadable module support.
 	const std::string library;
 	ModuleLibrary libraryHandle;
@@ -278,6 +206,7 @@ static struct {
 	std::unordered_map<int16_t, ModuleInfo> modules;
 	std::vector<ActiveStreams> streams;
 	std::vector<std::reference_wrapper<ModuleInfo>> globalExecution;
+	std::vector<caerEventPacketHeader> eventPackets;
 } glMainloopData;
 
 static std::vector<boost::filesystem::path> modulePaths;
@@ -897,13 +826,13 @@ static void updateInputDefinitionCopyNeeded(std::unordered_map<int16_t, std::vec
  * configuration parameter that is required to be set in this case. For other input modules,
  * where the outputs are well known, like devices, this must not be set.
  */
-static void parseModuleOutput(const std::string &moduleOutput, std::vector<ModuleConnectivity> &outputs,
+static void parseModuleOutput(const std::string &moduleOutput, std::unordered_map<int16_t, ssize_t> &outputs,
 	const std::string &moduleName) {
 	try {
 		std::vector<int16_t> results = parseTypeIDString(moduleOutput);
 
 		for (auto type : results) {
-			outputs.push_back(ModuleConnectivity(type));
+			outputs[type] = -1;
 		}
 	}
 	catch (const std::logic_error &ex) {
@@ -914,9 +843,9 @@ static void parseModuleOutput(const std::string &moduleOutput, std::vector<Modul
 }
 
 static void parseEventStreamOutDefinition(caerEventStreamOut eventStreams, size_t eventStreamsSize,
-	std::vector<ModuleConnectivity> &outputs) {
+	std::unordered_map<int16_t, ssize_t> &outputs) {
 	for (size_t i = 0; i < eventStreamsSize; i++) {
-		outputs.push_back(ModuleConnectivity(eventStreams[i].type));
+		outputs[eventStreams[i].type] = -1;
 	}
 }
 
@@ -1315,28 +1244,28 @@ static void buildConnectivity(ModuleInfo &m) {
 	// based on the current inputDefinition. By this point the original
 	// inputDefinition has been checked deeply for validity and can be used,
 	// same for the active event streams.
-	for (const auto &inDef : m.inputDefinition) {
-		auto &originModule = glMainloopData.modules[inDef.first];
-
-		for (const auto &input : inDef.second) {
-			auto iter = std::find(originModule.outputs.begin(), originModule.outputs.end(), input.typeId);
-
-			if (iter == originModule.outputs.end()) {
-				boost::format exMsg =
-					boost::format(
-						"No match found for type '%d' in module '%s' (ID %d) outputs, which is where input for module '%s' (ID %d) should be generated. "
-							"This should never happen, please report this to the developers and attach your XML configuration file.")
-						% input.typeId % originModule.name % inDef.first % m.name % m.id;
-				throw std::domain_error(exMsg.str());
-			}
-
-			// Found match in origin's output connectivity, we can now add
-			// this module as a destination.
-			iter->connections.push_back(ModuleConnection(m, input.copyNeeded));
-
-			std::sort(iter->connections.begin(), iter->connections.end());
-		}
-	}
+//	for (const auto &inDef : m.inputDefinition) {
+//		auto &originModule = glMainloopData.modules[inDef.first];
+//
+//		for (const auto &input : inDef.second) {
+//			auto iter = std::find(originModule.outputs.begin(), originModule.outputs.end(), input.typeId);
+//
+//			if (iter == originModule.outputs.end()) {
+//				boost::format exMsg =
+//					boost::format(
+//						"No match found for type '%d' in module '%s' (ID %d) outputs, which is where input for module '%s' (ID %d) should be generated. "
+//							"This should never happen, please report this to the developers and attach your XML configuration file.")
+//						% input.typeId % originModule.name % inDef.first % m.name % m.id;
+//				throw std::domain_error(exMsg.str());
+//			}
+//
+//			// Found match in origin's output connectivity, we can now add
+//			// this module as a destination.
+//			iter->connections.push_back(ModuleConnection(m, input.copyNeeded));
+//
+//			std::sort(iter->connections.begin(), iter->connections.end());
+//		}
+//	}
 }
 
 // Small helper to unload libraries on error.
@@ -1588,7 +1517,7 @@ static int caerMainloopRunner(void) {
 
 				// Now add discovered outputs to possible active streams.
 				for (const auto &o : m.get().outputs) {
-					ActiveStreams st = ActiveStreams(m.get().id, o.typeId);
+					ActiveStreams st = ActiveStreams(m.get().id, o.first);
 
 					// Store if stream originates from a PROCESSOR (default from INPUT).
 					if (info->type == CAER_MODULE_PROCESSOR) {
@@ -1761,15 +1690,12 @@ static int caerMainloopRunner(void) {
 	for (const auto &m : glMainloopData.modules) {
 		std::cout << m.second.id << "-MOD:" << m.second.libraryInfo->type << "-" << m.second.name << std::endl;
 
-		for (const auto &i : m.second.inputs) {
-			std::cout << " -->" << i.typeId << "-IN" << std::endl;
+		for (auto i : m.second.inputs) {
+			std::cout << " -->" << i << "-POS_IN" << std::endl;
 		}
 
 		for (const auto &o : m.second.outputs) {
-			std::cout << " -->" << o.typeId << "-OUT" << std::endl;
-			for (const auto &conn : o.connections) {
-				std::cout << "     -->" << conn.otherModule.get().id << "-COPY: " << conn.copyNeeded << std::endl;
-			}
+			std::cout << " -->" << o.first << " - " << o.second << "-POS_OUT" << std::endl;
 		}
 	}
 
