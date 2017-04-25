@@ -1690,8 +1690,8 @@ static int caerMainloopRunner(void) {
 	for (const auto &m : glMainloopData.modules) {
 		std::cout << m.second.id << "-MOD:" << m.second.libraryInfo->type << "-" << m.second.name << std::endl;
 
-		for (auto i : m.second.inputs) {
-			std::cout << " -->" << i << "-POS_IN" << std::endl;
+		for (const auto &i : m.second.inputs) {
+			std::cout << " -->" << i.first << " - " << i.second << "-POS_IN" << std::endl;
 		}
 
 		for (const auto &o : m.second.outputs) {
