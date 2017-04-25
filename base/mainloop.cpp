@@ -84,7 +84,7 @@ struct ModuleInfo {
 	// Parsed moduleInput configuration.
 	std::unordered_map<int16_t, std::vector<OrderedInput>> inputDefinition;
 	// Connectivity graph (I/O).
-	std::vector<std::pair<size_t, size_t>> inputs;
+	std::vector<std::pair<ssize_t, ssize_t>> inputs;
 	std::unordered_map<int16_t, ssize_t> outputs;
 	// Loadable module support.
 	const std::string library;
@@ -1233,16 +1233,59 @@ static void updateStreamUsersWithGlobalExecutionOrder() {
 	}
 }
 
-static void buildConnectivity(ModuleInfo &m) {
-	// Skip INPUT modules, they have no input to build and their output
-	// is already as built as possible by "looking ahead".
-	if (m.libraryInfo->type == CAER_MODULE_INPUT) {
-		return;
+static void buildConnectivity() {
+	struct ModuleSlots {
+		int16_t typeId;
+		int16_t afterModuleId;
+		size_t index;
+
+		ModuleSlots(int16_t t, int16_t a, size_t i) :
+				typeId(t),
+				afterModuleId(a),
+				index(i) {
+		}
+	};
+
+	std::unordered_map<int16_t, ModuleSlots> streamIndexes;
+
+	size_t nextFreeSlot = 0;
+
+	for (auto &m : glMainloopData.globalExecution) {
+		// INPUT module or PROCESSOR with data output defined.
+		if (m.get().libraryInfo->type == CAER_MODULE_INPUT
+			|| (m.get().libraryInfo->type == CAER_MODULE_PROCESSOR && m.get().libraryInfo->outputStreams != NULL)) {
+			for (auto &o : m.get().outputs) {
+				if (caerMainloopStreamExists(m.get().id, o.first)) {
+					// Update active outputs with a viable index.
+					o.second = static_cast<ssize_t>(nextFreeSlot);
+
+					// Put combination into indexes table.
+					streamIndexes[m.get().id] = ModuleSlots
+					ms(o.first, -1, nextFreeSlot);
+
+					// Increment index.
+					nextFreeSlot++;
+				}
+			}
+		}
+
+		// PROCESSOR module or OUTPUT (both must have data input defined).
+		if (m.get().libraryInfo->type == CAER_MODULE_PROCESSOR || m.get().libraryInfo->type == CAER_MODULE_OUTPUT) {
+			for (const auto &inputDef : m.get().inputDefinition) {
+				int16_t sourceId = inputDef.first;
+
+				for (const auto &orderIn : inputDef.second) {
+					if (orderIn.copyNeeded) {
+
+					}
+					else {
+						// Copy not needed, just use index from indexes table.
+
+					}
+				}
+			}
+		}
 	}
-
-	size_t freeSlot = 0;
-
-
 }
 
 // Small helper to unload libraries on error.
@@ -1625,9 +1668,7 @@ static int caerMainloopRunner(void) {
 		// all the input and output connections.
 		// TODO: detect processors that serve no purpose, ie. no output or unused
 		// output, as well as no further users of modified inputs.
-		for (auto &m : glMainloopData.globalExecution) {
-			buildConnectivity(m.get());
-		}
+		buildConnectivity();
 	}
 	catch (const std::exception &ex) {
 		// Cleanup modules and streams on exit.
@@ -1764,6 +1805,11 @@ bool caerMainloopModuleExists(int16_t id) {
 
 bool caerMainloopModuleIsType(int16_t id, enum caer_module_type type) {
 	return (glMainloopData.modules.at(id).libraryInfo->type == type);
+}
+
+bool caerMainloopStreamExists(int16_t sourceId, int16_t typeId) {
+	return (std::find(glMainloopData.streams.begin(), glMainloopData.streams.end(), ActiveStreams(sourceId, typeId))
+		!= glMainloopData.streams.end());
 }
 
 // Only use this inside the mainloop-thread, not inside any other thread,
