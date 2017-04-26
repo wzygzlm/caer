@@ -82,7 +82,6 @@ struct caer_module_data {
 	char *moduleSubSystemString;
 	atomic_uint_fast8_t moduleLogLevel;
 	atomic_uint_fast32_t doReset;
-	void *parentMainloop;
 };
 
 typedef struct caer_module_data *caerModuleData;
