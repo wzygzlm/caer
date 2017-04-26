@@ -16,6 +16,7 @@
 using atomic_bool = std::atomic_bool;
 using atomic_uint_fast8_t = std::atomic_uint_fast8_t;
 using atomic_uint_fast32_t = std::atomic_uint_fast32_t;
+using atomic_int_fast16_t = std::atomic_int_fast16_t;
 
 #else
 
@@ -73,15 +74,15 @@ typedef struct caer_event_stream_out const *caerEventStreamOut;
 #define CAER_EVENT_STREAM_OUT_SIZE(x) (sizeof(x) / sizeof(struct caer_event_stream_out))
 
 struct caer_module_data {
-	uint16_t moduleID;
+	int16_t moduleID;
 	sshsNode moduleNode;
 	enum caer_module_status moduleStatus;
 	atomic_bool running;
+	atomic_uint_fast8_t moduleLogLevel;
 	atomic_uint_fast32_t configUpdate;
+	atomic_int_fast16_t doReset;
 	void *moduleState;
 	char *moduleSubSystemString;
-	atomic_uint_fast8_t moduleLogLevel;
-	atomic_uint_fast32_t doReset;
 };
 
 typedef struct caer_module_data *caerModuleData;
@@ -91,7 +92,7 @@ struct caer_module_functions {
 	void (* const moduleRun)(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out);
 	void (* const moduleConfig)(caerModuleData moduleData); // Can be NULL.
 	void (* const moduleExit)(caerModuleData moduleData); // Can be NULL.
-	void (* const moduleReset)(caerModuleData moduleData, uint16_t resetCallSourceID); // Can be NULL.
+	void (* const moduleReset)(caerModuleData moduleData, int16_t resetCallSourceID); // Can be NULL.
 };
 
 typedef struct caer_module_functions const * caerModuleFunctions;
