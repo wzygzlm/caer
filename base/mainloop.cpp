@@ -1250,10 +1250,6 @@ static void buildConnectivity() {
 		bool operator==(const ModuleSlot &rhs) const noexcept {
 			return (typeId == rhs.typeId && afterModuleId == rhs.afterModuleId);
 		}
-
-		bool operator!=(const ModuleSlot &rhs) const noexcept {
-			return (typeId != rhs.typeId || afterModuleId != rhs.afterModuleId);
-		}
 	};
 
 	std::unordered_map<int16_t, std::vector<ModuleSlot>> streamIndexes;
@@ -1389,6 +1385,8 @@ static void buildConnectivity() {
 						// Update active inputs with a viable index.
 						m.get().inputs.push_back(std::make_pair(idx->index, -1));
 					}
+
+					std::sort(m.get().inputs.begin(), m.get().inputs.end());
 				}
 			}
 		}
@@ -1786,17 +1784,7 @@ static int caerMainloopRunner(void) {
 		return (EXIT_FAILURE);
 	}
 
-//	for (auto iter = processorModules.begin(); iter != processorModules.end();) {
-//		bool unconnected = false;
-//
-//		if (unconnected) {
-//			iter = processorModules.erase(iter);
-//		}
-//		else {
-//			++iter;
-//		}
-//	}
-
+	// Debug output.
 	std::cout << "Global order: ";
 	for (const auto &m : glMainloopData.globalExecution) {
 		std::cout << m.get().id << ", ";
