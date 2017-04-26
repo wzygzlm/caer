@@ -12,26 +12,32 @@
 #include "math.h"
 
 struct DSFilter_state {
-	bool swapXY;
-	bool rotate90deg;
-	bool invertX;
-	bool invertY;
-	float angleDeg;
+	float weight;
+	float tauMs;
+	simple2DBufferFloat neuronStateMap;
+	simple2DBufferLong neuronLasttMap;
+	simple2DBufferInt neuronIniMap;
 };
 
 typedef struct DSFilter_state *DSFilterState;
+
+static const float maxState = 1.0f;
+static const float MstoUs = 1000;
 
 static bool caerDepressingSynapsefilterInit(caerModuleData moduleData);
 static void caerDepressingSynapsefilterRun(caerModuleData moduleData, size_t argsNumber, va_list args);
 static void caerDepressingSynapsefilterConfig(caerModuleData moduleData);
 static void caerDepressingSynapsefilterExit(caerModuleData moduleData);
 static void caerDepressingSynapsefilterReset(caerModuleData moduleData, uint16_t resetCallSourceID);
-static void checkBoundary(int* x, int* y, int sizeX, int sizeY);
+static bool allocateNeuronStateMap(DSFilterState state, int16_t sourceID);
+static bool allocateNeuronLasttMap(DSFilterState state, int16_t sourceID);
+static bool allocateNeuronIniMap(DSFilterState state, int16_t sourceID);
+
 
 static struct caer_module_functions caerDepressingSynapsefilterFunctions = { .moduleInit = &caerDepressingSynapsefilterInit, .moduleRun = &caerDepressingSynapsefilterRun, .moduleConfig = &caerDepressingSynapsefilterConfig, .moduleExit = &caerDepressingSynapsefilterExit, .moduleReset = &caerDepressingSynapsefilterReset };
 
 void caerDepressingSynapseFilter(uint16_t moduleID, caerPolarityEventPacket polarity) {
-	caerModuleData moduleData = caerMainloopFindModule(moduleID, "DSFilter", CAER_MODULE_PROCESSOR);
+	caerModuleData moduleData = caerMainloopFindModule(moduleID, "DepressingFilter", CAER_MODULE_PROCESSOR);
 	if (moduleData == NULL) {
 		return;
 	}
@@ -39,19 +45,13 @@ void caerDepressingSynapseFilter(uint16_t moduleID, caerPolarityEventPacket pola
 }
 
 static bool caerDepressingSynapsefilterInit(caerModuleData moduleData) {
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "swapXY", false);
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "rotate90deg", false);
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "invertX", false);
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "invertY", false);
-	sshsNodePutFloatIfAbsent(moduleData->moduleNode, "angleDeg", 0.0f);
+	sshsNodePutFloatIfAbsent(moduleData->moduleNode, "weight", 0.001f);
+	sshsNodePutFloatIfAbsent(moduleData->moduleNode, "tauMs", 1000.0f);
 
-	RFilterState state = moduleData->moduleState;
+	DSFilterState state = moduleData->moduleState;
 
-	state->swapXY= sshsNodeGetBool(moduleData->moduleNode, "swapXY");
-	state->rotate90deg = sshsNodeGetBool(moduleData->moduleNode, "rotate90deg");
-	state->invertX = sshsNodeGetBool(moduleData->moduleNode, "invertX");
-	state->invertY = sshsNodeGetBool(moduleData->moduleNode, "invertY");
-	state->angleDeg = sshsNodeGetFloat(moduleData->moduleNode, "angleDeg");
+	state->weight= sshsNodeGetFloat(moduleData->moduleNode, "weight");
+	state->tauMs = sshsNodeGetFloat(moduleData->moduleNode, "tauMs");
 
 	// Add config listeners last, to avoid having them dangling if Init doesn't succeed.
 	sshsNodeAddAttributeListener(moduleData->moduleNode, moduleData, &caerModuleConfigDefaultListener);
@@ -69,7 +69,35 @@ static void caerDepressingSynapsefilterRun(caerModuleData moduleData, size_t arg
 		return;
 	}
 
-	RFilterState state = moduleData->moduleState;
+	DSFilterState state = moduleData->moduleState;
+
+	float tauUs = state->tauMs * MstoUs;
+
+	// If the map is not allocated yet, do it.
+	if (state->neuronStateMap == NULL) {
+		if (!allocateNeuronStateMap(state, caerEventPacketHeaderGetEventSource(&polarity->packetHeader))) {
+			// Failed to allocate memory, nothing to do.
+			caerLog(CAER_LOG_ERROR, moduleData->moduleSubSystemString, "Failed to allocate memory for timestampMap.");
+			return;
+		}
+	}
+
+	if (state->neuronLasttMap == NULL) {
+		if (!allocateNeuronLasttMap(state, caerEventPacketHeaderGetEventSource(&polarity->packetHeader))) {
+			// Failed to allocate memory, nothing to do.
+			caerLog(CAER_LOG_ERROR, moduleData->moduleSubSystemString, "Failed to allocate memory for timestampMap.");
+			return;
+		}
+	}
+
+	if (state->neuronIniMap == NULL) {
+		if (!allocateNeuronIniMap(state, caerEventPacketHeaderGetEventSource(&polarity->packetHeader))) {
+			// Failed to allocate memory, nothing to do.
+			caerLog(CAER_LOG_ERROR, moduleData->moduleSubSystemString, "Failed to allocate memory for timestampMap.");
+			return;
+		}
+	}
+
 
 	int16_t sourceID = caerEventPacketHeaderGetEventSource(&polarity->packetHeader);
 	sshsNode sourceInfoNodeCA = caerMainloopGetSourceInfo((uint16_t)sourceID);
@@ -96,78 +124,142 @@ static void caerDepressingSynapsefilterRun(caerModuleData moduleData, size_t arg
 		continue;
 	}
 
-	// do rotate
-	if (state->swapXY){
-		int newX = y;
-		int newY = x;
-		checkBoundary(&newX, &newY, sizeX, sizeY);
-		caerPolarityEventSetX(caerPolarityIteratorElement, newX);
-		caerPolarityEventSetY(caerPolarityIteratorElement, newY);
+	// update states
+	if (state->neuronIniMap->buffer2d[x][y] == 0){
+		state->neuronLasttMap->buffer2d[x][y] = ts;
+		state->neuronIniMap->buffer2d[x][y] = 1;
+	}
 
+	if (ts < state->neuronLasttMap->buffer2d[x][y]){
+		state->neuronIniMap->buffer2d[x][y] = 0;
+		state->neuronStateMap->buffer2d[x][y] = 0;
 	}
-	if (state->rotate90deg) {
-		int newX = (sizeY - y - 1);
-		int newY = x;
-		checkBoundary(&newX, &newY, sizeX, sizeY);
-		caerPolarityEventSetX(caerPolarityIteratorElement, newX);
-		caerPolarityEventSetY(caerPolarityIteratorElement, newY);
+
+	int64_t dt = ts - state->neuronLasttMap->buffer2d[x][y];
+	float delta = (float)dt / tauUs;
+	float expValue = delta > 20 ? 0 : (float) exp(-delta);
+	float newstate = (state->neuronStateMap->buffer2d[x][y] * expValue) + state->weight;
+	if (newstate > maxState){
+		newstate = maxState;
 	}
-	if (state->invertX) {
-		caerPolarityEventSetX(caerPolarityIteratorElement, (sizeX - x - 1));
+	bool spike = ((float)rand() / (float)RAND_MAX) > state->neuronStateMap->buffer2d[x][y];
+	if (!spike){
+		caerPolarityEventInvalidate(caerPolarityIteratorElement, polarity);
 	}
-	if (state->invertY) {
-		caerPolarityEventSetY(caerPolarityIteratorElement, (sizeY - y - 1));
-	}
-	if (state->angleDeg != 0.0f) {
-		float cosAng = cos(state->angleDeg * M_PI / 180.0f);
-		float sinAng = sin(state->angleDeg * M_PI / 180.0f);
-		int x2 = x - sizeX / 2;
-		int y2 = y - sizeY / 2;
-		int x3 = (int)(round(+cosAng * x2 - sinAng * y2));
-		int y3 = (int)(round(+sinAng * x2 + cosAng * y2));
-		int newX = x3 + sizeX / 2;
-		int newY = y3 + sizeY / 2;
-		checkBoundary(&newX, &newY, sizeX, sizeY);
-		caerPolarityEventSetX(caerPolarityIteratorElement, newX);
-		caerPolarityEventSetY(caerPolarityIteratorElement, newY);
-	}
+	state->neuronStateMap->buffer2d[x][y] = newstate;
+	state->neuronLasttMap->buffer2d[x][y] = ts;
 
 	CAER_POLARITY_ITERATOR_VALID_END
 
 }
 
-static void checkBoundary(int* x, int* y, int sizeX, int sizeY){
-	if (*x >= sizeX) {
-		*x = sizeX-1;
-	}
-	if (*x < 0){
-		*x = 0;
-	}
-	if (*y >= sizeY) {
-		*y = sizeY-1;
-	}
-	if (*y < 0){
-		*y = 0;
-	}
-}
 
 static void caerDepressingSynapsefilterConfig(caerModuleData moduleData) {
 	caerModuleConfigUpdateReset(moduleData);
 
-	RFilterState state = moduleData->moduleState;
-	state->swapXY= sshsNodeGetBool(moduleData->moduleNode, "swapXY");
-	state->rotate90deg = sshsNodeGetBool(moduleData->moduleNode, "rotate90deg");
-	state->invertX = sshsNodeGetBool(moduleData->moduleNode, "invertX");
-	state->invertY = sshsNodeGetBool(moduleData->moduleNode, "invertY");
-	state->angleDeg = sshsNodeGetFloat(moduleData->moduleNode, "angleDeg");
+	DSFilterState state = moduleData->moduleState;
+	state->weight= sshsNodeGetFloat(moduleData->moduleNode, "weight");
+	state->tauMs = sshsNodeGetFloat(moduleData->moduleNode, "tauMs");
 }
 
 static void caerDepressingSynapsefilterExit(caerModuleData moduleData) {
 	// Remove listener, which can reference invalid memory in userData.
 	sshsNodeRemoveAttributeListener(moduleData->moduleNode, moduleData, &caerModuleConfigDefaultListener);
 
+	DSFilterState state = moduleData->moduleState;
+
+	// Ensure map is freed.
+	simple2DBufferFreeLong(state->neuronLasttMap);
+	simple2DBufferFreeInt(state->neuronIniMap);
+	simple2DBufferFreeFloat(state->neuronStateMap);
 }
 
 static void caerDepressingSynapsefilterReset(caerModuleData moduleData, uint16_t resetCallSourceID) {
 	UNUSED_ARGUMENT(resetCallSourceID);
+
+	DSFilterState state = moduleData->moduleState;
+
+	// Ensure map is freed.
+	simple2DBufferFreeLong(state->neuronLasttMap);
+	simple2DBufferFreeInt(state->neuronIniMap);
+	simple2DBufferFreeFloat(state->neuronStateMap);
+}
+
+static bool allocateNeuronStateMap(DSFilterState state, int16_t sourceID) {
+	// Get size information from source.
+	sshsNode sourceInfoNode = caerMainloopGetSourceInfo(U16T(sourceID));
+	if (sourceInfoNode == NULL) {
+		// This should never happen, but we handle it gracefully.
+		caerLog(CAER_LOG_ERROR, __func__, "Failed to get source info to allocate neuronState map.");
+		return (false);
+	}
+
+	int16_t sizeX = sshsNodeGetShort(sourceInfoNode, "dvsSizeX");
+	int16_t sizeY = sshsNodeGetShort(sourceInfoNode, "dvsSizeY");
+
+	state->neuronStateMap = simple2DBufferInitFloat((size_t) sizeX, (size_t) sizeY);
+	if (state->neuronStateMap == NULL) {
+		return (false);
+	}
+
+	for (int i=0; i<sizeX; i++){
+		for (int j=0; j<sizeY; j++){
+			state->neuronStateMap->buffer2d[i][j] = 0.0f;
+		}
+	}
+
+	return (true);
+}
+
+static bool allocateNeuronLasttMap(DSFilterState state, int16_t sourceID) {
+	// Get size information from source.
+	sshsNode sourceInfoNode = caerMainloopGetSourceInfo(U16T(sourceID));
+	if (sourceInfoNode == NULL) {
+		// This should never happen, but we handle it gracefully.
+		caerLog(CAER_LOG_ERROR, __func__, "Failed to get source info to allocate neuronState map.");
+		return (false);
+	}
+
+	int16_t sizeX = sshsNodeGetShort(sourceInfoNode, "dvsSizeX");
+	int16_t sizeY = sshsNodeGetShort(sourceInfoNode, "dvsSizeY");
+
+	state->neuronLasttMap = simple2DBufferInitLong((size_t) sizeX, (size_t) sizeY);
+	if (state->neuronLasttMap == NULL) {
+		return (false);
+	}
+
+	for (int i=0; i<sizeX; i++){
+		for (int j=0; j<sizeY; j++){
+			state->neuronLasttMap->buffer2d[i][j] = 0;
+		}
+	}
+
+	return (true);
+}
+
+static bool allocateNeuronIniMap(DSFilterState state, int16_t sourceID) {
+	// Get size information from source.
+	sshsNode sourceInfoNode = caerMainloopGetSourceInfo(U16T(sourceID));
+	if (sourceInfoNode == NULL) {
+		// This should never happen, but we handle it gracefully.
+		caerLog(CAER_LOG_ERROR, __func__, "Failed to get source info to allocate neuronState map.");
+		return (false);
+	}
+
+	int16_t sizeX = sshsNodeGetShort(sourceInfoNode, "dvsSizeX");
+	int16_t sizeY = sshsNodeGetShort(sourceInfoNode, "dvsSizeY");
+
+	state->neuronIniMap = simple2DBufferInitInt((size_t) sizeX, (size_t) sizeY);
+
+	if (state->neuronIniMap == NULL) {
+		return (false);
+	}
+
+	for (int i=0; i<sizeX; i++){
+		for (int j=0; j<sizeY; j++){
+			state->neuronIniMap->buffer2d[i][j] = 0;
+		}
+	}
+
+	return (true);
 }
