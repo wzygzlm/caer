@@ -1293,9 +1293,12 @@ static void buildConnectivity() {
 						auto idx = std::find(indexes.begin(), indexes.end(),
 							ModuleSlot(orderIn.typeId, orderIn.afterModuleId, 0));
 						if (idx == indexes.end()) {
-							throw std::out_of_range(
-								"Cannot find valid index slot for module. "
-									"This should never happen, please report this to the developers and attach your XML configuration file.");
+							boost::format exMsg =
+								boost::format(
+									"Cannot find valid index slot for module '%s' (ID %d) on input definition [s: %d, t: %d, a: %d]. "
+										"This should never happen, please report this to the developers and attach your XML configuration file.")
+									% m.get().name % m.get().id % sourceId % orderIn.typeId % orderIn.afterModuleId;
+							throw std::out_of_range(exMsg.str());
 						}
 
 						m.get().inputs.push_back(std::make_pair(idx->index, -1));
