@@ -115,6 +115,7 @@ typedef struct caer_module_info const * caerModuleInfo;
 caerModuleInfo caerModuleGetInfo(void);
 
 // Functions available to call:
+void caerModuleLog(caerModuleData moduleData, enum caer_log_level logLevel, const char *format, ...) ATTRIBUTE_FORMAT(3);
 bool caerModuleSetSubSystemString(caerModuleData moduleData, const char *subSystemString);
 void caerModuleConfigUpdateReset(caerModuleData moduleData);
 void caerModuleConfigDefaultListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,

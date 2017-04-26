@@ -9,7 +9,6 @@
 #define LOG_H_
 
 #include "main.h"
-#include "module.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -18,7 +17,6 @@ extern "C" {
 extern int CAER_LOG_FILE_FD;
 
 void caerLogInit(void);
-void caerLogModule(caerModuleData moduleData, enum caer_log_level logLevel, const char *format, ...) ATTRIBUTE_FORMAT(3);
 
 #ifdef __cplusplus
 }

@@ -189,6 +189,15 @@ void caerModuleConfigDefaultListener(sshsNode node, void *userData, enum sshs_no
 	}
 }
 
+void caerModuleLog(caerModuleData moduleData, enum caer_log_level logLevel, const char *format, ...) {
+	va_list argumentList;
+	va_start(argumentList, format);
+	caerLogVAFull(caerLogFileDescriptorsGetFirst(), caerLogFileDescriptorsGetSecond(),
+		atomic_load_explicit(&moduleData->moduleLogLevel, memory_order_relaxed), logLevel,
+		moduleData->moduleSubSystemString, format, argumentList);
+	va_end(argumentList);
+}
+
 static void caerModuleShutdownListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue) {
 	UNUSED_ARGUMENT(node);
