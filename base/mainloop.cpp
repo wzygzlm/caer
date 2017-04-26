@@ -1234,25 +1234,28 @@ static void updateStreamUsersWithGlobalExecutionOrder() {
 }
 
 static void buildConnectivity() {
-	struct ModuleSlots {
+	struct ModuleSlot {
 		int16_t typeId;
 		int16_t afterModuleId;
 		size_t index;
 
-		ModuleSlots() :
-				typeId(-1),
-				afterModuleId(-1),
-				index(-1) {
-		}
-
-		ModuleSlots(int16_t t, int16_t a, size_t i) :
+		ModuleSlot(int16_t t, int16_t a, size_t i) :
 				typeId(t),
 				afterModuleId(a),
 				index(i) {
 		}
+
+		// Comparison operators (std::find() support).
+		bool operator==(const ModuleSlot &rhs) const noexcept {
+			return (typeId == rhs.typeId && afterModuleId == rhs.afterModuleId);
+		}
+
+		bool operator!=(const ModuleSlot &rhs) const noexcept {
+			return (typeId != rhs.typeId || afterModuleId != rhs.afterModuleId);
+		}
 	};
 
-	std::unordered_map<int16_t, ModuleSlots> streamIndexes;
+	std::unordered_map<int16_t, std::vector<ModuleSlot>> streamIndexes;
 
 	size_t nextFreeSlot = 0;
 
@@ -1266,7 +1269,7 @@ static void buildConnectivity() {
 					o.second = static_cast<ssize_t>(nextFreeSlot);
 
 					// Put combination into indexes table.
-					streamIndexes[m.get().id] = ModuleSlots(o.first, -1, nextFreeSlot);
+					streamIndexes[m.get().id].push_back(ModuleSlot(o.first, -1, nextFreeSlot));
 
 					// Increment index.
 					nextFreeSlot++;
@@ -1285,7 +1288,17 @@ static void buildConnectivity() {
 					}
 					else {
 						// Copy not needed, just use index from indexes table.
+						auto indexes = streamIndexes[sourceId];
 
+						auto idx = std::find(indexes.begin(), indexes.end(),
+							ModuleSlot(orderIn.typeId, orderIn.afterModuleId, 0));
+						if (idx == indexes.end()) {
+							throw std::out_of_range(
+								"Cannot find valid index slot for module. "
+									"This should never happen, please report this to the developers and attach your XML configuration file.");
+						}
+
+						m.get().inputs.push_back(std::make_pair(idx->index, -1));
 					}
 				}
 			}
