@@ -1196,9 +1196,9 @@ static void mergeActiveStreamDeps() {
 		}
 	}
 
-	// TODO: the final traversal order shoult try to take into account data copies.
+	// TODO: the final traversal order should try to take into account data copies.
 	// To do so, for each depth-level, module IDs should be ordered by how many
-	// inputs with copyNeeded=true they have. If same number, simple integer sort.
+	// inputs with copyNeeded=true they have. If same number, simple integer sort on ID.
 	// This might be implemented efficiently with an std::multimap.
 
 	// Publish result to global module execution order.
@@ -1232,6 +1232,53 @@ static void updateStreamUsersWithGlobalExecutionOrder() {
 			}
 		}
 	}
+}
+
+static bool isOutputBeingUsed(int16_t sourceId, int16_t typeId, int16_t afterModuleId, int16_t currModuleId,
+	const std::string &currModuleName) {
+	const auto streamUsers = std::find(glMainloopData.streams.begin(), glMainloopData.streams.end(),
+		ActiveStreams(sourceId, typeId));
+
+	if (streamUsers == glMainloopData.streams.end()) {
+		boost::format exMsg =
+			boost::format(
+				"Cannot find valid active event stream for module '%s' (ID %d) on input definition [s: %d, t: %d, a: %d]. "
+					"This should never happen, please report this to the developers and attach your XML configuration file.")
+				% currModuleName % currModuleId % sourceId % typeId % afterModuleId;
+		throw std::out_of_range(exMsg.str());
+	}
+
+	// Find current module ID in stream users and get iterator.
+	auto currUser = std::find(streamUsers->users.begin(), streamUsers->users.end(), currModuleId);
+
+	if (currUser == streamUsers->users.end()) {
+		boost::format exMsg =
+			boost::format(
+				"Cannot find valid user in event stream for module '%s' (ID %d) on input definition [s: %d, t: %d, a: %d]. "
+					"This should never happen, please report this to the developers and attach your XML configuration file.")
+				% currModuleName % currModuleId % sourceId % typeId % afterModuleId;
+		throw std::out_of_range(exMsg.str());
+	}
+
+	// Advance iterator to next position, since we want to check
+	// all modules that come after this one in order. If this
+	// was the last module, this will advance to the end() iterator.
+	currUser++;
+
+	// Now search in the remaining modules if any need the exact
+	// same data (sourceId, typeId, afterModuleId) that the
+	// current module does. If yes, it will have to be copied.
+	const auto nextUser = std::find_if(currUser, streamUsers->users.end(),
+		[sourceId, typeId, afterModuleId](const int16_t userId) {
+			const auto &nextUserInputDef = glMainloopData.modules[userId].inputDefinition[sourceId];
+
+			return (std::find_if(nextUserInputDef.begin(), nextUserInputDef.end(),
+					[typeId, afterModuleId](const OrderedInput &nextUserOrderIn) {
+						return (nextUserOrderIn.typeId ==typeId && nextUserOrderIn.afterModuleId == afterModuleId);
+					}) != nextUserInputDef.end());
+		});
+
+	return (nextUser != streamUsers->users.end());
 }
 
 static void buildConnectivity() {
@@ -1285,48 +1332,6 @@ static void buildConnectivity() {
 						// any other modules in this stream that come later on have
 						// an input definition that requires exactly this data.
 						// If yes, we must do the copy. Tables updated accordingly.
-						const auto streamUsers = std::find(glMainloopData.streams.begin(), glMainloopData.streams.end(),
-							ActiveStreams(sourceId, orderIn.typeId));
-
-						if (streamUsers == glMainloopData.streams.end()) {
-							boost::format exMsg =
-								boost::format(
-									"Cannot find valid active event stream for module '%s' (ID %d) on input definition [s: %d, t: %d, a: %d]. "
-										"This should never happen, please report this to the developers and attach your XML configuration file.")
-									% m.get().name % m.get().id % sourceId % orderIn.typeId % orderIn.afterModuleId;
-							throw std::out_of_range(exMsg.str());
-						}
-
-						// Find current module ID in stream users and get iterator.
-						auto currUser = std::find(streamUsers->users.begin(), streamUsers->users.end(), m.get().id);
-
-						if (currUser == streamUsers->users.end()) {
-							boost::format exMsg =
-								boost::format(
-									"Cannot find valid user in event stream for module '%s' (ID %d) on input definition [s: %d, t: %d, a: %d]. "
-										"This should never happen, please report this to the developers and attach your XML configuration file.")
-									% m.get().name % m.get().id % sourceId % orderIn.typeId % orderIn.afterModuleId;
-							throw std::out_of_range(exMsg.str());
-						}
-
-						// Advance iterator to next position, since we want to check
-						// all modules that come after this one in order.
-						currUser++;
-
-						// Now search in the remaining modules if any need the exact
-						// same data (sourceId, typeId, afterModuleId) that the
-						// current module does. If yes, it will have to be copied.
-						const auto nextUser =
-							std::find_if(currUser, streamUsers->users.end(),
-								[sourceId, &orderIn](const int16_t userId) {
-									const auto &nextUserInputDef = glMainloopData.modules[userId].inputDefinition[sourceId];
-
-									return (std::find_if(nextUserInputDef.begin(), nextUserInputDef.end(),
-											[&orderIn](const OrderedInput &nextUserOrderIn) {
-												return (nextUserOrderIn.typeId == orderIn.typeId && nextUserOrderIn.afterModuleId == orderIn.afterModuleId);
-											}) != nextUserInputDef.end());
-								});
-
 						// Get old slot from indexes.
 						auto &indexes = streamIndexes[sourceId];
 
@@ -1342,7 +1347,8 @@ static void buildConnectivity() {
 							throw std::out_of_range(exMsg.str());
 						}
 
-						if (nextUser == streamUsers->users.end()) {
+						if (!isOutputBeingUsed(sourceId, orderIn.typeId, orderIn.afterModuleId, m.get().id,
+							m.get().name)) {
 							// Nobody else needs this data, use it directly.
 							// Update active inputs with a viable index.
 							m.get().inputs.push_back(std::make_pair(idx->index, -1));
@@ -1411,6 +1417,8 @@ static void cleanupGlobals() {
 	glMainloopData.modules.clear();
 	glMainloopData.streams.clear();
 	glMainloopData.globalExecution.clear();
+
+	glMainloopData.copyCount = 0;
 }
 
 static int caerMainloopRunner(void) {
@@ -1771,9 +1779,67 @@ static int caerMainloopRunner(void) {
 		// have all the starting points. Since we do have a global execution order
 		// (see above), we can just visit the modules in that order and build
 		// all the input and output connections.
-		// TODO: detect processors that serve no purpose, ie. no output or unused
-		// output, as well as no further users of modified inputs.
 		buildConnectivity();
+
+		// Last check: detect processors that serve no purpose, ie. no output or
+		// unused output, as well as no further users of modified inputs.
+		for (const auto &m : processorModules) {
+			bool outputsInUse = false;
+
+			for (const auto &output : m.get().outputs) {
+				// If output unused, this is -1, else 0 or up.
+				if (output.second >= 0) {
+					outputsInUse = true;
+					break;
+				}
+			}
+
+			// If output is in use, we're good. If outputs don't actually exist,
+			// this will be false too, as well as if they exist but are unused.
+			if (outputsInUse) {
+				// Go to check next module, this one is fine.
+				continue;
+			}
+
+			// Now that we've determined no outputs are in use, we can hope at
+			// least one of the modified input data streams is being used by
+			// some other module. If this is not the case, nobody is using any
+			// of the things this processor produces: that is a user error.
+			bool modifiedInputsInUse = false;
+
+			for (const auto &inputDef : m.get().inputDefinition) {
+				int16_t sourceId = inputDef.first;
+
+				for (const auto &orderIn : inputDef.second) {
+					if (orderIn.copyNeeded) {
+						// This is an input that gets modified. Is it being used?
+						int16_t typeId = orderIn.typeId;
+						int16_t afterModuleId = orderIn.afterModuleId;
+
+						if (isOutputBeingUsed(sourceId, typeId, afterModuleId, m.get().id, m.get().name)) {
+							modifiedInputsInUse = true;
+							break;
+						}
+					}
+				}
+
+				if (modifiedInputsInUse) {
+					break;
+				}
+			}
+
+			if (modifiedInputsInUse) {
+				// Go to check next module, this one is fine.
+				continue;
+			}
+
+			// Throw error!
+			boost::format exMsg =
+				boost::format(
+					"Module '%s': none of the outputs or modified inputs of this PROCESSOR module are used anywhere as inputs.")
+					% m.get().name;
+			throw std::domain_error(exMsg.str());
+		}
 	}
 	catch (const std::exception &ex) {
 		// Cleanup modules and streams on exit.
