@@ -90,6 +90,8 @@ struct ModuleInfo {
 	const std::string library;
 	ModuleLibrary libraryHandle;
 	caerModuleInfo libraryInfo;
+	// Module runtime data.
+	caerModuleData runtimeData;
 
 	ModuleInfo() :
 			id(-1),
@@ -97,7 +99,8 @@ struct ModuleInfo {
 			configNode(nullptr),
 			library(),
 			libraryHandle(),
-			libraryInfo(nullptr) {
+			libraryInfo(nullptr),
+			runtimeData(nullptr) {
 	}
 
 	ModuleInfo(int16_t i, const std::string &n, sshsNode c, const std::string &l) :
@@ -106,7 +109,8 @@ struct ModuleInfo {
 			configNode(c),
 			library(l),
 			libraryHandle(),
-			libraryInfo(nullptr) {
+			libraryInfo(nullptr),
+			runtimeData(nullptr) {
 	}
 };
 
@@ -1975,18 +1979,8 @@ bool caerMainloopStreamExists(int16_t sourceId, int16_t typeId) {
 		!= glMainloopData.streams.end());
 }
 
-// Only use this inside the mainloop-thread, not inside any other thread,
-// like additional data acquisition threads or output threads.
-void caerMainloopFreeAfterLoop(void (*func)(void *mem), void *memPtr) {
-
-}
-
-static inline caerModuleData findSourceModule(uint16_t sourceID) {
-
-}
-
-sshsNode caerMainloopGetSourceNode(uint16_t sourceID) {
-	caerModuleData moduleData = findSourceModule(sourceID);
+sshsNode caerMainloopGetSourceNode(int16_t sourceID) {
+	caerModuleData moduleData = glMainloopData.modules[sourceID].runtimeData;
 	if (moduleData == NULL) {
 		return (NULL);
 	}
@@ -1994,7 +1988,7 @@ sshsNode caerMainloopGetSourceNode(uint16_t sourceID) {
 	return (moduleData->moduleNode);
 }
 
-sshsNode caerMainloopGetSourceInfo(uint16_t sourceID) {
+sshsNode caerMainloopGetSourceInfo(int16_t sourceID) {
 	sshsNode sourceNode = caerMainloopGetSourceNode(sourceID);
 	if (sourceNode == NULL) {
 		return (NULL);
@@ -2004,8 +1998,8 @@ sshsNode caerMainloopGetSourceInfo(uint16_t sourceID) {
 	return (sshsGetRelativeNode(sourceNode, "sourceInfo/"));
 }
 
-void *caerMainloopGetSourceState(uint16_t sourceID) {
-	caerModuleData moduleData = findSourceModule(sourceID);
+void *caerMainloopGetSourceState(int16_t sourceID) {
+	caerModuleData moduleData = glMainloopData.modules[sourceID].runtimeData;
 	if (moduleData == NULL) {
 		return (NULL);
 	}
@@ -2013,16 +2007,28 @@ void *caerMainloopGetSourceState(uint16_t sourceID) {
 	return (moduleData->moduleState);
 }
 
-void caerMainloopResetInputs(uint16_t sourceID) {
-
+void caerMainloopResetInputs(int16_t sourceID) {
+	for (auto &m : glMainloopData.globalExecution) {
+		if (m.get().libraryInfo->type == CAER_MODULE_INPUT) {
+			m.get().runtimeData->doReset.store(sourceID);
+		}
+	}
 }
 
-void caerMainloopResetOutputs(uint16_t sourceID) {
-
+void caerMainloopResetOutputs(int16_t sourceID) {
+	for (auto &m : glMainloopData.globalExecution) {
+		if (m.get().libraryInfo->type == CAER_MODULE_OUTPUT) {
+			m.get().runtimeData->doReset.store(sourceID);
+		}
+	}
 }
 
-void caerMainloopResetProcessors(uint16_t sourceID) {
-
+void caerMainloopResetProcessors(int16_t sourceID) {
+	for (auto &m : glMainloopData.globalExecution) {
+		if (m.get().libraryInfo->type == CAER_MODULE_PROCESSOR) {
+			m.get().runtimeData->doReset.store(sourceID);
+		}
+	}
 }
 
 static void caerMainloopSignalHandler(int signal) {
