@@ -1239,6 +1239,12 @@ static void buildConnectivity() {
 		int16_t afterModuleId;
 		size_t index;
 
+		ModuleSlots() :
+				typeId(-1),
+				afterModuleId(-1),
+				index(-1) {
+		}
+
 		ModuleSlots(int16_t t, int16_t a, size_t i) :
 				typeId(t),
 				afterModuleId(a),
@@ -1260,8 +1266,7 @@ static void buildConnectivity() {
 					o.second = static_cast<ssize_t>(nextFreeSlot);
 
 					// Put combination into indexes table.
-					streamIndexes[m.get().id] = ModuleSlots
-					ms(o.first, -1, nextFreeSlot);
+					streamIndexes[m.get().id] = ModuleSlots(o.first, -1, nextFreeSlot);
 
 					// Increment index.
 					nextFreeSlot++;
