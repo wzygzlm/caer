@@ -43,9 +43,9 @@ struct OrderedInput {
 	int16_t afterModuleId;
 	bool copyNeeded;
 
-	OrderedInput(int16_t t, int16_t m) :
+	OrderedInput(int16_t t, int16_t a) :
 			typeId(t),
-			afterModuleId(m),
+			afterModuleId(a),
 			copyNeeded(false) {
 	}
 
@@ -1271,7 +1271,7 @@ static void buildConnectivity() {
 					// Put combination into indexes table.
 					streamIndexes[m.get().id].push_back(ModuleSlot(o.first, -1, nextFreeSlot));
 
-					// Increment index.
+					// Increment next free index.
 					nextFreeSlot++;
 				}
 			}
@@ -1284,14 +1284,58 @@ static void buildConnectivity() {
 
 				for (const auto &orderIn : inputDef.second) {
 					if (orderIn.copyNeeded) {
+						// Copy needed (in theory), to make sure we first check if
+						// any other modules in this stream that come later on have
+						// an input definition that requires exactly this data.
+						// If yes, we must do the copy. Tables updated accordingly.
+						const auto streamUsers = std::find(glMainloopData.streams.begin(), glMainloopData.streams.end(),
+							ActiveStreams(sourceId, orderIn.typeId));
 
-					}
-					else {
-						// Copy not needed, just use index from indexes table.
-						auto indexes = streamIndexes[sourceId];
+						if (streamUsers == glMainloopData.streams.end()) {
+							boost::format exMsg =
+								boost::format(
+									"Cannot find valid active event stream for module '%s' (ID %d) on input definition [s: %d, t: %d, a: %d]. "
+										"This should never happen, please report this to the developers and attach your XML configuration file.")
+									% m.get().name % m.get().id % sourceId % orderIn.typeId % orderIn.afterModuleId;
+							throw std::out_of_range(exMsg.str());
+						}
 
-						auto idx = std::find(indexes.begin(), indexes.end(),
+						// Find current module ID in stream users and get iterator.
+						auto currUser = std::find(streamUsers->users.begin(), streamUsers->users.end(), m.get().id);
+
+						if (currUser == streamUsers->users.end()) {
+							boost::format exMsg =
+								boost::format(
+									"Cannot find valid user in event stream for module '%s' (ID %d) on input definition [s: %d, t: %d, a: %d]. "
+										"This should never happen, please report this to the developers and attach your XML configuration file.")
+									% m.get().name % m.get().id % sourceId % orderIn.typeId % orderIn.afterModuleId;
+							throw std::out_of_range(exMsg.str());
+						}
+
+						// Advance iterator to next position, since we want to check
+						// all modules that come after this one in order.
+						currUser++;
+
+						// Now search in the remaining modules if any need the exact
+						// same data (sourceId, typeId, afterModuleId) that the
+						// current module does. If yes, it will have to be copied.
+						const auto nextUser =
+							std::find_if(currUser, streamUsers->users.end(),
+								[sourceId, &orderIn](const int16_t userId) {
+									const auto &nextUserInputDef = glMainloopData.modules[userId].inputDefinition[sourceId];
+
+									return (std::find_if(nextUserInputDef.begin(), nextUserInputDef.end(),
+											[&orderIn](const OrderedInput &nextUserOrderIn) {
+												return (nextUserOrderIn.typeId == orderIn.typeId && nextUserOrderIn.afterModuleId == orderIn.afterModuleId);
+											}) != nextUserInputDef.end());
+								});
+
+						// Get old slot from indexes.
+						auto &indexes = streamIndexes[sourceId];
+
+						const auto idx = std::find(indexes.begin(), indexes.end(),
 							ModuleSlot(orderIn.typeId, orderIn.afterModuleId, 0));
+
 						if (idx == indexes.end()) {
 							boost::format exMsg =
 								boost::format(
@@ -1301,6 +1345,44 @@ static void buildConnectivity() {
 							throw std::out_of_range(exMsg.str());
 						}
 
+						if (nextUser == streamUsers->users.end()) {
+							// Nobody else needs this data, use it directly.
+							// Update active inputs with a viable index.
+							m.get().inputs.push_back(std::make_pair(idx->index, -1));
+
+							// Put combination into indexes table.
+							indexes.push_back(ModuleSlot(orderIn.typeId, m.get().id, idx->index));
+						}
+						else {
+							// Others need this data, copy it.
+							// Update active inputs with a viable index, use the
+							// next free one and set copyFrom index to the old one.
+							m.get().inputs.push_back(std::make_pair(nextFreeSlot, idx->index));
+
+							// Put combination into indexes table.
+							indexes.push_back(ModuleSlot(orderIn.typeId, m.get().id, nextFreeSlot));
+
+							// Increment next free index.
+							nextFreeSlot++;
+						}
+					}
+					else {
+						// Copy not needed, just use index from indexes table.
+						const auto &indexes = streamIndexes[sourceId];
+
+						const auto idx = std::find(indexes.begin(), indexes.end(),
+							ModuleSlot(orderIn.typeId, orderIn.afterModuleId, 0));
+
+						if (idx == indexes.end()) {
+							boost::format exMsg =
+								boost::format(
+									"Cannot find valid index slot for module '%s' (ID %d) on input definition [s: %d, t: %d, a: %d]. "
+										"This should never happen, please report this to the developers and attach your XML configuration file.")
+									% m.get().name % m.get().id % sourceId % orderIn.typeId % orderIn.afterModuleId;
+							throw std::out_of_range(exMsg.str());
+						}
+
+						// Update active inputs with a viable index.
 						m.get().inputs.push_back(std::make_pair(idx->index, -1));
 					}
 				}
