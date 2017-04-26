@@ -203,6 +203,7 @@ static struct {
 	atomic_bool systemRunning;
 	atomic_bool running;
 	atomic_uint_fast32_t dataAvailable;
+	size_t copyCount;
 	std::unordered_map<int16_t, ModuleInfo> modules;
 	std::vector<ActiveStreams> streams;
 	std::vector<std::reference_wrapper<ModuleInfo>> globalExecution;
@@ -1364,6 +1365,9 @@ static void buildConnectivity() {
 
 							// Increment next free index.
 							nextFreeSlot++;
+
+							// Globally count number of data copies needed in a run.
+							glMainloopData.copyCount++;
 						}
 					}
 					else {
@@ -1808,15 +1812,17 @@ static int caerMainloopRunner(void) {
 		printDeps(st.dependencies);
 	}
 
-	for (const auto &m : glMainloopData.modules) {
-		std::cout << m.second.id << "-MOD:" << m.second.libraryInfo->type << "-" << m.second.name << std::endl;
+	std::cout << "Global copy count: " << glMainloopData.copyCount << std::endl;
 
-		for (const auto &i : m.second.inputs) {
-			std::cout << " -->" << i.first << " - " << i.second << "-POS_IN" << std::endl;
+	for (const auto &m : glMainloopData.globalExecution) {
+		std::cout << m.get().id << "-MOD: " << m.get().libraryInfo->type << " - " << m.get().name << std::endl;
+
+		for (const auto &i : m.get().inputs) {
+			std::cout << " --> " << i.first << " - " << i.second << " - POS_IN" << std::endl;
 		}
 
-		for (const auto &o : m.second.outputs) {
-			std::cout << " -->" << o.first << " - " << o.second << "-POS_OUT" << std::endl;
+		for (const auto &o : m.get().outputs) {
+			std::cout << " --> " << o.first << " - " << o.second << " - POS_OUT" << std::endl;
 		}
 	}
 
