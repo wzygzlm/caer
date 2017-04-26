@@ -787,7 +787,8 @@ int64_t sshsNodeGetLong(sshsNode node, const char *key) {
 void sshsNodeCreateFloat(sshsNode node, const char *key, float defaultValue, float minValue, float maxValue,
 	enum sshs_node_attr_flags flags) {
 	sshsNodeCreateAttribute(node, key, SSHS_FLOAT, (union sshs_node_attr_value ) { .ffloat = defaultValue },
-		(union sshs_node_attr_range ) { .d = minValue }, (union sshs_node_attr_range ) { .d = maxValue }, flags);
+		(union sshs_node_attr_range ) { .d = (double) minValue }, (union sshs_node_attr_range ) { .d =
+					(double) maxValue }, flags);
 }
 
 void sshsNodePutFloat(sshsNode node, const char *key, float value) {
@@ -1180,6 +1181,9 @@ bool sshsNodeStringToNodeConverter(sshsNode node, const char *key, const char *t
 		result = sshsNodePutAttribute(node, key, type, value);
 	}
 	else {
+		// Create never fails!
+		result = true;
+
 		switch (type) {
 			case SSHS_BOOL:
 				sshsNodeCreateBool(node, key, value.boolean, SSHS_FLAGS_READ_ONLY);
@@ -1212,10 +1216,11 @@ bool sshsNodeStringToNodeConverter(sshsNode node, const char *key, const char *t
 			case SSHS_STRING:
 				sshsNodeCreateString(node, key, value.string, 0, SIZE_MAX, SSHS_FLAGS_READ_ONLY);
 				break;
-		}
 
-		// Create never fails!
-		result = true;
+			case SSHS_UNKNOWN:
+				result = false;
+				break;
+		}
 	}
 
 	// Free string copy from helper.
