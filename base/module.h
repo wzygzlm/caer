@@ -121,6 +121,12 @@ void caerModuleConfigUpdateReset(caerModuleData moduleData);
 void caerModuleConfigDefaultListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
 
+// Functions for mainloop:
+void caerModuleSM(caerModuleFunctions moduleFunctions, caerModuleData moduleData, size_t memSize,
+	caerEventPacketContainer in, caerEventPacketContainer *out);
+caerModuleData caerModuleInitialize(int16_t moduleID, const char *moduleName, sshsNode moduleNode);
+void caerModuleDestroy(caerModuleData moduleData);
+
 #ifdef __cplusplus
 }
 #endif

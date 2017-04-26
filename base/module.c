@@ -32,8 +32,8 @@ void caerModuleSM(caerModuleFunctions moduleFunctions, caerModuleData moduleData
 		if (atomic_load_explicit(&moduleData->doReset, memory_order_relaxed) != 0) {
 			if (moduleFunctions->moduleReset != NULL) {
 				// Call reset function. 'doReset' variable reset is done here.
-				uint32_t resetCallSourceID = U32T(atomic_exchange(&moduleData->doReset, 0));
-				moduleFunctions->moduleReset(moduleData, U16T(resetCallSourceID));
+				int16_t resetCallSourceID = I16T(atomic_exchange(&moduleData->doReset, 0));
+				moduleFunctions->moduleReset(moduleData, resetCallSourceID);
 			}
 		}
 	}
@@ -72,50 +72,34 @@ void caerModuleSM(caerModuleFunctions moduleFunctions, caerModuleData moduleData
 	}
 }
 
-caerModuleData caerModuleInitialize(uint16_t moduleID, const char *moduleShortName, sshsNode mainloopNode) {
-	// Generate short module name with ID, reused in all error messages and later code.
-	size_t nameLength = (size_t) snprintf(NULL, 0, "%" PRIu16 "-%s", moduleID, moduleShortName);
-	char nameString[nameLength + 1];
-	snprintf(nameString, nameLength + 1, "%" PRIu16 "-%s", moduleID, moduleShortName);
-
+caerModuleData caerModuleInitialize(int16_t moduleID, const char *moduleName, sshsNode moduleNode) {
 	// Allocate memory for the module.
 	caerModuleData moduleData = calloc(1, sizeof(struct caer_module_data));
 	if (moduleData == NULL) {
-		caerLog(CAER_LOG_ALERT, nameString, "Failed to allocate memory for module. Error: %d.", errno);
+		caerLog(CAER_LOG_ALERT, moduleName, "Failed to allocate memory for module. Error: %d.", errno);
 		return (NULL);
 	}
 
-	// Set module ID for later identification (hash-table key).
+	// Set module ID for later identification (used as quick key often).
 	moduleData->moduleID = moduleID;
+
+	// Set configuration node (so it's user accessible).
+	moduleData->moduleNode = moduleNode;
 
 	// Put module into startup state. 'running' flag is updated later based on user startup wishes.
 	moduleData->moduleStatus = CAER_MODULE_STOPPED;
 
-	// Determine SSHS module node. Use short name for better human recognition.
-	char sshsString[nameLength + 2];
-	strncpy(sshsString, nameString, nameLength);
-	sshsString[nameLength] = '/';
-	sshsString[nameLength + 1] = '\0';
-
-	// Initialize configuration.
-	moduleData->moduleNode = sshsGetRelativeNode(mainloopNode, sshsString);
-	if (moduleData->moduleNode == NULL) {
-		free(moduleData);
-
-		caerLog(CAER_LOG_ALERT, nameString, "Failed to allocate configuration node for module.");
-		return (NULL);
-	}
-
 	// Setup default full log string name.
+	size_t nameLength = strlen(moduleName);
 	moduleData->moduleSubSystemString = malloc(nameLength + 1);
 	if (moduleData->moduleSubSystemString == NULL) {
 		free(moduleData);
 
-		caerLog(CAER_LOG_ALERT, nameString, "Failed to allocate subsystem string for module.");
+		caerLog(CAER_LOG_ALERT, moduleName, "Failed to allocate subsystem string for module.");
 		return (NULL);
 	}
 
-	strncpy(moduleData->moduleSubSystemString, nameString, nameLength);
+	strncpy(moduleData->moduleSubSystemString, moduleName, nameLength);
 	moduleData->moduleSubSystemString[nameLength] = '\0';
 
 	// Per-module log level support.
@@ -141,6 +125,7 @@ caerModuleData caerModuleInitialize(uint16_t moduleID, const char *moduleShortNa
 void caerModuleDestroy(caerModuleData moduleData) {
 	// Remove listener, which can reference invalid memory in userData.
 	sshsNodeRemoveAttributeListener(moduleData->moduleNode, moduleData, &caerModuleShutdownListener);
+	sshsNodeRemoveAttributeListener(moduleData->moduleNode, moduleData, &caerModuleLogLevelListener);
 
 	// Deallocate module memory. Module state has already been destroyed.
 	free(moduleData->moduleSubSystemString);
