@@ -183,7 +183,7 @@ static void caerCameraCalibrationRun(caerModuleData moduleData, caerEventPacketC
 
 		// At this point we must have a valid source ID.
 		// Get size information from source.
-		sshsNode sourceInfoNode = caerMainloopGetSourceInfo(U16T(sourceID));
+		sshsNode sourceInfoNode = caerMainloopGetSourceInfo(sourceID);
 		if (sourceInfoNode == NULL) {
 			// This should never happen, but we handle it gracefully.
 			caerLog(CAER_LOG_ERROR, moduleData->moduleSubSystemString,

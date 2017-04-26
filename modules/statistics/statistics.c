@@ -6,7 +6,7 @@ static bool caerStatisticsInit(caerModuleData moduleData);
 static void caerStatisticsRun(caerModuleData moduleData, caerEventPacketContainer in,
 	caerEventPacketContainer *out);
 static void caerStatisticsExit(caerModuleData moduleData);
-static void caerStatisticsReset(caerModuleData moduleData, uint16_t resetCallSourceID);
+static void caerStatisticsReset(caerModuleData moduleData, int16_t resetCallSourceID);
 
 static const struct caer_module_functions StatisticsFunctions = { .moduleInit = &caerStatisticsInit, .moduleRun =
 	&caerStatisticsRun, .moduleConfig = NULL, .moduleExit = &caerStatisticsExit, .moduleReset = &caerStatisticsReset };
@@ -51,7 +51,7 @@ static void caerStatisticsExit(caerModuleData moduleData) {
 	caerStatisticsStringExit(state);
 }
 
-static void caerStatisticsReset(caerModuleData moduleData, uint16_t resetCallSourceID) {
+static void caerStatisticsReset(caerModuleData moduleData, int16_t resetCallSourceID) {
 	UNUSED_ARGUMENT(resetCallSourceID);
 
 	caerStatisticsState state = moduleData->moduleState;

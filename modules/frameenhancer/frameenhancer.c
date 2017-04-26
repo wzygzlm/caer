@@ -133,8 +133,6 @@ static void caerFrameEnhancerRun(caerModuleData moduleData, caerEventPacketConta
 		}
 
 		caerEventPacketContainerSetEventPacket(*out, 0, (caerEventPacketHeader) enhancedFrame);
-
-		caerMainloopFreeAfterLoop((void (*)(void *)) &caerEventPacketContainerFree, *out);
 	}
 }
 

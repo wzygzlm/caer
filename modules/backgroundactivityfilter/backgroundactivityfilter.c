@@ -19,7 +19,7 @@ static void caerBackgroundActivityFilterRun(caerModuleData moduleData, caerEvent
 	caerEventPacketContainer *out);
 static void caerBackgroundActivityFilterConfig(caerModuleData moduleData);
 static void caerBackgroundActivityFilterExit(caerModuleData moduleData);
-static void caerBackgroundActivityFilterReset(caerModuleData moduleData, uint16_t resetCallSourceID);
+static void caerBackgroundActivityFilterReset(caerModuleData moduleData, int16_t resetCallSourceID);
 static bool allocateTimestampMap(BAFilterState state, int16_t sourceID);
 
 static const struct caer_module_functions BAFilterFunctions = { .moduleInit = &caerBackgroundActivityFilterInit,
@@ -158,7 +158,7 @@ static void caerBackgroundActivityFilterExit(caerModuleData moduleData) {
 	simple2DBufferFreeLong(state->timestampMap);
 }
 
-static void caerBackgroundActivityFilterReset(caerModuleData moduleData, uint16_t resetCallSourceID) {
+static void caerBackgroundActivityFilterReset(caerModuleData moduleData, int16_t resetCallSourceID) {
 	UNUSED_ARGUMENT(resetCallSourceID);
 
 	BAFilterState state = moduleData->moduleState;
@@ -169,7 +169,7 @@ static void caerBackgroundActivityFilterReset(caerModuleData moduleData, uint16_
 
 static bool allocateTimestampMap(BAFilterState state, int16_t sourceID) {
 	// Get size information from source.
-	sshsNode sourceInfoNode = caerMainloopGetSourceInfo(U16T(sourceID));
+	sshsNode sourceInfoNode = caerMainloopGetSourceInfo(sourceID);
 	if (sourceInfoNode == NULL) {
 		// This should never happen, but we handle it gracefully.
 		caerLog(CAER_LOG_ERROR, __func__, "Failed to get source info to allocate timestamp map.");

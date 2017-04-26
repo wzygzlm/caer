@@ -103,7 +103,7 @@ void caerOutputCommonRun(caerModuleData moduleData, caerEventPacketContainer in,
 	copyPacketsToTransferRing(state, in);
 }
 
-void caerOutputCommonReset(caerModuleData moduleData, uint16_t resetCallSourceID) {
+void caerOutputCommonReset(caerModuleData moduleData, int16_t resetCallSourceID) {
 	outputCommonState state = moduleData->moduleState;
 
 	if (resetCallSourceID == I16T(atomic_load_explicit(&state->sourceID, memory_order_relaxed))) {
@@ -121,7 +121,7 @@ void caerOutputCommonReset(caerModuleData moduleData, uint16_t resetCallSourceID
 		}
 
 		// Allocate special packet just for this event.
-		caerSpecialEventPacket tsResetPacket = caerSpecialEventPacketAllocate(1, I16T(resetCallSourceID),
+		caerSpecialEventPacket tsResetPacket = caerSpecialEventPacketAllocate(1, resetCallSourceID,
 			I32T(state->lastTimestamp >> 31));
 		if (tsResetPacket == NULL) {
 			caerLog(CAER_LOG_CRITICAL, moduleData->moduleSubSystemString,
@@ -170,7 +170,7 @@ static void copyPacketsToTransferRing(outputCommonState state, caerEventPacketCo
 			int16_t sourceID = I16T(atomic_load_explicit(&state->sourceID, memory_order_relaxed));
 
 			if (sourceID == -1) {
-				state->sourceInfoNode = caerMainloopGetSourceInfo(U16T(eventSource));
+				state->sourceInfoNode = caerMainloopGetSourceInfo(eventSource);
 				if (state->sourceInfoNode == NULL) {
 					// This should never happen, but we handle it gracefully.
 					caerLog(CAER_LOG_ERROR, state->parentModule->moduleSubSystemString,

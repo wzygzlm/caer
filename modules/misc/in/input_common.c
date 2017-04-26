@@ -2026,9 +2026,6 @@ void caerInputCommonRun(caerModuleData moduleData, caerEventPacketContainer in, 
 	*out = ringBufferGet(state->transferRingPacketContainers);
 
 	if (*out != NULL) {
-		// Got a container, set it up for auto-reclaim and signal it's not available anymore.
-		caerMainloopFreeAfterLoop((void (*)(void *)) &caerEventPacketContainerFree, *out);
-
 		// No special memory order for decrease, because the acquire load to even start running
 		// through a mainloop already synchronizes with the release store above.
 		caerMainloopDataNotifyDecrease(NULL);

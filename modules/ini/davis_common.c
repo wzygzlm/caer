@@ -103,7 +103,7 @@ bool caerInputDAVISInit(caerModuleData moduleData, uint16_t deviceType) {
 	/// Start data acquisition, and correctly notify mainloop of new data and module of exceptional
 	// shutdown cases (device pulled, ...).
 	char *serialNumber = sshsNodeGetString(moduleData->moduleNode, "serialNumber");
-	moduleData->moduleState = caerDeviceOpen(moduleData->moduleID, deviceType,
+	moduleData->moduleState = caerDeviceOpen(U16T(moduleData->moduleID), deviceType,
 		U8T(sshsNodeGetShort(moduleData->moduleNode, "busNumber")),
 		U8T(sshsNodeGetShort(moduleData->moduleNode, "devAddress")), serialNumber);
 	free(serialNumber);
@@ -301,8 +301,6 @@ void caerInputDAVISRun(caerModuleData moduleData, caerEventPacketContainer in, c
 	*out = caerDeviceDataGet(moduleData->moduleState);
 
 	if (*out != NULL) {
-		caerMainloopFreeAfterLoop((void (*)(void *)) &caerEventPacketContainerFree, *out);
-
 		sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
 		sshsNodePutLong(sourceInfoNode, "highestTimestamp", caerEventPacketContainerGetHighestEventTimestamp(*out));
 

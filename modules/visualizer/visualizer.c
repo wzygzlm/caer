@@ -209,8 +209,8 @@ caerVisualizerState caerVisualizerInit(caerVisualizerRenderer renderer, caerVisu
 	state->parentModule = parentModule;
 	state->visualizerConfigNode = parentModule->moduleNode;
 	if (eventSourceID >= 0) {
-		state->eventSourceModuleState = caerMainloopGetSourceState(U16T(eventSourceID));
-		state->eventSourceConfigNode = caerMainloopGetSourceNode(U16T(eventSourceID));
+		state->eventSourceModuleState = caerMainloopGetSourceState(eventSourceID);
+		state->eventSourceConfigNode = caerMainloopGetSourceNode(eventSourceID);
 	}
 
 	// Configuration.
@@ -737,7 +737,7 @@ static bool caerVisualizerModuleInitSize(caerModuleData moduleData, caerEventPac
 static void caerVisualizerModuleRun(caerModuleData moduleData, caerEventPacketContainer in,
 	caerEventPacketContainer *out);
 static void caerVisualizerModuleExit(caerModuleData moduleData);
-static void caerVisualizerModuleReset(caerModuleData moduleData, uint16_t resetCallSourceID);
+static void caerVisualizerModuleReset(caerModuleData moduleData, int16_t resetCallSourceID);
 
 static const struct caer_module_functions VisualizerFunctions = { .moduleInit = &caerVisualizerModuleInit, .moduleRun =
 	&caerVisualizerModuleRun, .moduleConfig = NULL, .moduleExit = &caerVisualizerModuleExit, .moduleReset =
@@ -771,7 +771,7 @@ static bool caerVisualizerModuleInitSize(caerModuleData moduleData, caerEventPac
 		// Get size information from source.
 		sourceID = caerEventPacketHeaderGetEventSource(caerEventPacketContainerIteratorElement);
 
-		sshsNode sourceInfoNode = caerMainloopGetSourceInfo(U16T(sourceID));
+		sshsNode sourceInfoNode = caerMainloopGetSourceInfo(sourceID);
 		if (sourceInfoNode == NULL) {
 			// This should never happen, but we handle it gracefully.
 			caerLog(CAER_LOG_ERROR, moduleData->moduleSubSystemString,
@@ -857,7 +857,7 @@ static void caerVisualizerModuleExit(caerModuleData moduleData) {
 	moduleData->moduleState = NULL;
 }
 
-static void caerVisualizerModuleReset(caerModuleData moduleData, uint16_t resetCallSourceID) {
+static void caerVisualizerModuleReset(caerModuleData moduleData, int16_t resetCallSourceID) {
 	UNUSED_ARGUMENT(resetCallSourceID);
 
 	// Reset counters for statistics on reset.

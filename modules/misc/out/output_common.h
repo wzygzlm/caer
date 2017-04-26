@@ -89,7 +89,7 @@ bool caerOutputCommonInit(caerModuleData moduleData, int fileDescriptor, outputC
 void caerOutputCommonExit(caerModuleData moduleData);
 void caerOutputCommonRun(caerModuleData moduleData, caerEventPacketContainer in,
 	caerEventPacketContainer *out);
-void caerOutputCommonReset(caerModuleData moduleData, uint16_t resetCallSourceID);
+void caerOutputCommonReset(caerModuleData moduleData, int16_t resetCallSourceID);
 void caerOutputCommonOnServerConnection(uv_stream_t *server, int status);
 void caerOutputCommonOnClientConnection(uv_connect_t *connectionRequest, int status);
 
