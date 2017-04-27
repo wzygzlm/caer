@@ -101,8 +101,8 @@ caerModuleData caerModuleInitialize(int16_t moduleID, const char *moduleName, ss
 	strncpy(moduleData->moduleSubSystemString, moduleName, nameLength);
 	moduleData->moduleSubSystemString[nameLength] = '\0';
 
-	// Per-module log level support.
-	sshsNodeCreateByte(moduleData->moduleNode, "logLevel", CAER_LOG_NOTICE, CAER_LOG_EMERGENCY, CAER_LOG_DEBUG,
+	// Per-module log level support. Initialize with global log level value.
+	sshsNodeCreateByte(moduleData->moduleNode, "logLevel", caerLogLevelGet(), CAER_LOG_EMERGENCY, CAER_LOG_DEBUG,
 		SSHS_FLAGS_NORMAL);
 	atomic_store_explicit(&moduleData->moduleLogLevel, U8T(sshsNodeGetByte(moduleData->moduleNode, "logLevel")),
 		memory_order_relaxed);
