@@ -1401,13 +1401,21 @@ static void buildConnectivity() {
 			}
 		}
 	}
+
+	// Initialize global event packet storage, by giving the event packet
+	// storage vector the right size, filled with NULL pointers.
+	glMainloopData.eventPackets.clear();
+
+	for (size_t i = 0; i < nextFreeSlot; i++) {
+		glMainloopData.eventPackets.push_back(nullptr);
+	}
 }
 
-static int32_t getMaximumInputNumber() {
-	int32_t maxSize = 0;
+static size_t getMaximumInputNumber() {
+	size_t maxSize = 0;
 
 	for (const auto &m : glMainloopData.globalExecution) {
-		int32_t inputSize = static_cast<int32_t>(m.get().inputs.size());
+		size_t inputSize = m.get().inputs.size();
 
 		if (inputSize > maxSize) {
 			maxSize = inputSize;
@@ -1418,17 +1426,86 @@ static int32_t getMaximumInputNumber() {
 }
 
 static void runModules(caerEventPacketContainer in) {
-	// Run thorugh all modules in order.
+	// Run through all modules in order.
 	for (const auto &m : glMainloopData.globalExecution) {
 		// Prepare input container.
+		// Clean up container. NULL pointers, memory has been already freed
+		// previously from the global event packets storage.
+		for (int32_t i = 0; i < caerEventPacketContainerGetEventPacketsNumber(in); i++) {
+			in->eventPackets[i] = nullptr;
+		}
+
+		// Insert new packets into container based on declared inputs.
+		// If needed, copy the packet and publish the copy globally.
+		int32_t idx = 0;
+
+		for (const auto &input : m.get().inputs) {
+			if (input.second == -1) {
+				// No copy needed.
+				in->eventPackets[idx] = glMainloopData.eventPackets[static_cast<size_t>(input.first)];
+			}
+			else {
+				// Copy is needed. Do it and update the global event packet storage.
+				caerEventPacketHeader packetCopy = caerEventPacketCopyOnlyEvents(
+					glMainloopData.eventPackets[static_cast<size_t>(input.second)]);
+
+				in->eventPackets[idx] = packetCopy;
+				glMainloopData.eventPackets[static_cast<size_t>(input.first)] = packetCopy;
+			}
+
+			idx++;
+		}
+
+		// Reset number of contained event packets, this also updates statistics.
+		caerEventPacketContainerSetEventPacketsNumber(in, idx);
 
 		// Run module state machine.
 		caerEventPacketContainer out = nullptr;
-		caerModuleSM(m.get().libraryInfo->functions, m.get().runtimeData, m.get().libraryInfo->memSize, in, &out);
+		caerModuleSM(m.get().libraryInfo->functions, m.get().runtimeData, m.get().libraryInfo->memSize,
+			(idx > 0) ? (in) : (nullptr), (m.get().outputs.size() > 0) ? (&out) : (nullptr));
 
 		// Parse possible output container.
 		if (out != nullptr) {
+			// Go through all packets, put them in their right place inside
+			// the global event storage.
+			for (int32_t i = 0; i < caerEventPacketContainerGetEventPacketsNumber(out); i++) {
+				caerEventPacketHeader packet = out->eventPackets[i];
 
+				// Got a packet!
+				if (packet != nullptr) {
+					// Check that the source ID indeed comes from this module!
+					int16_t sourceId = caerEventPacketHeaderGetEventSource(packet);
+					if (sourceId != m.get().id) {
+						boost::format exMsg = boost::format(
+							"Got event packet back from module '%s' (ID %d) with source ID set to %d.") % m.get().name
+							% m.get().id % sourceId;
+						throw std::runtime_error(exMsg.str());
+					}
+
+					int16_t typeId = caerEventPacketHeaderGetEventType(packet);
+
+					ssize_t destIdx = m.get().outputs.at(typeId);
+
+					if (destIdx == -1) {
+						// Deallocate packet memory if not used.
+						free(packet);
+					}
+					else {
+						glMainloopData.eventPackets[static_cast<size_t>(destIdx)] = packet;
+					}
+				}
+			}
+
+			// Deallocate container memory. Packet have been handled above.
+			free(out);
+		}
+	}
+
+	// To finish a run, clean up all the leftover packet memory.
+	for (auto &p : glMainloopData.eventPackets) {
+		if (p != nullptr) {
+			free(p);
+			p = nullptr;
 		}
 	}
 }
@@ -1930,7 +2007,8 @@ static int caerMainloopRunner(void) {
 
 	// Allocate only one packet container to be re-used over all runModules() calls.
 	// It needs enough capacity to handle the highest number of inputs of any module.
-	caerEventPacketContainer inputContainer = caerEventPacketContainerAllocate(getMaximumInputNumber());
+	caerEventPacketContainer inputContainer = caerEventPacketContainerAllocate(
+		static_cast<int32_t>(getMaximumInputNumber()));
 	if (inputContainer == nullptr) {
 		// TODO: better cleanup on failure here, ensure above memory deallocation.
 		// Cleanup modules and streams on exit.
