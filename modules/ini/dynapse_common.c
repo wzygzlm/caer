@@ -23,7 +23,6 @@ static void updateSilentBiases(caerModuleData moduleData, int chipid);
 static bool EnableStimuliGen(caerModuleData moduleData);
 static bool DisableStimuliGen(caerModuleData moduleData);
 
-
 bool EnableStimuliGen(caerModuleData moduleData) {
 	sshsNode deviceConfigNode = sshsGetRelativeNode(moduleData->moduleNode, chipIDToName(DYNAPSE_CHIP_DYNAPSE, true));
 	sshsNode spikeNode = sshsGetRelativeNode(deviceConfigNode, "spikeGen/");
@@ -304,7 +303,7 @@ uint32_t generatesBitsCoarseFineBiasSetting(sshsNode node, const char *biasName,
 	biasNameFull[biasNameLength + 1] = '\0';
 
 	// Device related configuration has its own sub-node.
-	sshsNode deviceConfigNodeLP = sshsGetRelativeNode(node,  chipIDToName((int16_t)chipid, true));
+	sshsNode deviceConfigNodeLP = sshsGetRelativeNode(node, chipIDToName((int16_t) chipid, true));
 
 	sshsNode biasNodeLP = sshsGetRelativeNode(deviceConfigNodeLP, "bias/");
 
@@ -338,7 +337,7 @@ static void updateCoarseFineBiasSetting(caerModuleData moduleData, const char *b
 	biasNameFull[biasNameLength + 1] = '\0';
 
 	// Device related configuration has its own sub-node.
-	sshsNode deviceConfigNodeLP = sshsGetRelativeNode(moduleData->moduleNode, chipIDToName((int16_t)chipid, true));
+	sshsNode deviceConfigNodeLP = sshsGetRelativeNode(moduleData->moduleNode, chipIDToName((int16_t) chipid, true));
 
 	sshsNode biasNodeLP = sshsGetRelativeNode(deviceConfigNodeLP, "bias/");
 
@@ -698,7 +697,7 @@ static void updateSilentBiases(caerModuleData moduleData, int chipid) {
 static void createDefaultConfiguration(caerModuleData moduleData, int chipid) {
 
 	// Device related configuration has its own sub-node..
-	sshsNode deviceConfigNode = sshsGetRelativeNode(moduleData->moduleNode, chipIDToName((int16_t)chipid, true));
+	sshsNode deviceConfigNode = sshsGetRelativeNode(moduleData->moduleNode, chipIDToName((int16_t) chipid, true));
 
 // Chip biases, defaults.
 	sshsNode biasNode = sshsGetRelativeNode(deviceConfigNode, "bias/");
@@ -1214,14 +1213,16 @@ static uint32_t convertBias(const char *biasName, const char* lowhi, const char*
 	if (addr == DYNAPSE_CONFIG_BIAS_U_SSP || addr == DYNAPSE_CONFIG_BIAS_U_SSN || addr == DYNAPSE_CONFIG_BIAS_D_SSP
 		|| addr == DYNAPSE_CONFIG_BIAS_D_SSN) {
 		confbits = 0;
-		inbits = (uint32_t) addr << 18 | 1 << 16 | 63 << 10 |  (uint32_t) fineValue << 4 |  (uint32_t) confbits;
+		inbits = (uint32_t) addr << 18 | 1 << 16 | 63 << 10 | (uint32_t) fineValue << 4 | (uint32_t) confbits;
 	}
 	else if (addr == DYNAPSE_CONFIG_BIAS_D_BUFFER || addr == DYNAPSE_CONFIG_BIAS_U_BUFFER) {
 		confbits = 0;
-		inbits =  (uint32_t)addr << 18 | 1 << 16 |  (uint32_t)special << 15 | (uint32_t) coarseRev << 12 |  (uint32_t)fineValue << 4;
+		inbits = (uint32_t) addr << 18 | 1 << 16 | (uint32_t) special << 15 | (uint32_t) coarseRev << 12
+			| (uint32_t) fineValue << 4;
 	}
 	else {
-		inbits =  (uint32_t)addr << 18 | 1 << 16 |  (uint32_t)special << 15 |  (uint32_t)coarseRev << 12 |  (uint32_t)fineValue << 4 |  (uint32_t)confbits;
+		inbits = (uint32_t) addr << 18 | 1 << 16 | (uint32_t) special << 15 | (uint32_t) coarseRev << 12
+			| (uint32_t) fineValue << 4 | (uint32_t) confbits;
 	}
 
 	return (inbits);
@@ -1301,19 +1302,21 @@ bool caerInputDYNAPSEInit(caerModuleData moduleData) {
 
 	sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
 
-	sshsNodePutLong(sourceInfoNode, "highestTimestamp", -1);
-	sshsNodePutShort(sourceInfoNode, "logicVersion", dynapse_info.logicVersion);
-	sshsNodePutBool(sourceInfoNode, "deviceIsMaster", dynapse_info.deviceIsMaster);
-	sshsNodePutShort(sourceInfoNode, "deviceID", dynapse_info.deviceID);
-	sshsNodePutShort(sourceInfoNode, "chipID", dynapse_info.chipID);
+	sshsNodeCreateLong(sourceInfoNode, "highestTimestamp", -1, -1, INT64_MAX,
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+
+	sshsNodeCreateShort(sourceInfoNode, "logicVersion", dynapse_info.logicVersion, dynapse_info.logicVersion,
+		dynapse_info.logicVersion, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+	sshsNodeCreateBool(sourceInfoNode, "deviceIsMaster", dynapse_info.deviceIsMaster,
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+	sshsNodeCreateShort(sourceInfoNode, "chipID", dynapse_info.chipID, dynapse_info.chipID, dynapse_info.chipID,
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
 
 	// Put source information for generic visualization, to be used to display and debug filter information.
-	sshsNodePutShort(sourceInfoNode, "dataSizeX", DYNAPSE_X4BOARD_NEUX);
-	sshsNodePutShort(sourceInfoNode, "dataSizeY", DYNAPSE_X4BOARD_NEUY);
-
-	// used for personalized size visualizer
-	sshsNodePutInt(sourceInfoNode, "userSizeX", 512);		//us x axis
-	sshsNodePutInt(sourceInfoNode, "userSizeY", 512);		//two chips in y
+	sshsNodeCreateShort(sourceInfoNode, "dataSizeX", DYNAPSE_X4BOARD_NEUX, DYNAPSE_X4BOARD_NEUX, DYNAPSE_X4BOARD_NEUX,
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+	sshsNodeCreateShort(sourceInfoNode, "dataSizeY", DYNAPSE_X4BOARD_NEUY, DYNAPSE_X4BOARD_NEUY, DYNAPSE_X4BOARD_NEUY,
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
 
 // Generate source string for output modules.
 	size_t sourceStringLength = (size_t) snprintf(NULL, 0, "#Source %" PRIu16 ": %s\r\n", moduleData->moduleID,
@@ -1324,7 +1327,8 @@ bool caerInputDYNAPSEInit(caerModuleData moduleData) {
 		chipIDToName(DYNAPSE_CONFIG_DYNAPSE_U2, false));
 	sourceString[sourceStringLength] = '\0';
 
-	sshsNodePutString(sourceInfoNode, "sourceString", sourceString);
+	sshsNodeCreateString(sourceInfoNode, "sourceString", sourceString, sourceStringLength, sourceStringLength,
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
 
 // Generate sub-system string for module.
 	size_t subSystemStringLength = (size_t) snprintf(NULL, 0, "%s[SN %s, %" PRIu8 ":%" PRIu8 "]",
@@ -1696,7 +1700,7 @@ void caerInputDYNAPSEExit(caerModuleData moduleData) {
 
 	caerDeviceDataStop(((caerInputDynapseState) moduleData->moduleState)->deviceState);
 	//caerDeviceClose((caerDeviceHandle *) &moduleData->moduleState);
-	caerDeviceClose(  &(((caerInputDynapseState) moduleData->moduleState)->deviceState));
+	caerDeviceClose(&(((caerInputDynapseState) moduleData->moduleState)->deviceState));
 	if (sshsNodeGetBool(moduleData->moduleNode, "autoRestart")) {
 		// Prime input module again so that it will try to restart if new devices detected.
 		sshsNodePutBool(moduleData->moduleNode, "running", true);
@@ -1705,23 +1709,18 @@ void caerInputDYNAPSEExit(caerModuleData moduleData) {
 	caerGenSpikeExit(moduleData);
 }
 
-void caerInputDYNAPSERun(caerModuleData moduleData, size_t argsNumber, va_list args) {
-	UNUSED_ARGUMENT(argsNumber);
+void caerInputDYNAPSERun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out) {
+	UNUSED_ARGUMENT(in);
 
-	// Interpret variable arguments (same as above in main function).
-	caerEventPacketContainer *container = va_arg(args, caerEventPacketContainer *);
+	*out = caerDeviceDataGet(((caerInputDynapseState) moduleData->moduleState)->deviceState);
 
-	*container = caerDeviceDataGet(((caerInputDynapseState) moduleData->moduleState)->deviceState);
-
-	if (*container != NULL) {
-		caerMainloopFreeAfterLoop((void (*)(void *)) &caerEventPacketContainerFree, *container);
-
+	if (*out != NULL) {
 		sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
-		sshsNodePutLong(sourceInfoNode, "highestTimestamp",
-			caerEventPacketContainerGetHighestEventTimestamp(*container));
+		sshsNodeCreateLong(sourceInfoNode, "highestTimestamp", caerEventPacketContainerGetHighestEventTimestamp(*out),
+			-1, INT64_MAX, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
 
 		// Detect timestamp reset and call all reset functions for processors and outputs.
-		caerEventPacketHeader special = caerEventPacketContainerGetEventPacket(*container, SPECIAL_EVENT);
+		caerEventPacketHeader special = caerEventPacketContainerGetEventPacket(*out, SPECIAL_EVENT);
 
 		if ((special != NULL) && (caerEventPacketHeaderGetEventNumber(special) == 1)
 			&& (caerSpecialEventPacketFindEventByType((caerSpecialEventPacket) special, TIMESTAMP_RESET) != NULL)) {
@@ -1731,7 +1730,8 @@ void caerInputDYNAPSERun(caerModuleData moduleData, size_t argsNumber, va_list a
 			// Update master/slave information.
 			struct caer_dynapse_info devInfo = caerDynapseInfoGet(
 				((caerInputDynapseState) moduleData->moduleState)->deviceState);
-			sshsNodePutBool(sourceInfoNode, "deviceIsMaster", devInfo.deviceIsMaster);
+			sshsNodeCreateBool(sourceInfoNode, "deviceIsMaster", devInfo.deviceIsMaster,
+				SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
 		}
 	}
 }
@@ -1746,8 +1746,8 @@ bool setCamContent(caerInputDynapseState state, int16_t chipId, bool ei, bool fs
 		return (false);
 	}
 
-	uint32_t bits = (uint32_t) (ei << 29 | fs << 28 | (uint16_t) address << 20 | (uint8_t) source_core << 18 | 1 << 17 | (uint8_t) coreId << 8 | (uint16_t) row << 5
-		| (uint16_t) column << 0);
+	uint32_t bits = (uint32_t) (ei << 29 | fs << 28 | (uint16_t) address << 20 | (uint8_t) source_core << 18 | 1 << 17
+		| (uint8_t) coreId << 8 | (uint16_t) row << 5 | (uint16_t) column << 0);
 
 	caerDeviceConfigSet(state->deviceState, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, (uint32_t) chipId);
 	caerDeviceConfigSet(state->deviceState, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_CONTENT, bits); //this is the 30 bits
@@ -1783,8 +1783,8 @@ void caerDynapseSetBias(caerInputDynapseState state, uint32_t chipId, uint32_t c
 		biasName[3 + i] = biasName_t[i];
 	}
 
-	generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, biasName, coarseValue, fineValue,
-		lowHigh, "Normal", npBias, true, (int) chipId);
+	generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, biasName, coarseValue, fineValue, lowHigh,
+		"Normal", npBias, true, (int) chipId);
 
 	//caerDeviceConfigSet(state->deviceState, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_CONTENT, bits);
 

@@ -132,14 +132,14 @@ static bool parseNetworkHeader(inputCommonState state) {
 
 	// TODO: Network: get sourceInfo node info via config-server side-channel.
 	state->header.sourceID = networkHeader.sourceID;
-	sshsNodePutShort(state->sourceInfoNode, "dvsSizeX", 240);
-	sshsNodePutShort(state->sourceInfoNode, "dvsSizeY", 180);
-	sshsNodePutShort(state->sourceInfoNode, "apsSizeX", 240);
-	sshsNodePutShort(state->sourceInfoNode, "apsSizeY", 180);
-	sshsNodePutShort(state->sourceInfoNode, "dataSizeX", 240);
-	sshsNodePutShort(state->sourceInfoNode, "dataSizeY", 180);
-	sshsNodePutShort(state->sourceInfoNode, "visualizerSizeX", 240);
-	sshsNodePutShort(state->sourceInfoNode, "visualizerSizeY", 180);
+	sshsNodeCreateShort(state->sourceInfoNode, "dvsSizeX", 240, 1, INT16_MAX, SSHS_FLAGS_READ_ONLY);
+	sshsNodeCreateShort(state->sourceInfoNode, "dvsSizeY", 180, 1, INT16_MAX, SSHS_FLAGS_READ_ONLY);
+	sshsNodeCreateShort(state->sourceInfoNode, "apsSizeX", 240, 1, INT16_MAX, SSHS_FLAGS_READ_ONLY);
+	sshsNodeCreateShort(state->sourceInfoNode, "apsSizeY", 180, 1, INT16_MAX, SSHS_FLAGS_READ_ONLY);
+	sshsNodeCreateShort(state->sourceInfoNode, "dataSizeX", 240, 1, INT16_MAX, SSHS_FLAGS_READ_ONLY);
+	sshsNodeCreateShort(state->sourceInfoNode, "dataSizeY", 180, 1, INT16_MAX, SSHS_FLAGS_READ_ONLY);
+	sshsNodeCreateShort(state->sourceInfoNode, "visualizerSizeX", 240, 1, INT16_MAX, SSHS_FLAGS_READ_ONLY);
+	sshsNodeCreateShort(state->sourceInfoNode, "visualizerSizeY", 180, 1, INT16_MAX, SSHS_FLAGS_READ_ONLY);
 
 	// TODO: Network: add sourceString.
 
@@ -259,13 +259,17 @@ static void parseSourceString(char *sourceString, inputCommonState state) {
 
 	// Put size information inside sourceInfo node.
 	if (dvsSizeX != 0 && dvsSizeY != 0) {
-		sshsNodePutShort(state->sourceInfoNode, "dvsSizeX", dvsSizeX);
-		sshsNodePutShort(state->sourceInfoNode, "dvsSizeY", dvsSizeY);
+		sshsNodeCreateShort(state->sourceInfoNode, "dvsSizeX", dvsSizeX, 1, INT16_MAX,
+			SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+		sshsNodeCreateShort(state->sourceInfoNode, "dvsSizeY", dvsSizeY, 1, INT16_MAX,
+			SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
 	}
 
 	if (apsSizeX != 0 && apsSizeY != 0) {
-		sshsNodePutShort(state->sourceInfoNode, "apsSizeX", apsSizeX);
-		sshsNodePutShort(state->sourceInfoNode, "apsSizeY", apsSizeY);
+		sshsNodeCreateShort(state->sourceInfoNode, "apsSizeX", apsSizeX, 1, INT16_MAX,
+			SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+		sshsNodeCreateShort(state->sourceInfoNode, "apsSizeY", apsSizeY, 1, INT16_MAX,
+			SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
 	}
 
 	if (dataSizeX == 0 && dataSizeY == 0) {
@@ -276,13 +280,17 @@ static void parseSourceString(char *sourceString, inputCommonState state) {
 	}
 
 	if (dataSizeX != 0 && dataSizeY != 0) {
-		sshsNodePutShort(state->sourceInfoNode, "dataSizeX", dataSizeX);
-		sshsNodePutShort(state->sourceInfoNode, "dataSizeY", dataSizeY);
+		sshsNodeCreateShort(state->sourceInfoNode, "dataSizeX", dataSizeX, 1, INT16_MAX,
+			SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+		sshsNodeCreateShort(state->sourceInfoNode, "dataSizeY", dataSizeY, 1, INT16_MAX,
+			SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
 	}
 
 	if (visualizerSizeX != 0 && visualizerSizeY != 0) {
-		sshsNodePutShort(state->sourceInfoNode, "visualizerSizeX", visualizerSizeX);
-		sshsNodePutShort(state->sourceInfoNode, "visualizerSizeY", visualizerSizeY);
+		sshsNodeCreateShort(state->sourceInfoNode, "visualizerSizeX", visualizerSizeX, 1, INT16_MAX,
+			SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+		sshsNodeCreateShort(state->sourceInfoNode, "visualizerSizeY", visualizerSizeY, 1, INT16_MAX,
+			SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
 	}
 
 	// Generate source string for output modules.
@@ -300,7 +308,8 @@ static void parseSourceString(char *sourceString, inputCommonState state) {
 		dataSizeY, visualizerSizeX, visualizerSizeY, state->header.sourceID, sourceString);
 	sourceStringFile[sourceStringFileLength] = '\0';
 
-	sshsNodePutString(state->sourceInfoNode, "sourceString", sourceStringFile);
+	sshsNodeCreateString(state->sourceInfoNode, "sourceString", sourceStringFile, 1, 2048,
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
 }
 
 static bool parseFileHeader(inputCommonState state) {
@@ -486,7 +495,8 @@ static bool parseFileHeader(inputCommonState state) {
 						memcpy(newSourceString + currSourceStringLength, headerLine, addSourceStringLength);
 						newSourceString[currSourceStringLength + addSourceStringLength] = '\0';
 
-						sshsNodePutString(state->sourceInfoNode, "sourceString", newSourceString);
+						sshsNodeCreateString(state->sourceInfoNode, "sourceString", newSourceString, 1, 2048,
+							SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
 						free(newSourceString);
 					}
 				}
@@ -1830,7 +1840,8 @@ bool isNetworkMessageBased) {
 
 	state->parentModule = moduleData;
 	state->sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
-	sshsNodePutLong(state->sourceInfoNode, "highestTimestamp", -1);
+	sshsNodeCreateLong(state->sourceInfoNode, "highestTimestamp", -1, -1, INT64_MAX,
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
 
 	// Check for invalid file descriptors.
 	if (readFd < -1) {
@@ -1854,8 +1865,10 @@ bool isNetworkMessageBased) {
 	sshsNodeCreateInt(moduleData->moduleNode, "bufferSize", 65536, 512, 512 * 1024, SSHS_FLAGS_NORMAL); // in bytes, size of data buffer
 	sshsNodeCreateInt(moduleData->moduleNode, "transferBufferSize", 128, 8, 1024, SSHS_FLAGS_NORMAL); // in packet groups
 
-	sshsNodeCreateInt(moduleData->moduleNode, "PacketContainerMaxPacketSize", 8192, 1, 10 * 1024 * 1024, SSHS_FLAGS_NORMAL); // in events, size of slice to generate
-	sshsNodeCreateInt(moduleData->moduleNode, "PacketContainerInterval", 10000, 1, 120 * 1000 * 1000, SSHS_FLAGS_NORMAL); // in µs, size of time slice to generate
+	sshsNodeCreateInt(moduleData->moduleNode, "PacketContainerMaxPacketSize", 8192, 1, 10 * 1024 * 1024,
+		SSHS_FLAGS_NORMAL); // in events, size of slice to generate
+	sshsNodeCreateInt(moduleData->moduleNode, "PacketContainerInterval", 10000, 1, 120 * 1000 * 1000,
+		SSHS_FLAGS_NORMAL); // in µs, size of time slice to generate
 	sshsNodeCreateInt(moduleData->moduleNode, "PacketContainerDelay", 10000, 1, 120 * 1000 * 1000, SSHS_FLAGS_NORMAL); // in µs, delay between consecutive slices
 
 	atomic_store(&state->validOnly, sshsNodeGetBool(moduleData->moduleNode, "validOnly"));
@@ -2031,8 +2044,9 @@ void caerInputCommonRun(caerModuleData moduleData, caerEventPacketContainer in, 
 		caerMainloopDataNotifyDecrease(NULL);
 		atomic_fetch_sub_explicit(&state->dataAvailableModule, 1, memory_order_relaxed);
 
-		sshsNodePutLong(state->sourceInfoNode, "highestTimestamp",
-			caerEventPacketContainerGetHighestEventTimestamp(*out));
+		sshsNodeCreateLong(state->sourceInfoNode, "highestTimestamp",
+			caerEventPacketContainerGetHighestEventTimestamp(*out), -1, INT64_MAX,
+			SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
 
 		caerEventPacketHeader special = caerEventPacketContainerGetEventPacket(*out, SPECIAL_EVENT);
 

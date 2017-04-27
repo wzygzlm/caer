@@ -118,34 +118,55 @@ bool caerInputDAVISInit(caerModuleData moduleData, uint16_t deviceType) {
 
 	sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
 
-	sshsNodePutLong(sourceInfoNode, "highestTimestamp", -1);
+	sshsNodeCreateLong(sourceInfoNode, "highestTimestamp", -1, -1, INT64_MAX,
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
 
-	sshsNodePutShort(sourceInfoNode, "logicVersion", devInfo.logicVersion);
-	sshsNodePutBool(sourceInfoNode, "deviceIsMaster", devInfo.deviceIsMaster);
-	sshsNodePutShort(sourceInfoNode, "chipID", devInfo.chipID);
+	sshsNodeCreateShort(sourceInfoNode, "logicVersion", devInfo.logicVersion, devInfo.logicVersion,
+		devInfo.logicVersion, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+	sshsNodeCreateBool(sourceInfoNode, "deviceIsMaster", devInfo.deviceIsMaster,
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+	sshsNodeCreateShort(sourceInfoNode, "chipID", devInfo.chipID, devInfo.chipID, devInfo.chipID,
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
 
-	sshsNodePutShort(sourceInfoNode, "dvsSizeX", devInfo.dvsSizeX);
-	sshsNodePutShort(sourceInfoNode, "dvsSizeY", devInfo.dvsSizeY);
-	sshsNodePutBool(sourceInfoNode, "dvsHasPixelFilter", devInfo.dvsHasPixelFilter);
-	sshsNodePutBool(sourceInfoNode, "dvsHasBackgroundActivityFilter", devInfo.dvsHasBackgroundActivityFilter);
-	sshsNodePutBool(sourceInfoNode, "dvsHasTestEventGenerator", devInfo.dvsHasTestEventGenerator);
+	sshsNodeCreateShort(sourceInfoNode, "dvsSizeX", devInfo.dvsSizeX, devInfo.dvsSizeX, devInfo.dvsSizeX,
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+	sshsNodeCreateShort(sourceInfoNode, "dvsSizeY", devInfo.dvsSizeY, devInfo.dvsSizeY, devInfo.dvsSizeY,
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+	sshsNodeCreateBool(sourceInfoNode, "dvsHasPixelFilter", devInfo.dvsHasPixelFilter,
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+	sshsNodeCreateBool(sourceInfoNode, "dvsHasBackgroundActivityFilter", devInfo.dvsHasBackgroundActivityFilter,
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+	sshsNodeCreateBool(sourceInfoNode, "dvsHasTestEventGenerator", devInfo.dvsHasTestEventGenerator,
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
 
-	sshsNodePutShort(sourceInfoNode, "apsSizeX", devInfo.apsSizeX);
-	sshsNodePutShort(sourceInfoNode, "apsSizeY", devInfo.apsSizeY);
-	sshsNodePutByte(sourceInfoNode, "apsColorFilter", devInfo.apsColorFilter);
-	sshsNodePutBool(sourceInfoNode, "apsHasGlobalShutter", devInfo.apsHasGlobalShutter);
-	sshsNodePutBool(sourceInfoNode, "apsHasQuadROI", devInfo.apsHasQuadROI);
-	sshsNodePutBool(sourceInfoNode, "apsHasExternalADC", devInfo.apsHasExternalADC);
-	sshsNodePutBool(sourceInfoNode, "apsHasInternalADC", devInfo.apsHasInternalADC);
+	sshsNodeCreateShort(sourceInfoNode, "apsSizeX", devInfo.apsSizeX, devInfo.apsSizeX, devInfo.apsSizeX,
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+	sshsNodeCreateShort(sourceInfoNode, "apsSizeY", devInfo.apsSizeY, devInfo.apsSizeY, devInfo.apsSizeY,
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+	sshsNodeCreateByte(sourceInfoNode, "apsColorFilter", devInfo.apsColorFilter, devInfo.apsColorFilter,
+		devInfo.apsColorFilter, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+	sshsNodeCreateBool(sourceInfoNode, "apsHasGlobalShutter", devInfo.apsHasGlobalShutter,
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+	sshsNodeCreateBool(sourceInfoNode, "apsHasQuadROI", devInfo.apsHasQuadROI,
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+	sshsNodeCreateBool(sourceInfoNode, "apsHasExternalADC", devInfo.apsHasExternalADC,
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+	sshsNodeCreateBool(sourceInfoNode, "apsHasInternalADC", devInfo.apsHasInternalADC,
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
 
-	sshsNodePutBool(sourceInfoNode, "extInputHasGenerator", devInfo.extInputHasGenerator);
-	sshsNodePutBool(sourceInfoNode, "extInputHasExtraDetectors", devInfo.extInputHasExtraDetectors);
+	sshsNodeCreateBool(sourceInfoNode, "extInputHasGenerator", devInfo.extInputHasGenerator,
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+	sshsNodeCreateBool(sourceInfoNode, "extInputHasExtraDetectors", devInfo.extInputHasExtraDetectors,
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
 
 	// Put source information for generic visualization, to be used to display and debug filter information.
-	sshsNodePutShort(sourceInfoNode, "dataSizeX",
-		(devInfo.dvsSizeX > devInfo.apsSizeX) ? (devInfo.dvsSizeX) : (devInfo.apsSizeX));
-	sshsNodePutShort(sourceInfoNode, "dataSizeY",
-		(devInfo.dvsSizeY > devInfo.apsSizeY) ? (devInfo.dvsSizeY) : (devInfo.apsSizeY));
+	int16_t dataSizeX = (devInfo.dvsSizeX > devInfo.apsSizeX) ? (devInfo.dvsSizeX) : (devInfo.apsSizeX);
+	int16_t dataSizeY = (devInfo.dvsSizeY > devInfo.apsSizeY) ? (devInfo.dvsSizeY) : (devInfo.apsSizeY);
+
+	sshsNodeCreateShort(sourceInfoNode, "dataSizeX", dataSizeX, dataSizeX, dataSizeX,
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+	sshsNodeCreateShort(sourceInfoNode, "dataSizeY", dataSizeY, dataSizeY, dataSizeY,
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
 
 	// Generate source string for output modules.
 	size_t sourceStringLength = (size_t) snprintf(NULL, 0, "#Source %" PRIu16 ": %s\r\n", moduleData->moduleID,
@@ -156,7 +177,8 @@ bool caerInputDAVISInit(caerModuleData moduleData, uint16_t deviceType) {
 		chipIDToName(devInfo.chipID, false));
 	sourceString[sourceStringLength] = '\0';
 
-	sshsNodePutString(sourceInfoNode, "sourceString", sourceString);
+	sshsNodeCreateString(sourceInfoNode, "sourceString", sourceString, sourceStringLength, sourceStringLength,
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
 
 	// Generate sub-system string for module.
 	size_t subSystemStringLength = (size_t) snprintf(NULL, 0, "%s[SN %s, %" PRIu8 ":%" PRIu8 "]",
@@ -186,7 +208,8 @@ bool caerInputDAVISInit(caerModuleData moduleData, uint16_t deviceType) {
 	sendDefaultConfiguration(moduleData, &devInfo);
 
 	// Start data acquisition.
-	bool ret = caerDeviceDataStart(moduleData->moduleState, &caerMainloopDataNotifyIncrease, &caerMainloopDataNotifyDecrease,
+	bool ret = caerDeviceDataStart(moduleData->moduleState, &caerMainloopDataNotifyIncrease,
+		&caerMainloopDataNotifyDecrease,
 		NULL, &moduleShutdownNotify, moduleData->moduleNode);
 
 	if (!ret) {
@@ -302,7 +325,8 @@ void caerInputDAVISRun(caerModuleData moduleData, caerEventPacketContainer in, c
 
 	if (*out != NULL) {
 		sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
-		sshsNodePutLong(sourceInfoNode, "highestTimestamp", caerEventPacketContainerGetHighestEventTimestamp(*out));
+		sshsNodeCreateLong(sourceInfoNode, "highestTimestamp", caerEventPacketContainerGetHighestEventTimestamp(*out),
+			-1, INT64_MAX, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
 
 		// Detect timestamp reset and call all reset functions for processors and outputs.
 		caerEventPacketHeader special = caerEventPacketContainerGetEventPacket(*out, SPECIAL_EVENT);
@@ -314,7 +338,8 @@ void caerInputDAVISRun(caerModuleData moduleData, caerEventPacketContainer in, c
 
 			// Update master/slave information.
 			struct caer_davis_info devInfo = caerDavisInfoGet(moduleData->moduleState);
-			sshsNodePutBool(sourceInfoNode, "deviceIsMaster", devInfo.deviceIsMaster);
+			sshsNodeCreateBool(sourceInfoNode, "deviceIsMaster", devInfo.deviceIsMaster,
+				SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
 		}
 	}
 }

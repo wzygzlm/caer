@@ -72,17 +72,24 @@ static bool caerInputDVS128Init(caerModuleData moduleData) {
 
 	sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
 
-	sshsNodePutLong(sourceInfoNode, "highestTimestamp", -1);
+	sshsNodeCreateLong(sourceInfoNode, "highestTimestamp", -1, -1, INT64_MAX,
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
 
-	sshsNodePutShort(sourceInfoNode, "logicVersion", devInfo.logicVersion);
-	sshsNodePutBool(sourceInfoNode, "deviceIsMaster", devInfo.deviceIsMaster);
+	sshsNodeCreateShort(sourceInfoNode, "logicVersion", devInfo.logicVersion, devInfo.logicVersion,
+		devInfo.logicVersion, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+	sshsNodeCreateBool(sourceInfoNode, "deviceIsMaster", devInfo.deviceIsMaster,
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
 
-	sshsNodePutShort(sourceInfoNode, "dvsSizeX", devInfo.dvsSizeX);
-	sshsNodePutShort(sourceInfoNode, "dvsSizeY", devInfo.dvsSizeY);
+	sshsNodeCreateShort(sourceInfoNode, "dvsSizeX", devInfo.dvsSizeX, devInfo.dvsSizeX, devInfo.dvsSizeX,
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+	sshsNodeCreateShort(sourceInfoNode, "dvsSizeY", devInfo.dvsSizeY, devInfo.dvsSizeY, devInfo.dvsSizeY,
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
 
 	// Put source information for generic visualization, to be used to display and debug filter information.
-	sshsNodePutShort(sourceInfoNode, "dataSizeX", devInfo.dvsSizeX);
-	sshsNodePutShort(sourceInfoNode, "dataSizeY", devInfo.dvsSizeY);
+	sshsNodeCreateShort(sourceInfoNode, "dataSizeX", devInfo.dvsSizeX, devInfo.dvsSizeX, devInfo.dvsSizeX,
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+	sshsNodeCreateShort(sourceInfoNode, "dataSizeY", devInfo.dvsSizeY, devInfo.dvsSizeY, devInfo.dvsSizeY,
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
 
 	// Generate source string for output modules.
 	size_t sourceStringLength = (size_t) snprintf(NULL, 0, "#Source %" PRIu16 ": DVS128\r\n", moduleData->moduleID);
@@ -91,7 +98,8 @@ static bool caerInputDVS128Init(caerModuleData moduleData) {
 	snprintf(sourceString, sourceStringLength + 1, "#Source %" PRIu16 ": DVS128\r\n", moduleData->moduleID);
 	sourceString[sourceStringLength] = '\0';
 
-	sshsNodePutString(sourceInfoNode, "sourceString", sourceString);
+	sshsNodeCreateString(sourceInfoNode, "sourceString", sourceString, sourceStringLength, sourceStringLength,
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
 
 	// Generate sub-system string for module.
 	size_t subSystemStringLength = (size_t) snprintf(NULL, 0, "%s[SN %s, %" PRIu8 ":%" PRIu8 "]",
@@ -179,7 +187,8 @@ static void caerInputDVS128Run(caerModuleData moduleData, caerEventPacketContain
 
 	if (*out != NULL) {
 		sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
-		sshsNodePutLong(sourceInfoNode, "highestTimestamp", caerEventPacketContainerGetHighestEventTimestamp(*out));
+		sshsNodeCreateLong(sourceInfoNode, "highestTimestamp", caerEventPacketContainerGetHighestEventTimestamp(*out),
+			-1, INT64_MAX, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
 
 		// Detect timestamp reset and call all reset functions for processors and outputs.
 		caerEventPacketHeader special = caerEventPacketContainerGetEventPacket(*out, SPECIAL_EVENT);
@@ -191,7 +200,8 @@ static void caerInputDVS128Run(caerModuleData moduleData, caerEventPacketContain
 
 			// Update master/slave information.
 			struct caer_dvs128_info devInfo = caerDVS128InfoGet(moduleData->moduleState);
-			sshsNodePutBool(sourceInfoNode, "deviceIsMaster", devInfo.deviceIsMaster);
+			sshsNodeCreateBool(sourceInfoNode, "deviceIsMaster", devInfo.deviceIsMaster,
+				SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
 		}
 	}
 }
