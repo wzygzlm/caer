@@ -10,14 +10,8 @@ IF (NOT DAVISFX3)
 	SET(DAVISFX3 0 CACHE BOOL "Enable support for DAVIS FX3 devices (new chips)")
 ENDIF()
 
-IF (NOT DYNAPSEFX2)
-	SET(DYNAPSEFX2 0 CACHE BOOL "Enable support for DYNAPSE (neuromorphic processor)")
-ENDIF()
-
-IF (NOT DYNAPSEFX2 AND NOT DVS128 AND NOT DAVISFX2 AND NOT DAVISFX3 AND NOT ENABLE_FILE_INPUT AND NOT ENABLE_NETWORK_INPUT)
-	MESSAGE(SEND_ERROR "Please specify one of the following options to select a supported device: DVS128, DAVISFX2, DAVISFX3, or DYNAPSEFX2."
-		" Or select an external input source: ENABLE_FILE_INPUT, ENABLE_NETWORK_INPUT.")
-	RETURN()
+IF (NOT DYNAPSE)
+	SET(DYNAPSE 0 CACHE BOOL "Enable support for DYNAPSE (neuromorphic processor)")
 ENDIF()
 
 IF (DVS128)
@@ -53,13 +47,13 @@ IF (DAVISFX3)
 	TARGET_LINK_LIBRARIES(davisfx3 ${CAER_C_LIBS})
 ENDIF()
 
-IF (DYNAPSEFX2)
-	ADD_LIBRARY(dynapsefx2 SHARED dynapse_common.c dynapse_fx2.c gen_spikes.c)
+IF (DYNAPSE)
+	ADD_LIBRARY(dynapse SHARED dynapse_common.c gen_spikes.c)
 
-	SET_TARGET_PROPERTIES(dynapsefx2
+	SET_TARGET_PROPERTIES(dynapse
 		PROPERTIES
 		PREFIX "caer_"
 	)
 
-	TARGET_LINK_LIBRARIES(dynapsefx2 ${CAER_C_LIBS})
+	TARGET_LINK_LIBRARIES(dynapse ${CAER_C_LIBS})
 ENDIF()
