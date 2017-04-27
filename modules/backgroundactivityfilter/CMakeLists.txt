@@ -3,9 +3,7 @@ IF (NOT ENABLE_BAFILTER)
 ENDIF()
 
 IF (ENABLE_BAFILTER)
-	SET(BAFILTER_SRC_FILES backgroundactivityfilter.c)
-
-	ADD_LIBRARY(bafilter SHARED ${BAFILTER_SRC_FILES})
+	ADD_LIBRARY(bafilter SHARED backgroundactivityfilter.c)
 
 	SET_TARGET_PROPERTIES(bafilter
 		PROPERTIES
