@@ -1453,7 +1453,10 @@ static void runModules(caerEventPacketContainer in) {
 				glMainloopData.eventPackets[static_cast<size_t>(input.first)] = packetCopy;
 			}
 
-			idx++;
+			// Only increment container size if we actually added a packet with data.
+			if (in->eventPackets[idx] != nullptr) {
+				idx++;
+			}
 		}
 
 		// Reset number of contained event packets, this also updates statistics.
