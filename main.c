@@ -102,7 +102,7 @@
 
 #ifdef ENABLE_IMAGEGENERATOR
 #include "modules/imagegenerator/imagegenerator.h"
-#define CLASSIFYSIZE 64
+#define CLASSIFYSIZE 128
 #define DISPLAYIMGSIZE 64
 #endif
 
@@ -113,6 +113,10 @@
 
 #if defined(ENABLE_CAFFEINTERFACE) && defined(ENABLE_TRAINFROMCAFFE)
 #include "modules/trainfromcaffe/trainfromcaffe.h"
+#endif
+
+#if defined (ENABLE_SPIRALVIEW)
+#include "modules/spiralview/spiralview.h"
 #endif
 
 static bool mainloop_1(void);
@@ -297,6 +301,31 @@ static bool mainloop_1(void) {
 #endif
 #endif
 
+#if defined(ENABLE_SPIRALVIEW) && defined(ENABLE_IMAGEGENERATOR)
+	//frame
+	caerFrameEventPacket spiralFrame = NULL;
+	caerMainloopFreeAfterLoop(&free, spiralFrame);
+	// it creates images by accumulating spikes
+	int * packet_hist_view = calloc((int)CLASSIFYSIZE * CLASSIFYSIZE * 3, sizeof(int));
+	if (packet_hist_view == NULL) {
+			return (false); // Failure.
+	}else{
+		caerMainloopFreeAfterLoop(&free, packet_hist_view);
+	}
+	bool *havespiral;
+	havespiral = (bool*)malloc(1);
+	if (havespiral == NULL) {
+		return (false); // Failure.
+	}else{
+		caerMainloopFreeAfterLoop(&free, havespiral);
+	}
+	if(haveimage[0]){
+		caerSpiralView(80, polarity_cam, CLASSIFYSIZE, classifyhist, packet_hist_view, havespiral);
+		caerSpiralViewMakeFrame(80, packet_hist_view,  &spiralFrame, CLASSIFYSIZE);
+	}
+#endif
+
+
 #ifdef ENABLE_MEANRATEFILTER
 	// create frame for displaying frequencies
 	caerFrameEventPacket freqplot = NULL;
@@ -372,6 +401,11 @@ static bool mainloop_1(void) {
 	caerVisualizer(79, "ImageMedian", &caerVisualizerRendererFrameEvents, NULL, (caerEventPacketHeader) medianFrame);
 #endif
 
+#if defined(ENABLE_SPIRALVIEW) && defined(ENABLE_IMAGEGENERATOR) && defined(ENABLE_VISUALIZER)
+	if(haveimage[0]){
+		caerVisualizer(81, "ImageSpiralLorenz", &caerVisualizerRendererFrameEvents, NULL, (caerEventPacketHeader) spiralFrame);
+	}
+#endif
 	// Filter that adds buttons and timer for recording data
 	// or playing a recording file. It implements fast forward and
 	// slow motion buttons, as well as play again from start.
