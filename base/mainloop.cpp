@@ -1403,6 +1403,10 @@ static void buildConnectivity() {
 	}
 }
 
+static void runModules() {
+
+}
+
 // Small helper to unload libraries on error.
 static void unloadLibrary(ModuleLibrary &moduleLibrary) {
 #if BOOST_HAS_DLL_LOAD
@@ -1884,46 +1888,25 @@ static int caerMainloopRunner(void) {
 		}
 	}
 
-//	// Enable memory recycling.
-//	utarray_new(glMainloopData.memoryToFree, &ut_genericFree_icd);
-//
-//	// Store references to all active modules, separated by type.
-//	utarray_new(glMainloopData.inputModules, &ut_ptr_icd);
-//	utarray_new(glMainloopData.outputModules, &ut_ptr_icd);
-//	utarray_new(glMainloopData.processorModules, &ut_ptr_icd);
-//
-//	// TODO: init modules.
-//
-//	// After each successful main-loop run, free the memory that was
-//	// accumulated for things like packets, valid only during the run.
-//	struct genericFree *memFree = NULL;
-//	while ((memFree = (struct genericFree *) utarray_next(glMainloopData.memoryToFree, memFree)) != NULL) {
-//		memFree->func(memFree->memPtr);
-//	}
-//	utarray_clear(glMainloopData.memoryToFree);
-//
-//	// Shutdown all modules.
-//	for (caerModuleData m = glMainloopData.modules; m != NULL; m = m->hh.next) {
-//		sshsNodePutBool(m->moduleNode, "running", false);
-//	}
-//
-//	// Run through the loop one last time to correctly shutdown all the modules.
-//	// TODO: exit modules.
-//
-//	// Do one last memory recycle run.
-//	struct genericFree *memFree = NULL;
-//	while ((memFree = (struct genericFree *) utarray_next(glMainloopData.memoryToFree, memFree)) != NULL) {
-//		memFree->func(memFree->memPtr);
-//	}
-//
-//	// Clear and free all allocated arrays.
-//	utarray_free(glMainloopData.memoryToFree);
-//
-//	utarray_free(glMainloopData.inputModules);
-//	utarray_free(glMainloopData.outputModules);
-//	utarray_free(glMainloopData.processorModules);
+	// Initialize the runtime memory for all modules.
+	for (const auto &m : glMainloopData.globalExecution) {
+		caerModuleData runData = caerModuleInitialize(m.get().id, m.get().name.c_str(), m.get().configNode);
+		if (runData == nullptr) {
+			// TODO: better cleanup on failure here, ensure above memory deallocation.
+			// Cleanup modules and streams on exit.
+			cleanupGlobals();
+
+			return (EXIT_FAILURE);
+		}
+
+		m.get().runtimeData = runData;
+	}
 
 	log(logLevel::INFO, "Mainloop", "Started successfully.");
+
+	// Run modules once right away to give possibility of initializing and
+	// getting some initial data (dataAvailable > 0).
+	runModules();
 
 	// If no data is available, sleep for a millisecond to avoid wasting resources.
 	// Wait for someone to toggle the module shutdown flag OR for the loop
@@ -1936,12 +1919,25 @@ static int caerMainloopRunner(void) {
 		if (glMainloopData.dataAvailable.load(std::memory_order_acquire) > 0 || sleepCount > 1000) {
 			sleepCount = 0;
 
-			// TODO: execute modules.
+			runModules();
 		}
 		else {
 			sleepCount++;
 			std::this_thread::sleep_for(std::chrono::milliseconds(1));
 		}
+	}
+
+	// Shutdown all modules.
+	for (const auto &m : glMainloopData.globalExecution) {
+		sshsNodePutBool(m.get().configNode, "running", false);
+	}
+
+	// Run through the loop one last time to correctly shutdown all the modules.
+	runModules();
+
+	// Destroy the runtime memory for all modules.
+	for (const auto &m : glMainloopData.globalExecution) {
+		caerModuleDestroy(m.get().runtimeData);
 	}
 
 	// Cleanup modules and streams on exit.
