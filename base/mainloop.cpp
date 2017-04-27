@@ -1403,8 +1403,34 @@ static void buildConnectivity() {
 	}
 }
 
-static void runModules() {
+static int32_t getMaximumInputNumber() {
+	int32_t maxSize = 0;
 
+	for (const auto &m : glMainloopData.globalExecution) {
+		int32_t inputSize = static_cast<int32_t>(m.get().inputs.size());
+
+		if (inputSize > maxSize) {
+			maxSize = inputSize;
+		}
+	}
+
+	return (maxSize);
+}
+
+static void runModules(caerEventPacketContainer in) {
+	// Run thorugh all modules in order.
+	for (const auto &m : glMainloopData.globalExecution) {
+		// Prepare input container.
+
+		// Run module state machine.
+		caerEventPacketContainer out = nullptr;
+		caerModuleSM(m.get().libraryInfo->functions, m.get().runtimeData, m.get().libraryInfo->memSize, in, &out);
+
+		// Parse possible output container.
+		if (out != nullptr) {
+
+		}
+	}
 }
 
 // Small helper to unload libraries on error.
@@ -1902,11 +1928,24 @@ static int caerMainloopRunner(void) {
 		m.get().runtimeData = runData;
 	}
 
+	// Allocate only one packet container to be re-used over all runModules() calls.
+	// It needs enough capacity to handle the highest number of inputs of any module.
+	caerEventPacketContainer inputContainer = caerEventPacketContainerAllocate(getMaximumInputNumber());
+	if (inputContainer == nullptr) {
+		// TODO: better cleanup on failure here, ensure above memory deallocation.
+		// Cleanup modules and streams on exit.
+		cleanupGlobals();
+
+		log(logLevel::ERROR, "Mainloop", "Failed to allocate reusable input container.");
+
+		return (EXIT_FAILURE);
+	}
+
 	log(logLevel::INFO, "Mainloop", "Started successfully.");
 
 	// Run modules once right away to give possibility of initializing and
 	// getting some initial data (dataAvailable > 0).
-	runModules();
+	runModules(inputContainer);
 
 	// If no data is available, sleep for a millisecond to avoid wasting resources.
 	// Wait for someone to toggle the module shutdown flag OR for the loop
@@ -1919,7 +1958,7 @@ static int caerMainloopRunner(void) {
 		if (glMainloopData.dataAvailable.load(std::memory_order_acquire) > 0 || sleepCount > 1000) {
 			sleepCount = 0;
 
-			runModules();
+			runModules(inputContainer);
 		}
 		else {
 			sleepCount++;
@@ -1933,12 +1972,14 @@ static int caerMainloopRunner(void) {
 	}
 
 	// Run through the loop one last time to correctly shutdown all the modules.
-	runModules();
+	runModules(inputContainer);
 
 	// Destroy the runtime memory for all modules.
 	for (const auto &m : glMainloopData.globalExecution) {
 		caerModuleDestroy(m.get().runtimeData);
 	}
+
+	free(inputContainer);
 
 	// Cleanup modules and streams on exit.
 	cleanupGlobals();

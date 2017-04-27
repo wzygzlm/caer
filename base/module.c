@@ -25,7 +25,6 @@ void caerModuleSM(caerModuleFunctions moduleFunctions, caerModuleData moduleData
 		}
 
 		if (moduleFunctions->moduleRun != NULL) {
-			*out = NULL;
 			moduleFunctions->moduleRun(moduleData, in, out);
 		}
 
