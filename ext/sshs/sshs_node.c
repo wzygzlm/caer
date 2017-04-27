@@ -430,22 +430,31 @@ void sshsNodeCreateAttribute(sshsNode node, const char *key, enum sshs_node_attr
 		HASH_ADD(hh, node->attributes, value_type, fullKeyLength, newAttr);
 	}
 	else {
-		// If value was present, update its range and flags, and make sure
-		// the current value is still within range.
+		// If value was present, update its range and flags always.
 		oldAttr->min = minValue;
 		oldAttr->max = maxValue;
 		oldAttr->flags = flags;
 
-		// If old value is out of range, replace with new default value.
-		if (!sshsNodeCheckRange(type, oldAttr->value, minValue, maxValue)) {
+		// Then we either update the value to the default value, if the
+		// appropriate flag is set, or else we check if the current value
+		// is still fine and within range; if it's not, we replace it.
+		if (flags & SSHS_FLAGS_FORCE_DEFAULT_VALUE) {
 			attrValueChanged = true;
 
 			oldAttr->value = newAttr->value;
 		}
 		else {
-			// Value still fine, free unused memory (string value).
-			if (type == SSHS_STRING) {
-				free(newAttr->value.string);
+			// If old value is out of range, replace with new default value.
+			if (!sshsNodeCheckRange(type, oldAttr->value, minValue, maxValue)) {
+				attrValueChanged = true;
+
+				oldAttr->value = newAttr->value;
+			}
+			else {
+				// Value still fine, free unused memory (string value).
+				if (type == SSHS_STRING) {
+					free(newAttr->value.string);
+				}
 			}
 		}
 
@@ -542,7 +551,7 @@ bool sshsNodePutAttribute(sshsNode node, const char *key, enum sshs_node_attr_va
 	}
 
 	// Value must be present, so update old one, after checking range and flags.
-	if (attr->flags == SSHS_FLAGS_READ_ONLY) {
+	if (attr->flags & SSHS_FLAGS_READ_ONLY) {
 		// Read-only flag set, cannot put new value!
 		mtx_shared_unlock_exclusive(&node->node_lock);
 		return (false);
@@ -558,7 +567,7 @@ bool sshsNodePutAttribute(sshsNode node, const char *key, enum sshs_node_attr_va
 	// itself with the new one, and save the old one for later.
 	union sshs_node_attr_value attrValueOld = attr->value;
 
-	if (attr->flags != SSHS_FLAGS_NOTIFY_ONLY) {
+	if ((attr->flags & SSHS_FLAGS_NOTIFY_ONLY) == 0) {
 		if (type == SSHS_STRING) {
 			// Make a copy of the string so we own the memory internally.
 			char *valueCopy = strdup(value.string);
@@ -589,8 +598,10 @@ bool sshsNodePutAttribute(sshsNode node, const char *key, enum sshs_node_attr_va
 	}
 
 	// Free oldAttr's string memory, not used anymore.
-	if (type == SSHS_STRING) {
-		free(attrValueOld.string);
+	if ((attr->flags & SSHS_FLAGS_NOTIFY_ONLY) == 0) {
+		if (type == SSHS_STRING) {
+			free(attrValueOld.string);
+		}
 	}
 
 	return (true);

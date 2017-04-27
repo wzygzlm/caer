@@ -57,6 +57,7 @@ enum sshs_node_attr_flags {
 	SSHS_FLAGS_NORMAL = 0,
 	SSHS_FLAGS_READ_ONLY = 1,
 	SSHS_FLAGS_NOTIFY_ONLY = 2,
+	SSHS_FLAGS_FORCE_DEFAULT_VALUE = 4,
 };
 
 enum sshs_node_node_events {
