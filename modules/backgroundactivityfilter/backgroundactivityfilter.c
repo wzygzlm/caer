@@ -44,7 +44,8 @@ static bool caerBackgroundActivityFilterInit(caerModuleData moduleData) {
 
 	// Always initialize to zero at init.
 	// Corresponding variable is already zero in state memory.
-	sshsNodePutLong(moduleData->moduleNode, "invalidPointNum", 0);
+	sshsNodeCreateLong(moduleData->moduleNode, "invalidPointNum", 0, 0, INT64_MAX,
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
 
 	BAFilterState state = moduleData->moduleState;
 
@@ -136,7 +137,8 @@ static void caerBackgroundActivityFilterRun(caerModuleData moduleData, caerEvent
 	CAER_POLARITY_ITERATOR_VALID_END
 
 	// Only update SSHS once per packet (expensive call).
-	sshsNodePutLong(moduleData->moduleNode, "invalidPointNum", state->invalidPointNum);
+	sshsNodeCreateLong(moduleData->moduleNode, "invalidPointNum", state->invalidPointNum, 0, INT64_MAX,
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
 }
 
 static void caerBackgroundActivityFilterConfig(caerModuleData moduleData) {
@@ -165,6 +167,11 @@ static void caerBackgroundActivityFilterReset(caerModuleData moduleData, int16_t
 
 	// Reset timestamp map to all zeros (startup state).
 	simple2DBufferResetLong(state->timestampMap);
+
+	// Reset invalid points counters to zero (startup state).
+	state->invalidPointNum = 0;
+	sshsNodeCreateLong(moduleData->moduleNode, "invalidPointNum", 0, 0, INT64_MAX,
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
 }
 
 static bool allocateTimestampMap(BAFilterState state, int16_t sourceID) {
