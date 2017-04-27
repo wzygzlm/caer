@@ -917,10 +917,11 @@ static void printDeps(std::shared_ptr<DependencyNode> deps) {
 	}
 
 	for (const auto &d : deps->links) {
+		std::ostringstream indent;
 		for (size_t i = 0; i < deps->depth; i++) {
-			std::cout << "    ";
+			indent << "    ";
 		}
-		std::cout << d.id << std::endl;
+		log(logLevel::DEBUG, "Mainloop", "%s%d", indent.str().c_str(), d.id);
 		if (d.next) {
 			printDeps(d.next);
 		}
@@ -1168,8 +1169,6 @@ static void mergeActiveStreamDeps() {
 		// Merge the current stream's dependency tree to the global tree.
 		mergeDependencyTrees(mergeResult, st.dependencies);
 	}
-
-	printDeps(mergeResult);
 
 	// Now generate the final traversal order over all modules by going
 	// through the merged tree in BFS (level) order.
@@ -1965,32 +1964,34 @@ static int caerMainloopRunner(void) {
 	}
 
 	// Debug output.
-	std::cout << "Global order: ";
-	for (const auto &m : glMainloopData.globalExecution) {
-		std::cout << m.get().id << ", ";
-	}
-	std::cout << std::endl;
-
 	for (const auto &st : glMainloopData.streams) {
-		std::cout << "(" << st.sourceId << ", " << st.typeId << ") - IS_PROC: " << st.isProcessor << " - ";
-		for (auto mid : st.users) {
-			std::cout << mid << ", ";
+		std::ostringstream streamPrint;
+		streamPrint << "(" << st.sourceId << ", " << st.typeId << ") - IS_PROC: " << st.isProcessor << " - ";
+		for (auto mId : st.users) {
+			streamPrint << mId << ", ";
 		}
-		std::cout << std::endl;
+		log(logLevel::DEBUG, "Mainloop", "Stream: %s", streamPrint.str().c_str());
 		printDeps(st.dependencies);
 	}
 
-	std::cout << "Global copy count: " << glMainloopData.copyCount << std::endl;
+	std::ostringstream orderPrint;
+	for (const auto &m : glMainloopData.globalExecution) {
+		orderPrint << m.get().id << ", ";
+	}
+	log(logLevel::DEBUG, "Mainloop", "Global order: %s", orderPrint.str().c_str());
+
+	log(logLevel::DEBUG, "Mainloop", "Global copy count: %d", glMainloopData.copyCount);
 
 	for (const auto &m : glMainloopData.globalExecution) {
-		std::cout << m.get().id << "-MOD: " << m.get().libraryInfo->type << " - " << m.get().name << std::endl;
+		log(logLevel::DEBUG, "Mainloop", "Module %d: type %d - %s", m.get().id, m.get().libraryInfo->type,
+			m.get().name.c_str());
 
 		for (const auto &i : m.get().inputs) {
-			std::cout << " --> " << i.first << " - " << i.second << " - POS_IN" << std::endl;
+			log(logLevel::DEBUG, "Mainloop", " --> IN: %d - %d", i.first, i.second);
 		}
 
 		for (const auto &o : m.get().outputs) {
-			std::cout << " --> " << o.first << " - " << o.second << " - POS_OUT" << std::endl;
+			log(logLevel::DEBUG, "Mainloop", " --> OUT: %d - %d", o.first, o.second);
 		}
 	}
 
