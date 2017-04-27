@@ -13,6 +13,8 @@
 #include <allegro5/allegro_primitives.h>
 #include <allegro5/allegro_ttf.h>
 
+static once_flag visualizerSystemIsInitialized = ONCE_FLAG_INIT;
+
 struct caer_visualizer_renderers {
 	const char *name;
 	caerVisualizerRenderer renderer;
@@ -29,8 +31,8 @@ struct caer_visualizer_handlers {
 	caerVisualizerEventHandler handler;
 };
 
-static struct caer_visualizer_handlers caerVisualizerHandlerList[] = {
-	{ "Spikes", &caerVisualizerEventHandlerSpikeEvents } };
+static struct caer_visualizer_handlers caerVisualizerHandlerList[] = { { "Spikes",
+	&caerVisualizerEventHandlerSpikeEvents } };
 
 struct caer_visualizer_state {
 	void *eventSourceModuleState;
@@ -199,6 +201,9 @@ void caerVisualizerSystemInit(void) {
 caerVisualizerState caerVisualizerInit(caerVisualizerRenderer renderer, caerVisualizerEventHandler eventHandler,
 	int32_t bitmapSizeX, int32_t bitmapSizeY, float defaultZoomFactor, bool defaultShowStatistics,
 	caerModuleData parentModule, int16_t eventSourceID) {
+	// Initialize visualizer framework (load fonts etc.). Do only once per startup!
+	call_once(&visualizerSystemIsInitialized, &caerVisualizerSystemInit);
+
 	// Allocate memory for visualizer state.
 	caerVisualizerState state = calloc(1, sizeof(struct caer_visualizer_state));
 	if (state == NULL) {
@@ -746,8 +751,8 @@ static const struct caer_module_functions VisualizerFunctions = { .moduleInit = 
 static const struct caer_event_stream_in VisualizerInputs[] = { { .type = -1, .number = -1, .readOnly = true } };
 
 static const struct caer_module_info VisualizerInfo = { .version = 1, .name = "Visualizer", .type = CAER_MODULE_OUTPUT,
-	.memSize = 0, .functions = &VisualizerFunctions, .inputStreams = VisualizerInputs,
-	.inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(VisualizerInputs), .outputStreams = NULL, .outputStreamsSize = 0, };
+	.memSize = 0, .functions = &VisualizerFunctions, .inputStreams = VisualizerInputs, .inputStreamsSize =
+		CAER_EVENT_STREAM_IN_SIZE(VisualizerInputs), .outputStreams = NULL, .outputStreamsSize = 0, };
 
 caerModuleInfo caerModuleGetInfo(void) {
 	return (&VisualizerInfo);

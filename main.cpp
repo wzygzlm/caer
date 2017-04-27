@@ -1,17 +1,3 @@
-/*
- * main.c
- *
- *  Created on: Oct 6, 2013
- *      Author: chtekk
- *
- *  Compile & run:
- *  $ cd caer/
- *  $ rm -rf CMakeFiles CMakeCache.txt
- *  $ CC=clang-3.7 cmake [-DJAER_COMPAT_FORMAT=1 -DENABLE_VISUALIZER=1 -DENABLE_NET_STREAM=1] -DDAVISFX2 .
- *  $ make
- *  $ ./caer-bin
- */
-
 #include "main.h"
 #include "base/config.h"
 #include "base/config_server.h"
@@ -32,11 +18,6 @@ int main(int argc, char **argv) {
 
 	// Daemonize the application (run in background, NOT AVAILABLE ON WINDOWS).
 	// caerDaemonize();
-
-	// Initialize visualizer framework (load fonts etc.).
-#ifdef ENABLE_VISUALIZER
-	caerVisualizerSystemInit();
-#endif
 
 	// Start the configuration server thread for run-time config changes.
 	caerConfigServerStart();
