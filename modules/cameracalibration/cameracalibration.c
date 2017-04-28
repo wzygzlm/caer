@@ -112,7 +112,7 @@ static void updateSettings(caerModuleData moduleData) {
 		state->settings.calibrationPattern = CAMCALIB_ASYMMETRIC_CIRCLES_GRID;
 	}
 	else {
-		caerLog(CAER_LOG_ERROR, moduleData->moduleSubSystemString,
+		caerModuleLog(moduleData, CAER_LOG_ERROR,
 			"Invalid calibration pattern defined. Select one of: chessboard, circlesGrid or asymmetricCirclesGrid. Defaulting to chessboard.");
 
 		state->settings.calibrationPattern = CAMCALIB_CHESSBOARD;
@@ -186,8 +186,7 @@ static void caerCameraCalibrationRun(caerModuleData moduleData, caerEventPacketC
 		sshsNode sourceInfoNode = caerMainloopGetSourceInfo(sourceID);
 		if (sourceInfoNode == NULL) {
 			// This should never happen, but we handle it gracefully.
-			caerLog(CAER_LOG_ERROR, moduleData->moduleSubSystemString,
-				"Failed to get source info to setup calibration settings.");
+			caerModuleLog(moduleData, CAER_LOG_ERROR, "Failed to get source info to setup calibration settings.");
 			return;
 		}
 
@@ -206,8 +205,7 @@ static void caerCameraCalibrationRun(caerModuleData moduleData, caerEventPacketC
 				state->lastFrameTimestamp = currTimestamp;
 
 				bool foundPoint = calibration_findNewPoints(state->cpp_class, caerFrameIteratorElement);
-				caerLog(CAER_LOG_WARNING, moduleData->moduleSubSystemString,
-					"Searching for new point set, result = %d.", foundPoint);
+				caerModuleLog(moduleData, CAER_LOG_WARNING, "Searching for new point set, result = %d.", foundPoint);
 			}
 		CAER_FRAME_ITERATOR_VALID_END
 
@@ -219,8 +217,8 @@ static void caerCameraCalibrationRun(caerModuleData moduleData, caerEventPacketC
 
 			double totalAvgError;
 			state->calibrationCompleted = calibration_runCalibrationAndSave(state->cpp_class, &totalAvgError);
-			caerLog(CAER_LOG_WARNING, moduleData->moduleSubSystemString,
-				"Executing calibration, result = %d, error = %f.", state->calibrationCompleted, totalAvgError);
+			caerModuleLog(moduleData, CAER_LOG_WARNING, "Executing calibration, result = %d, error = %f.",
+				state->calibrationCompleted, totalAvgError);
 		}
 	}
 

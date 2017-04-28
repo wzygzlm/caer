@@ -20,7 +20,7 @@ static void caerBackgroundActivityFilterRun(caerModuleData moduleData, caerEvent
 static void caerBackgroundActivityFilterConfig(caerModuleData moduleData);
 static void caerBackgroundActivityFilterExit(caerModuleData moduleData);
 static void caerBackgroundActivityFilterReset(caerModuleData moduleData, int16_t resetCallSourceID);
-static bool allocateTimestampMap(BAFilterState state, int16_t sourceID);
+static bool allocateTimestampMap(caerModuleData moduleData, int16_t sourceID);
 
 static const struct caer_module_functions BAFilterFunctions = { .moduleInit = &caerBackgroundActivityFilterInit,
 	.moduleRun = &caerBackgroundActivityFilterRun, .moduleConfig = &caerBackgroundActivityFilterConfig, .moduleExit =
@@ -75,9 +75,9 @@ static void caerBackgroundActivityFilterRun(caerModuleData moduleData, caerEvent
 
 	// If the map is not allocated yet, do it.
 	if (state->timestampMap == NULL) {
-		if (!allocateTimestampMap(state, caerEventPacketHeaderGetEventSource(&polarity->packetHeader))) {
+		if (!allocateTimestampMap(moduleData, caerEventPacketHeaderGetEventSource(&polarity->packetHeader))) {
 			// Failed to allocate memory, nothing to do.
-			caerLog(CAER_LOG_ERROR, moduleData->moduleSubSystemString, "Failed to allocate memory for timestampMap.");
+			caerModuleLog(moduleData, CAER_LOG_ERROR, "Failed to allocate memory for timestampMap.");
 			return;
 		}
 	}
@@ -174,14 +174,16 @@ static void caerBackgroundActivityFilterReset(caerModuleData moduleData, int16_t
 		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
 }
 
-static bool allocateTimestampMap(BAFilterState state, int16_t sourceID) {
+static bool allocateTimestampMap(caerModuleData moduleData, int16_t sourceID) {
 	// Get size information from source.
 	sshsNode sourceInfoNode = caerMainloopGetSourceInfo(sourceID);
 	if (sourceInfoNode == NULL) {
 		// This should never happen, but we handle it gracefully.
-		caerLog(CAER_LOG_ERROR, __func__, "Failed to get source info to allocate timestamp map.");
+		caerModuleLog(moduleData, CAER_LOG_ERROR, "Failed to get source info to allocate timestamp map.");
 		return (false);
 	}
+
+	BAFilterState state = moduleData->moduleState;
 
 	int16_t sizeX = sshsNodeGetShort(sourceInfoNode, "dvsSizeX");
 	int16_t sizeY = sshsNodeGetShort(sourceInfoNode, "dvsSizeY");

@@ -207,7 +207,7 @@ caerVisualizerState caerVisualizerInit(caerVisualizerRenderer renderer, caerVisu
 	// Allocate memory for visualizer state.
 	caerVisualizerState state = calloc(1, sizeof(struct caer_visualizer_state));
 	if (state == NULL) {
-		caerLog(CAER_LOG_ERROR, parentModule->moduleSubSystemString, "Visualizer: Failed to allocate state memory.");
+		caerModuleLog(parentModule, CAER_LOG_ERROR, "Visualizer: Failed to allocate state memory.");
 		return (NULL);
 	}
 
@@ -239,8 +239,7 @@ caerVisualizerState caerVisualizerInit(caerVisualizerRenderer renderer, caerVisu
 	if (!caerStatisticsStringInit(&state->packetStatistics)) {
 		free(state);
 
-		caerLog(CAER_LOG_ERROR, parentModule->moduleSubSystemString,
-			"Visualizer: Failed to initialize statistics string.");
+		caerModuleLog(parentModule, CAER_LOG_ERROR, "Visualizer: Failed to initialize statistics string.");
 		return (NULL);
 	}
 
@@ -250,7 +249,7 @@ caerVisualizerState caerVisualizerInit(caerVisualizerRenderer renderer, caerVisu
 		caerStatisticsStringExit(&state->packetStatistics);
 		free(state);
 
-		caerLog(CAER_LOG_ERROR, parentModule->moduleSubSystemString, "Visualizer: Failed to initialize ring-buffer.");
+		caerModuleLog(parentModule, CAER_LOG_ERROR, "Visualizer: Failed to initialize ring-buffer.");
 		return (NULL);
 	}
 
@@ -263,14 +262,14 @@ caerVisualizerState caerVisualizerInit(caerVisualizerRenderer renderer, caerVisu
 		caerStatisticsStringExit(&state->packetStatistics);
 		free(state);
 
-		caerLog(CAER_LOG_ERROR, parentModule->moduleSubSystemString, "Visualizer: Failed to start rendering thread.");
+		caerModuleLog(parentModule, CAER_LOG_ERROR, "Visualizer: Failed to start rendering thread.");
 		return (NULL);
 	}
 
 	// Add config listeners last, to avoid having them dangling if Init doesn't succeed.
 	sshsNodeAddAttributeListener(parentModule->moduleNode, state, &caerVisualizerConfigListener);
 
-	caerLog(CAER_LOG_DEBUG, parentModule->moduleSubSystemString, "Visualizer: Initialized successfully.");
+	caerModuleLog(parentModule, CAER_LOG_DEBUG, "Visualizer: Initialized successfully.");
 
 	return (state);
 }
@@ -352,7 +351,7 @@ void caerVisualizerUpdate(caerVisualizerState state, caerEventPacketContainer co
 
 	caerEventPacketContainer containerCopy = caerEventPacketContainerCopyAllEvents(container);
 	if (containerCopy == NULL) {
-		caerLog(CAER_LOG_ERROR, state->parentModule->moduleSubSystemString,
+		caerModuleLog(state->parentModule, CAER_LOG_ERROR,
 			"Visualizer: Failed to copy event packet container for rendering.");
 
 		return;
@@ -361,7 +360,7 @@ void caerVisualizerUpdate(caerVisualizerState state, caerEventPacketContainer co
 	if (!ringBufferPut(state->dataTransfer, containerCopy)) {
 		caerEventPacketContainerFree(containerCopy);
 
-		caerLog(CAER_LOG_INFO, state->parentModule->moduleSubSystemString,
+		caerModuleLog(state->parentModule, CAER_LOG_INFO,
 			"Visualizer: Failed to move event packet container copy to ring-buffer (full).");
 		return;
 	}
@@ -380,8 +379,8 @@ void caerVisualizerExit(caerVisualizerState state) {
 
 	if ((errno = thrd_join(state->renderingThread, NULL)) != thrd_success) {
 		// This should never happen!
-		caerLog(CAER_LOG_CRITICAL, state->parentModule->moduleSubSystemString,
-			"Visualizer: Failed to join rendering thread. Error: %d.", errno);
+		caerModuleLog(state->parentModule, CAER_LOG_CRITICAL, "Visualizer: Failed to join rendering thread. Error: %d.",
+			errno);
 	}
 
 	// Now clean up the ring-buffer and its contents.
@@ -395,7 +394,7 @@ void caerVisualizerExit(caerVisualizerState state) {
 	// Then the statistics string.
 	caerStatisticsStringExit(&state->packetStatistics);
 
-	caerLog(CAER_LOG_DEBUG, state->parentModule->moduleSubSystemString, "Visualizer: Exited successfully.");
+	caerModuleLog(state->parentModule, CAER_LOG_DEBUG, "Visualizer: Exited successfully.");
 
 	// And finally the state memory.
 	free(state);
@@ -415,7 +414,7 @@ static bool caerVisualizerInitGraphics(caerVisualizerState state) {
 	// Create display window.
 	state->displayWindow = al_create_display(state->displayWindowSizeX, state->displayWindowSizeY);
 	if (state->displayWindow == NULL) {
-		caerLog(CAER_LOG_ERROR, state->parentModule->moduleSubSystemString,
+		caerModuleLog(state->parentModule, CAER_LOG_ERROR,
 			"Visualizer: Failed to create display window with sizeX=%d, sizeY=%d.", state->displayWindowSizeX,
 			state->displayWindowSizeY);
 		return (false);
@@ -440,7 +439,7 @@ static bool caerVisualizerInitGraphics(caerVisualizerState state) {
 		// Clean up all memory that may have been used.
 		caerVisualizerExitGraphics(state);
 
-		caerLog(CAER_LOG_ERROR, state->parentModule->moduleSubSystemString,
+		caerModuleLog(state->parentModule, CAER_LOG_ERROR,
 			"Visualizer: Failed to create bitmap element with sizeX=%d, sizeY=%d.", state->bitmapRendererSizeX,
 			state->bitmapRendererSizeY);
 		return (false);
@@ -456,8 +455,7 @@ static bool caerVisualizerInitGraphics(caerVisualizerState state) {
 		// Clean up all memory that may have been used.
 		caerVisualizerExitGraphics(state);
 
-		caerLog(CAER_LOG_ERROR, state->parentModule->moduleSubSystemString,
-			"Visualizer: Failed to create event queue.");
+		caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Visualizer: Failed to create event queue.");
 		return (false);
 	}
 
@@ -466,7 +464,7 @@ static bool caerVisualizerInitGraphics(caerVisualizerState state) {
 		// Clean up all memory that may have been used.
 		caerVisualizerExitGraphics(state);
 
-		caerLog(CAER_LOG_ERROR, state->parentModule->moduleSubSystemString, "Visualizer: Failed to create timer.");
+		caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Visualizer: Failed to create timer.");
 		return (false);
 	}
 
@@ -479,7 +477,7 @@ static bool caerVisualizerInitGraphics(caerVisualizerState state) {
 	// A display must have been created and used as target for this to work.
 	state->displayFont = al_load_font(globalFontPath, GLOBAL_FONT_SIZE, 0);
 	if (state->displayFont == NULL) {
-		caerLog(CAER_LOG_WARNING, state->parentModule->moduleSubSystemString,
+		caerModuleLog(state->parentModule, CAER_LOG_WARNING,
 			"Visualizer: Failed to load display font '%s'. Text rendering will not be possible.", globalFontPath);
 	}
 

@@ -89,7 +89,7 @@ static inline const char *chipIDToName(int16_t chipID, bool withEndSlash) {
 }
 
 bool caerInputDAVISInit(caerModuleData moduleData, uint16_t deviceType) {
-	caerLog(CAER_LOG_DEBUG, moduleData->moduleSubSystemString, "Initializing module ...");
+	caerModuleLog(moduleData, CAER_LOG_DEBUG, "Initializing module ...");
 
 	// USB port/bus/SN settings/restrictions.
 	// These can be used to force connection to one specific device at startup.
