@@ -1,12 +1,11 @@
 #include "main.h"
 #include "base/mainloop.h"
 #include "base/module.h"
-#include "ext/buffers.h"
 #include "ext/colorjet/colorjet.h"
 
 #include <math.h>
 #include <libcaer/events/polarity.h>
-#include <libcaer/events/frame.h> // TODO: why?
+#include <libcaer/events/frame.h>
 
 typedef struct path {
 	float location_x;
