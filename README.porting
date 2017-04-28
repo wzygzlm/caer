@@ -21,8 +21,8 @@ Let's take as an example a module that takes a Polarity packet and a Frame packe
 and processes them without changing them by calculating points in a 3D space;
 returning a Point3D event packet as a result, this looked like this before:
 
-caerPoint3DEventPacket mainModuleFunction(uint16_t moduleID, caerPolarityEventPacket polarity,
-	caerFrameEventPacket frame) {
+caerPoint3DEventPacket mainModuleFunction(uint16_t moduleID, caerPolarityEventPacketConst polarity,
+	caerFrameEventPacketConst frame) {
 
 	caerModuleData moduleData = caerMainloopFindModule(moduleID, "MODULE", CAER_MODULE_PROCESSOR);
 	if (moduleData == NULL) {
@@ -37,7 +37,7 @@ caerPoint3DEventPacket mainModuleFunction(uint16_t moduleID, caerPolarityEventPa
 	return (medianData);
 }
 
-Now you'd sobstitute that input/output information with the appropriate definitions:
+Now you'd substitute that input/output information with the appropriate definitions:
 
 static const struct caer_event_stream_in moduleInputs[] = {
     { .type = POLARITY_EVENT, .number = 1, .readOnly = true },
@@ -60,7 +60,7 @@ static const struct caer_module_info moduleInfo = {
     .inputStreams = moduleInputs,
     .inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(moduleInputs),
     .outputStreams = moduleOutputs,
-	.outputStreamsSize = CAER_EVENT_STREAM_OUT_SIZE(moduleOutputs)
+    .outputStreamsSize = CAER_EVENT_STREAM_OUT_SIZE(moduleOutputs)
 };
 
 caerModuleInfo caerModuleGetInfo(void) {
@@ -90,11 +90,11 @@ if (*results == NULL) {
 Now instead you get an input packet container (caerEventPacketContainer in),
 where you can search for the appropriate type of packet; as well as an output
 packet container pointer (caerEventPacketContainer *out), which allows you to
-create a packet container and assign it output IF your module has any.
+create a packet container and assign it output IFF your module has any.
 If there is no input at all on this run, 'in' will be NULL.
 If your module doesn't state in its output definitions that it can create a
 specific type of output, the 'out' argument will always be NULL.
-So for the above example, this is the new way to get the input:
+So for the above example, this is the new way to handle input and output:
 
 caerPolarityEventPacketConst polarity = (caerPolarityEventPacketConst)
     caerEventPacketContainerFindEventPacketByTypeConst(in, POLARITY_EVENT);
@@ -126,7 +126,7 @@ static void moduleReset(caerModuleData moduleData, int16_t resetCallSourceID);
 
 Notice the argument changed from uint16_t to int16_t for consistency with the
 actual event source ID. This change has usually minimal repercussions on your
-reset function code, usually you just have to adjust a few casts.
+reset function code, you just have to adjust a few casts.
 
 7) The SSHS configuration system also got a big overhaul, it now supports specifying
 ranges for configuration parameters (min/max), as well as several flags to get for
@@ -134,15 +134,15 @@ example read-only or button-like (notify-only) behavior from configuration param
 To implement this, there is a new set of sshsNodeCreate*() functions with the appropriate
 extra arguments. Those should always be used inside the moduleInit() function to create
 the configuration parameter, so that later on sshsNodePut*() and sshsNodeGet*() calls
-may access it. Trying to modify or access a node before it has been created is a
+may access it. Trying to modify or access an attribute before it has been created is a
 fatal usage error! The sshsNodePut*IfAbsent() set of functions has been removed, as
 that is the default behavior now when creating nodes: if the value already exists,
-it is not modified (unless it is not out-of-range or the force-update flag is set).
+it is not modified (unless it is out-of-range or the force-update flag is set).
 A call in moduleInit() to initialize a configuration parameter, was before:
 
 sshsNodePutIntIfAbsent(moduleData->moduleNode, "param", 1234);
 
-And now instead is (with 0 minimum, 2000 maximum):
+And now instead is (with 0 minimum, 2000 maximum values):
 
 sshsNodeCreateInt(moduleData->moduleNode, "param", 1234, 0, 2000, SSHS_FLAGS_NORMAL);
 
@@ -150,11 +150,11 @@ sshsNodeCreateInt(moduleData->moduleNode, "param", 1234, 0, 2000, SSHS_FLAGS_NOR
 tries to generate a shared library, a very simple example would look like this:
 
 IF (NOT ENABLE_MODULE)
-	SET(ENABLE_MODULE 0 CACHE BOOL "Enable the most modulous module")
+    SET(ENABLE_MODULE 0 CACHE BOOL "Enable the most modulous module")
 ENDIF()
 
 IF (ENABLE_MODULE)
-	ADD_LIBRARY(module SHARED module.c)
+    ADD_LIBRARY(module SHARED module.c)
 
-	TARGET_LINK_LIBRARIES(module ${CAER_C_LIBS})
+    TARGET_LINK_LIBRARIES(module ${CAER_C_LIBS})
 ENDIF()
