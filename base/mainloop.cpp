@@ -1666,8 +1666,8 @@ static int caerMainloopRunner(void) {
 
 		caerModuleInfo info = (*getInfo)();
 		if (info == nullptr) {
-			log(logLevel::ERROR, "Mainloop", "Module '%s': Failed to get info from library '%s', error: '%s'.",
-				m.second.name.c_str(), modulePath.c_str(), dlerror());
+			log(logLevel::ERROR, "Mainloop", "Module '%s': Failed to get info from library '%s'.",
+				m.second.name.c_str(), modulePath.c_str());
 			unloadLibrary(moduleLibrary);
 			continue;
 		}
