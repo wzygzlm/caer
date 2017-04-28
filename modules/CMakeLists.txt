@@ -19,7 +19,7 @@ ADD_SUBDIRECTORY(visualizer)
 #ADD_SUBDIRECTORY(infofilter)
 #ADD_SUBDIRECTORY(rectangulartracker)
 #ADD_SUBDIRECTORY(rectangulartracker_dynamic)
-#ADD_SUBDIRECTORY(mediantracker)
+ADD_SUBDIRECTORY(mediantracker)
 #ADD_SUBDIRECTORY(dvstodynapse)
 #ADD_SUBDIRECTORY(learningfilter)
 #ADD_SUBDIRECTORY(gesturelearningfilter)
@@ -31,6 +31,7 @@ ADD_SUBDIRECTORY(visualizer)
 #ADD_SUBDIRECTORY(denoisingautoencoder)
 #ADD_SUBDIRECTORY(pixelmatrix)
 #ADD_SUBDIRECTORY(depressingsynapsefilter)
+#ADD_SUBDIRECTORY(spiralview)
 
 # Support private modules that don't get considered for commit,
 # by reserving a directory called PrivateModules with its own

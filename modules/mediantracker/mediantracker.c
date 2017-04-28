@@ -1,17 +1,12 @@
-/*
- * Mediantracker.c
- *
- *  Created on: Jan 2017
- *      Author: Tianyu
- */
-
-// all caerLog are used to debug
-
-#include "mediantracker.h"
+#include "main.h"
 #include "base/mainloop.h"
 #include "base/module.h"
 #include "ext/buffers.h"
-#include "math.h"
+#include <math.h>
+
+#include <libcaer/events/polarity.h>
+#include <libcaer/events/frame.h>
+#include <libcaer/events/point4d.h>
 
 struct MTFilter_state {
 	float xmedian;
@@ -20,9 +15,9 @@ struct MTFilter_state {
 	float ystd;
 	float xmean;
 	float ymean;
-	int lastts;
-	int dt;
-	int prevlastts;
+	int64_t lastts;
+	int64_t dt;
+	int64_t prevlastts;
 	float radius;
 	float numStdDevsForBoundingBox;
 	int tauUs;
@@ -33,32 +28,32 @@ static const int TICK_PER_MS = 1000;
 typedef struct MTFilter_state *MTFilterState;
 
 static bool caerMediantrackerInit(caerModuleData moduleData);
-static void caerMediantrackerRun(caerModuleData moduleData, size_t argsNumber, va_list args);
+static void caerMediantrackerRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out);
 static void caerMediantrackerConfig(caerModuleData moduleData);
 static void caerMediantrackerExit(caerModuleData moduleData);
-static void caerMediantrackerReset(caerModuleData moduleData, uint16_t resetCallSourceID);
 
-static struct caer_module_functions caerMediantrackerFunctions = { .moduleInit = &caerMediantrackerInit, .moduleRun =
-	&caerMediantrackerRun, .moduleConfig = &caerMediantrackerConfig, .moduleExit = &caerMediantrackerExit,
-	.moduleReset = &caerMediantrackerReset };
+static const struct caer_module_functions caerMediantrackerFunctions = { .moduleInit = &caerMediantrackerInit,
+	.moduleRun = &caerMediantrackerRun, .moduleConfig = &caerMediantrackerConfig, .moduleExit = &caerMediantrackerExit };
 
-caerPoint4DEventPacket caerMediantrackerFilter(uint16_t moduleID, caerPolarityEventPacket polarity, caerFrameEventPacket frame) {
+static const struct caer_event_stream_in caerMediantrackerInputs[] = { { .type = POLARITY_EVENT, .number = 1,
+	.readOnly = true } };
 
-	caerPoint4DEventPacket medianData = NULL;
+static const struct caer_event_stream_out caerMediantrackerOutputs[] = { { .type = FRAME_EVENT }, { .type =
+	POINT4D_EVENT } };
 
-	caerModuleData moduleData = caerMainloopFindModule(moduleID, "MTFilter", CAER_MODULE_PROCESSOR);
-	if (moduleData == NULL) {
-		return(NULL);
-	}
+static const struct caer_module_info caerMediantrackerInfo =
+	{ .version = 1, .name = "MedianTracker", .type = CAER_MODULE_PROCESSOR, .memSize = sizeof(struct MTFilter_state),
+		.functions = &caerMediantrackerFunctions, .inputStreams = caerMediantrackerInputs, .inputStreamsSize =
+			CAER_EVENT_STREAM_IN_SIZE(caerMediantrackerInputs), .outputStreams = caerMediantrackerOutputs,
+		.outputStreamsSize = CAER_EVENT_STREAM_OUT_SIZE(caerMediantrackerOutputs) };
 
-	caerModuleSM(&caerMediantrackerFunctions, moduleData, sizeof(struct MTFilter_state), 3, polarity, frame, &medianData);
-
-	return(medianData);
+caerModuleInfo caerModuleGetInfo(void) {
+	return (&caerMediantrackerInfo);
 }
 
 static bool caerMediantrackerInit(caerModuleData moduleData) {
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "tauUs", 25);
-	sshsNodePutFloatIfAbsent(moduleData->moduleNode, "numStdDevsForBoundingBox", 1.0f);
+	sshsNodeCreateInt(moduleData->moduleNode, "tauUs", 25, 0, 1000, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateFloat(moduleData->moduleNode, "numStdDevsForBoundingBox", 1.0f, 0.0f, 10.0f, SSHS_FLAGS_NORMAL);
 
 	MTFilterState state = moduleData->moduleState;
 
@@ -81,13 +76,11 @@ static bool caerMediantrackerInit(caerModuleData moduleData) {
 	// Nothing that can fail here.
 	return (true);
 }
-static void caerMediantrackerRun(caerModuleData moduleData, size_t argsNumber, va_list args) {
-	UNUSED_ARGUMENT(argsNumber);
 
+static void caerMediantrackerRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out) {
 	// Interpret variable arguments (same as above in main function).
-	caerPolarityEventPacket polarity = va_arg(args, caerPolarityEventPacket);
-	caerFrameEventPacket *frame = va_arg(args, caerFrameEventPacket*);
-	caerPoint4DEventPacket *medianData = va_arg(args, caerPoint4DEventPacket *);
+	caerPolarityEventPacketConst polarity =
+		(caerPolarityEventPacketConst) caerEventPacketContainerFindEventPacketByTypeConst(in, POLARITY_EVENT);
 
 	// Only process packets with content.
 	if (polarity == NULL) {
@@ -96,12 +89,14 @@ static void caerMediantrackerRun(caerModuleData moduleData, size_t argsNumber, v
 
 	MTFilterState state = moduleData->moduleState;
 
-	int sourceID = caerEventPacketHeaderGetEventSource(&polarity->packetHeader);
+	int16_t sourceID = caerEventPacketHeaderGetEventSource(&polarity->packetHeader);
 	sshsNode sourceInfoNodeCA = caerMainloopGetSourceInfo(sourceID);
 	sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
 	if (!sshsNodeAttributeExists(sourceInfoNode, "dataSizeX", SSHS_SHORT)) { //to do for visualizer change name of field to a more generic one
-		sshsNodePutShort(sourceInfoNode, "dataSizeX", sshsNodeGetShort(sourceInfoNodeCA, "dvsSizeX"));
-		sshsNodePutShort(sourceInfoNode, "dataSizeY", sshsNodeGetShort(sourceInfoNodeCA, "dvsSizeY"));
+		sshsNodeCreateShort(sourceInfoNode, "dataSizeX", sshsNodeGetShort(sourceInfoNodeCA, "dvsSizeX"), 1, 1024,
+			SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+		sshsNodeCreateShort(sourceInfoNode, "dataSizeY", sshsNodeGetShort(sourceInfoNodeCA, "dvsSizeY"), 1, 1024,
+			SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
 	}
 
 	int16_t sizeX = sshsNodeGetShort(sourceInfoNode, "dataSizeX");
@@ -113,10 +108,11 @@ static void caerMediantrackerRun(caerModuleData moduleData, size_t argsNumber, v
 	// get last time stamp of the packet
 	// update dt and prevlastts
 	//int countForLastTime = 0;
-	int maxLastTime = 0;
-	CAER_POLARITY_ITERATOR_VALID_START(polarity)
-		if (maxLastTime < caerPolarityEventGetTimestamp64(caerPolarityIteratorElement, polarity))
+	int64_t maxLastTime = 0;
+	CAER_POLARITY_CONST_ITERATOR_VALID_START(polarity)
+		if (maxLastTime < caerPolarityEventGetTimestamp64(caerPolarityIteratorElement, polarity)) {
 			maxLastTime = caerPolarityEventGetTimestamp64(caerPolarityIteratorElement, polarity);
+		}
 	CAER_POLARITY_ITERATOR_VALID_END
 	state->lastts = maxLastTime;
 	state->dt = state->lastts - state->prevlastts;
@@ -128,7 +124,7 @@ static void caerMediantrackerRun(caerModuleData moduleData, size_t argsNumber, v
 	int xs[n];
 	int ys[n];
 	int index = 0;
-	CAER_POLARITY_ITERATOR_VALID_START(polarity)
+	CAER_POLARITY_CONST_ITERATOR_VALID_START(polarity)
 		xs[index] = caerPolarityEventGetX(caerPolarityIteratorElement);
 		ys[index] = caerPolarityEventGetY(caerPolarityIteratorElement);
 		index++;
@@ -141,11 +137,11 @@ static void caerMediantrackerRun(caerModuleData moduleData, size_t argsNumber, v
 		y = ys[index / 2];
 	}
 	else { // even number of events take avg of middle two
-		x = (float) (((float) xs[index / 2 - 1] + xs[index / 2]) / 2.0f);
-		y = (float) (((float) ys[index / 2 - 1] + ys[index / 2]) / 2.0f);
+		x = (xs[index / 2 - 1] + xs[index / 2]) / 2;
+		y = (ys[index / 2 - 1] + ys[index / 2]) / 2;
 	}
 
-	float fac = (float) state->dt / (float) state->tauUs / (float)TICK_PER_MS;
+	float fac = (float) state->dt / (float) state->tauUs / (float) TICK_PER_MS;
 	if (fac > 1)
 		fac = 1;
 	state->xmedian = state->xmedian + (x - state->xmedian) * fac;
@@ -178,84 +174,99 @@ static void caerMediantrackerRun(caerModuleData moduleData, size_t argsNumber, v
 		xvar /= index;
 		yvar /= index;
 	}
-	state->xstd = state->xstd + ((float) sqrt(xvar) - state->xstd) * fac;
-	state->ystd = state->ystd + ((float) sqrt(yvar) - state->ystd) * fac;
+	state->xstd = state->xstd + ((float) sqrt((double) xvar) - state->xstd) * fac;
+	state->ystd = state->ystd + ((float) sqrt((double) yvar) - state->ystd) * fac;
 
-
-	// allocate 4d event if null
-	if (*medianData == NULL) {
-		*medianData = caerPoint4DEventPacketAllocate(128, sourceID, NULL);
-		caerMainloopFreeAfterLoop(&free, *medianData);
+	// Allocate packet container for result packet.
+	*out = caerEventPacketContainerAllocate(2);
+	if (*out == NULL) {
+		return; // Error.
 	}
+
+	caerPoint4DEventPacket medianData = caerPoint4DEventPacketAllocate(128, moduleData->moduleID,
+		I32T(state->lastts >> 31));
+	if (medianData == NULL) {
+		return; // Error.
+	}
+	else {
+		// Add output packet to packet container.
+		caerEventPacketContainerSetEventPacket(*out, 0, (caerEventPacketHeader) medianData);
+	}
+
 	// set timestamp for 4d event
-	caerPoint4DEvent evt = caerPoint4DEventPacketGetEvent(*medianData,
-			caerEventPacketHeaderGetEventNumber(&(*medianData)->packetHeader));
+	caerPoint4DEvent evt = caerPoint4DEventPacketGetEvent(medianData,
+		caerEventPacketHeaderGetEventNumber(&medianData->packetHeader));
 
-	caerPoint4DEventSetTimestamp(evt, state->lastts);
+	caerPoint4DEventSetTimestamp(evt, state->lastts & INT32_MAX);
 
-	caerPoint4DEventSetX(evt,state->xmean);
-	caerPoint4DEventSetY(evt,state->ymean);
-	caerPoint4DEventSetZ(evt,state->xstd);
-	caerPoint4DEventSetW(evt,state->ystd);
+	caerPoint4DEventSetX(evt, state->xmean);
+	caerPoint4DEventSetY(evt, state->ymean);
+	caerPoint4DEventSetZ(evt, state->xstd);
+	caerPoint4DEventSetW(evt, state->ystd);
 
 	// validate event
-	caerPoint4DEventValidate(evt, *medianData);
+	caerPoint4DEventValidate(evt, medianData);
 
-	*frame = caerFrameEventPacketAllocate(1, I16T(moduleData->moduleID), 0, sizeX, sizeY, 3);
-	caerMainloopFreeAfterLoop(&free, *frame);
-	if (*frame != NULL) {
-		caerFrameEvent singleplot = caerFrameEventPacketGetEvent(*frame, 0);
-		uint32_t counter = 0;
-		for (size_t yy = 0; yy < sizeY; yy++) {
-			for (size_t xx = 0; xx < sizeX; xx++) {
-				if ((xx == (int) state->xmedian && yy == (int) state->ymedian)
-					|| (xx == (int) (state->xmedian + state->xstd * state->numStdDevsForBoundingBox)
-						&& yy <= (state->ymedian + state->ystd * state->numStdDevsForBoundingBox)
-						&& yy >= (state->ymedian - state->ystd * state->numStdDevsForBoundingBox))
-						|| (xx == (int) (state->xmedian - state->xstd * state->numStdDevsForBoundingBox)
-							&& yy <= (state->ymedian + state->ystd * state->numStdDevsForBoundingBox)
-							&& yy >= (state->ymedian - state->ystd * state->numStdDevsForBoundingBox))
-							|| (yy == (int) (state->ymedian + state->ystd * state->numStdDevsForBoundingBox)
-								&& xx <= (state->xmedian + state->xstd * state->numStdDevsForBoundingBox)
-								&& xx >= (state->xmedian - state->xstd * state->numStdDevsForBoundingBox))
-								|| (yy == (int) (state->ymedian - state->ystd * state->numStdDevsForBoundingBox)
-									&& xx <= (state->xmedian + state->xstd * state->numStdDevsForBoundingBox)
-									&& xx >= (state->xmedian - state->xstd * state->numStdDevsForBoundingBox))) {
-					singleplot->pixels[counter] = (uint16_t) ((int) 1);		// red
-					singleplot->pixels[counter + 1] = (uint16_t) ((int) 1);		// green
-					singleplot->pixels[counter + 2] = (uint16_t) ((int) 65000);		// blue
-				}
-				else {
-					singleplot->pixels[counter] = (uint16_t) ((int) 1);			// red
-					singleplot->pixels[counter + 1] = (uint16_t) ((int) 1);		// green
-					singleplot->pixels[counter + 2] = (uint16_t) ((int) 1);	// blue
-				}
-				counter += 3;
-			}
-		}
-		//add info to the frame
-		caerFrameEventSetLengthXLengthYChannelNumber(singleplot, sizeX, sizeY, 3, *frame);
-		//validate frame
-		caerFrameEventValidate(singleplot, *frame);
+	caerFrameEventPacket frame = caerFrameEventPacketAllocate(1, moduleData->moduleID, I32T(state->lastts >> 31), sizeX,
+		sizeY, 3);
+	if (frame == NULL) {
+		return; // Error.
+	}
+	else {
+		// Add output packet to packet container.
+		caerEventPacketContainerSetEventPacket(*out, 1, (caerEventPacketHeader) frame);
+	}
 
-		CAER_POLARITY_ITERATOR_VALID_START(polarity)
-			int xxx = caerPolarityEventGetX(caerPolarityIteratorElement);
-			int yyy = caerPolarityEventGetY(caerPolarityIteratorElement);
-			int pol = caerPolarityEventGetPolarity(caerPolarityIteratorElement);
-			int address = 3 * (yyy * sizeX + xxx);
-			if (pol == 0) {
-				singleplot->pixels[address] = 65000; // red
-				singleplot->pixels[address + 1] = 1; // green
-				singleplot->pixels[address + 2] = 1; // blue
+	caerFrameEvent singleplot = caerFrameEventPacketGetEvent(frame, 0);
+	uint32_t counter = 0;
+	for (size_t yy = 0; yy < sizeY; yy++) {
+		for (size_t xx = 0; xx < sizeX; xx++) {
+			if ((xx == (int) state->xmedian && yy == (int) state->ymedian)
+				|| (xx == (int) (state->xmedian + state->xstd * state->numStdDevsForBoundingBox)
+					&& yy <= (state->ymedian + state->ystd * state->numStdDevsForBoundingBox)
+					&& yy >= (state->ymedian - state->ystd * state->numStdDevsForBoundingBox))
+				|| (xx == (int) (state->xmedian - state->xstd * state->numStdDevsForBoundingBox)
+					&& yy <= (state->ymedian + state->ystd * state->numStdDevsForBoundingBox)
+					&& yy >= (state->ymedian - state->ystd * state->numStdDevsForBoundingBox))
+				|| (yy == (int) (state->ymedian + state->ystd * state->numStdDevsForBoundingBox)
+					&& xx <= (state->xmedian + state->xstd * state->numStdDevsForBoundingBox)
+					&& xx >= (state->xmedian - state->xstd * state->numStdDevsForBoundingBox))
+				|| (yy == (int) (state->ymedian - state->ystd * state->numStdDevsForBoundingBox)
+					&& xx <= (state->xmedian + state->xstd * state->numStdDevsForBoundingBox)
+					&& xx >= (state->xmedian - state->xstd * state->numStdDevsForBoundingBox))) {
+				singleplot->pixels[counter] = (uint16_t) ((int) 1);		// red
+				singleplot->pixels[counter + 1] = (uint16_t) ((int) 1);		// green
+				singleplot->pixels[counter + 2] = (uint16_t) ((int) 65000);		// blue
 			}
 			else {
-				singleplot->pixels[address] = 1; // red
-				singleplot->pixels[address + 1] = 65000; // green
-				singleplot->pixels[address + 2] = 1; // blue
+				singleplot->pixels[counter] = (uint16_t) ((int) 1);			// red
+				singleplot->pixels[counter + 1] = (uint16_t) ((int) 1);		// green
+				singleplot->pixels[counter + 2] = (uint16_t) ((int) 1);	// blue
 			}
-		CAER_POLARITY_ITERATOR_VALID_END
-
+			counter += 3;
+		}
 	}
+	//add info to the frame
+	caerFrameEventSetLengthXLengthYChannelNumber(singleplot, sizeX, sizeY, 3, frame);
+	//validate frame
+	caerFrameEventValidate(singleplot, frame);
+
+	CAER_POLARITY_CONST_ITERATOR_VALID_START(polarity)
+		int xxx = caerPolarityEventGetX(caerPolarityIteratorElement);
+		int yyy = caerPolarityEventGetY(caerPolarityIteratorElement);
+		int pol = caerPolarityEventGetPolarity(caerPolarityIteratorElement);
+		int address = 3 * (yyy * sizeX + xxx);
+		if (pol == 0) {
+			singleplot->pixels[address] = 65000; // red
+			singleplot->pixels[address + 1] = 1; // green
+			singleplot->pixels[address + 2] = 1; // blue
+		}
+		else {
+			singleplot->pixels[address] = 1; // red
+			singleplot->pixels[address + 1] = 65000; // green
+			singleplot->pixels[address + 2] = 1; // blue
+		}
+	CAER_POLARITY_ITERATOR_VALID_END
 }
 
 static void caerMediantrackerConfig(caerModuleData moduleData) {
@@ -264,17 +275,9 @@ static void caerMediantrackerConfig(caerModuleData moduleData) {
 	MTFilterState state = moduleData->moduleState;
 	state->tauUs = sshsNodeGetInt(moduleData->moduleNode, "tauUs");
 	state->numStdDevsForBoundingBox = sshsNodeGetFloat(moduleData->moduleNode, "numStdDevsForBoundingBox");
-
 }
 
 static void caerMediantrackerExit(caerModuleData moduleData) {
 	// Remove listener, which can reference invalid memory in userData.
 	sshsNodeRemoveAttributeListener(moduleData->moduleNode, moduleData, &caerModuleConfigDefaultListener);
-
 }
-
-static void caerMediantrackerReset(caerModuleData moduleData, uint16_t resetCallSourceID) {
-	UNUSED_ARGUMENT(resetCallSourceID);
-
-}
-
