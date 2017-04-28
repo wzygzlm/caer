@@ -218,6 +218,12 @@ IF (OS_UNIX AND NOT OS_MACOSX)
 	SET(CMAKE_SHARED_LINKER_FLAGS "-Wl,--as-needed")
 ENDIF()
 
+# Windows needs extra linker information for DLL plugins to work.
+IF (OS_WINDOWS)
+	SET(CMAKE_EXE_LINKER_FLAGS "-Wl,--out-implib,libcaerbinsupport.a")
+	SET(CMAKE_SHARED_LINKER_FLAGS "-lcaerbinsupport")
+ENDIF()
+
 # Add math support
 SET(CAER_C_LIBS ${CAER_C_LIBS} m)
 
@@ -246,14 +252,14 @@ LINK_DIRECTORIES(${CAER_LIBDIRS})
 # Add all source files and libraries.
 ADD_SUBDIRECTORY(base)
 ADD_SUBDIRECTORY(ext)
-ADD_SUBDIRECTORY(modules)
 
 # Compile main caer executable.
 ADD_EXECUTABLE(caer-bin ${CAER_C_SRC_FILES} ${CAER_CXX_SRC_FILES} main.cpp)
 TARGET_LINK_LIBRARIES(caer-bin ${CAER_C_LIBS} ${CAER_CXX_LIBS})
 INSTALL(TARGETS caer-bin DESTINATION ${CMAKE_INSTALL_BINDIR})
 
-# Compile extra utitilies.
+# Compile extra modules and utilities.
+ADD_SUBDIRECTORY(modules)
 ADD_SUBDIRECTORY(utils)
 
 # Print info summary for debug purposes

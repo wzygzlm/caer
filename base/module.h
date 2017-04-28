@@ -28,6 +28,13 @@ using atomic_int_fast16_t = std::atomic_int_fast16_t;
 extern "C" {
 #endif
 
+// Support symbol export on Windows GCC/Clang.
+#if (defined(_WIN32) || defined(__WIN32__) || defined(WIN32)) && (defined(__GNUC__) || defined(__clang__))
+#define CAER_SYMBOL_EXPORT __attribute__ ((__dllexport__))
+#else
+#define CAER_SYMBOL_EXPORT
+#endif
+
 // Module-related definitions.
 enum caer_module_status {
 	CAER_MODULE_STOPPED = 0,
@@ -115,11 +122,13 @@ typedef struct caer_module_info const * caerModuleInfo;
 caerModuleInfo caerModuleGetInfo(void);
 
 // Functions available to call:
-void caerModuleLog(caerModuleData moduleData, enum caer_log_level logLevel, const char *format, ...) ATTRIBUTE_FORMAT(3);
-bool caerModuleSetSubSystemString(caerModuleData moduleData, const char *subSystemString);
-void caerModuleConfigUpdateReset(caerModuleData moduleData);
+void caerModuleLog(caerModuleData moduleData, enum caer_log_level logLevel, const char *format, ...)
+	ATTRIBUTE_FORMAT(3) CAER_SYMBOL_EXPORT;
+bool caerModuleSetSubSystemString(caerModuleData moduleData, const char *subSystemString) CAER_SYMBOL_EXPORT;
+void caerModuleConfigUpdateReset(caerModuleData moduleData) CAER_SYMBOL_EXPORT;
 void caerModuleConfigDefaultListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
-	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
+	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue)
+		CAER_SYMBOL_EXPORT;
 
 // Functions for mainloop:
 void caerModuleSM(caerModuleFunctions moduleFunctions, caerModuleData moduleData, size_t memSize,

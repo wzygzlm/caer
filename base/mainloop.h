@@ -16,19 +16,20 @@ extern "C" {
 #endif
 
 void caerMainloopRun(void);
-void caerMainloopDataNotifyIncrease(void *p);
-void caerMainloopDataNotifyDecrease(void *p);
-bool caerMainloopModuleExists(int16_t id);
-bool caerMainloopModuleIsType(int16_t id, enum caer_module_type type);
-bool caerMainloopStreamExists(int16_t sourceId, int16_t typeId);
 
-sshsNode caerMainloopGetSourceNode(int16_t sourceID);
-sshsNode caerMainloopGetSourceInfo(int16_t sourceID);
-void *caerMainloopGetSourceState(int16_t sourceID);
+void caerMainloopDataNotifyIncrease(void *p) CAER_SYMBOL_EXPORT;
+void caerMainloopDataNotifyDecrease(void *p) CAER_SYMBOL_EXPORT;
+bool caerMainloopModuleExists(int16_t id) CAER_SYMBOL_EXPORT;
+bool caerMainloopModuleIsType(int16_t id, enum caer_module_type type) CAER_SYMBOL_EXPORT;
+bool caerMainloopStreamExists(int16_t sourceId, int16_t typeId) CAER_SYMBOL_EXPORT;
 
-void caerMainloopResetInputs(int16_t sourceID);
-void caerMainloopResetOutputs(int16_t sourceID);
-void caerMainloopResetProcessors(int16_t sourceID);
+sshsNode caerMainloopGetSourceNode(int16_t sourceID) CAER_SYMBOL_EXPORT;
+sshsNode caerMainloopGetSourceInfo(int16_t sourceID) CAER_SYMBOL_EXPORT;
+void *caerMainloopGetSourceState(int16_t sourceID) CAER_SYMBOL_EXPORT;
+
+void caerMainloopResetInputs(int16_t sourceID) CAER_SYMBOL_EXPORT;
+void caerMainloopResetOutputs(int16_t sourceID) CAER_SYMBOL_EXPORT;
+void caerMainloopResetProcessors(int16_t sourceID) CAER_SYMBOL_EXPORT;
 
 #ifdef __cplusplus
 }
