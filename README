@@ -20,49 +20,30 @@ INSTALLATION:
 
 1) configure: 
 
-$ cmake . 
+$ cmake <OPTIONS> <MODULES_TO_BUILD> .
 
-One of the following options is required to select a device:
- -DDVS128=1           - set dvs128 (for DVS128 model)
- -DDAVISFX2=1         - set davisfx2 (for DAVIS240A/B/C models)
- -DDAVISFX3=1         - set davisfx3 (for FX3 platform models)
+The following options are currently supported:
+-DUSE_TCMALLOC=1 -- Enables usage of TCMalloc from Google to allocate memory.
 
-Optional input/output modules:
- -DENABLE_FILE_INPUT=1
- -DENABLE_NETWORK_INPUT=1
- -DENABLE_FILE_OUTPUT=1
- -DENABLE_NETWORK_OUTPUT=1
-
-NB: in the example mainloop (contained in the main.c file) only one input device can be active per time,
-    in addition at least one input device must be enabled (ie. one camera input device OR an input stream from network)
-
-Optional modules:
- -DENABLE_BAFILTER=1    - enable background activity filter module
- -DENABLE_STATISTICS=1  - enable console statistics module
- -DENABLE_VISUALIZER=1  - enable visualizer module
- -DENABLE_IMAGEGENERATOR=1 - enable image generator
- -DENABLE_CAMERACALIBRATION=1 - enable camera calibration this requires OpenCV 3.1.0 to be installed - 
- -DENABLE_POSEESTIMATION=1 - enable camera pose estimation, this requires OpenCV 3.1.0 with extra modules from https://github.com/Itseez/opencv_contrib -
- -DENABLE_CAFFEINTERFACE=1 - Caffe interface to cAER, deep learning framework - https://github.com/BVLC/caffe - 
-
-		A custom location can be specified for the caffe library using Caffe_DIRECTORY 
-
-		This module depends on the imagegenerator module  (ie. it requires -DENABLE_IMAGEGENERATOR=1)
-		It also requires Caffe installed as well as Boost/OpenCV/Protobuffer (same as Caffe).
-		You can load deep networks that have been trained with Caffe (like alexnet/caffenet/vgg etc.)
-
-		This module can be configured by editing the file: 
-			"module/caffeinterface/settings.h"
-		-DCAFFE_CPU_ONLY=1 - to use the Caffe framework with CPU only (ie. no GPU)
-		-DCaffe_DIRECTORY=<caffe dir>  - to define custom caffe installation folder 
-
- -DENABLE_NULLHOPINTERFACE=1    - this module enable software or hardware interface to the nullhop architecture
-				This module can be configured with the following options:
-				-DFPGA_MODE=1 enable FPGA SoC mode
-				-DENABLE_RESULT_MONITOR=1 enable printing of results for both FPGA and or software
-				-DSOFTWARE_ONLY_MODE=1 emulates hw computation in sw
-
- -DENABLE_IMAGESTREAMERBEEPER=1 - this module produces beeps based on classification results 
+The following modules can currently be selected to be built:
+-DDVS128=1 -- DVS128 device input.
+-DDAVISFX2=1 -- DAVIS FX2 devices input (DAVIS240A/B/C).
+-DDAVISFX3=1 -- DAVIS FX3 devices input (DAVIS346, dev-kits).
+-DDYNAPSE=1 -- Dynap-se device input (neuromorphic chip).
+-DBAFILTER=1 -- Filter background activity (uncorrelated noise).
+-DFRAMEENHANCER=1 -- Demosaic/enhance frames.
+-DCAMERACALIBRATION=1 -- Calculate and apply single camera lens calibration.
+-DPOSEESTIMATION=1 -- Estimate pose of camera relative to special markers.
+-DSTATISTICS=1 -- Print statistics to console.
+-DVISUALIZER=1 -- Open windows in which to visualize data.
+-DINPUT_FILE=1 -- Get input from an AEDAT file.
+-DOUTPUT_FILE=1 -- Write data to an AEDAT 3.X file.
+-DINPUT_NETWORK=1 -- Read input from a network stream.
+-DOUTPUT_NETWORK=1 -- Send data out via network.
+-DROTATE=1 -- Rotate events.
+-DMEDIANTRACKER=1 -- Track points of high event activity.
+-DRECTANGULARTRACKER=1 -- Track clusters of events.
+-DDYNAMICRECTANGULARTRACKER=1 -- Track a variable number of clusters of events.
 
 2) build:
 

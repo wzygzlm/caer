@@ -12,7 +12,7 @@ dependencies as described in detail in libcaer's 'README.Windows'.
 
 === The following happens in the MSYS2 shell! ===
 
-2) Install the required dependencies: pacman -S mingw-w64-x86_64-libuv
+2) Install the required dependencies: pacman -S mingw-w64-x86_64-libuv mingw-w64-x86_64-boost
 
 3) Install any additional dependencies as required: pacman -S <pkg-name>
  Input/Output modules: mingw-w64-x86_64-libpng
@@ -38,7 +38,7 @@ put the source code into 'C:\msys64\home\caer\' and use TortoiseGit
 
 6) Switch to the cAER checkout directory: cd /home/caer/
 
-7) Configure, run CMake: cmake -G "MSYS Makefiles" -DCMAKE_INSTALL_PREFIX=/mingw64 -DDAVISFX2=1 -DENABLE_BAFILTER=1 .
+7) Configure, run CMake: cmake -G "MSYS Makefiles" -DCMAKE_INSTALL_PREFIX=/mingw64 -DDAVISFX2=1 -DBAFILTER=1 .
 Change this to suit your needs, by enabling/disabling the proper modules!
 
 8) Build, run Make: make
