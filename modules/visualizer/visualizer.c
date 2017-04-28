@@ -777,7 +777,7 @@ static bool caerVisualizerModuleInitSize(caerModuleData moduleData, caerEventPac
 		sshsNode sourceInfoNode = caerMainloopGetSourceInfo(sourceID);
 		if (sourceInfoNode == NULL) {
 			// This should never happen, but we handle it gracefully.
-			caerLog(CAER_LOG_ERROR, moduleData->moduleSubSystemString,
+			caerModuleLog(moduleData, CAER_LOG_ERROR,
 				"Failed to get source info to setup visualizer resolution.");
 			return (false);
 		}
