@@ -371,9 +371,6 @@ bool doClear) {
 
 		// draw pixels (neurons might be merged due to aliasing..)
 		al_put_pixel( (int) new_x, (int) new_y, al_map_rgb(coreId * 0, 255, 0 * coreId));
-
-		//caerLog(CAER_LOG_NOTICE, __func__, "chipId %d, new_x %d, new_y %d, indexLin %d\n", chipId, new_x, new_y, indexLin);
-
 	CAER_SPIKE_ITERATOR_ALL_END
 
 	return (true);

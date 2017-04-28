@@ -29,7 +29,6 @@ void caerVisualizerEventHandlerSpikeEvents(caerVisualizerPublicState state, ALLE
 			posx = (double) floor((double) posx * currentZoomFactor);
 			posy = (double) floor((double) posy * currentZoomFactor);
 		}
-		//caerLog(CAER_LOG_NOTICE, "Visualizer", "pos x %d, pos y %d Zoom %f \n", posx, posy, currentZoomFactor);
 
 		// select chip
 		uint16_t chipId = 0;

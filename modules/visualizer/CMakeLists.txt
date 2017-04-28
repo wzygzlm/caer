@@ -40,7 +40,7 @@ IF (VISUALIZER)
 	INCLUDE_DIRECTORIES(${VISUALIZER_INCDIRS})
 	LINK_DIRECTORIES(${VISUALIZER_LIBDIRS})
 
-	ADD_LIBRARY(visualizer SHARED visualizer.c visualizer_renderers.c visualizer_handlers.c visualizer_handlers_frame.c)
+	ADD_LIBRARY(visualizer SHARED visualizer.c visualizer_renderers.c visualizer_handlers.c)
 
 	SET_TARGET_PROPERTIES(visualizer
 		PROPERTIES
