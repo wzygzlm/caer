@@ -15,3 +15,4 @@ core*
 *.dylib*
 *.so*
 *.dll*
+*.a

@@ -218,12 +218,6 @@ IF (OS_UNIX AND NOT OS_MACOSX)
 	SET(CMAKE_SHARED_LINKER_FLAGS "-Wl,--as-needed")
 ENDIF()
 
-# Windows needs extra linker information for DLL plugins to work.
-IF (OS_WINDOWS)
-	SET(CMAKE_EXE_LINKER_FLAGS "-Wl,--out-implib,libcaerbinsupport.a")
-	SET(CMAKE_SHARED_LINKER_FLAGS "-lcaerbinsupport")
-ENDIF()
-
 # Add math support
 SET(CAER_C_LIBS ${CAER_C_LIBS} m)
 
@@ -249,6 +243,12 @@ SET(CAER_LIBDIRS ${CAER_LIBDIRS} ${CMAKE_SOURCE_DIR}/)
 INCLUDE_DIRECTORIES(${CAER_INCDIRS})
 LINK_DIRECTORIES(${CAER_LIBDIRS})
 
+# Windows needs extra linker information for DLL plugins to work.
+# Part 1: tell linker to generate special import library when compiling caer-bin.exe.
+IF (OS_WINDOWS)
+	SET(CMAKE_EXE_LINKER_FLAGS "-Wl,--out-implib,libcaerbinsupport.a")
+ENDIF()
+
 # Add all source files and libraries.
 ADD_SUBDIRECTORY(base)
 ADD_SUBDIRECTORY(ext)
@@ -257,6 +257,12 @@ ADD_SUBDIRECTORY(ext)
 ADD_EXECUTABLE(caer-bin ${CAER_C_SRC_FILES} ${CAER_CXX_SRC_FILES} main.cpp)
 TARGET_LINK_LIBRARIES(caer-bin ${CAER_C_LIBS} ${CAER_CXX_LIBS})
 INSTALL(TARGETS caer-bin DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+# Windows needs extra linker information for DLL plugins to work.
+# Part 2: tell DLL plugins to use this special import library.
+IF (OS_WINDOWS)
+	SET(CAER_C_LIBS ${CAER_C_LIBS} caerbinsupport)
+ENDIF()
 
 # Compile extra modules and utilities.
 ADD_SUBDIRECTORY(modules)
