@@ -5,15 +5,17 @@
 extern "C" {
 #endif
 
-#include "calibration_settings.h"
+#include "poseestimation_settings.h"
 
-typedef struct PoseCalibration PoseCalibration;
+#include <libcaer/events/frame.h>
 
-PoseCalibration *posecalibration_init(PoseCalibrationSettings settings);
-void posecalibration_destroy(PoseCalibration *calibClass);
-void posecalibration_updateSettings(PoseCalibration *calibClass);
-bool posecalibration_findMarkers(PoseCalibration *calibClass, caerFrameEvent frame);
-bool posecalibration_loadCalibrationFile(PoseCalibration *calibClass, PoseCalibrationSettings settings);
+typedef struct PoseEstimation PoseEstimation;
+
+PoseEstimation *poseestimation_init(PoseEstimationSettings settings);
+void poseestimation_destroy(PoseEstimation *calibClass);
+void poseestimation_updateSettings(PoseEstimation *calibClass);
+bool poseestimation_findMarkers(PoseEstimation *calibClass, caerFrameEvent frame);
+bool poseestimation_loadCalibrationFile(PoseEstimation *calibClass, PoseEstimationSettings settings);
 
 #ifdef __cplusplus
 }

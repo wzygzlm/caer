@@ -1,45 +1,45 @@
-#include "calibration.hpp"
-#include "calibration_wrapper.h"
+#include "poseestimation.hpp"
+#include "poseestimation_wrapper.h"
 
-PoseCalibration *posecalibration_init(PoseCalibrationSettings settings) {
+PoseEstimation *poseestimation_init(PoseEstimationSettings settings) {
 	try {
-		return (new PoseCalibration(settings));
+		return (new PoseEstimation(settings));
 	}
 	catch (const std::exception& ex) {
-		caerLog(CAER_LOG_ERROR, "PoseCalibration()", "Failed with C++ exception: %s", ex.what());
+		caerLog(CAER_LOG_ERROR, "PoseEstimation()", "Failed with C++ exception: %s", ex.what());
 		return (NULL);
 	}
 }
 
-void posecalibration_destroy(PoseCalibration *calibClass) {
+void poseestimation_destroy(PoseEstimation *calibClass) {
 	try {
 		delete calibClass;
 	}
 	catch (const std::exception& ex) {
-		caerLog(CAER_LOG_ERROR, "PoseCalibration_destroy()", "Failed with C++ exception: %s", ex.what());
+		caerLog(CAER_LOG_ERROR, "PoseEstimation_destroy()", "Failed with C++ exception: %s", ex.what());
 	}
 }
 
-void posecalibration_updateSettings(PoseCalibration *calibClass) {
+void poseestimation_updateSettings(PoseEstimation *calibClass) {
 
 }
 
-bool posecalibration_findMarkers(PoseCalibration *calibClass, caerFrameEvent frame) {
+bool poseestimation_findMarkers(PoseEstimation *calibClass, caerFrameEvent frame) {
 	try {
 		return (calibClass->findMarkers(frame));
 	}
 	catch (const std::exception& ex) {
-		caerLog(CAER_LOG_ERROR, "PoseCalibration_findMarkers()", "Failed with C++ exception: %s", ex.what());
+		caerLog(CAER_LOG_ERROR, "PoseEstimation_findMarkers()", "Failed with C++ exception: %s", ex.what());
 		return (false);
 	}
 }
 
-bool posecalibration_loadCalibrationFile(PoseCalibration *calibClass, PoseCalibrationSettings settings) {
+bool poseestimation_loadCalibrationFile(PoseEstimation *calibClass, PoseEstimationSettings settings) {
 	try {
 		return (calibClass->loadCalibrationFile(settings));
 	}
 	catch (const std::exception& ex) {
-		caerLog(CAER_LOG_ERROR, "PoseCalibration_loadCalibrationFile()", "Failed with C++ exception: %s", ex.what());
+		caerLog(CAER_LOG_ERROR, "PoseEstimation_loadCalibrationFile()", "Failed with C++ exception: %s", ex.what());
 		return (false);
 	}
 }

@@ -5,7 +5,7 @@
 #include <sstream>
 #include <time.h>
 #include <stdio.h>
-#include "calibration_settings.h"
+#include "poseestimation_settings.h"
 
 #include <libcaer/events/polarity.h>
 #include <libcaer/events/frame.h>
@@ -22,16 +22,16 @@
 using namespace cv;
 using namespace std;
 
-class PoseCalibration {
+class PoseEstimation {
 
 public:
-	PoseCalibration(PoseCalibrationSettings settings);bool findMarkers(caerFrameEvent frame);bool loadCalibrationFile(
-		PoseCalibrationSettings settings);
-	void updateSettings(PoseCalibrationSettings settings);
+	PoseEstimation(PoseEstimationSettings settings);bool findMarkers(caerFrameEvent frame);bool loadCalibrationFile(
+		PoseEstimationSettings settings);
+	void updateSettings(PoseEstimationSettings settings);
 	Point3f convert2dto3dworldunit(Point2f point_in_image);
 
 private:
-	PoseCalibrationSettings settings = NULL;
+	PoseEstimationSettings settings = NULL;
 	Mat undistortCameraMatrix;bool useFisheyeModel;
 	Mat undistortDistCoeffs;
 	double focal_lenght_mm = 4.5;

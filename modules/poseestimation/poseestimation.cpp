@@ -1,12 +1,12 @@
-#include "calibration.hpp"
+#include "poseestimation.hpp"
 
-PoseCalibration::PoseCalibration(PoseCalibrationSettings settings) {
+PoseEstimation::PoseEstimation(PoseEstimationSettings settings) {
     this->settings = settings;
 
     updateSettings(this->settings);
 }
 
-void PoseCalibration::updateSettings(PoseCalibrationSettings settings) {
+void PoseEstimation::updateSettings(PoseEstimationSettings settings) {
     this->settings = settings;
     
     // Load calibration files keep this in the constructor
@@ -18,7 +18,7 @@ void PoseCalibration::updateSettings(PoseCalibrationSettings settings) {
 
 }
 
-bool PoseCalibration::findMarkers(caerFrameEvent frame) {
+bool PoseEstimation::findMarkers(caerFrameEvent frame) {
     if (frame == NULL || !caerFrameEventIsValid(frame) || this->calibrationLoaded == false) {
         if(this->calibrationLoaded == false){
             caerLog(CAER_LOG_NOTICE, "Pose Calibration findMarkers", "Camera matrix and distorsion coefficients not loaded, exit from filter!");
@@ -91,7 +91,7 @@ bool PoseCalibration::findMarkers(caerFrameEvent frame) {
             // calculate distance from object
             // distance_mm = object_real_world_mm * focal-length_mm / object_image_sensor_mm
             distance = object_real_world_mm * focal_lenght_mm / object_image_sensor_mm;
-            caerLog(CAER_LOG_NOTICE, "PoseCalibration CXX findMarkers()", "\n distance corner %d for maker %d is at a distance %.2f mm ", k, ids[k], distance);
+            caerLog(CAER_LOG_NOTICE, "PoseEstimation CXX findMarkers()", "\n distance corner %d for maker %d is at a distance %.2f mm ", k, ids[k], distance);
         }       
     }
     //place back the markers in the frame
@@ -101,7 +101,7 @@ bool PoseCalibration::findMarkers(caerFrameEvent frame) {
 
 }
 
-bool PoseCalibration::loadCalibrationFile(PoseCalibrationSettings settings) {
+bool PoseEstimation::loadCalibrationFile(PoseEstimationSettings settings) {
 
 	// Open file with undistort matrices.
 	FileStorage fs(settings->loadFileName, FileStorage::READ);
@@ -117,9 +117,9 @@ bool PoseCalibration::loadCalibrationFile(PoseCalibrationSettings settings) {
 
 	if (!fs["camera_matrix"].empty() && !fs["distortion_coefficients"].empty()) 
 	{
-		caerLog(CAER_LOG_NOTICE, "PoseCalibration CXX loadCalibrationFile()", "Camera matrix and distorsion coefficients succesfully loaded");
+		caerLog(CAER_LOG_NOTICE, "PoseEstimation CXX loadCalibrationFile()", "Camera matrix and distorsion coefficients succesfully loaded");
 	}else{
-		caerLog(CAER_LOG_ERROR, "PoseCalibration CXX loadCalibrationFile()", "Camera matrix and distorsion coefficients not loaded");    
+		caerLog(CAER_LOG_ERROR, "PoseEstimation CXX loadCalibrationFile()", "Camera matrix and distorsion coefficients not loaded");    
 	}    
 		
 	// Close file.
