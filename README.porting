@@ -146,7 +146,17 @@ And now instead is (with 0 minimum, 2000 maximum values):
 
 sshsNodeCreateInt(moduleData->moduleNode, "param", 1234, 0, 2000, SSHS_FLAGS_NORMAL);
 
-8) The CMakeLists.txt file for your module also needs to be updated so that it correctly
+8) There also is a new module-specific logging call available;
+
+void caerModuleLog(caerModuleData moduleData, enum caer_log_level logLevel, const char *format, ...);
+
+This simplifies logging calls inside modules by automatically adding the sub-system
+string internally; and adds a new, very useful feature: per-module log-levels.
+Each module now has its own 'logLevel' configuration parameter, which is used
+if the above caerModuleLog() function is used. Prefer this to calling caerLog()
+inside modules, always!
+
+9) The CMakeLists.txt file for your module also needs to be updated so that it correctly
 tries to generate a shared library, a very simple example would look like this:
 
 IF (NOT ENABLE_MODULE)
