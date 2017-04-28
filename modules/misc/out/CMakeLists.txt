@@ -1,12 +1,12 @@
-IF (NOT ENABLE_FILE_OUTPUT)
-	SET(ENABLE_FILE_OUTPUT 0 CACHE BOOL "Enable the file output module")
+IF (NOT OUTPUT_FILE)
+	SET(OUTPUT_FILE 0 CACHE BOOL "Enable the file output module")
 ENDIF()
 
-IF (NOT ENABLE_NETWORK_OUTPUT)
-	SET(ENABLE_NETWORK_OUTPUT 0 CACHE BOOL "Enable the network output modules (TCP server, TCP, UDP, UnixSockets)")
+IF (NOT OUTPUT_NETWORK)
+	SET(OUTPUT_NETWORK 0 CACHE BOOL "Enable the network output modules (TCP server, TCP, UDP, UnixSockets)")
 ENDIF()
 
-IF (ENABLE_FILE_OUTPUT)
+IF (OUTPUT_FILE)
 	ADD_LIBRARY(output_file SHARED output_common.c file.c)
 
 	SET_TARGET_PROPERTIES(output_file
@@ -17,7 +17,7 @@ IF (ENABLE_FILE_OUTPUT)
 	TARGET_LINK_LIBRARIES(output_file ${CAER_C_LIBS})
 ENDIF()
 
-IF (ENABLE_NETWORK_OUTPUT)
+IF (OUTPUT_NETWORK)
 	# NET_TCP_SERVER
 	ADD_LIBRARY(output_net_tcp_server SHARED output_common.c net_tcp_server.c)
 

@@ -1,11 +1,9 @@
-IF (NOT ENABLE_STATISTICS)
-	SET(ENABLE_STATISTICS 0 CACHE BOOL "Enable the console statistics module")
+IF (NOT STATISTICS)
+	SET(STATISTICS 0 CACHE BOOL "Enable the console statistics module")
 ENDIF()
 
-IF (ENABLE_STATISTICS)
-	SET(STATISTICS_SRC_FILES statistics.c)
-
-	ADD_LIBRARY(statistics SHARED ${STATISTICS_SRC_FILES})
+IF (STATISTICS)
+	ADD_LIBRARY(statistics SHARED statistics.c)
 
 	SET_TARGET_PROPERTIES(statistics
 		PROPERTIES

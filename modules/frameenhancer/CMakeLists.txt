@@ -1,11 +1,9 @@
-IF (NOT ENABLE_FRAMEENHANCER)
-	SET(ENABLE_FRAMEENHANCER 0 CACHE BOOL "Enable the APS frame enhancing/demosaicing module")
+IF (NOT FRAMEENHANCER)
+	SET(FRAMEENHANCER 0 CACHE BOOL "Enable the APS frame enhancing/demosaicing module")
 ENDIF()
 
-IF (ENABLE_FRAMEENHANCER)
-	SET(FRAMEENHANCER_SRC_FILES frameenhancer.c)
-
-	ADD_LIBRARY(frameenhancer SHARED ${FRAMEENHANCER_SRC_FILES})
+IF (FRAMEENHANCER)
+	ADD_LIBRARY(frameenhancer SHARED frameenhancer.c)
 
 	SET_TARGET_PROPERTIES(frameenhancer
 		PROPERTIES

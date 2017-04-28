@@ -1,8 +1,8 @@
-IF (NOT ENABLE_BAFILTER)
-	SET(ENABLE_BAFILTER 0 CACHE BOOL "Enable the background activity filtering module")
+IF (NOT BAFILTER)
+	SET(BAFILTER 0 CACHE BOOL "Enable the background activity filtering module")
 ENDIF()
 
-IF (ENABLE_BAFILTER)
+IF (BAFILTER)
 	ADD_LIBRARY(bafilter SHARED backgroundactivityfilter.c)
 
 	SET_TARGET_PROPERTIES(bafilter

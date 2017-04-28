@@ -1,8 +1,8 @@
-IF (NOT ENABLE_MEDIANTRACKER)
-	SET(ENABLE_MEDIANTRACKER 0 CACHE BOOL "Enable the median tracker module")
+IF (NOT MEDIANTRACKER)
+	SET(MEDIANTRACKER 0 CACHE BOOL "Enable the median tracker module")
 ENDIF()
 
-IF (ENABLE_MEDIANTRACKER)
+IF (MEDIANTRACKER)
 	ADD_LIBRARY(mediantracker SHARED mediantracker.c)
 
 	SET_TARGET_PROPERTIES(mediantracker

@@ -1,8 +1,8 @@
-IF (NOT ENABLE_CAMERACALIBRATION)
-	SET(ENABLE_CAMERACALIBRATION 0 CACHE BOOL "Enable the camera calibration module (using OpenCV)")
+IF (NOT CAMERACALIBRATION)
+	SET(CAMERACALIBRATION 0 CACHE BOOL "Enable the camera calibration module (using OpenCV)")
 ENDIF()
 
-IF (ENABLE_CAMERACALIBRATION)
+IF (CAMERACALIBRATION)
 	# Require new OpenCV 3.1 at least.
 	PKG_CHECK_MODULES(OPENCV3 REQUIRED opencv>=3.1)
 
@@ -15,10 +15,7 @@ IF (ENABLE_CAMERACALIBRATION)
 	INCLUDE_DIRECTORIES(${CALIB_INCDIRS})
 	LINK_DIRECTORIES(${CALIB_LIBDIRS})
 
-	SET(CALIB_C_SRC_FILES cameracalibration.c)
-	SET(CALIB_CXX_SRC_FILES calibration.cpp calibration_wrapper.cpp)
-
-	ADD_LIBRARY(cameracalibration SHARED ${CALIB_C_SRC_FILES} ${CALIB_CXX_SRC_FILES})
+	ADD_LIBRARY(cameracalibration SHARED cameracalibration.c calibration.cpp calibration_wrapper.cpp)
 
 	SET_TARGET_PROPERTIES(cameracalibration
 		PROPERTIES

@@ -1,14 +1,8 @@
-IF (NOT ENABLE_VISUALIZER)
-	SET(ENABLE_VISUALIZER 0 CACHE BOOL "Enable the visualizer module (shows events, frames and IMU renderings)")
+IF (NOT VISUALIZER)
+	SET(VISUALIZER 0 CACHE BOOL "Enable the visualizer module")
 ENDIF()
 
-IF (ENABLE_VISUALIZER)
-	# Check module dependencies first.
-	IF (NOT ENABLE_STATISTICS)
-		MESSAGE(SEND_ERROR "Statistics module required by Visualizer module. Please enable it!")
-		RETURN()
-	ENDIF()
-
+IF (VISUALIZER)
 	# Visualizer support via Allegro library
 	PKG_CHECK_MODULES(ALLEGRO5 allegro-5>=5.0.11)
 	PKG_CHECK_MODULES(ALLEGRO5_MAIN allegro_main-5>=5.0.11)
@@ -46,9 +40,7 @@ IF (ENABLE_VISUALIZER)
 	INCLUDE_DIRECTORIES(${VISUALIZER_INCDIRS})
 	LINK_DIRECTORIES(${VISUALIZER_LIBDIRS})
 
-	SET(VISUALIZER_SRC_FILES visualizer.c visualizer_renderers.c visualizer_handlers.c visualizer_handlers_frame.c)
-
-	ADD_LIBRARY(visualizer SHARED ${VISUALIZER_SRC_FILES})
+	ADD_LIBRARY(visualizer SHARED visualizer.c visualizer_renderers.c visualizer_handlers.c visualizer_handlers_frame.c)
 
 	SET_TARGET_PROPERTIES(visualizer
 		PROPERTIES
