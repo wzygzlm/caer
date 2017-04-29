@@ -315,7 +315,7 @@ void caerMainloopRun(void) {
 	const std::string moduleSearchPath = moduleSearchPathC;
 	free(moduleSearchPathC);
 
-	const std::regex moduleRegex("\\w+\\.(so|dll)");
+	const std::regex moduleRegex("\\w+\\.(so|dll|dylib)");
 
 	std::for_each(boost::filesystem::recursive_directory_iterator(moduleSearchPath),
 		boost::filesystem::recursive_directory_iterator(),
