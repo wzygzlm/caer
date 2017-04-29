@@ -30,7 +30,7 @@ static bool caerInputUnixSocketInit(caerModuleData moduleData) {
 	// Open an existing Unix local socket at a known path, where we'll write to.
 	int sockFd = socket(AF_UNIX, SOCK_STREAM, 0);
 	if (sockFd < 0) {
-		caerLog(CAER_LOG_CRITICAL, moduleData->moduleSubSystemString, "Could not create local Unix socket. Error: %d.",
+		caerModuleLog(moduleData, CAER_LOG_CRITICAL, "Could not create local Unix socket. Error: %d.",
 		errno);
 		return (false);
 	}
@@ -49,8 +49,7 @@ static bool caerInputUnixSocketInit(caerModuleData moduleData) {
 	if (connect(sockFd, (struct sockaddr *) &unixSocketAddr, sizeof(struct sockaddr_un)) < 0) {
 		close(sockFd);
 
-		caerLog(CAER_LOG_CRITICAL, moduleData->moduleSubSystemString,
-			"Could not connect to local Unix socket. Error: %d.", errno);
+		caerModuleLog(moduleData, CAER_LOG_CRITICAL, "Could not connect to local Unix socket. Error: %d.", errno);
 		return (false);
 	}
 
@@ -59,8 +58,7 @@ static bool caerInputUnixSocketInit(caerModuleData moduleData) {
 		return (false);
 	}
 
-	caerLog(CAER_LOG_INFO, moduleData->moduleSubSystemString, "Local Unix socket ready at '%s'.",
-		unixSocketAddr.sun_path);
+	caerModuleLog(moduleData, CAER_LOG_INFO, "Local Unix socket ready at '%s'.", unixSocketAddr.sun_path);
 
 	return (true);
 }

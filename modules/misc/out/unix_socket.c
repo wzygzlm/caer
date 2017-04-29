@@ -29,7 +29,7 @@ static bool caerOutputUnixSocketInit(caerModuleData moduleData) {
 	size_t numClients = 1;
 	outputCommonNetIO streams = malloc(sizeof(*streams) + (numClients * sizeof(uv_stream_t *)));
 	if (streams == NULL) {
-		caerLog(CAER_LOG_ERROR, moduleData->moduleSubSystemString, "Failed to allocate memory for streams structure.");
+		caerModuleLog(moduleData, CAER_LOG_ERROR, "Failed to allocate memory for streams structure.");
 		return (false);
 	}
 
@@ -37,7 +37,7 @@ static bool caerOutputUnixSocketInit(caerModuleData moduleData) {
 	if (pipe == NULL) {
 		free(streams);
 
-		caerLog(CAER_LOG_ERROR, moduleData->moduleSubSystemString, "Failed to allocate memory for network structure.");
+		caerModuleLog(moduleData, CAER_LOG_ERROR, "Failed to allocate memory for network structure.");
 		return (false);
 	}
 
@@ -46,7 +46,7 @@ static bool caerOutputUnixSocketInit(caerModuleData moduleData) {
 		free(pipe);
 		free(streams);
 
-		caerLog(CAER_LOG_ERROR, moduleData->moduleSubSystemString, "Failed to allocate memory for network connection.");
+		caerModuleLog(moduleData, CAER_LOG_ERROR, "Failed to allocate memory for network connection.");
 		return (false);
 	}
 

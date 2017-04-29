@@ -32,7 +32,7 @@ static bool caerOutputUnixSocketServerInit(caerModuleData moduleData) {
 	size_t numClients = (size_t) sshsNodeGetShort(moduleData->moduleNode, "concurrentConnections");
 	outputCommonNetIO streams = malloc(sizeof(*streams) + (numClients * sizeof(uv_stream_t *)));
 	if (streams == NULL) {
-		caerLog(CAER_LOG_ERROR, moduleData->moduleSubSystemString, "Failed to allocate memory for streams structure.");
+		caerModuleLog(moduleData, CAER_LOG_ERROR, "Failed to allocate memory for streams structure.");
 		return (false);
 	}
 
@@ -40,7 +40,7 @@ static bool caerOutputUnixSocketServerInit(caerModuleData moduleData) {
 	if (streams->server == NULL) {
 		free(streams);
 
-		caerLog(CAER_LOG_ERROR, moduleData->moduleSubSystemString, "Failed to allocate memory for network server.");
+		caerModuleLog(moduleData, CAER_LOG_ERROR, "Failed to allocate memory for network server.");
 		return (false);
 	}
 

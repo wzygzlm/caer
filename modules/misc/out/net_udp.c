@@ -9,13 +9,12 @@ static const struct caer_module_functions OutputNetUDPFunctions = { .moduleInit 
 	&caerOutputCommonRun, .moduleConfig = NULL, .moduleExit = &caerOutputCommonExit, .moduleReset =
 	&caerOutputCommonReset };
 
-static const struct caer_event_stream_in OutputNetUDPInputs[] = {
-	{ .type = -1, .number = -1, .readOnly = true } };
+static const struct caer_event_stream_in OutputNetUDPInputs[] = { { .type = -1, .number = -1, .readOnly = true } };
 
-static const struct caer_module_info OutputNetUDPInfo = { .version = 1, .name = "NetUDPOutput",
-	.type = CAER_MODULE_OUTPUT, .memSize = sizeof(struct output_common_state), .functions =
-		&OutputNetUDPFunctions, .inputStreams = OutputNetUDPInputs, .inputStreamsSize =
-		CAER_EVENT_STREAM_IN_SIZE(OutputNetUDPInputs), .outputStreams = NULL, .outputStreamsSize = 0, };
+static const struct caer_module_info OutputNetUDPInfo = { .version = 1, .name = "NetUDPOutput", .type =
+	CAER_MODULE_OUTPUT, .memSize = sizeof(struct output_common_state), .functions = &OutputNetUDPFunctions,
+	.inputStreams = OutputNetUDPInputs, .inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(OutputNetUDPInputs),
+	.outputStreams = NULL, .outputStreamsSize = 0, };
 
 caerModuleInfo caerModuleGetInfo(void) {
 	return (&OutputNetUDPInfo);
@@ -41,7 +40,7 @@ static bool caerOutputNetUDPInit(caerModuleData moduleData) {
 	size_t numClients = 1;
 	outputCommonNetIO streams = malloc(sizeof(*streams) + (numClients * sizeof(uv_stream_t *)));
 	if (streams == NULL) {
-		caerLog(CAER_LOG_ERROR, moduleData->moduleSubSystemString, "Failed to allocate memory for streams structure.");
+		caerModuleLog(moduleData, CAER_LOG_ERROR, "Failed to allocate memory for streams structure.");
 		return (false);
 	}
 
@@ -49,7 +48,7 @@ static bool caerOutputNetUDPInit(caerModuleData moduleData) {
 	if (streams->address == NULL) {
 		free(streams);
 
-		caerLog(CAER_LOG_ERROR, moduleData->moduleSubSystemString, "Failed to allocate memory for network address.");
+		caerModuleLog(moduleData, CAER_LOG_ERROR, "Failed to allocate memory for network address.");
 		return (false);
 	}
 
@@ -58,7 +57,7 @@ static bool caerOutputNetUDPInit(caerModuleData moduleData) {
 		free(streams->address);
 		free(streams);
 
-		caerLog(CAER_LOG_ERROR, moduleData->moduleSubSystemString, "Failed to allocate memory for network structure.");
+		caerModuleLog(moduleData, CAER_LOG_ERROR, "Failed to allocate memory for network structure.");
 		return (false);
 	}
 

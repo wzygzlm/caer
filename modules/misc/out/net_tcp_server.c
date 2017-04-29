@@ -9,13 +9,12 @@ static const struct caer_module_functions OutputNetTCPServerFunctions = { .modul
 	.moduleRun = &caerOutputCommonRun, .moduleConfig = NULL, .moduleExit = &caerOutputCommonExit, .moduleReset =
 		&caerOutputCommonReset };
 
-static const struct caer_event_stream_in OutputNetTCPServerInputs[] = {
-	{ .type = -1, .number = -1, .readOnly = true } };
+static const struct caer_event_stream_in OutputNetTCPServerInputs[] = { { .type = -1, .number = -1, .readOnly = true } };
 
-static const struct caer_module_info OutputNetTCPServerInfo = { .version = 1, .name = "NetTCPServerOutput",
-	.type = CAER_MODULE_OUTPUT, .memSize = sizeof(struct output_common_state), .functions =
-		&OutputNetTCPServerFunctions, .inputStreams = OutputNetTCPServerInputs, .inputStreamsSize =
-		CAER_EVENT_STREAM_IN_SIZE(OutputNetTCPServerInputs), .outputStreams = NULL, .outputStreamsSize = 0, };
+static const struct caer_module_info OutputNetTCPServerInfo = { .version = 1, .name = "NetTCPServerOutput", .type =
+	CAER_MODULE_OUTPUT, .memSize = sizeof(struct output_common_state), .functions = &OutputNetTCPServerFunctions,
+	.inputStreams = OutputNetTCPServerInputs, .inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(OutputNetTCPServerInputs),
+	.outputStreams = NULL, .outputStreamsSize = 0, };
 
 caerModuleInfo caerModuleGetInfo(void) {
 	return (&OutputNetTCPServerInfo);
@@ -43,7 +42,7 @@ static bool caerOutputNetTCPServerInit(caerModuleData moduleData) {
 	size_t numClients = (size_t) sshsNodeGetShort(moduleData->moduleNode, "concurrentConnections");
 	outputCommonNetIO streams = malloc(sizeof(*streams) + (numClients * sizeof(uv_stream_t *)));
 	if (streams == NULL) {
-		caerLog(CAER_LOG_ERROR, moduleData->moduleSubSystemString, "Failed to allocate memory for streams structure.");
+		caerModuleLog(moduleData, CAER_LOG_ERROR, "Failed to allocate memory for streams structure.");
 		return (false);
 	}
 
@@ -51,7 +50,7 @@ static bool caerOutputNetTCPServerInit(caerModuleData moduleData) {
 	if (streams->address == NULL) {
 		free(streams);
 
-		caerLog(CAER_LOG_ERROR, moduleData->moduleSubSystemString, "Failed to allocate memory for network address.");
+		caerModuleLog(moduleData, CAER_LOG_ERROR, "Failed to allocate memory for network address.");
 		return (false);
 	}
 
@@ -60,7 +59,7 @@ static bool caerOutputNetTCPServerInit(caerModuleData moduleData) {
 		free(streams->address);
 		free(streams);
 
-		caerLog(CAER_LOG_ERROR, moduleData->moduleSubSystemString, "Failed to allocate memory for network server.");
+		caerModuleLog(moduleData, CAER_LOG_ERROR, "Failed to allocate memory for network server.");
 		return (false);
 	}
 
