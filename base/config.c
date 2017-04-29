@@ -9,9 +9,11 @@ static char *caerConfigFilePath = NULL;
 
 static void caerConfigShutDownWriteBack(void);
 
-void caerConfigInit(const char *configFile, int argc, char *argv[]) {
+void caerConfigInit(int argc, char *argv[]) {
 	// If configFile is NULL, no config file will be accessed at all,
 	// and neither will it be written back at shutdown.
+	const char *configFile = CAER_CONFIG_FILE_NAME;
+
 	if (configFile != NULL) {
 		// Let's try to open the file for reading, or create it.
 		int configFileFd = open(configFile, O_RDONLY | O_CREAT, S_IWUSR | S_IRUSR | S_IRGRP);

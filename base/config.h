@@ -7,9 +7,11 @@
 extern "C" {
 #endif
 
+#define CAER_CONFIG_FILE_NAME "caer-config.xml"
+
 // Create configuration storage, initialize it with content from the
 // configuration file, and apply eventual CLI overrides.
-void caerConfigInit(const char *configFile, int argc, char *argv[]);
+void caerConfigInit(int argc, char *argv[]);
 void caerConfigWriteBack(void);
 
 #ifdef __cplusplus

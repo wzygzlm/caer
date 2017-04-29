@@ -6,12 +6,9 @@
 #include "base/misc.h"
 
 int main(int argc, char **argv) {
-	// Set thread name.
-	//thrd_set_name("Main");
-
 	// Initialize config storage from file, support command-line overrides.
 	// If no init from file needed, pass NULL.
-	caerConfigInit("caer-config.xml", argc, argv);
+	caerConfigInit(argc, argv);
 
 	// Initialize logging sub-system.
 	caerLogInit();
