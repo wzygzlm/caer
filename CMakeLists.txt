@@ -264,6 +264,12 @@ IF (OS_WINDOWS)
 	SET(CAER_C_LIBS ${CAER_C_LIBS} caerbinsupport)
 ENDIF()
 
+# Mac OS X's linker also needs to be told that undefined
+# references in the plugins are fine.
+IF (OS_MACOSX)
+	SET(CMAKE_SHARED_LINKER_FLAGS "-Wl,-undefined,dynamic_lookup")
+ENDIF()
+
 # Compile extra modules and utilities.
 ADD_SUBDIRECTORY(modules)
 ADD_SUBDIRECTORY(utils)
