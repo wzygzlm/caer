@@ -3,6 +3,10 @@ IF (NOT VISUALIZER)
 ENDIF()
 
 IF (VISUALIZER)
+	IF (OS_MACOSX)
+		MESSAGE(FATAL_ERROR "The Allegro5 visualizer cannot work on MacOS X with the new modules architecture. Please disable it!")
+	ENDIF()
+
 	# Visualizer support via Allegro library
 	PKG_CHECK_MODULES(ALLEGRO5 allegro-5>=5.0.11)
 	PKG_CHECK_MODULES(ALLEGRO5_MAIN allegro_main-5>=5.0.11)
@@ -20,12 +24,12 @@ IF (VISUALIZER)
 	ENDIF()
 
 	IF (NOT ALLEGRO5_FOUND OR NOT ALLEGRO5_MAIN_FOUND)
-		MESSAGE(SEND_ERROR "Allegro-5 main library not found!")
+		MESSAGE(FATAL_ERROR "Allegro-5 main library not found!")
 		RETURN()
 	ENDIF()
 
 	IF (NOT ALLEGRO5_PRIMITIVES_FOUND OR NOT ALLEGRO5_FONT_FOUND OR NOT ALLEGRO5_TTF_FOUND)
-		MESSAGE(SEND_ERROR "Allegro-5 primitives, font and ttf addons not found!")
+		MESSAGE(FATAL_ERROR "Allegro-5 primitives, font and ttf addons not found!")
 		RETURN()
 	ENDIF()
 

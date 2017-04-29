@@ -91,7 +91,7 @@ CHECK_TYPE_SIZE("size_t" SIZEOF_SIZE_T)
 CHECK_TYPE_SIZE("void *" SIZEOF_VOID_PTR)
 
 IF (NOT "${SIZEOF_VOID_PTR}" STREQUAL "${SIZEOF_SIZE_T}")
-	MESSAGE(SEND_ERROR "Size of void * and size_t must be the same!")
+	MESSAGE(FATAL_ERROR "Size of void * and size_t must be the same!")
 ENDIF()
 
 # Check threads support (almost nobody implements C11 threads yet!)
