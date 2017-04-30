@@ -1197,35 +1197,35 @@ bool sshsNodeStringToNodeConverter(sshsNode node, const char *key, const char *t
 
 		switch (type) {
 			case SSHS_BOOL:
-				sshsNodeCreateBool(node, key, value.boolean, SSHS_FLAGS_READ_ONLY);
+				sshsNodeCreateBool(node, key, value.boolean, SSHS_FLAGS_NORMAL);
 				break;
 
 			case SSHS_BYTE:
-				sshsNodeCreateByte(node, key, value.ibyte, INT8_MIN, INT8_MAX, SSHS_FLAGS_READ_ONLY);
+				sshsNodeCreateByte(node, key, value.ibyte, INT8_MIN, INT8_MAX, SSHS_FLAGS_NORMAL);
 				break;
 
 			case SSHS_SHORT:
-				sshsNodeCreateShort(node, key, value.ishort, INT16_MIN, INT16_MAX, SSHS_FLAGS_READ_ONLY);
+				sshsNodeCreateShort(node, key, value.ishort, INT16_MIN, INT16_MAX, SSHS_FLAGS_NORMAL);
 				break;
 
 			case SSHS_INT:
-				sshsNodeCreateInt(node, key, value.iint, INT32_MIN, INT32_MAX, SSHS_FLAGS_READ_ONLY);
+				sshsNodeCreateInt(node, key, value.iint, INT32_MIN, INT32_MAX, SSHS_FLAGS_NORMAL);
 				break;
 
 			case SSHS_LONG:
-				sshsNodeCreateLong(node, key, value.ilong, INT64_MIN, INT64_MAX, SSHS_FLAGS_READ_ONLY);
+				sshsNodeCreateLong(node, key, value.ilong, INT64_MIN, INT64_MAX, SSHS_FLAGS_NORMAL);
 				break;
 
 			case SSHS_FLOAT:
-				sshsNodeCreateFloat(node, key, value.ffloat, FLT_MIN, FLT_MAX, SSHS_FLAGS_READ_ONLY);
+				sshsNodeCreateFloat(node, key, value.ffloat, FLT_MIN, FLT_MAX, SSHS_FLAGS_NORMAL);
 				break;
 
 			case SSHS_DOUBLE:
-				sshsNodeCreateDouble(node, key, value.ddouble, DBL_MIN, DBL_MAX, SSHS_FLAGS_READ_ONLY);
+				sshsNodeCreateDouble(node, key, value.ddouble, DBL_MIN, DBL_MAX, SSHS_FLAGS_NORMAL);
 				break;
 
 			case SSHS_STRING:
-				sshsNodeCreateString(node, key, value.string, 0, SIZE_MAX, SSHS_FLAGS_READ_ONLY);
+				sshsNodeCreateString(node, key, value.string, 0, SIZE_MAX, SSHS_FLAGS_NORMAL);
 				break;
 
 			case SSHS_UNKNOWN:
