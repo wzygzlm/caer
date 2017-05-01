@@ -11,6 +11,7 @@ NEW FEATURES
   a help text, -c/--config to specify an alternative XML configuration
   file, and -o/--override to override a specific configuration parameter
   that was loaded from the XML configuration file.
+- DAVIS: added support for automatic exposure control via libcaer.
 
 BUG FIXES
 - Windows: plugins can now successfully link against the symbols the

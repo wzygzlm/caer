@@ -601,6 +601,7 @@ static void createDefaultConfiguration(caerModuleData moduleData, struct caer_da
 	sshsNodeCreateShort(apsNode, "RowSettle", (devInfo->adcClock / 3), 0, I16T(devInfo->adcClock * 2),
 		SSHS_FLAGS_NORMAL); // in cycles
 	sshsNodeCreateBool(apsNode, "TakeSnapShot", false, SSHS_FLAGS_NOTIFY_ONLY);
+	sshsNodeCreateBool(apsNode, "AutoExposure", false, SSHS_FLAGS_NORMAL);
 
 	// Not supported on DAVIS RGB.
 	if (!IS_DAVISRGB(devInfo->chipID)) {
@@ -1776,6 +1777,8 @@ static void apsConfigSend(sshsNode node, caerModuleData moduleData, struct caer_
 		U32T(sshsNodeGetInt(node, "FrameDelay")));
 	caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_ROW_SETTLE,
 		U32T(sshsNodeGetShort(node, "RowSettle")));
+	caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_AUTOEXPOSURE,
+		sshsNodeGetBool(node, "AutoExposure"));
 
 	// Not supported on DAVIS RGB.
 	if (!IS_DAVISRGB(devInfo->chipID)) {
@@ -2010,6 +2013,10 @@ static void apsConfigListener(sshsNode node, void *userData, enum sshs_node_attr
 		}
 		else if (changeType == SSHS_BOOL && caerStrEquals(changeKey, "TakeSnapShot")) {
 			caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_SNAPSHOT,
+				changeValue.boolean);
+		}
+		else if (changeType == SSHS_BOOL && caerStrEquals(changeKey, "AutoExposure")) {
+			caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_AUTOEXPOSURE,
 				changeValue.boolean);
 		}
 	}
