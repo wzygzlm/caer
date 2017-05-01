@@ -119,6 +119,11 @@
 #include "modules/spiralview/spiralview.h"
 #endif
 
+#ifdef ENABLE_SPIKEFEATURES
+#include "modules/spikefeatures/spikefeatures.h"
+#endif
+
+
 static bool mainloop_1(void);
 
 #ifdef ENABLE_GESTURELEARNINGFILTER
@@ -197,6 +202,14 @@ static bool mainloop_1(void) {
 	// look to be uncorrelated with real scene changes (noise reduction).
 #ifdef ENABLE_BAFILTER
 	caerBackgroundActivityFilter(12, polarity_cam);
+#endif
+
+#ifdef ENABLE_SPIKEFEATURES
+	caerSpikeFeatures(82, polarity_cam);
+#ifdef ENABLE_VISUALIZER
+	caerFrameEventPacket surfaceFrame = NULL;
+	//caerSpikeFeaturesMakeFrame(82, &surfaceFrame);
+#endif
 #endif
 
 #ifdef ENABLE_ROTATEFILTER
