@@ -16,8 +16,6 @@
 #define num_features_map 50
 #define map_size 11
 
-void caerSpikeFeatures(uint16_t moduleID, caerPolarityEventPacket polarity);
-void caerSpikeFeaturesMakeFrame(uint16_t moduleID, caerFrameEventPacket *imagegeneratorFrame);
-
+void caerSpikeFeatures(uint16_t moduleID, caerPolarityEventPacket polarity, caerFrameEventPacket *imagegeneratorFrame);
 
 #endif /* SPIKEFEATURESFILTER_H_ */

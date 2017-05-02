@@ -35,18 +35,18 @@ static struct caer_module_functions caerSpikeFeaturesFunctions = { .moduleInit =
 	&caerSpikeFeaturesRun, .moduleConfig = &caerSpikeFeaturesConfig, .moduleExit = &caerSpikeFeaturesExit,
 	.moduleReset = &caerSpikeFeaturesReset };
 
-void caerSpikeFeatures(uint16_t moduleID, caerPolarityEventPacket polarity) {
+void caerSpikeFeatures(uint16_t moduleID, caerPolarityEventPacket polarity, caerFrameEventPacket *imagegeneratorframe) {
 	caerModuleData moduleData = caerMainloopFindModule(moduleID, "SpikeFeatures", CAER_MODULE_PROCESSOR);
 	if (moduleData == NULL) {
 		return;
 	}
 
-	caerModuleSM(&caerSpikeFeaturesFunctions, moduleData, sizeof(struct SFFilter_state), 1, polarity);
+	caerModuleSM(&caerSpikeFeaturesFunctions, moduleData, sizeof(struct SFFilter_state), 2, polarity, imagegeneratorframe);
 }
 
 static bool caerSpikeFeaturesInit(caerModuleData moduleData) {
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "decayTime", 3000);
-	sshsNodePutFloatIfAbsent(moduleData->moduleNode, "tau", 0.5);
+	sshsNodePutIntIfAbsent(moduleData->moduleNode, "decayTime", 3);
+	sshsNodePutFloatIfAbsent(moduleData->moduleNode, "tau", 1000);
 
 	SFFilterState state = moduleData->moduleState;
 
@@ -68,6 +68,7 @@ static void caerSpikeFeaturesRun(caerModuleData moduleData, size_t argsNumber, v
 
 	// Interpret variable arguments (same as above in main function).
 	caerPolarityEventPacket polarity = va_arg(args, caerPolarityEventPacket);
+	caerFrameEventPacket *imagegeneratorframe = va_arg(args, caerFrameEventPacket*);
 
 	// Only process packets with content.
 	if (polarity == NULL) {
@@ -75,25 +76,23 @@ static void caerSpikeFeaturesRun(caerModuleData moduleData, size_t argsNumber, v
 	}
 
 	int32_t sourceID = caerEventPacketHeaderGetEventSource(&polarity->packetHeader);
-	sshsNode sourceInfoNode = caerMainloopGetSourceInfo(U16T(sourceID));
+	sshsNode sourceInfoNodeCA = caerMainloopGetSourceInfo(sourceID);
+	sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
+	if (!sshsNodeAttributeExists(sourceInfoNode, "dataSizeX", SSHS_SHORT)) { //to do for visualizer change name of field to a more generic one
+		sshsNodePutShort(sourceInfoNode, "dataSizeX", sshsNodeGetShort(sourceInfoNodeCA, "dvsSizeX"));
+		sshsNodePutShort(sourceInfoNode, "dataSizeY", sshsNodeGetShort(sourceInfoNodeCA, "dvsSizeY"));
+	}
 	if (sourceInfoNode == NULL) {
 		// This should never happen, but we handle it gracefully.
 		return;
 	}
 
-	int16_t sizeX = sshsNodeGetShort(sourceInfoNode, "dvsSizeX");
-	int16_t sizeY = sshsNodeGetShort(sourceInfoNode, "dvsSizeY");
+	int16_t sizeX = sshsNodeGetShort(sourceInfoNodeCA, "dvsSizeX");
+	int16_t sizeY = sshsNodeGetShort(sourceInfoNodeCA, "dvsSizeY");
 
 	SFFilterState state = moduleData->moduleState;
 
 	// If the map is not allocated yet, do it.
-	/*if (state->featuresMap[0] == NULL) {
-		if (!allocateFeaturesMap(state, caerEventPacketHeaderGetEventSource(&polarity->packetHeader))) {
-			// Failed to allocate memory, nothing to do.
-			caerLog(CAER_LOG_ERROR, moduleData->moduleSubSystemString, "Failed to allocate memory for timestampMap.");
-			return;
-		}
-	}*/
 	if (state->surfaceMap == NULL) {
 		if (!allocateSurfaceMap(state, caerEventPacketHeaderGetEventSource(&polarity->packetHeader))) {
 			// Failed to allocate memory, nothing to do.
@@ -120,19 +119,16 @@ static void caerSpikeFeaturesRun(caerModuleData moduleData, size_t argsNumber, v
 		state->surfaceMap->buffer2d[x][y] = 1;
 	CAER_POLARITY_ITERATOR_VALID_END
 
-
 	//decay the map
 	for (size_t x = 0; x < sizeX; x++) {
 		for (size_t y = 0; y < sizeY; y++) {
-
 			state->surfaceMapLastTs->buffer2d[x][y] = ts;
-
-			if(state->surfaceMapLastTs->buffer2d[x][y] == 0){
+			if(state->surfaceMap->buffer2d[x][y] == 0){
 				continue;
 			}else{
 				int64_t dt = (state->surfaceMapLastTs->buffer2d[x][y]  - ts);
 				float decay = state->tau * dt;
-				state->surfaceMap->buffer2d[x][y] -= decay;
+				state->surfaceMap->buffer2d[x][y] -= 0.02; // decay
 				if(state->surfaceMap->buffer2d[x][y]  < 0){
 					state->surfaceMap->buffer2d[x][y]  = 0;
 				}
@@ -141,6 +137,28 @@ static void caerSpikeFeaturesRun(caerModuleData moduleData, size_t argsNumber, v
 	}
 
 	state->lastTimeStamp = ts;
+
+	//make frame
+	// put info into frame
+	*imagegeneratorframe = caerFrameEventPacketAllocate(1, I16T(moduleData->moduleID), 0, sizeY, sizeX, 3);
+	caerMainloopFreeAfterLoop(&free, *imagegeneratorframe);
+	if (*imagegeneratorframe != NULL) {
+		caerFrameEvent singleplot = caerFrameEventPacketGetEvent(*imagegeneratorframe, 0);
+		uint32_t counter = 0;
+		for (size_t x = 0; x < sizeX; x++) {
+			for (size_t y = 0; y < sizeY; y++) {
+				singleplot->pixels[counter] = (uint16_t) ((int) (state->surfaceMap->buffer2d[y][x] * 65530/3)); // red
+				singleplot->pixels[counter + 1] = (uint16_t) ((int) (state->surfaceMap->buffer2d[y][x] * 65530/2)); // green
+				singleplot->pixels[counter + 2] = (uint16_t) ((int) (state->surfaceMap->buffer2d[y][x] * 65530/4)); // blue
+				counter += 3;
+			}
+		}
+
+		//add info to the frame
+		caerFrameEventSetLengthXLengthYChannelNumber(singleplot, sizeY, sizeX, 3, *imagegeneratorframe);
+		//validate frame
+		caerFrameEventValidate(singleplot, *imagegeneratorframe);
+	}
 
 }
 
@@ -237,41 +255,3 @@ static bool allocateFeaturesMap(SFFilterState state, int16_t sourceID) {
 	return (true);
 }
 
-
-void caerSpikeFeaturesMakeFrame(uint16_t moduleID, caerFrameEventPacket *imagegeneratorFrame) {
-
-	caerModuleData moduleData = caerMainloopFindModule(moduleID, "SpikeFeatures", CAER_MODULE_PROCESSOR);
-	sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
-	if (!sshsNodeAttributeExists(sourceInfoNode, "dataSizeX", SSHS_SHORT)) { //to do for visualizer change name of field to a more generic one
-		sshsNodePutShort(sourceInfoNode, "dataSizeX", 240);
-		sshsNodePutShort(sourceInfoNode, "dataSizeY", 180);
-	}
-
-	SFFilterState state = moduleData->moduleState;
-
-	// put info into frame
-	*imagegeneratorFrame = caerFrameEventPacketAllocate(1, I16T(moduleData->moduleID), 0, 240, 180, 3);
-	//caerMainloopFreeAfterLoop(&free, *imagegeneratorFrame);
-	if (*imagegeneratorFrame != NULL) {
-		caerFrameEvent singleplot = caerFrameEventPacketGetEvent(*imagegeneratorFrame, 0);
-
-		uint32_t counter = 0;
-		for (size_t x = 0; x < 10; x++) {
-			for (size_t y = 0; y < 20; y++) {
-				int linindex = x * 240 + y;
-				printf("state->surfaceMap->buffer2d[x][y] %f\n", state->surfaceMap->buffer2d[0][0]);
-
-				singleplot->pixels[counter] = 0;//(uint16_t) ((int) state->surfaceMap->buffer2d[x][y] * 255); // red
-				singleplot->pixels[counter + 1] = 0;//(uint16_t) ((int) state->surfaceMap->buffer2d[x][y] * 255); // green
-				singleplot->pixels[counter + 2] = 0;//(uint16_t) ((int) state->surfaceMap->buffer2d[x][y] * 255); // blue
-				counter += 3;
-			}
-		}
-
-		//add info to the frame
-		caerFrameEventSetLengthXLengthYChannelNumber(singleplot, 240, 180, 3, *imagegeneratorFrame);
-		//validate frame
-		caerFrameEventValidate(singleplot, *imagegeneratorFrame);
-	}
-
-}

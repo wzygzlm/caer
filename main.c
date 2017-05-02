@@ -205,9 +205,10 @@ static bool mainloop_1(void) {
 #endif
 
 #ifdef ENABLE_SPIKEFEATURES
-	caerSpikeFeatures(82, polarity_cam);
-#ifdef ENABLE_VISUALIZER
 	caerFrameEventPacket surfaceFrame = NULL;
+	caerSpikeFeatures(82, polarity_cam, &surfaceFrame);
+#ifdef ENABLE_VISUALIZER
+	//caerFrameEventPacket surfaceFrame = NULL;
 	//caerSpikeFeaturesMakeFrame(82, &surfaceFrame);
 #endif
 #endif
@@ -367,6 +368,9 @@ static bool mainloop_1(void) {
 	// A simple visualizer exists to show what the output looks like.
 #ifdef ENABLE_VISUALIZER
 	caerVisualizer(64, "Spike", &caerVisualizerRendererSpikeEvents, caerVisualizerEventHandlerSpikeEvents, (caerEventPacketHeader) spike);
+#ifdef ENABLE_SPIKEFEATURES
+	caerVisualizer(88, "SurfaceMap", &caerVisualizerRendererFrameEvents, NULL, (caerEventPacketHeader) surfaceFrame);
+#endif
 #ifdef ENABLE_MEANRATEFILTER
 	if(freqplot != NULL){
 		caerVisualizer(65, "Frequency", &caerVisualizerRendererFrameEvents, NULL, (caerEventPacketHeader) freqplot);
