@@ -128,7 +128,8 @@ static void caerSpikeFeaturesRun(caerModuleData moduleData, size_t argsNumber, v
 			}else{
 				int64_t dt = (state->surfaceMapLastTs->buffer2d[x][y]  - ts);
 				float decay = state->tau * dt;
-				state->surfaceMap->buffer2d[x][y] -= 0.02; // decay
+				//printf("decay %f\n", decay);
+				state->surfaceMap->buffer2d[x][y] -= state->tau; // decay
 				if(state->surfaceMap->buffer2d[x][y]  < 0){
 					state->surfaceMap->buffer2d[x][y]  = 0;
 				}
@@ -140,16 +141,16 @@ static void caerSpikeFeaturesRun(caerModuleData moduleData, size_t argsNumber, v
 
 	//make frame
 	// put info into frame
-	*imagegeneratorframe = caerFrameEventPacketAllocate(1, I16T(moduleData->moduleID), 0, sizeY, sizeX, 3);
+	*imagegeneratorframe = caerFrameEventPacketAllocate(1, I16T(moduleData->moduleID), 0, sizeX, sizeY, 3);
 	caerMainloopFreeAfterLoop(&free, *imagegeneratorframe);
 	if (*imagegeneratorframe != NULL) {
 		caerFrameEvent singleplot = caerFrameEventPacketGetEvent(*imagegeneratorframe, 0);
 		uint32_t counter = 0;
 		for (size_t x = 0; x < sizeX; x++) {
 			for (size_t y = 0; y < sizeY; y++) {
-				singleplot->pixels[counter] = (uint16_t) ((int) (state->surfaceMap->buffer2d[y][x] * 65530/3)); // red
-				singleplot->pixels[counter + 1] = (uint16_t) ((int) (state->surfaceMap->buffer2d[y][x] * 65530/2)); // green
-				singleplot->pixels[counter + 2] = (uint16_t) ((int) (state->surfaceMap->buffer2d[y][x] * 65530/4)); // blue
+				singleplot->pixels[counter] = (uint16_t) ((int) (state->surfaceMap->buffer2d[y][x] * 65530)); // red
+				singleplot->pixels[counter + 1] = (uint16_t) ((int) (state->surfaceMap->buffer2d[y][x] * 65530)); // green
+				singleplot->pixels[counter + 2] = (uint16_t) ((int) (state->surfaceMap->buffer2d[y][x] * 65530)); // blue
 				counter += 3;
 			}
 		}

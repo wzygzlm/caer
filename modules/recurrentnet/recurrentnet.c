@@ -48,8 +48,8 @@ void caerRecurrentNet(uint16_t moduleID, caerSpikeEventPacket spike) {
 static bool caerRecurrentNetInit(caerModuleData moduleData) {
 	// create parameters
 	sshsNodePutFloatIfAbsent(moduleData->moduleNode, "deltaT", 2.0);
-    sshsNodePutFloatIfAbsent(moduleData->moduleNode, "period", 1.0);
-    sshsNodePutFloatIfAbsent(moduleData->moduleNode, "ieratio", 0.2);
+    sshsNodePutFloatIfAbsent(moduleData->moduleNode, "period", 3.0);
+    sshsNodePutFloatIfAbsent(moduleData->moduleNode, "ieratio", 0.4);
 
 	RNFilterState state = moduleData->moduleState;
 
@@ -104,14 +104,19 @@ static void caerRecurrentNetRun(caerModuleData moduleData, size_t argsNumber, va
 		// do the initialization
 
 		caerLog(CAER_LOG_NOTICE, __func__, "Initialization of the Recurrent Network");
+
+		// stimulation chip
+		caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U1, 0, "IF_RFR_N", 2, 24, "LowBias", "NBias");
+
+
 		// load biases
 		for(size_t coreid=0; coreid<4 ; coreid++){
-            caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_DC_P", 5, 125, "HighBias", "PBias");
-            caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "IF_DC_P", 7, 1, "HighBias", "PBias");
-            caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "IF_DC_P", 7, 1, "HighBias", "PBias");
-			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "IF_DC_P", 7, 1, "HighBias", "PBias");
-			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_THR_N", 5, 125, "HighBias", "NBias");
-			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_TAU1_N", 6, 125, "HighBias", "NBias");
+            caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_DC_P", 7, 2, "HighBias", "PBias");
+            //caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "IF_DC_P", 7, 1, "HighBias", "PBias");
+            caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "IF_DC_P", 7, 2, "HighBias", "PBias");
+			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "IF_DC_P", 7, 2, "HighBias", "PBias");
+			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_THR_N", 3, 20, "HighBias", "NBias");
+			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_TAU1_N", 6, 21, "HighBias", "NBias");
 			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_AHTAU_N", 7, 35, "LowBias", "NBias");
 
 			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_AHTAU_N", 7, 35, "LowBias", "NBias");
@@ -121,11 +126,13 @@ static void caerRecurrentNetRun(caerModuleData moduleData, size_t argsNumber, va
 			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_CASC_N", 7, 1, "HighBias", "NBias");
 			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_DC_P", 7, 2, "HighBias", "PBias");
 			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_NMDA_N", 7, 1, "HighBias", "PBias");
-			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_RFR_N", 0, 108, "HighBias", "NBias");
-			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_TAU1_N", 6, 24, "LowBias", "NBias");
+			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_RFR_N", 4, 208, "HighBias", "NBias");
+
+			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_TAU1_N", 6, 21, "LowBias", "NBias");
+
 			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_TAU2_N", 5, 15, "HighBias", "NBias");
 			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_THR_N", 3, 20, "HighBias", "NBias");
-			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "NPDPIE_TAU_F_P", 5, 41, "HighBias",
+			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "NPDPIE_TAU_F_P", 5, 53, "HighBias",
 				"PBias");
 			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "NPDPIE_TAU_S_P", 7, 40, "HighBias",
 				"NBias");
@@ -141,15 +148,15 @@ static void caerRecurrentNetRun(caerModuleData moduleData, size_t argsNumber, va
 				"PBias");
 			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "NPDPII_THR_S_P", 7, 40, "HighBias",
 				"PBias");
-			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "PS_WEIGHT_EXC_F_N", 4, 216, "HighBias",
+			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "PS_WEIGHT_EXC_F_N", 1, 90, "HighBias",
 				"NBias");
 			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "PS_WEIGHT_EXC_S_N", 7, 1, "HighBias",
 				"NBias");
-			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "PS_WEIGHT_INH_F_N", 4, 216, "HighBias",
+			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "PS_WEIGHT_INH_F_N", 0, 100, "HighBias",
 				"NBias");
 			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "PS_WEIGHT_INH_S_N", 7, 1, "HighBias",
 				"NBias");
-			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "PULSE_PWLK_P", 1, 43, "HighBias",
+			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "PULSE_PWLK_P", 0, 43, "HighBias",
 				"PBias");
 			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "R2R_P", 4, 85, "HighBias", "PBias");
 
@@ -194,6 +201,29 @@ static void caerRecurrentNetRun(caerModuleData moduleData, size_t argsNumber, va
         
 		caerLog(CAER_LOG_NOTICE, __func__, "init completed");
 
+
+		caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID,
+			DYNAPSE_CONFIG_DYNAPSE_U1);
+	    caerDynapseWriteSram(stateSource->deviceState, 0, 0, 0,
+	                         1, 1,
+	                         0, 0,
+	                         1,  // SRAM ID 1 (0 is reserved for USB)
+	                         15); // 1111, all cores
+	    caerDynapseWriteSram(stateSource->deviceState, 0, 1, 0,
+	                         1, 1,
+	                         0, 0,
+	                         1,  // SRAM ID 1 (0 is reserved for USB)
+	                         15); // 1111, all cores
+	    caerDynapseWriteSram(stateSource->deviceState, 0, 2, 0,
+	                         1, 1,
+	                         0, 0,
+	                         1,  // SRAM ID 1 (0 is reserved for USB)
+	                         15); // 1111, all cores
+	    caerDynapseWriteSram(stateSource->deviceState, 0, 3, 0,
+	                         1, 1,
+	                         0, 0,
+	                         1,  // SRAM ID 1 (0 is reserved for USB)
+	                         15); // 1111, all cores
 		state->init = true;
 	}
 
@@ -208,7 +238,13 @@ static void caerRecurrentNetRun(caerModuleData moduleData, size_t argsNumber, va
 		int coreid = 0;
 		int tt = (int) ((sin( (double)(6.2832/state->period)*(ttot.tv_sec + 1.0e-9* ttot.tv_nsec))+1.0 )*127);
 		caerLog(CAER_LOG_NOTICE, __func__, "tt %d", tt);
-		caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_DC_P", 5, tt, "HighBias", "PBias");
+		//caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "IF_DC_P", 5, tt, "HighBias", "PBias");
+
+		uint32_t bits = generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode,
+			"C0_IF_DC_P", 5, tt, "HiBias", "Normal", "PBias", true, DYNAPSE_CONFIG_DYNAPSE_U1);
+
+		caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_CONTENT, bits);
+
 	}
 
 	// Iterate over spikes in the packet
