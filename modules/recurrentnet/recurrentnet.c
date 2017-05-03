@@ -13,7 +13,9 @@
 struct RNFilter_state {
 	// user settings
 	bool init;
-	int32_t deltaT;
+	float deltaT;
+    float period;
+    float ieratio;
 	// usb utils
 	caerInputDynapseState eventSourceModuleState;
 	sshsNode eventSourceConfigNode;
@@ -45,17 +47,18 @@ void caerRecurrentNet(uint16_t moduleID, caerSpikeEventPacket spike) {
 
 static bool caerRecurrentNetInit(caerModuleData moduleData) {
 	// create parameters
-	sshsNodePutFloatIfAbsent(moduleData->moduleNode, "deltaT", 2);
-	//sshsNodePutBoolIfAbsent(moduleData->moduleNode, "setSram", false);
-	//sshsNodePutBoolIfAbsent(moduleData->moduleNode, "setCam", false);
+	sshsNodePutFloatIfAbsent(moduleData->moduleNode, "deltaT", 2.0);
+    sshsNodePutFloatIfAbsent(moduleData->moduleNode, "period", 1.0);
+    sshsNodePutFloatIfAbsent(moduleData->moduleNode, "ieratio", 0.2);
 
 	RNFilterState state = moduleData->moduleState;
 
 	// update node state
-	//state->loadBiases = sshsNodeGetBool(moduleData->moduleNode, "loadBiases");
-	//state->setSram = sshsNodeGetBool(moduleData->moduleNode, "setSram");
 	state->deltaT = sshsNodeGetFloat(moduleData->moduleNode, "deltaT");
+    state->period = sshsNodeGetFloat(moduleData->moduleNode, "period");
+    state->ieratio = sshsNodeGetFloat(moduleData->moduleNode, "ieratio");
 
+    
 	state->init = false;
 
 	// Add config listeners last - let's the user interact with the parameter -
@@ -103,97 +106,109 @@ static void caerRecurrentNetRun(caerModuleData moduleData, size_t argsNumber, va
 		caerLog(CAER_LOG_NOTICE, __func__, "Initialization of the Recurrent Network");
 		// load biases
 		for(size_t coreid=0; coreid<4 ; coreid++){
-			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "IF_DC_P", 5, 125, "HighBias", "PBias");
-			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "IF_THR_N", 5, 125, "HighBias", "NBias");
-			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "IF_TAU1_N", 6, 125, "HighBias", "NBias");
-			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "IF_AHTAU_N", 7, 35, "LowBias", "NBias");
+            caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_DC_P", 5, 125, "HighBias", "PBias");
+            caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "IF_DC_P", 7, 1, "HighBias", "PBias");
+            caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "IF_DC_P", 7, 1, "HighBias", "PBias");
+			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "IF_DC_P", 7, 1, "HighBias", "PBias");
+			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_THR_N", 5, 125, "HighBias", "NBias");
+			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_TAU1_N", 6, 125, "HighBias", "NBias");
+			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_AHTAU_N", 7, 35, "LowBias", "NBias");
 
-			/*caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "IF_AHTAU_N", 7, 35, "LowBias", "NBias");
-			caerDynapseSetBias(stateSource, (uint) state->chipId, coreId, "IF_AHTHR_N", 7, 1, "HighBias", "NBias");
-			caerDynapseSetBias(stateSource, (uint) state->chipId, coreId, "IF_AHW_P", 7, 1, "HighBias", "PBias");
-			caerDynapseSetBias(stateSource, (uint) state->chipId, coreId, "IF_BUF_P", 3, 80, "HighBias", "PBias");
-			caerDynapseSetBias(stateSource, (uint) state->chipId, coreId, "IF_CASC_N", 7, 1, "HighBias", "NBias");
-			caerDynapseSetBias(stateSource, (uint) state->chipId, coreId, "IF_DC_P", 7, 2, "HighBias", "PBias");
-			caerDynapseSetBias(stateSource, (uint) state->chipId, coreId, "IF_NMDA_N", 7, 1, "HighBias", "PBias");
-			caerDynapseSetBias(stateSource, (uint) state->chipId, coreId, "IF_RFR_N", 0, 108, "HighBias", "NBias");
-			caerDynapseSetBias(stateSource, (uint) state->chipId, coreId, "IF_TAU1_N", 6, 24, "LowBias", "NBias");
-			caerDynapseSetBias(stateSource, (uint) state->chipId, coreId, "IF_TAU2_N", 5, 15, "HighBias", "NBias");
-			caerDynapseSetBias(stateSource, (uint) state->chipId, coreId, "IF_THR_N", 3, 20, "HighBias", "NBias");
-			caerDynapseSetBias(stateSource, (uint) state->chipId, coreId, "NPDPIE_TAU_F_P", 5, 41, "HighBias",
+			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_AHTAU_N", 7, 35, "LowBias", "NBias");
+			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_AHTHR_N", 7, 1, "HighBias", "NBias");
+			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_AHW_P", 7, 1, "HighBias", "PBias");
+			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_BUF_P", 3, 80, "HighBias", "PBias");
+			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_CASC_N", 7, 1, "HighBias", "NBias");
+			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_DC_P", 7, 2, "HighBias", "PBias");
+			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_NMDA_N", 7, 1, "HighBias", "PBias");
+			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_RFR_N", 0, 108, "HighBias", "NBias");
+			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_TAU1_N", 6, 24, "LowBias", "NBias");
+			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_TAU2_N", 5, 15, "HighBias", "NBias");
+			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_THR_N", 3, 20, "HighBias", "NBias");
+			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "NPDPIE_TAU_F_P", 5, 41, "HighBias",
 				"PBias");
-			caerDynapseSetBias(stateSource, (uint) state->chipId, coreId, "NPDPIE_TAU_S_P", 7, 40, "HighBias",
+			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "NPDPIE_TAU_S_P", 7, 40, "HighBias",
 				"NBias");
-			caerDynapseSetBias(stateSource, (uint) state->chipId, coreId, "NPDPIE_THR_F_P", 2, 200, "HighBias",
+			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "NPDPIE_THR_F_P", 2, 200, "HighBias",
 				"PBias");
-			caerDynapseSetBias(stateSource, (uint) state->chipId, coreId, "NPDPIE_THR_S_P", 7, 0, "HighBias",
+			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "NPDPIE_THR_S_P", 7, 0, "HighBias",
 				"PBias");
-			caerDynapseSetBias(stateSource, (uint) state->chipId, coreId, "NPDPII_TAU_F_P", 7, 40, "HighBias",
+			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "NPDPII_TAU_F_P", 7, 40, "HighBias",
 				"NBias");
-			caerDynapseSetBias(stateSource, (uint) state->chipId, coreId, "NPDPII_TAU_S_P", 7, 40, "HighBias",
+			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "NPDPII_TAU_S_P", 7, 40, "HighBias",
 				"NBias");
-			caerDynapseSetBias(stateSource, (uint) state->chipId, coreId, "NPDPII_THR_F_P", 7, 40, "HighBias",
+			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "NPDPII_THR_F_P", 7, 40, "HighBias",
 				"PBias");
-			caerDynapseSetBias(stateSource, (uint) state->chipId, coreId, "NPDPII_THR_S_P", 7, 40, "HighBias",
+			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "NPDPII_THR_S_P", 7, 40, "HighBias",
 				"PBias");
-			caerDynapseSetBias(stateSource, (uint) state->chipId, coreId, "PS_WEIGHT_EXC_F_N", 0, 216, "HighBias",
+			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "PS_WEIGHT_EXC_F_N", 4, 216, "HighBias",
 				"NBias");
-			caerDynapseSetBias(stateSource, (uint) state->chipId, coreId, "PS_WEIGHT_EXC_S_N", 7, 1, "HighBias",
+			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "PS_WEIGHT_EXC_S_N", 7, 1, "HighBias",
 				"NBias");
-			caerDynapseSetBias(stateSource, (uint) state->chipId, coreId, "PS_WEIGHT_INH_F_N", 7, 1, "HighBias",
+			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "PS_WEIGHT_INH_F_N", 4, 216, "HighBias",
 				"NBias");
-			caerDynapseSetBias(stateSource, (uint) state->chipId, coreId, "PS_WEIGHT_INH_S_N", 7, 1, "HighBias",
+			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "PS_WEIGHT_INH_S_N", 7, 1, "HighBias",
 				"NBias");
-			caerDynapseSetBias(stateSource, (uint) state->chipId, coreId, "PULSE_PWLK_P", 0, 43, "HighBias",
+			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "PULSE_PWLK_P", 1, 43, "HighBias",
 				"PBias");
-			caerDynapseSetBias(stateSource, (uint) state->chipId, coreId, "R2R_P", 4, 85, "HighBias", "PBias");*/
+			caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "R2R_P", 4, 85, "HighBias", "PBias");
 
 		}
 
 		// --- set sram
 		//  0 - select which chip to configure
-		caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, DYNAPSE_CONFIG_DYNAPSE_U3);
-		//  1 -configure
-		caerDynapseWriteSram(stateSource->deviceState, 3, 255, 3, DYNAPSE_CONFIG_SRAM_DIRECTION_X_WEST, 1, DYNAPSE_CONFIG_SRAM_DIRECTION_Y_NORTH,
-			1, 1, 15);
-		caerDynapseWriteSram(stateSource->deviceState, 3, 255, 3, 0, 0, 0, 0, 2, 2);
-		caerDynapseWriteSram(stateSource->deviceState, 3, 255, 3, 0, 0, DYNAPSE_CONFIG_SRAM_DIRECTION_Y_NORTH, 1, 3, 2);
-		//set cam
-		caerDynapseWriteCam(stateSource->deviceState, 1023, 256, 0, DYNAPSE_CONFIG_CAMTYPE_F_EXC);
-
-		// chip u0
 		caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, DYNAPSE_CONFIG_DYNAPSE_U0);
-		for(size_t neuronid = 0; neuronid < 1024; neuronid++){
-			for(size_t camid=32; camid<64; camid++){
-				caerDynapseWriteCam(stateSource->deviceState, neuronid, 0, camid, DYNAPSE_CONFIG_CAMTYPE_F_EXC);
-			}
-		}
-		for(size_t camid=0; camid<32; camid++){
-			caerDynapseWriteCam(stateSource->deviceState, 1023, 255, camid, DYNAPSE_CONFIG_CAMTYPE_F_EXC);
-			caerDynapseWriteCam(stateSource->deviceState, 1023, 511, camid, DYNAPSE_CONFIG_CAMTYPE_F_EXC);
-			caerDynapseWriteCam(stateSource->deviceState, 1023, 767, camid, DYNAPSE_CONFIG_CAMTYPE_F_EXC);
-			caerDynapseWriteCam(stateSource->deviceState, 1023, 1023, camid, DYNAPSE_CONFIG_CAMTYPE_F_EXC);
 
-		}
-		// chip u2
-		caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, DYNAPSE_CONFIG_DYNAPSE_U2);
-		caerDynapseWriteCam(stateSource->deviceState, 1023, 256, 0, DYNAPSE_CONFIG_CAMTYPE_F_EXC);
+        
+        int i, j;
+        bool v[1024];
+        
+        for(i=0; i<1024; i++) { // Target neurons
+            
+            for(j=0; j<1024; j++) { v[j] = false; }
 
+            // Update sram of source neuron
+            caerDynapseWriteSram(stateSource->deviceState, i/256, i % 256, i/256,
+                                 DYNAPSE_CONFIG_SRAM_DIRECTION_X_WEST, 0,
+                                 DYNAPSE_CONFIG_SRAM_DIRECTION_Y_NORTH, 0,
+                                 1,  // SRAM ID 1 (0 is reserved for USB)
+                                 15); // 1111, all cores
+
+            for(j=0; j<64; j++) {
+
+                // Sample unique source neuron
+                int index;
+                do {
+                    index = rand() % 1024;
+                } while(v[index]==true);
+                v[index] = true;
+
+                // Update cam of destination neuron
+                if(rand() < RAND_MAX*state->ieratio) {
+                    caerDynapseWriteCam(stateSource->deviceState, index, i, j, DYNAPSE_CONFIG_CAMTYPE_F_INH);
+                } else {
+                    caerDynapseWriteCam(stateSource->deviceState, index, i, j, DYNAPSE_CONFIG_CAMTYPE_F_EXC);
+                }
+            }
+        }
+        
 		caerLog(CAER_LOG_NOTICE, __func__, "init completed");
 
 		state->init = true;
 	}
 
 	portable_clock_gettime_monotonic(&tend);
-	double current_time = (double) ((double) tend.tv_sec + 1.0e-9 * tend.tv_nsec - (double) tstart.tv_sec
-			+ 1.0e-9 * tstart.tv_nsec);
+	double current_time = (double) (((double) tend.tv_sec + 1.0e-9 * tend.tv_nsec) - ((double) tstart.tv_sec
+			+ 1.0e-9 * tstart.tv_nsec));
 
 	// let's change here the stimulation pattern
 	if(current_time >= state->deltaT){
 		portable_clock_gettime_monotonic(&tstart);
+        portable_clock_gettime_monotonic(&ttot);
 		int coreid = 0;
-		int tt = (int) ((sin((double) ttot.tv_sec + 1.0e-9* tend.tv_nsec)+1.0)*127);
+		int tt = (int) ((sin( (double)(6.2832/state->period)*(ttot.tv_sec + 1.0e-9* ttot.tv_nsec))+1.0 )*127);
 		caerLog(CAER_LOG_NOTICE, __func__, "tt %d", tt);
-		caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "IF_DC_P", 5, tt, "HighBias", "PBias");
+		caerDynapseSetBias(stateSource, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_DC_P", 5, tt, "HighBias", "PBias");
 	}
 
 	// Iterate over spikes in the packet
@@ -201,7 +216,7 @@ static void caerRecurrentNetRun(caerModuleData moduleData, size_t argsNumber, va
 		int32_t timestamp =  caerSpikeEventGetTimestamp(caerSpikeIteratorElement);
 	  	uint8_t chipid 	  =  caerSpikeEventGetChipID(caerSpikeIteratorElement);
 	  	uint8_t neuronid  =  caerSpikeEventGetNeuronID(caerSpikeIteratorElement);
-	  	uint8_t coreid    =  caerSpikeEventGetSourceCoreID(caerSpikeIteratorElement);
+	  	uint8_t coreid    =  caerSpikeEventGetSourcecoreid(caerSpikeIteratorElement);
 
 
 	CAER_SPIKE_ITERATOR_VALID_END*/
@@ -224,6 +239,9 @@ static void caerRecurrentNetConfig(caerModuleData moduleData) {
 	RNFilterState state = moduleData->moduleState;
 
 	// this will update parameters, from user input
+    state->deltaT = sshsNodeGetFloat(moduleData->moduleNode, "deltaT");
+    state->period = sshsNodeGetFloat(moduleData->moduleNode, "period");
+    state->ieratio = sshsNodeGetFloat(moduleData->moduleNode, "ieratio");
 
 }
 
