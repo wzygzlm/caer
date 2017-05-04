@@ -2,6 +2,7 @@
 #include "base/module.h"
 
 #include <libcaer/events/frame.h>
+#include <libcaercpp/events/frame.hpp>
 
 #include <opencv2/core.hpp>
 #include <opencv2/core/utility.hpp>
@@ -20,14 +21,17 @@ static void caerFrameStatisticsRun(caerModuleData moduleData, caerEventPacketCon
 static void caerFrameStatisticsExit(caerModuleData moduleData);
 static void caerFrameStatisticsReset(caerModuleData moduleData, int16_t resetCallSourceID);
 
-static const struct caer_module_functions FrameStatisticsFunctions = { .moduleInit = &caerFrameStatisticsInit, .moduleRun =
-	&caerFrameStatisticsRun, .moduleConfig = NULL, .moduleExit = &caerFrameStatisticsExit, .moduleReset = &caerFrameStatisticsReset };
+static const struct caer_module_functions FrameStatisticsFunctions = { .moduleInit = &caerFrameStatisticsInit,
+	.moduleRun = &caerFrameStatisticsRun, .moduleConfig = NULL, .moduleExit = &caerFrameStatisticsExit, .moduleReset =
+		&caerFrameStatisticsReset };
 
-static const struct caer_event_stream_in FrameStatisticsInputs[] = { { .type = FRAME_EVENT, .number = 1, .readOnly = true } };
+static const struct caer_event_stream_in FrameStatisticsInputs[] = { { .type = FRAME_EVENT, .number = 1, .readOnly =
+	true } };
 
-static const struct caer_module_info FrameStatisticsInfo = { .version = 1, .name = "FrameStatistics", .type = CAER_MODULE_OUTPUT,
-	.memSize = sizeof(struct caer_frame_statistics_state), .functions = &FrameStatisticsFunctions, .inputStreams = FrameStatisticsInputs,
-	.inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(FrameStatisticsInputs), .outputStreams = NULL, .outputStreamsSize = 0, };
+static const struct caer_module_info FrameStatisticsInfo = { .version = 1, .name = "FrameStatistics", .type =
+	CAER_MODULE_OUTPUT, .memSize = sizeof(struct caer_frame_statistics_state), .functions = &FrameStatisticsFunctions,
+	.inputStreams = FrameStatisticsInputs, .inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(FrameStatisticsInputs),
+	.outputStreams = NULL, .outputStreamsSize = 0, };
 
 caerModuleInfo caerModuleGetInfo(void) {
 	return (&FrameStatisticsInfo);
@@ -47,12 +51,18 @@ static void caerFrameStatisticsRun(caerModuleData moduleData, caerEventPacketCon
 	caerEventPacketContainer *out) {
 	UNUSED_ARGUMENT(out);
 
-	caerFrameEventPacketConst frame = (caerFrameEventPacketConst) caerEventPacketContainerFindEventPacketByTypeConst(in, FRAME_EVENT);
+	caerFrameEventPacket f = (caerFrameEventPacket) caerEventPacketContainerFindEventPacketByType(in, FRAME_EVENT);
+	const libcaer::events::FrameEventPacket frame(f, false);
 
 	caerFrameStatisticsState state = (caerFrameStatisticsState) moduleData->moduleState;
 
-	const cv::Size frameSize(caerFrameEventGetLengthX(frame), caerFrameEventGetLengthY(frame));
-	const cv::Mat view(frameSize, CV_16UC(caerFrameEventGetChannelNumber(frame)), caerFrameEventGetPixelArrayUnsafeConst(frame));
+	for (const auto &evt : frame) {
+		const cv::Size frameSize(evt.getLengthX(), evt.getLengthY());
+		const cv::Mat view(frameSize,
+			CV_16UC(
+				static_cast<typename std::underlying_type<libcaer::events::FrameEvent::colorChannels>::type>(evt
+					.getChannelNumber())), (void *) evt.getPixelArrayUnsafe());
+	}
 }
 
 static void caerFrameStatisticsExit(caerModuleData moduleData) {
