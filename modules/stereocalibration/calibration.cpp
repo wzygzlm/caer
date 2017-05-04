@@ -1,6 +1,4 @@
 #include "calibration.hpp"
-#include <fstream>
-#include <iostream>
 
 StereoCalibration::StereoCalibration(StereoCalibrationSettings settings) {
 	this->settings = settings;
@@ -267,6 +265,8 @@ size_t StereoCalibration::foundPoints(int camid) {
 		return (imagePoints_cam0.size());
 	if (camid == 1)
 		return (imagePoints_cam1.size());
+
+	return (0);
 }
 
 /*bool StereoCalibration::loadStereoCalibration(StereoCalibrationSettings settings) {

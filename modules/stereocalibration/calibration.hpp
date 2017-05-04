@@ -15,17 +15,12 @@
 
 #include "calibration_settings.h"
 
-#include <libcaer/events/polarity.h>
 #include <libcaer/events/frame.h>
 
 #include <opencv2/core.hpp>
 #include <opencv2/core/utility.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/calib3d.hpp>
-
-#include <iostream>
-#include <opencv2/aruco.hpp>
-#include <opencv2/highgui/highgui.hpp>
 
 using namespace cv;
 using namespace std;

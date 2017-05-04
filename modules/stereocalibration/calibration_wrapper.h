@@ -7,6 +7,8 @@ extern "C" {
 
 #include "calibration_settings.h"
 
+#include <libcaer/events/frame.h>
+
 typedef struct StereoCalibration StereoCalibration;
 
 StereoCalibration *StereoCalibration_init(StereoCalibrationSettings settings);
