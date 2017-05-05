@@ -208,16 +208,20 @@ static bool mainloop_twocameras(void) {
         // WARNING: slow clients can dramatically slow this and the whole
         // processing pipeline down!
 #ifdef DVS218 
-        caerOutputNetTCPServer(8, 6, polarity_cam0, polarity_cam1, imu_cam0, imu_cam1, special_cam0, special_cam1);
+        caerOutputNetTCPServer(8, 3, polarity_cam0, imu_cam0, special_cam0);
+	//caerOutputNetTCPServer(88, 3, polarity_cam1, imu_cam1, special_cam1);	
 #else
-        caerOutputNetTCPServer(8, 8, polarity_cam0, polarity_cam1, frame_cam0, frame_cam1, imu_cam0, imu_cam1, special_cam0, special_cam1);
+        //caerOutputNetTCPServer(8, 4, polarity_cam0, frame_cam0, imu_cam0, special_cam0);
+	caerOutputNetTCPServer(88, 4, polarity_cam1, frame_cam1, imu_cam1, special_cam1);
 #endif
 
         // And also send them via UDP. This is fast, as it doesn't care what is on the other side.
 #ifdef DVS128
-        caerOutputNetUDP(1000, 6, polarity_cam0, polarity_cam1, imu_cam0, imu_cam1, special_cam0, special_cam1);
+        caerOutputNetUDP(1000, 3, polarity_cam0, imu_cam0, special_cam0);
+	//caerOutputNetUDP(1001, 3, polarity_cam1, imu_cam1, special_cam1);
 #else
-        caerOutputNetUDP(1000, 8, polarity_cam0, polarity_cam1, frame_cam0, frame_cam1, imu_cam0, imu_cam1, special_cam0, special_cam1);
+        caerOutputNetUDP(1000, 4, polarity_cam0, frame_cam0, imu_cam0, special_cam0);
+        //caerOutputNetUDP(1001, 4, polarity_cam1, frame_cam1, imu_cam1, special_cam1);
 #endif
 #endif
 
