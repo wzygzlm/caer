@@ -37,7 +37,7 @@ static const struct caer_event_stream_in StereoCalibrationInputs[] = { { .type =
 	true } };
 
 static const struct caer_module_info StereoCalibrationInfo = { .version = 1, .name = "StereoCalibration", .type =
-	CAER_MODULE_PROCESSOR, .memSize = sizeof(struct StereoCalibrationState_struct), .functions =
+	CAER_MODULE_OUTPUT, .memSize = sizeof(struct StereoCalibrationState_struct), .functions =
 	&StereoCalibrationFunctions, .inputStreams = StereoCalibrationInputs, .inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(
 	StereoCalibrationInputs), .outputStreams = NULL, .outputStreamsSize = 0, };
 
