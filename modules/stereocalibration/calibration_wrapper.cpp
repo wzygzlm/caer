@@ -66,7 +66,7 @@ void StereoCalibration_addStereoCalibVec(StereoCalibration *calibClass,
 }
 
 void * StereoCalibration_findNewPoints(StereoCalibration *calibClass,
-		caerFrameEvent frame, int camid) {
+		caerFrameEventConst frame, int camid) {
 	try {
 		return (calibClass->findNewPoints(frame, camid));
 	} catch (const std::exception& ex) {

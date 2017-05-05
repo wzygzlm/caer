@@ -27,7 +27,6 @@ typedef struct StereoCalibrationState_struct *StereoCalibrationState;
 static bool caerStereoCalibrationInit(caerModuleData moduleData);
 static void caerStereoCalibrationRun(caerModuleData moduleData, caerEventPacketContainer in,
 	caerEventPacketContainer *out);
-static void caerStereoCalibrationConfig(caerModuleData moduleData);
 static void caerStereoCalibrationExit(caerModuleData moduleData);
 static void updateSettings(caerModuleData moduleData);
 
@@ -35,7 +34,7 @@ static const struct caer_module_functions StereoCalibrationFunctions = { .module
 	.moduleRun = &caerStereoCalibrationRun, .moduleConfig = NULL, .moduleExit = &caerStereoCalibrationExit };
 
 static const struct caer_event_stream_in StereoCalibrationInputs[] = { { .type = FRAME_EVENT, .number = 2, .readOnly =
-	false } };
+	true } };
 
 static const struct caer_module_info StereoCalibrationInfo = { .version = 1, .name = "StereoCalibration", .type =
 	CAER_MODULE_PROCESSOR, .memSize = sizeof(struct StereoCalibrationState_struct), .functions =
@@ -152,8 +151,8 @@ static void caerStereoCalibrationRun(caerModuleData moduleData, caerEventPacketC
 		return;
 	}
 
-	caerFrameEventPacket frame_0 = (caerFrameEventPacket) caerEventPacketContainerGetEventPacket(in, 0);
-	caerFrameEventPacket frame_1 = (caerFrameEventPacket) caerEventPacketContainerGetEventPacket(in, 1);
+	caerFrameEventPacketConst frame_0 = (caerFrameEventPacketConst) caerEventPacketContainerGetEventPacketConst(in, 0);
+	caerFrameEventPacketConst frame_1 = (caerFrameEventPacketConst) caerEventPacketContainerGetEventPacketConst(in, 1);
 
 	StereoCalibrationState state = moduleData->moduleState;
 
@@ -175,7 +174,7 @@ static void caerStereoCalibrationRun(caerModuleData moduleData, caerEventPacketC
 		void * foundPoint_cam1 = NULL;
 		void * foundPoint_cam0 = NULL;
 
-		CAER_FRAME_ITERATOR_VALID_START (frame_0)
+		CAER_FRAME_CONST_ITERATOR_VALID_START (frame_0)
 			// Only work on new frames if enough time has passed between this and the last used one.
 			uint64_t currTimestamp_0 = U64T(caerFrameEventGetTSStartOfFrame64(caerFrameIteratorElement, frame_0));
 
@@ -192,7 +191,7 @@ static void caerStereoCalibrationRun(caerModuleData moduleData, caerEventPacketC
 			}
 		CAER_FRAME_ITERATOR_VALID_END
 
-		CAER_FRAME_ITERATOR_VALID_START( frame_1)
+		CAER_FRAME_CONST_ITERATOR_VALID_START( frame_1)
 			// Only work on new frames if enough time has passed between this and the last used one.
 			uint64_t currTimestamp_0 = U64T(caerFrameEventGetTSStartOfFrame64(caerFrameIteratorElement, frame_1));
 

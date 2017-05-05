@@ -29,7 +29,7 @@ class StereoCalibration {
 
 public:
 	StereoCalibration(StereoCalibrationSettings settings);
-	void * findNewPoints(caerFrameEvent frame, int camid);
+	void * findNewPoints(caerFrameEventConst frame, int camid);
 	size_t foundPoints(int camid);bool multicalib(caerFrameEvent frame0,
 			caerFrameEvent frame1);bool loadCalibrationFile(
 			StereoCalibrationSettings settings);bool stereoCalibrate(
