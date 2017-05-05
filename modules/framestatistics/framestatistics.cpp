@@ -10,7 +10,7 @@
 #include <opencv2/imgproc/imgproc.hpp>
 
 struct caer_frame_statistics_state {
-	uint32_t numBins;
+	int numBins;
 };
 
 typedef struct caer_frame_statistics_state *caerFrameStatisticsState;
@@ -42,7 +42,7 @@ static bool caerFrameStatisticsInit(caerModuleData moduleData) {
 
 	// Configurable division factor.
 	sshsNodeCreateInt(moduleData->moduleNode, "numBins", 512, 4, UINT16_MAX + 1, SSHS_FLAGS_NORMAL);
-	state->numBins = U32T(sshsNodeGetInt(moduleData->moduleNode, "numBins"));
+	state->numBins = sshsNodeGetInt(moduleData->moduleNode, "numBins");
 
 	return (true);
 }
@@ -51,17 +51,22 @@ static void caerFrameStatisticsRun(caerModuleData moduleData, caerEventPacketCon
 	caerEventPacketContainer *out) {
 	UNUSED_ARGUMENT(out);
 
-	caerFrameEventPacket f = (caerFrameEventPacket) caerEventPacketContainerFindEventPacketByType(in, FRAME_EVENT);
-	const libcaer::events::FrameEventPacket frame(f, false);
+	if (in == nullptr) {
+		return;
+	}
 
-	caerFrameStatisticsState state = (caerFrameStatisticsState) moduleData->moduleState;
+	const libcaer::events::FrameEventPacket frames(caerEventPacketContainerGetEventPacket(in, 0), false);
 
-	for (const auto &evt : frame) {
-		const cv::Size frameSize(evt.getLengthX(), evt.getLengthY());
-		const cv::Mat view(frameSize,
-			CV_16UC(
-				static_cast<typename std::underlying_type<libcaer::events::FrameEvent::colorChannels>::type>(evt
-					.getChannelNumber())), (void *) evt.getPixelArrayUnsafe());
+	caerFrameStatisticsState state = static_cast<caerFrameStatisticsState>(moduleData->moduleState);
+
+	for (const auto &frame : frames) {
+		const cv::Mat frameOpenCV = frame.getOpenCVMat();
+
+		const float range[] = {0, UINT16_MAX + 1};
+		const float *histRange = { range };
+
+		cv::Mat hist;
+		cv::calcHist(&frameOpenCV, 1, nullptr, cv::Mat(), hist, 1, &state->numBins, &histRange, true, false);
 	}
 }
 
