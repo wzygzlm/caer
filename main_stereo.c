@@ -202,6 +202,26 @@ static bool mainloop_twocameras(void) {
 	caerOutputFile(99, 4, polarity_cam1, frame_cam1, imu_cam1, special_cam1);
 #endif
 
+#ifdef ENABLE_NETWORK_OUTPUT
+        // Send polarity packets out via TCP. This is the server mode!
+        // External clients connect to cAER, and we send them the data.
+        // WARNING: slow clients can dramatically slow this and the whole
+        // processing pipeline down!
+#ifdef DVS218 
+        caerOutputNetTCPServer(8, 6, polarity_cam0, polarity_cam1, imu_cam0, imu_cam1, special_cam0, special_cam1);
+#else
+        caerOutputNetTCPServer(8, 8, polarity_cam0, polarity_cam1, frame_cam0, frame_cam1, imu_cam0, imu_cam1, special_cam0, special_cam1);
+#endif
+
+        // And also send them via UDP. This is fast, as it doesn't care what is on the other side.
+#ifdef DVS128
+        caerOutputNetUDP(1000, 6, polarity_cam0, polarity_cam1, imu_cam0, imu_cam1, special_cam0, special_cam1);
+#else
+        caerOutputNetUDP(1000, 8, polarity_cam0, polarity_cam1, frame_cam0, frame_cam1, imu_cam0, imu_cam1, special_cam0, special_cam1);
+#endif
+#endif
+
+
 	return (true); // If false is returned, processing of this loop stops.
 }
 
