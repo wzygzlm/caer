@@ -69,10 +69,9 @@ static void caerFrameStatisticsRun(caerModuleData moduleData, caerEventPacketCon
 		cv::Mat hist;
 		cv::calcHist(&frameOpenCV, 1, nullptr, cv::Mat(), hist, 1, &state->numBins, &histRange, true, false);
 
-		// Generate histogram image, 640x480 pixels.
-		int hist_w = 640;
-		int hist_h = 480;
-		int bin_w = cvRound((double) hist_w / state->numBins);
+		// Generate histogram image, numBinsx512 pixels.
+		int hist_w = state->numBins;
+		int hist_h = 512;
 
 		cv::Mat histImage(hist_h, hist_w, CV_8UC1, cv::Scalar(0));
 
@@ -81,8 +80,8 @@ static void caerFrameStatisticsRun(caerModuleData moduleData, caerEventPacketCon
 
 		// Draw the histogram.
 		for (int i = 1; i < state->numBins; i++) {
-			cv::line(histImage, cv::Point(bin_w * (i - 1), hist_h - cvRound(hist.at<float>(i - 1))),
-				cv::Point(bin_w * (i), hist_h - cvRound(hist.at<float>(i))), cv::Scalar(255, 255, 255), 2, 8, 0);
+			cv::line(histImage, cv::Point(i - 1, hist_h - cvRound(hist.at<float>(i - 1))),
+				cv::Point(i, hist_h - cvRound(hist.at<float>(i))), cv::Scalar(255, 255, 255), 2, 8, 0);
 		}
 
 		// Simple display, just use OpenCV GUI.
