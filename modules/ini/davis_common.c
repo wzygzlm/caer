@@ -583,7 +583,7 @@ static void createDefaultConfiguration(caerModuleData moduleData, struct caer_da
 	sshsNodePutIntIfAbsent(apsNode, "FrameDelay", 1000); // in µs
 	sshsNodePutShortIfAbsent(apsNode, "RowSettle", (devInfo->adcClock / 3)); // in cycles
 	sshsNodePutBoolIfAbsent(apsNode, "TakeSnapShot", false);
-	sshsNodeCreateBool(apsNode, "AutoExposure", false);
+	sshsNodePutBoolIfAbsent(apsNode, "AutoExposure", false);
 
 	// Not supported on DAVIS RGB.
 	if (!IS_DAVISRGB(devInfo->chipID)) {
