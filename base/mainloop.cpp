@@ -216,7 +216,8 @@ static struct {
 
 static std::vector<boost::filesystem::path> modulePaths;
 
-static int caerMainloopRunner(void);
+static int caerMainloopRunner();
+static void printDebugInformation();
 static void caerMainloopSignalHandler(int signal);
 static void caerMainloopSystemRunningListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
@@ -1534,7 +1535,7 @@ static void cleanupGlobals() {
 	glMainloopData.copyCount = 0;
 }
 
-static int caerMainloopRunner(void) {
+static int caerMainloopRunner() {
 	// At this point configuration is already loaded, so let's see if everything
 	// we need to build and run a mainloop is really there.
 	// Each node in the root / is a module, with a short-name as node-name,
@@ -1955,6 +1956,8 @@ static int caerMainloopRunner(void) {
 		}
 	}
 	catch (const std::exception &ex) {
+		printDebugInformation();
+
 		// Cleanup modules and streams on exit.
 		cleanupGlobals();
 
@@ -1963,37 +1966,7 @@ static int caerMainloopRunner(void) {
 		return (EXIT_FAILURE);
 	}
 
-	// Debug output.
-	for (const auto &st : glMainloopData.streams) {
-		std::ostringstream streamPrint;
-		streamPrint << "(" << st.sourceId << ", " << st.typeId << ") - IS_PROC: " << st.isProcessor << " - ";
-		for (auto mId : st.users) {
-			streamPrint << mId << ", ";
-		}
-		log(logLevel::DEBUG, "Mainloop", "Stream: %s", streamPrint.str().c_str());
-		printDeps(st.dependencies);
-	}
-
-	std::ostringstream orderPrint;
-	for (const auto &m : glMainloopData.globalExecution) {
-		orderPrint << m.get().id << ", ";
-	}
-	log(logLevel::DEBUG, "Mainloop", "Global order: %s", orderPrint.str().c_str());
-
-	log(logLevel::DEBUG, "Mainloop", "Global copy count: %d", glMainloopData.copyCount);
-
-	for (const auto &m : glMainloopData.globalExecution) {
-		log(logLevel::DEBUG, "Mainloop", "Module %d: type %d - %s", m.get().id, m.get().libraryInfo->type,
-			m.get().name.c_str());
-
-		for (const auto &i : m.get().inputs) {
-			log(logLevel::DEBUG, "Mainloop", " --> IN: %d - %d", i.first, i.second);
-		}
-
-		for (const auto &o : m.get().outputs) {
-			log(logLevel::DEBUG, "Mainloop", " --> OUT: %d - %d", o.first, o.second);
-		}
-	}
+	printDebugInformation();
 
 	// Initialize the runtime memory for all modules.
 	for (const auto &m : glMainloopData.globalExecution) {
@@ -2069,6 +2042,40 @@ static int caerMainloopRunner(void) {
 	log(logLevel::INFO, "Mainloop", "Terminated successfully.");
 
 	return (EXIT_SUCCESS);
+}
+
+static void printDebugInformation() {
+	// Debug output.
+	for (const auto &st : glMainloopData.streams) {
+		std::ostringstream streamPrint;
+		streamPrint << "(" << st.sourceId << ", " << st.typeId << ") - IS_PROC: " << st.isProcessor << " - ";
+		for (auto mId : st.users) {
+			streamPrint << mId << ", ";
+		}
+		log(logLevel::DEBUG, "Mainloop", "Stream: %s", streamPrint.str().c_str());
+		printDeps(st.dependencies);
+	}
+
+	std::ostringstream orderPrint;
+	for (const auto &m : glMainloopData.globalExecution) {
+		orderPrint << m.get().id << ", ";
+	}
+	log(logLevel::DEBUG, "Mainloop", "Global order: %s", orderPrint.str().c_str());
+
+	log(logLevel::DEBUG, "Mainloop", "Global copy count: %d", glMainloopData.copyCount);
+
+	for (const auto &m : glMainloopData.globalExecution) {
+		log(logLevel::DEBUG, "Mainloop", "Module %d: type %d - %s", m.get().id, m.get().libraryInfo->type,
+			m.get().name.c_str());
+
+		for (const auto &i : m.get().inputs) {
+			log(logLevel::DEBUG, "Mainloop", " --> IN: %d - %d", i.first, i.second);
+		}
+
+		for (const auto &o : m.get().outputs) {
+			log(logLevel::DEBUG, "Mainloop", " --> OUT: %d - %d", o.first, o.second);
+		}
+	}
 }
 
 void caerMainloopDataNotifyIncrease(void *p) {
