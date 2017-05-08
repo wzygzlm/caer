@@ -20,6 +20,8 @@ struct StereoCalibrationState_struct {
 	uint32_t last_points_found;
 	size_t lastFoundPoints;
 	bool calibrationLoaded;
+	caerFrameEventPacket cam0;
+	caerFrameEventPacket cam1;
 };
 
 typedef struct StereoCalibrationState_struct *StereoCalibrationState;
@@ -34,7 +36,7 @@ static const struct caer_module_functions StereoCalibrationFunctions = { .module
 	.moduleRun = &caerStereoCalibrationRun, .moduleConfig = NULL, .moduleExit = &caerStereoCalibrationExit };
 
 static const struct caer_event_stream_in StereoCalibrationInputs[] = { { .type = FRAME_EVENT, .number = 2, .readOnly =
-	true } };
+true } };
 
 static const struct caer_module_info StereoCalibrationInfo = { .version = 1, .name = "StereoCalibration", .type =
 	CAER_MODULE_OUTPUT, .memSize = sizeof(struct StereoCalibrationState_struct), .functions =
@@ -63,8 +65,8 @@ static bool caerStereoCalibrationInit(caerModuleData moduleData) {
 	sshsNodeCreateBool(moduleData->moduleNode, "useFisheyeModel_cam1", false, SSHS_FLAGS_NORMAL); // Use Fisheye camera model for calibration
 	sshsNodeCreateInt(moduleData->moduleNode, "boardWidth", 9, 1, 64, SSHS_FLAGS_NORMAL); // The size of the board (width)
 	sshsNodeCreateInt(moduleData->moduleNode, "boardHeigth", 5, 1, 64, SSHS_FLAGS_NORMAL); // The size of the board (height)
-	sshsNodeCreateInt(moduleData->moduleNode, "captureDelay", 50000, 0, 60000000, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateInt(moduleData->moduleNode, "numPairsImagesBeforCalib", 20, 3, 100, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateInt(moduleData->moduleNode, "captureDelay", 100000, 0, 60000000, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateInt(moduleData->moduleNode, "numPairsImagesBeforCalib", 50, 3, 100, SSHS_FLAGS_NORMAL);
 	sshsNodeCreateFloat(moduleData->moduleNode, "boardSquareSize", 1.0f, 0.0f, 1000.0f, SSHS_FLAGS_NORMAL); // The size of a square in your defined unit (point, millimeter, etc.)
 	sshsNodeCreateFloat(moduleData->moduleNode, "acceptableAvrEpipolarErr", 200.0f, 0.0f, 2000.0f, SSHS_FLAGS_NORMAL);
 	sshsNodeCreateFloat(moduleData->moduleNode, "acceptableRMSErr", 200.0f, 0.0f, 2000.0f, SSHS_FLAGS_NORMAL);
@@ -134,6 +136,9 @@ static void caerStereoCalibrationExit(caerModuleData moduleData) {
 
 	StereoCalibrationState state = moduleData->moduleState;
 
+	free(state->cam0);
+	free(state->cam1);
+
 	//Multicalibration_destroy(state->cpp_class);
 
 	free(state->settings.saveFileName_intrinsics);
@@ -162,6 +167,24 @@ static void caerStereoCalibrationRun(caerModuleData moduleData, caerEventPacketC
 		state->calibrationLoaded = StereoCalibration_loadCalibrationFile(state->cpp_class, &state->settings);
 	}
 
+	if (frame_0 != NULL && frame_1 == NULL) {
+		free(state->cam0);
+		state->cam0 = (caerFrameEventPacket) caerEventPacketCopy(&frame_0->packetHeader);
+
+		if (state->cam1 != NULL) {
+			frame_1 = state->cam1;
+		}
+	}
+
+	if (frame_1 != NULL && frame_0 == NULL) {
+		free(state->cam1);
+		state->cam1 = (caerFrameEventPacket) caerEventPacketCopy(&frame_1->packetHeader);
+
+		if (state->cam0 != NULL) {
+			frame_0 = state->cam0;
+		}
+	}
+
 	// Stereo Camera calibration is done only using frames.
 	if (state->settings.doCalibration && frame_0 != NULL && frame_1 != NULL) {
 
@@ -178,7 +201,7 @@ static void caerStereoCalibrationRun(caerModuleData moduleData, caerEventPacketC
 			// Only work on new frames if enough time has passed between this and the last used one.
 			uint64_t currTimestamp_0 = U64T(caerFrameEventGetTSStartOfFrame64(caerFrameIteratorElement, frame_0));
 
-		// If enough time has passed, try to add a new point set.
+			// If enough time has passed, try to add a new point set.
 			if ((currTimestamp_0 - state->lastFrameTimestamp_cam0) >= state->settings.captureDelay) {
 				state->lastFrameTimestamp_cam0 = currTimestamp_0;
 
@@ -193,16 +216,16 @@ static void caerStereoCalibrationRun(caerModuleData moduleData, caerEventPacketC
 
 		CAER_FRAME_CONST_ITERATOR_VALID_START( frame_1)
 			// Only work on new frames if enough time has passed between this and the last used one.
-			uint64_t currTimestamp_0 = U64T(caerFrameEventGetTSStartOfFrame64(caerFrameIteratorElement, frame_1));
+			uint64_t currTimestamp_1 = U64T(caerFrameEventGetTSStartOfFrame64(caerFrameIteratorElement, frame_1));
 
-		// If enough time has passed, try to add a new point set.
-			if ((currTimestamp_0 - state->lastFrameTimestamp_cam1) >= state->settings.captureDelay) {
-				state->lastFrameTimestamp_cam1 = currTimestamp_0;
+			// If enough time has passed, try to add a new point set.
+			if ((currTimestamp_1 - state->lastFrameTimestamp_cam1) >= state->settings.captureDelay) {
+				state->lastFrameTimestamp_cam1 = currTimestamp_1;
 
 				foundPoint_cam1 = StereoCalibration_findNewPoints(state->cpp_class, caerFrameIteratorElement, 1);
 				if (foundPoint_cam1 != NULL) {
 					caerLog(CAER_LOG_NOTICE, moduleData->moduleSubSystemString, "Found calibration pattern cam1");
-					frame_1_ts = currTimestamp_0;
+					frame_1_ts = currTimestamp_1;
 					frame_1_pattern = true;
 				}
 			}
@@ -242,9 +265,6 @@ static void caerStereoCalibrationRun(caerModuleData moduleData, caerEventPacketC
 			else {
 				caerLog(CAER_LOG_NOTICE, moduleData->moduleSubSystemString,
 					"Keep acquiring images, error not acceptable ...");
-				StereoCalibration_clearImagePoints(state->cpp_class);
-				caerLog(CAER_LOG_NOTICE, moduleData->moduleSubSystemString,
-					"Cleared saved points, starting from zero.");
 			}
 		}
 
