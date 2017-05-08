@@ -1928,20 +1928,16 @@ static int caerMainloopRunner() {
 					if (orderIn.copyNeeded) {
 						// This is an input that gets modified. Is it being used?
 						int16_t typeId = orderIn.typeId;
-						int16_t afterModuleId = orderIn.afterModuleId;
 
-						if (isOutputBeingUsed(sourceId, typeId, afterModuleId, m.get().id, m.get().name)) {
+						if (isOutputBeingUsed(sourceId, typeId, m.get().id, m.get().id, m.get().name)) {
 							modifiedInputsInUse = true;
-							break;
+							goto outOfLoop;
 						}
 					}
 				}
-
-				if (modifiedInputsInUse) {
-					break;
-				}
 			}
 
+			outOfLoop:
 			if (modifiedInputsInUse) {
 				// Go to check next module, this one is fine.
 				continue;
