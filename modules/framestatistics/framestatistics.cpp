@@ -39,8 +39,11 @@ static bool caerFrameStatisticsInit(caerModuleData moduleData) {
 	caerFrameStatisticsState state = (caerFrameStatisticsState) moduleData->moduleState;
 
 	// Configurable number of bins.
-	sshsNodeCreateInt(moduleData->moduleNode, "numBins", 256, 4, UINT16_MAX + 1, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateInt(moduleData->moduleNode, "numBins", 1024, 4, UINT16_MAX + 1, SSHS_FLAGS_NORMAL);
 	state->numBins = sshsNodeGetInt(moduleData->moduleNode, "numBins");
+
+	// Add config listeners last, to avoid having them dangling if Init doesn't succeed.
+	sshsNodeAddAttributeListener(moduleData->moduleNode, moduleData, &caerModuleConfigDefaultListener);
 
 	cv::namedWindow(moduleData->moduleSubSystemString, CV_WINDOW_AUTOSIZE);
 
@@ -69,9 +72,9 @@ static void caerFrameStatisticsRun(caerModuleData moduleData, caerEventPacketCon
 		cv::Mat hist;
 		cv::calcHist(&frameOpenCV, 1, nullptr, cv::Mat(), hist, 1, &state->numBins, &histRange, true, false);
 
-		// Generate histogram image, numBinsx512 pixels.
+		// Generate histogram image, with N x N/3 pixels.
 		int hist_w = state->numBins;
-		int hist_h = 512;
+		int hist_h = state->numBins / 3;
 
 		cv::Mat histImage(hist_h, hist_w, CV_8UC1, cv::Scalar(0));
 
@@ -92,6 +95,9 @@ static void caerFrameStatisticsRun(caerModuleData moduleData, caerEventPacketCon
 
 static void caerFrameStatisticsExit(caerModuleData moduleData) {
 	cv::destroyWindow(moduleData->moduleSubSystemString);
+
+	// Remove listener, which can reference invalid memory in userData.
+	sshsNodeRemoveAttributeListener(moduleData->moduleNode, moduleData, &caerModuleConfigDefaultListener);
 }
 
 static void caerFrameStatisticsConfig(caerModuleData moduleData) {
