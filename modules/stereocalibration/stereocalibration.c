@@ -82,7 +82,6 @@ static bool caerStereoCalibrationInit(caerModuleData moduleData) {
 	state->points_found = 0;
 	state->last_points_found = 0;
 
-
 	if (!al_init()) {
 		fprintf(stderr, "failed to initialize allegro!\n");
 		return (false);
@@ -166,7 +165,7 @@ static void caerStereoCalibrationRun(caerModuleData moduleData, size_t argsNumbe
 		state->calibrationLoaded = StereoCalibration_loadCalibrationFile(state->cpp_class, &state->settings);
 	}
 
-	if(frame_0 != NULL && frame_1 == NULL){
+	if (frame_0 != NULL && frame_1 == NULL) {
 		free(state->cam0);
 		state->cam0 = caerEventPacketCopy(frame_0);
 
@@ -175,7 +174,7 @@ static void caerStereoCalibrationRun(caerModuleData moduleData, size_t argsNumbe
 		}
 	}
 
-	if(frame_1 != NULL && frame_0 == NULL){
+	if (frame_1 != NULL && frame_0 == NULL) {
 		free(state->cam1);
 		state->cam1 = caerEventPacketCopy(frame_1);
 
@@ -198,24 +197,18 @@ static void caerStereoCalibrationRun(caerModuleData moduleData, size_t argsNumbe
 
 		CAER_FRAME_ITERATOR_VALID_START (frame_0)
 		// Only work on new frames if enough time has passed between this and the last used one.
-		uint64_t currTimestamp_0 = U64T(caerFrameEventGetTSStartOfFrame64(caerFrameIteratorElement, frame_0));
-		// If enough time has passed, try to add a new point set.
-		if ((currTimestamp_0 - state->lastFrameTimestamp_cam0) >= state->settings.captureDelay) {
+			uint64_t currTimestamp_0 = U64T(caerFrameEventGetTSStartOfFrame64(caerFrameIteratorElement, frame_0));
 			state->lastFrameTimestamp_cam0 = currTimestamp_0;
 			foundPoint_cam0 = StereoCalibration_findNewPoints(state->cpp_class, caerFrameIteratorElement, 0);
 			if (foundPoint_cam0 != NULL) {
 				caerLog(CAER_LOG_NOTICE, moduleData->moduleSubSystemString, "Found calibration pattern cam0");
 				frame_0_ts = currTimestamp_0;
 				frame_0_pattern = true;
-			}
-		}
-		CAER_FRAME_ITERATOR_VALID_END
+			}CAER_FRAME_ITERATOR_VALID_END
 
 		CAER_FRAME_ITERATOR_VALID_START( frame_1)
 		// Only work on new frames if enough time has passed between this and the last used one.
-		uint64_t currTimestamp_1 = U64T(caerFrameEventGetTSStartOfFrame64(caerFrameIteratorElement, frame_1));
-		// If enough time has passed, try to add a new point set.
-		if ((currTimestamp_1 - state->lastFrameTimestamp_cam1) >= state->settings.captureDelay) {
+			uint64_t currTimestamp_1 = U64T(caerFrameEventGetTSStartOfFrame64(caerFrameIteratorElement, frame_1));
 			state->lastFrameTimestamp_cam1 = currTimestamp_1;
 
 			foundPoint_cam1 = StereoCalibration_findNewPoints(state->cpp_class, caerFrameIteratorElement, 1);
@@ -223,9 +216,7 @@ static void caerStereoCalibrationRun(caerModuleData moduleData, size_t argsNumbe
 				caerLog(CAER_LOG_NOTICE, moduleData->moduleSubSystemString, "Found calibration pattern cam1");
 				frame_1_ts = currTimestamp_1;
 				frame_1_pattern = true;
-			}
-		}
-		CAER_FRAME_ITERATOR_VALID_END
+			}CAER_FRAME_ITERATOR_VALID_END
 
 		if (frame_1_pattern && frame_0_pattern) {
 			//check Timestamp difference of last two found frames
