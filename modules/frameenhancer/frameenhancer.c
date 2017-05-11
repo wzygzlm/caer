@@ -133,6 +133,9 @@ static void caerFrameEnhancerRun(caerModuleData moduleData, caerEventPacketConta
 		}
 
 		caerEventPacketContainerSetEventPacket(*out, 0, (caerEventPacketHeader) enhancedFrame);
+
+		// Source ID must be this module!
+		caerEventPacketHeaderSetEventSource((caerEventPacketHeader) enhancedFrame, moduleData->moduleID);
 	}
 }
 
