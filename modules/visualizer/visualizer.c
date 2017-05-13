@@ -32,7 +32,7 @@ struct caer_visualizer_handlers {
 };
 
 static struct caer_visualizer_handlers caerVisualizerHandlerList[] = { { "Spikes",
-	&caerVisualizerEventHandlerSpikeEvents } };
+	&caerVisualizerEventHandlerSpikeEvents }, { "Input", &caerInputVisualizerEventHandler } };
 
 struct caer_visualizer_state {
 	void *eventSourceModuleState;

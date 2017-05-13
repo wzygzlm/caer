@@ -13,5 +13,6 @@
 // Default event handlers.
 void caerVisualizerEventHandlerSpikeEvents(caerVisualizerPublicState state, ALLEGRO_EVENT event);
 void caerVisualizerEventHandlerFrameEvents(caerVisualizerPublicState state, ALLEGRO_EVENT event);
+void caerInputVisualizerEventHandler(caerVisualizerPublicState state, ALLEGRO_EVENT event);
 
 #endif /* MODULES_VISUALIZER_VISUALIZER_HANDLERS_H_ */
