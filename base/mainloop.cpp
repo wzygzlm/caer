@@ -1487,7 +1487,26 @@ static void runModules(caerEventPacketContainer in) {
 
 					int16_t typeId = caerEventPacketHeaderGetEventType(packet);
 
-					ssize_t destIdx = m.get().outputs.at(typeId);
+					ssize_t destIdx = -1;
+
+					try {
+						destIdx = m.get().outputs.at(typeId);
+					}
+					catch (const std::out_of_range &) {
+						// If we don't find a match for the type ID, it means
+						// that's an unexpected event packet. If this is a module
+						// with well defined outputs, this is clearly an error;
+						// forgetting to declare an output, so we re-throw the
+						// exception upwards. Else for modules with any (-1)
+						// outputs, they can internally produce whatever and we
+						// only pick what was declared in the 'moduleOutput' config.
+						if (m.get().libraryInfo->outputStreams[0].type != -1) {
+							// Type ANY (-1) is always the first one if it exists,
+							// and outputs must exist since module.outputs is
+							// populated with types we want to pick.
+							throw;
+						}
+					}
 
 					if (destIdx == -1) {
 						// Deallocate packet memory if not used.
