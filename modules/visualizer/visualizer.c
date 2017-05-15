@@ -17,6 +17,8 @@ struct caer_visualizer_state {
 	sshsNode visualizerConfigNode;
 	int32_t bitmapRendererSizeX;
 	int32_t bitmapRendererSizeY;
+	int32_t windowPositionX;
+	int32_t windowPositionY;
 	ALLEGRO_FONT *displayFont;
 	atomic_bool running;
 	atomic_bool displayWindowResize;
@@ -39,6 +41,8 @@ struct caer_visualizer_state {
 };
 
 static void updateDisplaySize(caerVisualizerState state, bool updateTransform);
+static void updateDisplayLocation(caerVisualizerState state);
+static void saveDisplayLocation(caerVisualizerState state);
 static void caerVisualizerConfigListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
 static bool caerVisualizerInitGraphics(caerVisualizerState state);
@@ -196,12 +200,16 @@ caerVisualizerState caerVisualizerInit(caerVisualizerRenderer renderer, caerVisu
 	sshsNodePutIntIfAbsent(parentModule->moduleNode, "subsampleRendering", 1);
 	sshsNodePutBoolIfAbsent(parentModule->moduleNode, "showStatistics", defaultShowStatistics);
 	sshsNodePutFloatIfAbsent(parentModule->moduleNode, "zoomFactor", defaultZoomFactor);
+	sshsNodePutIntIfAbsent(parentModule->moduleNode, "windowPositionX", VISUALIZER_DEFAULT_POSITION_X);
+	sshsNodePutIntIfAbsent(parentModule->moduleNode, "windowPositionY", VISUALIZER_DEFAULT_POSITION_Y);
 
 	atomic_store(&state->packetSubsampleRendering, sshsNodeGetInt(parentModule->moduleNode, "subsampleRendering"));
 
 	// Remember sizes.
 	state->bitmapRendererSizeX = bitmapSizeX;
 	state->bitmapRendererSizeY = bitmapSizeY;
+	state->windowPositionX = sshsNodeGetInt(parentModule->moduleNode, "windowPositionX");
+	state->windowPositionY = sshsNodeGetInt(parentModule->moduleNode, "windowPositionY");
 
 	// If parentModuleName is "UserSize" create bitmap of dimensions [userSizeX, userSizeY]
 	// If userSizeX/userSizeY is not specified in the device_common file, use default 64x64
@@ -262,6 +270,38 @@ caerVisualizerState caerVisualizerInit(caerVisualizerRenderer renderer, caerVisu
 	caerLog(CAER_LOG_DEBUG, parentModule->moduleSubSystemString, "Visualizer: Initialized successfully.");
 
 	return (state);
+}
+
+static void updateDisplayLocation(caerVisualizerState state) {
+
+	//caerLog(CAER_LOG_NOTICE, state->parentModule->moduleSubSystemString, "Visualizer: Update Display Location");
+
+	int32_t windowPositionX = state->windowPositionX;
+	int32_t windowPositionY = state->windowPositionY;
+
+	al_set_window_position(state->displayWindow, windowPositionX, windowPositionY);
+
+}
+
+static void saveDisplayLocation(caerVisualizerState state){
+
+	//caerLog(CAER_LOG_DEBUG, state->parentModule->moduleSubSystemString,
+	//	"Visualizer: saving display location");
+
+    int xWin[0];
+	int yWin[0];
+
+	al_get_window_position(state->displayWindow, &xWin, &yWin);
+
+	state->windowPositionX = xWin[0];
+	state->windowPositionY = yWin[0];
+
+	// update parent module value
+	sshsNodePutInt(state->parentModule->moduleNode, "windowPositionX", xWin[0]);
+	sshsNodePutInt(state->parentModule->moduleNode, "windowPositionY", yWin[0]);
+
+	//caerLog(CAER_LOG_DEBUG, state->parentModule->moduleSubSystemString,
+	//	"Visualizer: saving display location X:%d Y:%d", state->windowPositionX, state->windowPositionY);
 }
 
 static void updateDisplaySize(caerVisualizerState state, bool updateTransform) {
@@ -361,6 +401,9 @@ void caerVisualizerExit(caerVisualizerState state) {
 		return;
 	}
 
+	// Update visualizer location
+	saveDisplayLocation(state);
+
 	// Remove listener, which can reference invalid memory in userData.
 	sshsNodeRemoveAttributeListener(state->parentModule->moduleNode, state, &caerVisualizerConfigListener);
 
@@ -420,6 +463,9 @@ static bool caerVisualizerInitGraphics(caerVisualizerState state) {
 
 	// Set scale transform for display window, update sizes.
 	updateDisplaySize(state, true);
+
+	// Set window position
+	updateDisplayLocation(state);
 
 	// Create memory bitmap for drawing into.
 	al_set_new_bitmap_flags(ALLEGRO_MEMORY_BITMAP | ALLEGRO_MIN_LINEAR | ALLEGRO_MAG_LINEAR);
@@ -695,6 +741,7 @@ static void caerVisualizerExitGraphics(caerVisualizerState state) {
 		al_destroy_display(state->displayWindow);
 		state->displayWindow = NULL;
 	}
+
 }
 
 static int caerVisualizerRenderThread(void *visualizerState) {
