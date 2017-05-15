@@ -283,12 +283,12 @@ static void updateDisplayLocation(caerVisualizerState state) {
 
 }
 
-static void saveDisplayLocation(caerVisualizerState state){
+static void saveDisplayLocation(caerVisualizerState state) {
 
 	//caerLog(CAER_LOG_DEBUG, state->parentModule->moduleSubSystemString,
 	//	"Visualizer: saving display location");
 
-    int xWin[0];
+	int xWin[0];
 	int yWin[0];
 
 	al_get_window_position(state->displayWindow, &xWin, &yWin);
