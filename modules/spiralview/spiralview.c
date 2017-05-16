@@ -44,7 +44,7 @@ static struct caer_module_functions caerSpiralViewFunctions = { .moduleInit = &c
 	&caerSpiralViewRun, .moduleConfig = NULL, .moduleExit = &caerSpiralViewExit };
 
 void caerSpiralView(uint16_t moduleID, caerPolarityEventPacket polarity, int classify_img_size, int *packet_hist,
-	int *packet_hist_view, bool * haveimg) {
+	int *packet_hist_view, caerFrameEventPacket * imageneratorFrame) {
 
 	caerModuleData moduleData = caerMainloopFindModule(moduleID, "SpiralView", CAER_MODULE_PROCESSOR);
 	if (moduleData == NULL) {
@@ -52,7 +52,7 @@ void caerSpiralView(uint16_t moduleID, caerPolarityEventPacket polarity, int cla
 	}
 
 	caerModuleSM(&caerSpiralViewFunctions, moduleData, sizeof(struct spiralview_state), 5, polarity, classify_img_size,
-		packet_hist, packet_hist_view, haveimg);
+		packet_hist, packet_hist_view, imageneratorFrame);
 
 	return;
 }
@@ -61,7 +61,7 @@ static bool caerSpiralViewInit(caerModuleData moduleData) {
 
 	// Ensure numSpikes is set.
 	spiralviewState state = moduleData->moduleState;
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "threshold", 200);
+	sshsNodePutIntIfAbsent(moduleData->moduleNode, "threshold", 25);
 
 	state->x = 0.1;
 	state->y = 0.0;
@@ -107,6 +107,7 @@ static bool add_spiral_image_map(spiralviewState state, int * hist, int * hist_v
 		path_current_y[iter] = state->y;
 		path_current_z[iter] = state->z;
 	}
+
 
 	int path_index;
 	// Red channel
@@ -177,8 +178,7 @@ static void caerSpiralViewRun(caerModuleData moduleData, size_t argsNumber, va_l
 	int CLASSIFY_IMG_SIZE = va_arg(args, int);
 	int * hist = va_arg(args, int*);
 	int * packet_hist_view = va_arg(args, int*);
-	bool * havespiral = va_arg(args, bool*);
-	havespiral[0] = true;
+	caerFrameEventPacket * imageneratorFrame = va_arg(args, caerFrameEventPacket*);
 
 	//update module state
 	spiralviewState state = moduleData->moduleState;
@@ -187,6 +187,47 @@ static void caerSpiralViewRun(caerModuleData moduleData, size_t argsNumber, va_l
 		caerLog(CAER_LOG_ERROR, moduleData->moduleSubSystemString, "Failed to add spirals");
 		return;
 	};
+
+
+	sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
+	if (!sshsNodeAttributeExists(sourceInfoNode, "dataSizeX", SSHS_SHORT)) { //to do for visualizer change name of field to a more generic one
+		sshsNodePutShort(sourceInfoNode, "dataSizeX", CLASSIFY_IMG_SIZE);
+		sshsNodePutShort(sourceInfoNode, "dataSizeY", CLASSIFY_IMG_SIZE);
+	}
+
+
+	//make frame
+	// put info into frame
+	*imageneratorFrame = caerFrameEventPacketAllocate(1, I16T(moduleData->moduleID), 0, CLASSIFY_IMG_SIZE, CLASSIFY_IMG_SIZE, 3);
+	caerMainloopFreeAfterLoop(&free, *imageneratorFrame);
+	if (*imageneratorFrame != NULL) {
+		caerFrameEvent singleplot = caerFrameEventPacketGetEvent(*imageneratorFrame, 0);
+		uint32_t counter = 0;
+		for (size_t x = 0; x < CLASSIFY_IMG_SIZE; x++) {
+			for (size_t y = 0; y < CLASSIFY_IMG_SIZE; y++) {
+				int linindex = x * CLASSIFY_IMG_SIZE + y;
+				singleplot->pixels[counter] = (uint16_t)((int) (packet_hist_view[linindex]) * 255); // red
+				counter += 3;
+			}
+		}
+		counter = 0;
+		for (size_t x = CLASSIFY_IMG_SIZE; x < CLASSIFY_IMG_SIZE*2; x++) {
+			for (size_t y = CLASSIFY_IMG_SIZE; y < CLASSIFY_IMG_SIZE*2; y++) {
+				int linindex = x * CLASSIFY_IMG_SIZE + y;
+				singleplot->pixels[counter + 1] = (uint16_t)((int) (packet_hist_view[linindex]) * 255); // green
+				counter += 3;
+			}
+		}
+		counter = 0;
+		for(size_t x = CLASSIFY_IMG_SIZE*CLASSIFY_IMG_SIZE*2; x < CLASSIFY_IMG_SIZE*CLASSIFY_IMG_SIZE*3; x++) {
+			singleplot->pixels[counter + 2] = (uint16_t)((int) (packet_hist_view[x]) * 255); // green
+			counter += 3;
+		}
+		//add info to the frame
+		caerFrameEventSetLengthXLengthYChannelNumber(singleplot, CLASSIFY_IMG_SIZE, CLASSIFY_IMG_SIZE, 3, *imageneratorFrame);
+		//validate frame
+		caerFrameEventValidate(singleplot, *imageneratorFrame);
+	}
 
 	caerSpiralViewConfig(moduleData);
 

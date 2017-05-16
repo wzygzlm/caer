@@ -112,8 +112,8 @@
 
 #ifdef ENABLE_IMAGEGENERATOR
 #include "modules/imagegenerator/imagegenerator.h"
-#define CLASSIFYSIZE 128
-#define DISPLAYIMGSIZE 128
+#define CLASSIFYSIZE 180
+#define DISPLAYIMGSIZE 180
 #endif
 #ifdef ENABLE_CAFFEINTERFACE
 #define CAFFEVISUALIZERSIZE 1024 
@@ -368,21 +368,15 @@ static bool mainloop_1(void) {
 
 #if defined(ENABLE_SPIRALVIEW) && defined(ENABLE_IMAGEGENERATOR)
 	// it creates images by accumulating spikes
-	int * spiralview = calloc((int)CLASSIFYSIZE * CLASSIFYSIZE, sizeof(int));
+	int * spiralview = calloc((int)CLASSIFYSIZE * CLASSIFYSIZE * 3, sizeof(int));
 	if (spiralview == NULL) {
 			return (false); // Failure.
 	}
-	bool *havespiral;
-	havespiral = (bool*)malloc(1);
-	unsigned char ** spiral_img_ptr = calloc(sizeof(unsigned char *), 1);
-	caerSpiralView(27, polarity, CLASSIFYSIZE, classifyhist, spiralview, havespiral);
 
-#ifdef ENABLE_VISUALIZER
 	caerFrameEventPacket spiralFrame = NULL;
-	if(havespiral[0]){
-	   caerSpiralViewMakeFrame(27, spiralview, &spiralFrame, CLASSIFYSIZE);
+	if(haveimage[0]){
+		caerSpiralView(27, polarity, CLASSIFYSIZE, classifyhist, spiralview, &spiralFrame);
 	}
-#endif
 #endif
 
 
@@ -449,7 +443,7 @@ static bool mainloop_1(void) {
 #endif
 
 #if defined(ENABLE_VISUALIZER) && defined (ENABLE_IMAGEGENERATOR) && defined(ENABLE_SPIRALVIEW)
-	if(havespiral[0]){
+	 if(haveimage[0]){
 		 caerVisualizer(88, "SpiralView", &caerVisualizerRendererFrameEvents, NULL, (caerEventPacketHeader) spiralFrame);
 	}
 #endif

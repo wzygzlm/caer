@@ -46,7 +46,7 @@ void caerSpikeFeatures(uint16_t moduleID, caerPolarityEventPacket polarity, caer
 
 static bool caerSpikeFeaturesInit(caerModuleData moduleData) {
 	sshsNodePutIntIfAbsent(moduleData->moduleNode, "decayTime", 3);
-	sshsNodePutFloatIfAbsent(moduleData->moduleNode, "tau", 0.002);
+	sshsNodePutFloatIfAbsent(moduleData->moduleNode, "tau", 0.02);
 
 	SFFilterState state = moduleData->moduleState;
 
@@ -169,6 +169,7 @@ static void caerSpikeFeaturesConfig(caerModuleData moduleData) {
 	SFFilterState state = moduleData->moduleState;
 
 	state->decayTime = sshsNodeGetInt(moduleData->moduleNode, "decayTime");
+	state->tau = sshsNodeGetFloat(moduleData->moduleNode, "tau");
 }
 
 static void caerSpikeFeaturesExit(caerModuleData moduleData) {
