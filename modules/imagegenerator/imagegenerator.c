@@ -4,7 +4,6 @@
  */
 #include <limits.h>
 #include <float.h>
-#include "imagegenerator.h"
 #include "base/mainloop.h"
 #include "base/module.h"
 #include "modules/statistics/statistics.h"
@@ -18,8 +17,15 @@
 #include <time.h>
 #endif
 
-#include "main.h"
 #include <libcaer/events/polarity.h>
+#include <libcaer/events/frame.h>
+
+#define IMAGEGENERATOR_SCREEN_WIDTH 400
+#define IMAGEGENERATOR_SCREEN_HEIGHT 400
+
+#define CAMERA_X 128
+#define CAMERA_Y 128
+#define PIXEL_ZOOM 1
 
 struct imagegenerator_state {
 	bool rectifyPolarities;
@@ -30,12 +36,14 @@ struct imagegenerator_state {
 	int32_t spikeCounter; // actual number of spikes seen so far, in range [0, numSpikes]
 	int16_t sizeX;
 	int16_t sizeY;
+	int16_t imageSizeX;
+	int16_t imageSizeY;
 };
 
 typedef struct imagegenerator_state *imagegeneratorState;
 
 static bool caerImageGeneratorInit(caerModuleData moduleData);
-static void caerImageGeneratorRun(caerModuleData moduleData, size_t argsNumber, va_list args);
+static void caerImageGeneratorRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out);
 static void caerImageGeneratorExit(caerModuleData moduleData);
 static bool allocateImageMapSubsampled(imagegeneratorState state, int16_t sourceID, int16_t sizeX, int16_t sizeY);
 static void caerImageGeneratorConfig(caerModuleData moduleData);
@@ -44,33 +52,47 @@ static struct caer_module_functions caerImageGeneratorFunctions = { .moduleInit 
 	&caerImageGeneratorRun, .moduleConfig =
 NULL, .moduleExit = &caerImageGeneratorExit };
 
-void caerImageGenerator(uint16_t moduleID, caerPolarityEventPacket polarity, int classify_img_size, int *packet_hist,
-	bool * haveimg) {
+static const struct caer_event_stream_in moduleInputs[] = {
+    { .type = POLARITY_EVENT, .number = 1, .readOnly = true },
+};
 
-	caerModuleData moduleData = caerMainloopFindModule(moduleID, "ImageGenerator", CAER_MODULE_PROCESSOR);
-	if (moduleData == NULL) {
-		return;
-	}
+static const struct caer_event_stream_out moduleOutputs[] = {
+    { .type = FRAME_EVENT }
+};
 
-	caerModuleSM(&caerImageGeneratorFunctions, moduleData, sizeof(struct imagegenerator_state), 4, polarity,
-		classify_img_size, packet_hist, haveimg);
+static const struct caer_module_info moduleInfo = {
+    .version = 1,
+    .name = "ImageGenerator",
+    .type = CAER_MODULE_PROCESSOR,
+    .memSize = sizeof(struct imagegenerator_state),
+    .functions = &caerImageGeneratorFunctions,
+    .inputStreams = moduleInputs,
+    .inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(moduleInputs),
+    .outputStreams = moduleOutputs,
+    .outputStreamsSize = CAER_EVENT_STREAM_OUT_SIZE(moduleOutputs)
+};
 
-	return;
+caerModuleInfo caerModuleGetInfo(void) {
+    return (&moduleInfo);
 }
+
 
 static bool caerImageGeneratorInit(caerModuleData moduleData) {
 
 	// Ensure numSpikes is set.
 	imagegeneratorState state = moduleData->moduleState;
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "numSpikes", 2000);
+
+	sshsNodeCreateInt(moduleData->moduleNode, "numSpikes", 2000, 0, 200000, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateBool(moduleData->moduleNode, "rectifyPolarities", true, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateInt(moduleData->moduleNode, "colorscale", 200, 0, 255, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateInt(moduleData->moduleNode, "imageSizeX", 1, 0, 1024, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateInt(moduleData->moduleNode, "imageSizeY", 1, 0, 1024, SSHS_FLAGS_NORMAL);
+
 	state->numSpikes = sshsNodeGetInt(moduleData->moduleNode, "numSpikes");
-
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "rectifyPolarities", true);
 	state->rectifyPolarities = sshsNodeGetBool(moduleData->moduleNode, "rectifyPolarities");
-
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "colorscale", 200);
 	state->colorscale = sshsNodeGetInt(moduleData->moduleNode, "colorscale");
-
+	state->imageSizeX = sshsNodeGetInt(moduleData->moduleNode, "imageSizeX");
+	state->imageSizeY = sshsNodeGetInt(moduleData->moduleNode, "imageSizeY");
 	state->ImageMap = NULL;
 
 	return (true);
@@ -169,15 +191,13 @@ static bool normalize_image_map_sigma(imagegeneratorState state, int * hist, int
 
 }
 
-static void caerImageGeneratorRun(caerModuleData moduleData, size_t argsNumber, va_list args) {
-	UNUSED_ARGUMENT(argsNumber);
+static void caerImageGeneratorRun(caerModuleData moduleData, caerEventPacketContainer in,
+	    caerEventPacketContainer *out){
 
-	// Interpret variable arguments (same as above in main function).
-	caerPolarityEventPacket polarity = va_arg(args, caerPolarityEventPacket);
-	int CLASSIFY_IMG_SIZE = va_arg(args, int);
-	int * hist = va_arg(args, int*);
-	bool * haveimg = va_arg(args, bool*);
-	haveimg[0] = false;
+
+	caerPolarityEventPacketConst polarity = (caerPolarityEventPacketConst)
+	    caerEventPacketContainerFindEventPacketByTypeConst(in, POLARITY_EVENT);
+
 
 	// Only process packets with content.
 	if (polarity == NULL) {
@@ -188,8 +208,10 @@ static void caerImageGeneratorRun(caerModuleData moduleData, size_t argsNumber, 
 	sshsNode sourceInfoNodeCA = caerMainloopGetSourceInfo(sourceID);
 	sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
 	if (!sshsNodeAttributeExists(sourceInfoNode, "dataSizeX", SSHS_SHORT)) { //to do for visualizer change name of field to a more generic one
-		sshsNodePutShort(sourceInfoNode, "dataSizeX", CLASSIFY_IMG_SIZE);
-		sshsNodePutShort(sourceInfoNode, "dataSizeY", CLASSIFY_IMG_SIZE);
+		sshsNodeCreateShort(sourceInfoNode, "dataSizeX", sshsNodeGetShort(sourceInfoNodeCA, "dvsSizeX"), 1, 1024,
+							SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+		sshsNodeCreateShort(sourceInfoNode, "dataSizeY", sshsNodeGetShort(sourceInfoNodeCA, "dvsSizeY"), 1, 1024,
+							SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
 	}
 
 	//update module state
@@ -199,7 +221,7 @@ static void caerImageGeneratorRun(caerModuleData moduleData, size_t argsNumber, 
 	// If the map is not allocated yet, do it.
 	if (state->ImageMap == NULL) {
 		if (!allocateImageMapSubsampled(state, caerEventPacketHeaderGetEventSource(&polarity->packetHeader),
-			CLASSIFY_IMG_SIZE, CLASSIFY_IMG_SIZE)) {
+			state->imageSizeX, state->imageSizeX)) {
 			// Failed to allocate memory, nothing to do.
 			caerLog(CAER_LOG_ERROR, moduleData->moduleSubSystemString, "Failed to allocate memory for ImageMap.");
 			return;
@@ -217,8 +239,8 @@ static void caerImageGeneratorRun(caerModuleData moduleData, size_t argsNumber, 
 			return;
 		}
 
-		float res_x = CLASSIFY_IMG_SIZE / cam_sizeX;
-		float res_y = CLASSIFY_IMG_SIZE / cam_sizeY;
+		float res_x = state->imageSizeX / cam_sizeX;
+		float res_y = state->imageSizeY / cam_sizeY;
 
 		if (state->colorscale <= 0) {
 			caerLog(CAER_LOG_CRITICAL, "imagegenerator", "please select colorscale >0");
@@ -300,17 +322,16 @@ static void caerImageGeneratorRun(caerModuleData moduleData, size_t argsNumber, 
 			if (state->spikeCounter >= state->numSpikes) {
 
 				// printf("generating image with numspikes %d\n", state->numSpikes);
-				haveimg[0] = true; // we got an image to classify
 
 #ifdef TIMING
 				clock_t start = clock(), diff;
 #endif
 
-				if (!normalize_image_map_sigma(state, hist, CLASSIFY_IMG_SIZE)) {
+				/*if (!normalize_image_map_sigma(state, hist, state->imageSizeX)) {
 					caerLog(CAER_LOG_ERROR, moduleData->moduleSubSystemString,
 						"Failed to normalize image map with 3 sigma range.");
 					return;
-				};
+				};*/
 #ifdef TIMING
 				diff = clock() - start;
 
@@ -332,6 +353,49 @@ static void caerImageGeneratorRun(caerModuleData moduleData, size_t argsNumber, 
 	}/* **** SPIKE SECTION END *** */
 
 	caerImageGeneratorConfig(moduleData);
+
+
+	//make frame
+	// Allocate packet container for result packet.
+	*out = caerEventPacketContainerAllocate(1);
+	if (*out == NULL) {
+	    return; // Error.
+	}
+
+	// everything that is in the out packet container will be automatically be free after main loop
+	caerFrameEventPacket frameOut = caerFrameEventPacketAllocate(1, moduleData->moduleID, 0, state->imageSizeX, state->imageSizeY, 3);
+	if (frameOut == NULL) {
+	    return; // Error.
+	}
+	else {
+	    // Add output packet to packet container.
+	    caerEventPacketContainerSetEventPacket(*out, 0, (caerEventPacketHeader) frameOut);
+	}
+
+
+	// put info into frame
+	frameOut = caerFrameEventPacketAllocate(1, moduleData->moduleID, 0, state->imageSizeX, state->imageSizeY, 3);
+	caerMainloopFreeAfterLoop(&free, frameOut);
+	if (frameOut != NULL) {
+		caerFrameEvent singleplot = caerFrameEventPacketGetEvent(frameOut, 0);
+
+		uint32_t counter = 0;
+		for (size_t x = 0; x < state->imageSizeX; x++) {
+			for (size_t y = 0; y < state->imageSizeY; y++) {
+				//COLOUR col  = GetColour((double) state->frequencyMap->buffer2d[y][x], state->colorscaleMin, state->colorscaleMax);
+				int linindex = x * state->imageSizeX + y;
+				singleplot->pixels[counter] = (uint16_t) ((int) ( state->ImageMap[x][y]  * 14); // red
+				singleplot->pixels[counter + 1] = (uint16_t) ((int) (state->ImageMap[x][y]  * 14); // green
+				singleplot->pixels[counter + 2] = (uint16_t) ((int) (state->ImageMap[x][y]  * 14); // blue
+				counter += 3;
+			}
+		}
+
+		//add info to the frame
+		caerFrameEventSetLengthXLengthYChannelNumber(singleplot, state->imageSizeX, state->imageSizeY, 3, frameOut);
+		//validate frame
+		caerFrameEventValidate(singleplot, frameOut);
+	}
 
 }
 
