@@ -46,7 +46,7 @@ void caerSpikeFeatures(uint16_t moduleID, caerPolarityEventPacket polarity, caer
 
 static bool caerSpikeFeaturesInit(caerModuleData moduleData) {
 	sshsNodePutIntIfAbsent(moduleData->moduleNode, "decayTime", 3);
-	sshsNodePutFloatIfAbsent(moduleData->moduleNode, "tau", 1000);
+	sshsNodePutFloatIfAbsent(moduleData->moduleNode, "tau", 0.02);
 
 	SFFilterState state = moduleData->moduleState;
 
@@ -146,17 +146,17 @@ static void caerSpikeFeaturesRun(caerModuleData moduleData, size_t argsNumber, v
 	if (*imagegeneratorframe != NULL) {
 		caerFrameEvent singleplot = caerFrameEventPacketGetEvent(*imagegeneratorframe, 0);
 		uint32_t counter = 0;
-		for (size_t x = 0; x < sizeX; x++) {
-			for (size_t y = 0; y < sizeY; y++) {
-				singleplot->pixels[counter] = (uint16_t) ((int) (state->surfaceMap->buffer2d[y][x] * 65530)); // red
-				singleplot->pixels[counter + 1] = (uint16_t) ((int) (state->surfaceMap->buffer2d[y][x] * 65530)); // green
-				singleplot->pixels[counter + 2] = (uint16_t) ((int) (state->surfaceMap->buffer2d[y][x] * 65530)); // blue
+		for (size_t y = 0; y < sizeY; y++) {
+			for (size_t x = 0; x < sizeX; x++) {
+				singleplot->pixels[counter] = (uint16_t) ((int) (state->surfaceMap->buffer2d[x][y] * 65530)); // red
+				singleplot->pixels[counter + 1] = (uint16_t) ((int) (state->surfaceMap->buffer2d[x][y] * 65530)); // green
+				singleplot->pixels[counter + 2] = (uint16_t) ((int) (state->surfaceMap->buffer2d[x][y] * 65530)); // blue
 				counter += 3;
 			}
 		}
 
 		//add info to the frame
-		caerFrameEventSetLengthXLengthYChannelNumber(singleplot, sizeY, sizeX, 3, *imagegeneratorframe);
+		caerFrameEventSetLengthXLengthYChannelNumber(singleplot, sizeX, sizeY, 3, *imagegeneratorframe);
 		//validate frame
 		caerFrameEventValidate(singleplot, *imagegeneratorframe);
 	}
@@ -169,6 +169,7 @@ static void caerSpikeFeaturesConfig(caerModuleData moduleData) {
 	SFFilterState state = moduleData->moduleState;
 
 	state->decayTime = sshsNodeGetInt(moduleData->moduleNode, "decayTime");
+	state->tau = sshsNodeGetFloat(moduleData->moduleNode, "tau");
 }
 
 static void caerSpikeFeaturesExit(caerModuleData moduleData) {

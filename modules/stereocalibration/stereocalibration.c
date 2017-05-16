@@ -200,34 +200,26 @@ static void caerStereoCalibrationRun(caerModuleData moduleData, caerEventPacketC
 		CAER_FRAME_CONST_ITERATOR_VALID_START (frame_0)
 			// Only work on new frames if enough time has passed between this and the last used one.
 			uint64_t currTimestamp_0 = U64T(caerFrameEventGetTSStartOfFrame64(caerFrameIteratorElement, frame_0));
+			state->lastFrameTimestamp_cam0 = currTimestamp_0;
 
-			// If enough time has passed, try to add a new point set.
-			if ((currTimestamp_0 - state->lastFrameTimestamp_cam0) >= state->settings.captureDelay) {
-				state->lastFrameTimestamp_cam0 = currTimestamp_0;
-
-				foundPoint_cam0 = StereoCalibration_findNewPoints(state->cpp_class, caerFrameIteratorElement, 0);
-				if (foundPoint_cam0 != NULL) {
-					caerLog(CAER_LOG_NOTICE, moduleData->moduleSubSystemString, "Found calibration pattern cam0");
-					frame_0_ts = currTimestamp_0;
-					frame_0_pattern = true;
-				}
+			foundPoint_cam0 = StereoCalibration_findNewPoints(state->cpp_class, caerFrameIteratorElement, 0);
+			if (foundPoint_cam0 != NULL) {
+				caerLog(CAER_LOG_NOTICE, moduleData->moduleSubSystemString, "Found calibration pattern cam0");
+				frame_0_ts = currTimestamp_0;
+				frame_0_pattern = true;
 			}
 		CAER_FRAME_ITERATOR_VALID_END
 
 		CAER_FRAME_CONST_ITERATOR_VALID_START( frame_1)
 			// Only work on new frames if enough time has passed between this and the last used one.
 			uint64_t currTimestamp_1 = U64T(caerFrameEventGetTSStartOfFrame64(caerFrameIteratorElement, frame_1));
+			state->lastFrameTimestamp_cam1 = currTimestamp_1;
 
-			// If enough time has passed, try to add a new point set.
-			if ((currTimestamp_1 - state->lastFrameTimestamp_cam1) >= state->settings.captureDelay) {
-				state->lastFrameTimestamp_cam1 = currTimestamp_1;
-
-				foundPoint_cam1 = StereoCalibration_findNewPoints(state->cpp_class, caerFrameIteratorElement, 1);
-				if (foundPoint_cam1 != NULL) {
-					caerLog(CAER_LOG_NOTICE, moduleData->moduleSubSystemString, "Found calibration pattern cam1");
-					frame_1_ts = currTimestamp_1;
-					frame_1_pattern = true;
-				}
+			foundPoint_cam1 = StereoCalibration_findNewPoints(state->cpp_class, caerFrameIteratorElement, 1);
+			if (foundPoint_cam1 != NULL) {
+				caerLog(CAER_LOG_NOTICE, moduleData->moduleSubSystemString, "Found calibration pattern cam1");
+				frame_1_ts = currTimestamp_1;
+				frame_1_pattern = true;
 			}
 		CAER_FRAME_ITERATOR_VALID_END
 

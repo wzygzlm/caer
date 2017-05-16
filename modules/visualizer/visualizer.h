@@ -10,6 +10,8 @@
 
 #define VISUALIZER_DEFAULT_ZOOM 2.0f
 #define VISUALIZER_REFRESH_RATE 60.0f
+#define VISUALIZER_DEFAULT_POSITION_X 40
+#define VISUALIZER_DEFAULT_POSITION_Y 40
 
 struct caer_visualizer_public_state {
 	void *eventSourceModuleState;
