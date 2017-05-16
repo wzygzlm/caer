@@ -45,6 +45,8 @@ The following modules can currently be selected to be built:
 -DMEDIANTRACKER=1 -- Track points of high event activity.
 -DRECTANGULARTRACKER=1 -- Track clusters of events.
 -DDYNAMICRECTANGULARTRACKER=1 -- Track a variable number of clusters of events.
+-DSPIKEFEATURES=1 -- Create frames which represents decay of spikes.
+
 
 2) build:
 

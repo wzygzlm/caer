@@ -33,6 +33,7 @@ ADD_SUBDIRECTORY(rotatefilter)
 #ADD_SUBDIRECTORY(pixelmatrix)
 #ADD_SUBDIRECTORY(depressingsynapsefilter)
 #ADD_SUBDIRECTORY(spiralview)
+ADD_SUBDIRECTORY(spikefeatures)
 
 # Support private modules that don't get considered for commit,
 # by reserving a directory called PrivateModules with its own
