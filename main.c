@@ -103,6 +103,12 @@
 #ifdef ENABLE_DEPRESSINGSYNAPSEFILTER
 #include "modules/depressingsynapsefilter/depressingsynapsefilter.h"
 #endif
+#ifdef ENABLE_SPIKEFEATURES
+#include "modules/spikefeatures/spikefeatures.h"
+#endif
+#ifdef ENABLE_SPIRALVIEW
+#include "modules/spiralview/spiralview.h"
+#endif
 
 #ifdef ENABLE_IMAGEGENERATOR
 #include "modules/imagegenerator/imagegenerator.h"
@@ -275,6 +281,12 @@ static bool mainloop_1(void) {
 	caerPoseCalibration(6, polarity, frame);
 #endif
 
+#ifdef ENABLE_SPIKEFEATURES
+	caerFrameEventPacket spikeFeatures = NULL;
+	caerSpikeFeatures(26, polarity, &spikeFeatures);
+#endif
+
+
 	// A simple visualizer exists to show what the output looks like.
 #ifdef ENABLE_VISUALIZER
 	caerVisualizer(60, "Polarity", &caerVisualizerRendererPolarityEvents, visualizerEventHandler, (caerEventPacketHeader) polarity);
@@ -299,6 +311,11 @@ static bool mainloop_1(void) {
 	caerVisualizer(71, "FrameRes", &caerVisualizerRendererFrameEvents, visualizerEventHandler, (caerEventPacketHeader) frameRes);
 #endif
 	//caerVisualizerMulti(68, "PolarityAndFrame", &caerVisualizerMultiRendererPolarityAndFrameEvents, visualizerEventHandler, container);
+#ifdef	ENABLE_SPIKEFEATURES
+	if(spikeFeatures != NULL){
+		caerVisualizer(74, "SpikeSurface", &caerVisualizerRendererFrameEvents, visualizerEventHandler, (caerEventPacketHeader) spikeFeatures);
+	}
+#endif
 #endif
 
 #ifdef ENABLE_FILE_OUTPUT
@@ -348,6 +365,26 @@ static bool mainloop_1(void) {
    }
 #endif
 #endif
+
+#if defined(ENABLE_SPIRALVIEW) && defined(ENABLE_IMAGEGENERATOR)
+	// it creates images by accumulating spikes
+	int * spiralview = calloc((int)CLASSIFYSIZE * CLASSIFYSIZE, sizeof(int));
+	if (spiralview == NULL) {
+			return (false); // Failure.
+	}
+	bool *havespiral;
+	havespiral = (bool*)malloc(1);
+	unsigned char ** spiral_img_ptr = calloc(sizeof(unsigned char *), 1);
+	caerSpiralView(27, polarity, CLASSIFYSIZE, classifyhist, spiralview, havespiral);
+
+#ifdef ENABLE_VISUALIZER
+	caerFrameEventPacket spiralFrame = NULL;
+	if(havespiral[0]){
+	   caerSpiralViewMakeFrame(27, spiralview, &spiralFrame, CLASSIFYSIZE);
+	}
+#endif
+#endif
+
 
 	// this modules requires image generator
 #if defined(ENABLE_CAFFEINTERFACE) || defined(ENABLE_NULLHOPINTERFACE)
@@ -409,6 +446,12 @@ static bool mainloop_1(void) {
 #if defined(ENABLE_DENOISINGAUTOENCODER) && defined(ENABLE_IMAGEGENERATOR) && defined(ENABLE_VISUALIZER)
 	caerFrameEventPacket frameAutoEncoderFeatures = NULL;
 	frameAutoEncoderFeatures = caerDenAutoEncoder(24, imagegeneratorFrame);
+#endif
+
+#if defined(ENABLE_VISUALIZER) && defined (ENABLE_IMAGEGENERATOR) && defined(ENABLE_SPIRALVIEW)
+	if(havespiral[0]){
+		 caerVisualizer(88, "SpiralView", &caerVisualizerRendererFrameEvents, NULL, (caerEventPacketHeader) spiralFrame);
+	}
 #endif
 
 #if defined(ENABLE_VISUALIZER) && defined (ENABLE_IMAGEGENERATOR)
