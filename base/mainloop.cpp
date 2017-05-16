@@ -1543,8 +1543,9 @@ static void unloadLibrary(ModuleLibrary &moduleLibrary) {
 
 static void cleanupGlobals() {
 	for (auto &m : glMainloopData.modules) {
-		m.second.libraryInfo = nullptr;
-		unloadLibrary(m.second.libraryHandle);
+		if (m.second.libraryInfo != nullptr) {
+			unloadLibrary(m.second.libraryHandle);
+		}
 	}
 
 	glMainloopData.modules.clear();
