@@ -545,10 +545,10 @@ static void createDefaultConfiguration(caerModuleData moduleData, struct caer_da
 	sshsNode dvsNode = sshsGetRelativeNode(deviceConfigNode, "dvs/");
 
 	sshsNodeCreateBool(dvsNode, "Run", true, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateByte(dvsNode, "AckDelayRow", 4, 0, 63, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateByte(dvsNode, "AckDelayColumn", 0, 0, 63, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateByte(dvsNode, "AckExtensionRow", 1, 0, 63, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateByte(dvsNode, "AckExtensionColumn", 0, 0, 63, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateByte(dvsNode, "AckDelayRow", 4, 0, 15, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateByte(dvsNode, "AckDelayColumn", 0, 0, 15, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateByte(dvsNode, "AckExtensionRow", 1, 0, 15, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateByte(dvsNode, "AckExtensionColumn", 0, 0, 15, SSHS_FLAGS_NORMAL);
 	sshsNodeCreateBool(dvsNode, "WaitOnTransferStall", false, SSHS_FLAGS_NORMAL);
 	sshsNodeCreateBool(dvsNode, "FilterRowOnlyEvents", true, SSHS_FLAGS_NORMAL);
 	sshsNodeCreateBool(dvsNode, "ExternalAERControl", false, SSHS_FLAGS_NORMAL);
@@ -598,16 +598,14 @@ static void createDefaultConfiguration(caerModuleData moduleData, struct caer_da
 	sshsNodeCreateShort(apsNode, "EndRow0", I16T(devInfo->apsSizeY - 1), 0, devInfo->apsSizeY, SSHS_FLAGS_NORMAL);
 	sshsNodeCreateInt(apsNode, "Exposure", 4000, 0, (0x01 << 20) - 1, SSHS_FLAGS_NORMAL); // in µs
 	sshsNodeCreateInt(apsNode, "FrameDelay", 1000, 0, (0x01 << 20) - 1, SSHS_FLAGS_NORMAL); // in µs
-	sshsNodeCreateShort(apsNode, "RowSettle", (devInfo->adcClock / 3), 0, I16T(devInfo->adcClock * 2),
-		SSHS_FLAGS_NORMAL); // in cycles
+	sshsNodeCreateShort(apsNode, "RowSettle", (devInfo->adcClock / 3), 0, devInfo->adcClock, SSHS_FLAGS_NORMAL); // in cycles
 	sshsNodeCreateBool(apsNode, "TakeSnapShot", false, SSHS_FLAGS_NOTIFY_ONLY);
 	sshsNodeCreateBool(apsNode, "AutoExposure", false, SSHS_FLAGS_NORMAL);
 
 	// Not supported on DAVIS RGB.
 	if (!IS_DAVISRGB(devInfo->chipID)) {
-		sshsNodeCreateShort(apsNode, "ResetSettle", (devInfo->adcClock / 3), 0, I16T(devInfo->adcClock * 4),
-			SSHS_FLAGS_NORMAL); // in cycles
-		sshsNodeCreateShort(apsNode, "ColumnSettle", devInfo->adcClock, 0, I16T(devInfo->adcClock * 4),
+		sshsNodeCreateShort(apsNode, "ResetSettle", (devInfo->adcClock / 3), 0, devInfo->adcClock, SSHS_FLAGS_NORMAL); // in cycles
+		sshsNodeCreateShort(apsNode, "ColumnSettle", devInfo->adcClock, 0, I16T(devInfo->adcClock * 2),
 			SSHS_FLAGS_NORMAL); // in cycles
 		sshsNodeCreateShort(apsNode, "NullSettle", (devInfo->adcClock / 10), 0, devInfo->adcClock, SSHS_FLAGS_NORMAL); // in cycles
 	}
@@ -630,9 +628,9 @@ static void createDefaultConfiguration(caerModuleData moduleData, struct caer_da
 	if (devInfo->apsHasInternalADC) {
 		sshsNodeCreateBool(apsNode, "UseInternalADC", true, SSHS_FLAGS_NORMAL);
 		sshsNodeCreateBool(apsNode, "SampleEnable", true, SSHS_FLAGS_NORMAL);
-		sshsNodeCreateShort(apsNode, "SampleSettle", devInfo->adcClock, 0, I16T(devInfo->adcClock * 8),
+		sshsNodeCreateShort(apsNode, "SampleSettle", devInfo->adcClock, 0, I16T(devInfo->adcClock * 2),
 			SSHS_FLAGS_NORMAL); // in cycles
-		sshsNodeCreateShort(apsNode, "RampReset", (devInfo->adcClock / 3), 0, I16T(devInfo->adcClock * 8),
+		sshsNodeCreateShort(apsNode, "RampReset", (devInfo->adcClock / 3), 0, I16T(devInfo->adcClock * 2),
 			SSHS_FLAGS_NORMAL); // in cycles
 		sshsNodeCreateBool(apsNode, "RampShortReset", false, SSHS_FLAGS_NORMAL);
 		sshsNodeCreateBool(apsNode, "ADCTestMode", false, SSHS_FLAGS_NORMAL);
@@ -674,14 +672,17 @@ static void createDefaultConfiguration(caerModuleData moduleData, struct caer_da
 	sshsNodeCreateBool(extNode, "DetectFallingEdges", false, SSHS_FLAGS_NORMAL);
 	sshsNodeCreateBool(extNode, "DetectPulses", true, SSHS_FLAGS_NORMAL);
 	sshsNodeCreateBool(extNode, "DetectPulsePolarity", true, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateInt(extNode, "DetectPulseLength", devInfo->logicClock, 1, INT32_MAX, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateInt(extNode, "DetectPulseLength", devInfo->logicClock, 1, ((0x01 << 20) - 1) * devInfo->logicClock,
+		SSHS_FLAGS_NORMAL);
 
 	if (devInfo->extInputHasGenerator) {
 		sshsNodeCreateBool(extNode, "RunGenerator", false, SSHS_FLAGS_NORMAL);
 		sshsNodeCreateBool(extNode, "GenerateUseCustomSignal", false, SSHS_FLAGS_NORMAL);
 		sshsNodeCreateBool(extNode, "GeneratePulsePolarity", true, SSHS_FLAGS_NORMAL);
-		sshsNodeCreateInt(extNode, "GeneratePulseInterval", devInfo->logicClock, 1, INT32_MAX, SSHS_FLAGS_NORMAL);
-		sshsNodeCreateInt(extNode, "GeneratePulseLength", devInfo->logicClock / 2, 1, INT32_MAX, SSHS_FLAGS_NORMAL);
+		sshsNodeCreateInt(extNode, "GeneratePulseInterval", devInfo->logicClock, 1,
+			((0x01 << 20) - 1) * devInfo->logicClock, SSHS_FLAGS_NORMAL);
+		sshsNodeCreateInt(extNode, "GeneratePulseLength", devInfo->logicClock / 2, 1,
+			((0x01 << 20) - 1) * devInfo->logicClock, SSHS_FLAGS_NORMAL);
 		sshsNodeCreateBool(extNode, "GenerateInjectOnRisingEdge", false, SSHS_FLAGS_NORMAL);
 		sshsNodeCreateBool(extNode, "GenerateInjectOnFallingEdge", false, SSHS_FLAGS_NORMAL);
 	}
@@ -692,14 +693,16 @@ static void createDefaultConfiguration(caerModuleData moduleData, struct caer_da
 		sshsNodeCreateBool(extNode, "DetectFallingEdges1", false, SSHS_FLAGS_NORMAL);
 		sshsNodeCreateBool(extNode, "DetectPulses1", true, SSHS_FLAGS_NORMAL);
 		sshsNodeCreateBool(extNode, "DetectPulsePolarity1", true, SSHS_FLAGS_NORMAL);
-		sshsNodeCreateInt(extNode, "DetectPulseLength1", devInfo->logicClock, 1, INT32_MAX, SSHS_FLAGS_NORMAL);
+		sshsNodeCreateInt(extNode, "DetectPulseLength1", devInfo->logicClock, 1,
+			((0x01 << 20) - 1) * devInfo->logicClock, SSHS_FLAGS_NORMAL);
 
 		sshsNodeCreateBool(extNode, "RunDetector2", false, SSHS_FLAGS_NORMAL);
 		sshsNodeCreateBool(extNode, "DetectRisingEdges2", false, SSHS_FLAGS_NORMAL);
 		sshsNodeCreateBool(extNode, "DetectFallingEdges2", false, SSHS_FLAGS_NORMAL);
 		sshsNodeCreateBool(extNode, "DetectPulses2", true, SSHS_FLAGS_NORMAL);
 		sshsNodeCreateBool(extNode, "DetectPulsePolarity2", true, SSHS_FLAGS_NORMAL);
-		sshsNodeCreateInt(extNode, "DetectPulseLength2", devInfo->logicClock, 1, INT32_MAX, SSHS_FLAGS_NORMAL);
+		sshsNodeCreateInt(extNode, "DetectPulseLength2", devInfo->logicClock, 1,
+			((0x01 << 20) - 1) * devInfo->logicClock, SSHS_FLAGS_NORMAL);
 	}
 
 	// Subsystem 9: FX2/3 USB Configuration and USB buffer settings.
