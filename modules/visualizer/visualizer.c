@@ -20,6 +20,8 @@ struct caer_visualizer_renderers {
 	caerVisualizerRenderer renderer;
 };
 
+static const char *caerVisualizerRendererListOptionsString = "Polarity,Frame,IMU_6-axes,2D_Points,Spikes,Spikes_Raster_Plot,ETF4D,Polarity_and_Frames";
+
 static struct caer_visualizer_renderers caerVisualizerRendererList[] = { { "Polarity",
 	&caerVisualizerRendererPolarityEvents }, { "Frame", &caerVisualizerRendererFrameEvents }, { "IMU_6-axes",
 	&caerVisualizerRendererIMU6Events }, { "2D_Points", &caerVisualizerRendererPoint2DEvents }, { "Spikes",
@@ -31,7 +33,9 @@ struct caer_visualizer_handlers {
 	caerVisualizerEventHandler handler;
 };
 
-static struct caer_visualizer_handlers caerVisualizerHandlerList[] = { { "Spikes",
+static const char *caerVisualizerHandlerListOptionsString = "None,Spikes,Input";
+
+static struct caer_visualizer_handlers caerVisualizerHandlerList[] = { { "None", NULL }, { "Spikes",
 	&caerVisualizerEventHandlerSpikeEvents }, { "Input", &caerInputVisualizerEventHandler } };
 
 struct caer_visualizer_state {
@@ -784,7 +788,11 @@ caerModuleInfo caerModuleGetInfo(void) {
 
 static bool caerVisualizerModuleInit(caerModuleData moduleData) {
 	sshsNodeCreateString(moduleData->moduleNode, "renderer", "Polarity", 0, 100, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateString(moduleData->moduleNode, "eventHandler", "", 0, 100, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateString(moduleData->moduleNode, "rendererListOptions", caerVisualizerRendererListOptionsString,
+		0, 200, SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE);
+	sshsNodeCreateString(moduleData->moduleNode, "eventHandler", "None", 0, 100, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateString(moduleData->moduleNode, "eventHandlerListOptions", caerVisualizerHandlerListOptionsString,
+		0, 200, SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE);
 
 	return (true);
 }
