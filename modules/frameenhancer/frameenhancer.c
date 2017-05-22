@@ -41,10 +41,14 @@ static bool caerFrameEnhancerInit(caerModuleData moduleData) {
 
 #if defined(LIBCAER_HAVE_OPENCV) && LIBCAER_HAVE_OPENCV == 1
 	sshsNodeCreateString(moduleData->moduleNode, "demosaicType", "opencv_edge_aware", 8, 17, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateString(moduleData->moduleNode, "demosaicTypeListOptions", "opencv_edge_aware,opencv_normal,standard", 1, 100, SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE);
 	sshsNodeCreateString(moduleData->moduleNode, "contrastType", "opencv_normalization", 8, 29, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateString(moduleData->moduleNode, "contrastTypeListOptions", "opencv_normalization,opencv_histogram_equalization,opencv_clahe,standard", 1, 100, SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE);
 #else
 	sshsNodeCreateString(moduleData->moduleNode, "demosaicType", "standard", 8, 8, SSHS_FLAGS_READ_ONLY);
+	sshsNodeCreateString(moduleData->moduleNode, "demosaicTypeListOptions", "standard", 1, 100, SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE);
 	sshsNodeCreateString(moduleData->moduleNode, "contrastType", "standard", 8, 8, SSHS_FLAGS_READ_ONLY);
+	sshsNodeCreateString(moduleData->moduleNode, "contrastTypeListOptions", "standard", 1, 100, SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE);
 #endif
 
 	// Initialize configuration.

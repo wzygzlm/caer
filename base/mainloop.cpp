@@ -335,6 +335,14 @@ void caerMainloopRun(void) {
 		return;
 	}
 
+	// Got all available modules, expose them as list.
+	std::string modulesList;
+	for (const auto &modulePath : modulePaths) {
+		modulesList += modulePath.stem().string() + ",";
+	}
+	modulesList.pop_back(); // Remove trailing comma.
+	sshsNodeCreateString(moduleSearchNode, "modulesListOptions", modulesList.c_str(), 1, 10000, SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE);
+
 	// No data at start-up.
 	glMainloopData.dataAvailable.store(0);
 
