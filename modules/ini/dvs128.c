@@ -41,6 +41,8 @@ static void usbConfigListener(sshsNode node, void *userData, enum sshs_node_attr
 static void systemConfigSend(sshsNode node, caerModuleData moduleData);
 static void systemConfigListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
+static void logLevelListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
+	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
 
 static bool caerInputDVS128Init(caerModuleData moduleData) {
 	caerModuleLog(moduleData, CAER_LOG_DEBUG, "Initializing module ...");
@@ -66,6 +68,10 @@ static bool caerInputDVS128Init(caerModuleData moduleData) {
 		// Failed to open device.
 		return (false);
 	}
+
+	// Initialize per-device log-level to module log-level.
+	caerDeviceConfigSet(moduleData->moduleState, CAER_HOST_CONFIG_LOG, CAER_HOST_CONFIG_LOG_LEVEL,
+		atomic_load(&moduleData->moduleLogLevel));
 
 	// Put global source information into SSHS.
 	struct caer_dvs128_info devInfo = caerDVS128InfoGet(moduleData->moduleState);
@@ -153,11 +159,15 @@ static bool caerInputDVS128Init(caerModuleData moduleData) {
 	sshsNode sysNode = sshsGetRelativeNode(moduleData->moduleNode, "system/");
 	sshsNodeAddAttributeListener(sysNode, moduleData, &systemConfigListener);
 
+	sshsNodeAddAttributeListener(moduleData->moduleNode, moduleData, &logLevelListener);
+
 	return (true);
 }
 
 static void caerInputDVS128Exit(caerModuleData moduleData) {
 	// Remove listener, which can reference invalid memory in userData.
+	sshsNodeRemoveAttributeListener(moduleData->moduleNode, moduleData, &logLevelListener);
+
 	sshsNode biasNode = sshsGetRelativeNode(moduleData->moduleNode, "bias/");
 	sshsNodeRemoveAttributeListener(biasNode, moduleData, &biasConfigListener);
 
@@ -427,5 +437,17 @@ static void systemConfigListener(sshsNode node, void *userData, enum sshs_node_a
 			caerDeviceConfigSet(moduleData->moduleState, CAER_HOST_CONFIG_PACKETS,
 			CAER_HOST_CONFIG_PACKETS_MAX_CONTAINER_INTERVAL, U32T(changeValue.iint));
 		}
+	}
+}
+
+static void logLevelListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
+	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue) {
+	UNUSED_ARGUMENT(node);
+
+	caerModuleData moduleData = userData;
+
+	if (event == SSHS_ATTRIBUTE_MODIFIED && changeType == SSHS_BYTE && caerStrEquals(changeKey, "logLevel")) {
+		caerDeviceConfigSet(moduleData->moduleState, CAER_HOST_CONFIG_LOG, CAER_HOST_CONFIG_LOG_LEVEL,
+			U32T(changeValue.ibyte));
 	}
 }
