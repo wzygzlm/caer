@@ -75,6 +75,9 @@
 #ifdef ENABLE_RECTANGULARTRACKER_DYNAMIC
 #include "modules/rectangulartracker_dynamic/rectangulartracker_dynamic.h"
 #endif
+#ifdef ENABLE_RECTANGULARTRACKER_PI
+#include "modules/rectangulartracker_pi/rectangulartracker_pi.h"
+#endif
 #ifdef ENABLE_MEDIANTRACKER
 #include "modules/mediantracker/mediantracker.h"
 #endif
@@ -239,6 +242,11 @@ static bool mainloop_1(void) {
 #ifdef ENABLE_RECTANGULARTRACKER_DYNAMIC
 	caerFrameEventPacket rectangularDynamicFrame = NULL;
 	caerRectangulartrackerDynamicFilter(120, polarity, &rectangularDynamicFrame);
+#endif
+
+	// Rectangular tracker for raspberry pi
+#ifdef ENABLE_RECTANGULARTRACKER_PI
+	caerRectangulartrackerPiFilter(121, polarity);
 #endif
 
 	// Filter that track one object by using the median position information
