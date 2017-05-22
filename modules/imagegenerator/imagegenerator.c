@@ -384,9 +384,9 @@ static void caerImageGeneratorRun(caerModuleData moduleData, caerEventPacketCont
 			for (size_t y = 0; y < state->imageSizeY; y++) {
 				//COLOUR col  = GetColour((double) state->frequencyMap->buffer2d[y][x], state->colorscaleMin, state->colorscaleMax);
 				int linindex = x * state->imageSizeX + y;
-				singleplot->pixels[counter] = (uint16_t) ((int) ( state->ImageMap[x][y]  * 14); // red
-				singleplot->pixels[counter + 1] = (uint16_t) ((int) (state->ImageMap[x][y]  * 14); // green
-				singleplot->pixels[counter + 2] = (uint16_t) ((int) (state->ImageMap[x][y]  * 14); // blue
+				singleplot->pixels[counter] = (uint16_t) ((int) ( state->ImageMap[x][y]  * 14)); // red
+				singleplot->pixels[counter + 1] = (uint16_t) ((int) (state->ImageMap[x][y]  * 14)); // green
+				singleplot->pixels[counter + 2] = (uint16_t) ((int) (state->ImageMap[x][y]  * 14)); // blue
 				counter += 3;
 			}
 		}
