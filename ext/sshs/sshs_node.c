@@ -12,7 +12,7 @@ struct sshs_node {
 	sshsNodeListener nodeListeners;
 	sshsNodeAttrListener attrListeners;
 	mtx_shared_t traversal_lock;
-	mtx_shared_t node_lock;
+	mtx_t node_lock;
 	UT_hash_handle hh;
 };
 
@@ -81,7 +81,7 @@ sshsNode sshsNodeNew(const char *nodeName, sshsNode parent) {
 		(*sshsGetGlobalErrorLogCallback())(errorMsg);
 		exit(EXIT_FAILURE);
 	}
-	if (mtx_shared_init(&newNode->node_lock) != thrd_success) {
+	if (mtx_init(&newNode->node_lock, mtx_recursive) != thrd_success) {
 		// Locks are critical for thread-safety.
 		char errorMsg[4096];
 		snprintf(errorMsg, 4096, "Failed to initialize node_lock for node: '%s'.", nodeName);
@@ -141,7 +141,7 @@ sshsNode sshsNodeAddChild(sshsNode node, const char *childName) {
 	// thus the new node 'child' is the node that's now in the map.
 	if (child == NULL) {
 		// Listener support (only on new addition!).
-		mtx_shared_lock_shared(&node->node_lock);
+		mtx_lock(&node->node_lock);
 
 		sshsNodeListener l;
 		LL_FOREACH(node->nodeListeners, l)
@@ -149,7 +149,7 @@ sshsNode sshsNodeAddChild(sshsNode node, const char *childName) {
 			l->node_changed(node, l->userData, SSHS_CHILD_NODE_ADDED, newChild);
 		}
 
-		mtx_shared_unlock_shared(&node->node_lock);
+		mtx_unlock(&node->node_lock);
 
 		return (newChild);
 	}
@@ -214,7 +214,7 @@ void sshsNodeAddNodeListener(sshsNode node, void *userData,
 	listener->node_changed = node_changed;
 	listener->userData = userData;
 
-	mtx_shared_lock_exclusive(&node->node_lock);
+	mtx_lock(&node->node_lock);
 
 	// Search if we don't already have this exact listener, to avoid duplicates.
 	bool found = false;
@@ -234,12 +234,12 @@ void sshsNodeAddNodeListener(sshsNode node, void *userData,
 		free(listener);
 	}
 
-	mtx_shared_unlock_exclusive(&node->node_lock);
+	mtx_unlock(&node->node_lock);
 }
 
 void sshsNodeRemoveNodeListener(sshsNode node, void *userData,
 	void (*node_changed)(sshsNode node, void *userData, enum sshs_node_node_events event, sshsNode changeNode)) {
-	mtx_shared_lock_exclusive(&node->node_lock);
+	mtx_lock(&node->node_lock);
 
 	sshsNodeListener curr, curr_tmp;
 	LL_FOREACH_SAFE(node->nodeListeners, curr, curr_tmp)
@@ -250,11 +250,11 @@ void sshsNodeRemoveNodeListener(sshsNode node, void *userData,
 		}
 	}
 
-	mtx_shared_unlock_exclusive(&node->node_lock);
+	mtx_unlock(&node->node_lock);
 }
 
 void sshsNodeRemoveAllNodeListeners(sshsNode node) {
-	mtx_shared_lock_exclusive(&node->node_lock);
+	mtx_lock(&node->node_lock);
 
 	sshsNodeListener curr, curr_tmp;
 	LL_FOREACH_SAFE(node->nodeListeners, curr, curr_tmp)
@@ -263,7 +263,7 @@ void sshsNodeRemoveAllNodeListeners(sshsNode node) {
 		free(curr);
 	}
 
-	mtx_shared_unlock_exclusive(&node->node_lock);
+	mtx_unlock(&node->node_lock);
 }
 
 void sshsNodeAddAttributeListener(sshsNode node, void *userData,
@@ -275,7 +275,7 @@ void sshsNodeAddAttributeListener(sshsNode node, void *userData,
 	listener->attribute_changed = attribute_changed;
 	listener->userData = userData;
 
-	mtx_shared_lock_exclusive(&node->node_lock);
+	mtx_lock(&node->node_lock);
 
 	// Search if we don't already have this exact listener, to avoid duplicates.
 	bool found = false;
@@ -295,13 +295,13 @@ void sshsNodeAddAttributeListener(sshsNode node, void *userData,
 		free(listener);
 	}
 
-	mtx_shared_unlock_exclusive(&node->node_lock);
+	mtx_unlock(&node->node_lock);
 }
 
 void sshsNodeRemoveAttributeListener(sshsNode node, void *userData,
 	void (*attribute_changed)(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 		const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue)) {
-	mtx_shared_lock_exclusive(&node->node_lock);
+	mtx_lock(&node->node_lock);
 
 	sshsNodeAttrListener curr, curr_tmp;
 	LL_FOREACH_SAFE(node->attrListeners, curr, curr_tmp)
@@ -312,11 +312,11 @@ void sshsNodeRemoveAttributeListener(sshsNode node, void *userData,
 		}
 	}
 
-	mtx_shared_unlock_exclusive(&node->node_lock);
+	mtx_unlock(&node->node_lock);
 }
 
 void sshsNodeRemoveAllAttributeListeners(sshsNode node) {
-	mtx_shared_lock_exclusive(&node->node_lock);
+	mtx_lock(&node->node_lock);
 
 	sshsNodeAttrListener curr, curr_tmp;
 	LL_FOREACH_SAFE(node->attrListeners, curr, curr_tmp)
@@ -325,15 +325,15 @@ void sshsNodeRemoveAllAttributeListeners(sshsNode node) {
 		free(curr);
 	}
 
-	mtx_shared_unlock_exclusive(&node->node_lock);
+	mtx_unlock(&node->node_lock);
 }
 
 void sshsNodeTransactionLock(sshsNode node) {
-	mtx_shared_lock_exclusive(&node->node_lock);
+	mtx_lock(&node->node_lock);
 }
 
 void sshsNodeTransactionUnlock(sshsNode node) {
-	mtx_shared_unlock_exclusive(&node->node_lock);
+	mtx_unlock(&node->node_lock);
 }
 
 static bool sshsNodeCheckRange(enum sshs_node_attr_value_type type, union sshs_node_attr_value value,
@@ -418,7 +418,7 @@ void sshsNodeCreateAttribute(sshsNode node, const char *key, enum sshs_node_attr
 	size_t fullKeyLength = offsetof(struct sshs_node_attr, key) + keyLength
 		+ 1- offsetof(struct sshs_node_attr, value_type);
 
-	mtx_shared_lock_exclusive(&node->node_lock);
+	mtx_lock(&node->node_lock);
 
 	sshsNodeAttr oldAttr;
 	HASH_FIND(hh, node->attributes, &newAttr->value_type, fullKeyLength, oldAttr);
@@ -461,11 +461,11 @@ void sshsNodeCreateAttribute(sshsNode node, const char *key, enum sshs_node_attr
 		free(newAttr);
 	}
 
-	mtx_shared_unlock_exclusive(&node->node_lock);
+	mtx_unlock(&node->node_lock);
 
 	if (oldAttr == NULL) {
 		// Listener support. Call only on change, which is always the case here.
-		mtx_shared_lock_shared(&node->node_lock);
+		mtx_lock(&node->node_lock);
 
 		sshsNodeAttrListener l;
 		LL_FOREACH(node->attrListeners, l)
@@ -473,14 +473,14 @@ void sshsNodeCreateAttribute(sshsNode node, const char *key, enum sshs_node_attr
 			l->attribute_changed(node, l->userData, SSHS_ATTRIBUTE_ADDED, key, type, defaultValue);
 		}
 
-		mtx_shared_unlock_shared(&node->node_lock);
+		mtx_unlock(&node->node_lock);
 	}
 	else {
 		// Let's check if anything changed with this update and call
 		// the appropriate listeners if needed.
 		if (attrValueChanged) {
 			// Listener support. Call only on change, which is always the case here.
-			mtx_shared_lock_shared(&node->node_lock);
+			mtx_lock(&node->node_lock);
 
 			sshsNodeAttrListener l;
 			LL_FOREACH(node->attrListeners, l)
@@ -488,7 +488,7 @@ void sshsNodeCreateAttribute(sshsNode node, const char *key, enum sshs_node_attr
 				l->attribute_changed(node, l->userData, SSHS_ATTRIBUTE_MODIFIED, key, type, defaultValue);
 			}
 
-			mtx_shared_unlock_shared(&node->node_lock);
+			mtx_unlock(&node->node_lock);
 		}
 	}
 }
@@ -503,12 +503,12 @@ bool sshsNodeAttributeExists(sshsNode node, const char *key, enum sshs_node_attr
 	memcpy(searchKey, &type, sizeof(enum sshs_node_attr_value_type));
 	strcpy((char *) (searchKey + sizeof(enum sshs_node_attr_value_type)), key);
 
-	mtx_shared_lock_shared(&node->node_lock);
+	mtx_lock(&node->node_lock);
 
 	sshsNodeAttr attr;
 	HASH_FIND(hh, node->attributes, searchKey, fullKeyLength, attr);
 
-	mtx_shared_unlock_shared(&node->node_lock);
+	mtx_unlock(&node->node_lock);
 
 	// If attr == NULL, the specified attribute was not found.
 	if (attr == NULL) {
@@ -530,14 +530,14 @@ bool sshsNodePutAttribute(sshsNode node, const char *key, enum sshs_node_attr_va
 	memcpy(searchKey, &type, sizeof(enum sshs_node_attr_value_type));
 	strcpy((char *) (searchKey + sizeof(enum sshs_node_attr_value_type)), key);
 
-	mtx_shared_lock_exclusive(&node->node_lock);
+	mtx_lock(&node->node_lock);
 
 	sshsNodeAttr attr;
 	HASH_FIND(hh, node->attributes, searchKey, fullKeyLength, attr);
 
 	// Verify that a valid attribute exists.
 	if (attr == NULL) {
-		mtx_shared_unlock_exclusive(&node->node_lock);
+		mtx_unlock(&node->node_lock);
 
 		char errorMsg[1024];
 		snprintf(errorMsg, 1024,
@@ -553,13 +553,13 @@ bool sshsNodePutAttribute(sshsNode node, const char *key, enum sshs_node_attr_va
 	// Value must be present, so update old one, after checking range and flags.
 	if (attr->flags & SSHS_FLAGS_READ_ONLY) {
 		// Read-only flag set, cannot put new value!
-		mtx_shared_unlock_exclusive(&node->node_lock);
+		mtx_unlock(&node->node_lock);
 		return (false);
 	}
 
 	if (!sshsNodeCheckRange(type, value, attr->min, attr->max)) {
 		// New value out of range, cannot put new value!
-		mtx_shared_unlock_exclusive(&node->node_lock);
+		mtx_unlock(&node->node_lock);
 		return (false);
 	}
 
@@ -580,13 +580,13 @@ bool sshsNodePutAttribute(sshsNode node, const char *key, enum sshs_node_attr_va
 		}
 	}
 
-	mtx_shared_unlock_exclusive(&node->node_lock);
+	mtx_unlock(&node->node_lock);
 
 	// Let's check if anything changed with this update and call
 	// the appropriate listeners if needed.
 	if (sshsNodeCheckAttributeValueChanged(type, attrValueOld, value)) {
 		// Listener support. Call only on change, which is always the case here.
-		mtx_shared_lock_shared(&node->node_lock);
+		mtx_lock(&node->node_lock);
 
 		sshsNodeAttrListener l;
 		LL_FOREACH(node->attrListeners, l)
@@ -594,7 +594,7 @@ bool sshsNodePutAttribute(sshsNode node, const char *key, enum sshs_node_attr_va
 			l->attribute_changed(node, l->userData, SSHS_ATTRIBUTE_MODIFIED, key, type, value);
 		}
 
-		mtx_shared_unlock_shared(&node->node_lock);
+		mtx_unlock(&node->node_lock);
 	}
 
 	// Free oldAttr's string memory, not used anymore.
@@ -651,14 +651,14 @@ union sshs_node_attr_value sshsNodeGetAttribute(sshsNode node, const char *key, 
 	memcpy(searchKey, &type, sizeof(enum sshs_node_attr_value_type));
 	strcpy((char *) (searchKey + sizeof(enum sshs_node_attr_value_type)), key);
 
-	mtx_shared_lock_shared(&node->node_lock);
+	mtx_lock(&node->node_lock);
 
 	sshsNodeAttr attr;
 	HASH_FIND(hh, node->attributes, searchKey, fullKeyLength, attr);
 
 	// Verify that a valid attribute exists.
 	if (attr == NULL) {
-		mtx_shared_unlock_shared(&node->node_lock);
+		mtx_unlock(&node->node_lock);
 
 		char errorMsg[1024];
 		snprintf(errorMsg, 1024,
@@ -683,7 +683,7 @@ union sshs_node_attr_value sshsNodeGetAttribute(sshsNode node, const char *key, 
 		value.string = valueCopy;
 	}
 
-	mtx_shared_unlock_shared(&node->node_lock);
+	mtx_unlock(&node->node_lock);
 
 	// Return the final value.
 	return (value);
@@ -697,13 +697,13 @@ static int sshsNodeAttrCmp(const void *a, const void *b) {
 }
 
 static sshsNodeAttr *sshsNodeGetAttributes(sshsNode node, size_t *numAttributes) {
-	mtx_shared_lock_shared(&node->node_lock);
+	mtx_lock(&node->node_lock);
 
 	size_t attributeCount = HASH_COUNT(node->attributes);
 
 	// If none, exit gracefully.
 	if (attributeCount == 0) {
-		mtx_shared_unlock_shared(&node->node_lock);
+		mtx_unlock(&node->node_lock);
 
 		*numAttributes = 0;
 		return (NULL);
@@ -717,7 +717,7 @@ static sshsNodeAttr *sshsNodeGetAttributes(sshsNode node, size_t *numAttributes)
 		attributes[i++] = a;
 	}
 
-	mtx_shared_unlock_shared(&node->node_lock);
+	mtx_unlock(&node->node_lock);
 
 	// Sort by name.
 	qsort(attributes, attributeCount, sizeof(sshsNodeAttr), &sshsNodeAttrCmp);
@@ -1333,14 +1333,14 @@ union sshs_node_attr_range sshsNodeGetAttributeMinRange(sshsNode node, const cha
 	memcpy(searchKey, &type, sizeof(enum sshs_node_attr_value_type));
 	strcpy((char *) (searchKey + sizeof(enum sshs_node_attr_value_type)), key);
 
-	mtx_shared_lock_shared(&node->node_lock);
+	mtx_lock(&node->node_lock);
 
 	sshsNodeAttr attr;
 	HASH_FIND(hh, node->attributes, searchKey, fullKeyLength, attr);
 
 	// Verify that a valid attribute exists.
 	if (attr == NULL) {
-		mtx_shared_unlock_shared(&node->node_lock);
+		mtx_unlock(&node->node_lock);
 
 		char errorMsg[1024];
 		snprintf(errorMsg, 1024,
@@ -1355,7 +1355,7 @@ union sshs_node_attr_range sshsNodeGetAttributeMinRange(sshsNode node, const cha
 
 	union sshs_node_attr_range minRange = attr->min;
 
-	mtx_shared_unlock_shared(&node->node_lock);
+	mtx_unlock(&node->node_lock);
 
 	return (minRange);
 }
@@ -1371,14 +1371,14 @@ union sshs_node_attr_range sshsNodeGetAttributeMaxRange(sshsNode node, const cha
 	memcpy(searchKey, &type, sizeof(enum sshs_node_attr_value_type));
 	strcpy((char *) (searchKey + sizeof(enum sshs_node_attr_value_type)), key);
 
-	mtx_shared_lock_shared(&node->node_lock);
+	mtx_lock(&node->node_lock);
 
 	sshsNodeAttr attr;
 	HASH_FIND(hh, node->attributes, searchKey, fullKeyLength, attr);
 
 	// Verify that a valid attribute exists.
 	if (attr == NULL) {
-		mtx_shared_unlock_shared(&node->node_lock);
+		mtx_unlock(&node->node_lock);
 
 		char errorMsg[1024];
 		snprintf(errorMsg, 1024,
@@ -1393,7 +1393,7 @@ union sshs_node_attr_range sshsNodeGetAttributeMaxRange(sshsNode node, const cha
 
 	union sshs_node_attr_range maxRange = attr->max;
 
-	mtx_shared_unlock_shared(&node->node_lock);
+	mtx_unlock(&node->node_lock);
 
 	return (maxRange);
 }
@@ -1408,14 +1408,14 @@ enum sshs_node_attr_flags sshsNodeGetAttributeFlags(sshsNode node, const char *k
 	memcpy(searchKey, &type, sizeof(enum sshs_node_attr_value_type));
 	strcpy((char *) (searchKey + sizeof(enum sshs_node_attr_value_type)), key);
 
-	mtx_shared_lock_shared(&node->node_lock);
+	mtx_lock(&node->node_lock);
 
 	sshsNodeAttr attr;
 	HASH_FIND(hh, node->attributes, searchKey, fullKeyLength, attr);
 
 	// Verify that a valid attribute exists.
 	if (attr == NULL) {
-		mtx_shared_unlock_shared(&node->node_lock);
+		mtx_unlock(&node->node_lock);
 
 		char errorMsg[1024];
 		snprintf(errorMsg, 1024,
@@ -1430,7 +1430,7 @@ enum sshs_node_attr_flags sshsNodeGetAttributeFlags(sshsNode node, const char *k
 
 	enum sshs_node_attr_flags flags = attr->flags;
 
-	mtx_shared_unlock_shared(&node->node_lock);
+	mtx_unlock(&node->node_lock);
 
 	return (flags);
 }
