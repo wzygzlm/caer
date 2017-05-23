@@ -1,5 +1,6 @@
 #include "base/mainloop.h"
 #include "base/module.h"
+#include "ext/sshs/sshs.hpp"
 
 #include <libcaer/events/frame.h>
 #include <libcaercpp/events/frame.hpp>
@@ -39,7 +40,7 @@ static bool caerFrameStatisticsInit(caerModuleData moduleData) {
 	caerFrameStatisticsState state = (caerFrameStatisticsState) moduleData->moduleState;
 
 	// Configurable number of bins.
-	sshsNodeCreateInt(moduleData->moduleNode, "numBins", 1024, 4, UINT16_MAX + 1, SSHS_FLAGS_NORMAL);
+	sshsNodeCreate(moduleData->moduleNode, "numBins", 1024, 4, UINT16_MAX + 1);
 	state->numBins = sshsNodeGetInt(moduleData->moduleNode, "numBins");
 
 	// Add config listeners last, to avoid having them dangling if Init doesn't succeed.
