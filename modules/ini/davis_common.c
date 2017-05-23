@@ -18,6 +18,7 @@ static void dvsConfigListener(sshsNode node, void *userData, enum sshs_node_attr
 static void apsConfigSend(sshsNode node, caerModuleData moduleData, struct caer_davis_info *devInfo);
 static void apsConfigListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
+static void updateExposureValue(caerDeviceHandle cdh, sshsNode apsNode);
 static void imuConfigSend(sshsNode node, caerModuleData moduleData);
 static void imuConfigListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
@@ -317,6 +318,9 @@ void caerInputDAVISExit(caerModuleData moduleData) {
 
 		free(biasNodes);
 	}
+
+	// Ensure Exposure value is coherent with libcaer.
+	updateExposureValue(moduleData->moduleState, apsNode);
 
 	caerDeviceDataStop(moduleData->moduleState);
 
@@ -1868,8 +1872,6 @@ static void apsConfigSend(sshsNode node, caerModuleData moduleData, struct caer_
 
 static void apsConfigListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue) {
-	UNUSED_ARGUMENT(node);
-
 	caerModuleData moduleData = userData;
 
 	if (event == SSHS_ATTRIBUTE_MODIFIED) {
@@ -2031,7 +2033,19 @@ static void apsConfigListener(sshsNode node, void *userData, enum sshs_node_attr
 		else if (changeType == SSHS_BOOL && caerStrEquals(changeKey, "AutoExposure")) {
 			caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_AUTOEXPOSURE,
 				changeValue.boolean);
+
+			// Update stored exposure value when exiting AutoExposure mode.
+			if (!changeValue.boolean) {
+				updateExposureValue(moduleData->moduleState, node);
+			}
 		}
+	}
+}
+
+static void updateExposureValue(caerDeviceHandle cdh, sshsNode apsNode) {
+	uint32_t currentExposure = 0;
+	if (caerDeviceConfigGet(cdh, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_EXPOSURE, &currentExposure)) {
+		sshsNodePutInt(apsNode, "Exposure", I32T(currentExposure));
 	}
 }
 
