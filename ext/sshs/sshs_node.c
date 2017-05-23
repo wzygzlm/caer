@@ -1217,11 +1217,11 @@ bool sshsNodeStringToNodeConverter(sshsNode node, const char *key, const char *t
 				break;
 
 			case SSHS_FLOAT:
-				sshsNodeCreateFloat(node, key, value.ffloat, FLT_MIN, FLT_MAX, SSHS_FLAGS_NORMAL);
+				sshsNodeCreateFloat(node, key, value.ffloat, -FLT_MAX, FLT_MAX, SSHS_FLAGS_NORMAL);
 				break;
 
 			case SSHS_DOUBLE:
-				sshsNodeCreateDouble(node, key, value.ddouble, DBL_MIN, DBL_MAX, SSHS_FLAGS_NORMAL);
+				sshsNodeCreateDouble(node, key, value.ddouble, -DBL_MAX, DBL_MAX, SSHS_FLAGS_NORMAL);
 				break;
 
 			case SSHS_STRING:
