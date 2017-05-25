@@ -492,7 +492,7 @@ static void caerConfigServerHandleRequest(uv_stream_t *client, uint8_t action, u
 
 			// Put given value into config node. Node, attr and type are already verified.
 			const char *typeStr = sshsHelperTypeToStringConverter(type);
-			if (!sshsNodeStringToNodeConverter(wantedNode, (const char *) key, typeStr, (const char *) value)) {
+			if (!sshsNodeStringToAttributeConverter(wantedNode, (const char *) key, typeStr, (const char *) value)) {
 				// Send back error message to client.
 				caerConfigSendError(client, "Impossible to convert value according to type.");
 

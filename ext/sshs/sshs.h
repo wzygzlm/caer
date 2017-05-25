@@ -144,7 +144,7 @@ void sshsNodeExportSubTreeToXML(sshsNode node, int outFd, const char **filterKey
 	const char **filterNodes, size_t filterNodesLength) CAER_SYMBOL_EXPORT;
 bool sshsNodeImportNodeFromXML(sshsNode node, int inFd, bool strict) CAER_SYMBOL_EXPORT;
 bool sshsNodeImportSubTreeFromXML(sshsNode node, int inFd, bool strict) CAER_SYMBOL_EXPORT;
-bool sshsNodeStringToNodeConverter(sshsNode node, const char *key, const char *type, const char *value)
+bool sshsNodeStringToAttributeConverter(sshsNode node, const char *key, const char *type, const char *value)
 	CAER_SYMBOL_EXPORT;
 const char **sshsNodeGetChildNames(sshsNode node, size_t *numNames) CAER_SYMBOL_EXPORT;
 const char **sshsNodeGetAttributeKeys(sshsNode node, size_t *numKeys) CAER_SYMBOL_EXPORT;

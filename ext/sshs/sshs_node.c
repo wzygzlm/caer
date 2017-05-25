@@ -1127,7 +1127,7 @@ static void sshsNodeConsumeXML(sshsNode node, mxml_node_t *content, bool recursi
 		// Get the needed values.
 		const char *value = mxmlGetOpaque(attrChildren[i]);
 
-		if (!sshsNodeStringToNodeConverter(node, key, type, value)) {
+		if (!sshsNodeStringToAttributeConverter(node, key, type, value)) {
 			char errorMsg[1024];
 			snprintf(errorMsg, 1024, "Failed to convert attribute '%s' of type '%s' with value '%s' from XML.", key,
 				type, value);
@@ -1166,7 +1166,7 @@ static void sshsNodeConsumeXML(sshsNode node, mxml_node_t *content, bool recursi
 	}
 }
 
-bool sshsNodeStringToNodeConverter(sshsNode node, const char *key, const char *typeStr, const char *valueStr) {
+bool sshsNodeStringToAttributeConverter(sshsNode node, const char *key, const char *typeStr, const char *valueStr) {
 	// Parse the values according to type and put them in the node.
 	enum sshs_node_attr_value_type type;
 	type = sshsHelperStringToTypeConverter(typeStr);

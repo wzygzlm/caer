@@ -123,7 +123,7 @@ void caerConfigInit(int argc, char *argv[]) {
 				caerLog(CAER_LOG_EMERGENCY, "Config", "SSHS: node '%s' doesn't exist on override.", iter[0].c_str());
 			}
 			else {
-				if (!sshsNodeStringToNodeConverter(node, iter[1].c_str(), iter[2].c_str(), iter[3].c_str())) {
+				if (!sshsNodeStringToAttributeConverter(node, iter[1].c_str(), iter[2].c_str(), iter[3].c_str())) {
 					caerLog(CAER_LOG_EMERGENCY, "Config",
 						"SSHS: failed to convert attribute '%s' of type '%s' with value '%s' on override.",
 						iter[1].c_str(), iter[2].c_str(), iter[3].c_str());
