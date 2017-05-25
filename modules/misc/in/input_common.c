@@ -1580,7 +1580,7 @@ static void doPacketContainerCommit(inputCommonState state, caerEventPacketConta
 
 		caerEventPacketContainerFree(packetContainer);
 
-		caerModuleLog(state->parentModule, CAER_LOG_INFO,
+		caerModuleLog(state->parentModule, CAER_LOG_NOTICE,
 			"Failed to put new packet container on transfer ring-buffer: full.");
 	}
 	else {
@@ -1709,7 +1709,7 @@ static int inputAssemblerThread(void *stateArg) {
 			// Discard non-compliant packets.
 			free(currPacket);
 
-			caerModuleLog(state->parentModule, CAER_LOG_INFO, "Dropping packet due to incorrect timestamp order. "
+			caerModuleLog(state->parentModule, CAER_LOG_NOTICE, "Dropping packet due to incorrect timestamp order. "
 				"Order-relevant timestamp is %" PRIi64 ", but expected was at least %" PRIi64 ".",
 				currPacketData.startTimestamp, state->packetContainer.lastPacketTimestamp);
 			continue;

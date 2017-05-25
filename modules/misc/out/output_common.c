@@ -302,7 +302,7 @@ static void copyPacketsToTransferRing(outputCommonState state, caerEventPacketCo
 
 		caerEventPacketContainerFree(eventPackets);
 
-		caerModuleLog(state->parentModule, CAER_LOG_INFO,
+		caerModuleLog(state->parentModule, CAER_LOG_NOTICE,
 			"Failed to put packet's array copy on transfer ring-buffer: full.");
 	}
 }
