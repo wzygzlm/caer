@@ -47,8 +47,9 @@ static bool caerImageGeneratorInit(caerModuleData moduleData) {
 
 	sshsNodeCreateInt(moduleData->moduleNode, "numSpikes", 2000, 0, 200000, SSHS_FLAGS_NORMAL,
 		"Number of spikes to accumulate.");
-	sshsNodeCreateBool(moduleData->moduleNode, "rectifyPolarities", true, SSHS_FLAGS_NORMAL, "TODO.");
-	sshsNodeCreateShort(moduleData->moduleNode, "colorScale", 200, 0, 255, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateBool(moduleData->moduleNode, "rectifyPolarities", true, SSHS_FLAGS_NORMAL,
+		"Consider ON/OFF polarities the same.");
+	sshsNodeCreateShort(moduleData->moduleNode, "colorScale", 200, 0, 255, SSHS_FLAGS_NORMAL, "Color scale.");
 	sshsNodeCreateShort(moduleData->moduleNode, "outputFrameSizeX", 32, 1, 1024, SSHS_FLAGS_NORMAL,
 		"Output frame width.");
 	sshsNodeCreateShort(moduleData->moduleNode, "outputFrameSizeY", 32, 1, 1024, SSHS_FLAGS_NORMAL,
@@ -162,8 +163,8 @@ static void caerImageGeneratorRun(caerModuleData moduleData, caerEventPacketCont
 		uint16_t y = caerPolarityEventGetY(caerPolarityIteratorElement);
 		bool pol = caerPolarityEventGetPolarity(caerPolarityIteratorElement);
 
-		uint16_t pos_x = U16T(floorf(res_x * (float) x));
-		uint16_t pos_y = U16T(floorf(res_y * (float) y));
+		uint16_t pos_x = U16T(floorf(res_x * (float ) x));
+		uint16_t pos_y = U16T(floorf(res_y * (float ) y));
 
 		// Update image Map
 		if (state->rectifyPolarities) {
@@ -220,9 +221,9 @@ static void caerImageGeneratorRun(caerModuleData moduleData, caerEventPacketCont
 	uint32_t counter = 0;
 	for (size_t x = 0; x < state->outputFrame->sizeX; x++) {
 		for (size_t y = 0; y < state->outputFrame->sizeY; y++) {
-			singleplot->pixels[counter] = (uint16_t) ((int) (state->outputFrame->buffer2d[x][y] * 14)); // red
-			singleplot->pixels[counter + 1] = (uint16_t) ((int) (state->outputFrame->buffer2d[x][y] * 14)); // green
-			singleplot->pixels[counter + 2] = (uint16_t) ((int) (state->outputFrame->buffer2d[x][y] * 14)); // blue
+			singleplot->pixels[counter] = U16T(state->outputFrame->buffer2d[x][y] * 14); // red
+			singleplot->pixels[counter + 1] = U16T(state->outputFrame->buffer2d[x][y] * 14); // green
+			singleplot->pixels[counter + 2] = U16T(state->outputFrame->buffer2d[x][y] * 14); // blue
 			counter += 3;
 		}
 	}
