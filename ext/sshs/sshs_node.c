@@ -526,7 +526,16 @@ static inline void sshsNodeVerifyValidAttribute(sshsNodeAttr attr, const char *k
 	}
 }
 
-void sshsNodeDeleteAttribute(sshsNode node, const char *key, enum sshs_node_attr_value_type type) {
+static inline void sshsNodeFreeAttribute(sshsNodeAttr attr) {
+	// Free attribute's string memory, then attribute itself.
+	if (attr->value_type == SSHS_STRING) {
+		free(attr->value.string);
+	}
+
+	free(attr);
+}
+
+void sshsNodeRemoveAttribute(sshsNode node, const char *key, enum sshs_node_attr_value_type type) {
 	sshsNodeAttr attr = sshsNodeFindAttribute(node, key, type);
 
 	// Verify that a valid attribute exists.
@@ -544,12 +553,32 @@ void sshsNodeDeleteAttribute(sshsNode node, const char *key, enum sshs_node_attr
 
 	mtx_unlock(&node->node_lock);
 
-	// Free attribute's string memory, then attribute itself.
-	if (type == SSHS_STRING) {
-		free(attr->value.string);
+	sshsNodeFreeAttribute(attr);
+}
+
+void sshsNodeRemoveAllAttributes(sshsNode node) {
+	mtx_lock(&node->node_lock);
+
+	sshsNodeAttr currAttr, tmpAttr;
+	HASH_ITER(hh, node->attributes, currAttr, tmpAttr)
+	{
+		// Remove attribute from node.
+		HASH_DELETE(hh, node->attributes, currAttr);
+
+		// Listener support.
+		sshsNodeAttrListener l;
+		LL_FOREACH(node->attrListeners, l)
+		{
+			l->attribute_changed(node, l->userData, SSHS_ATTRIBUTE_REMOVED, currAttr->key, currAttr->value_type,
+				currAttr->value);
+		}
+
+		sshsNodeFreeAttribute(currAttr);
 	}
 
-	free(attr);
+	HASH_CLEAR(hh, node->attributes);
+
+	mtx_unlock(&node->node_lock);
 }
 
 bool sshsNodeAttributeExists(sshsNode node, const char *key, enum sshs_node_attr_value_type type) {
