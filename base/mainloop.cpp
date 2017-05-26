@@ -2139,13 +2139,22 @@ sshsNode caerMainloopGetSourceNode(int16_t sourceID) {
 }
 
 sshsNode caerMainloopGetSourceInfo(int16_t sourceID) {
-	sshsNode sourceNode = caerMainloopGetSourceNode(sourceID);
-	if (sourceNode == NULL) {
-		return (NULL);
+	caerModuleData moduleData = glMainloopData.modules[sourceID].runtimeData;
+	if (moduleData == nullptr) {
+		return (nullptr);
 	}
 
-	// All sources have a sub-node in SSHS called 'sourceInfo/'.
-	return (sshsGetRelativeNode(sourceNode, "sourceInfo/"));
+	// All sources should have a sub-node in SSHS called 'sourceInfo/',
+	// while they are running only (so check running and existence).
+	if (moduleData->moduleStatus == CAER_MODULE_STOPPED) {
+		return (nullptr);
+	}
+
+	if (!sshsExistsRelativeNode(moduleData->moduleNode, "sourceInfo/")) {
+		return (nullptr);
+	}
+
+	return (sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/"));
 }
 
 void *caerMainloopGetSourceState(int16_t sourceID) {
