@@ -38,14 +38,15 @@ caerModuleInfo caerModuleGetInfo(void) {
 }
 
 static bool caerBackgroundActivityFilterInit(caerModuleData moduleData) {
-	sshsNodeCreateInt(moduleData->moduleNode, "deltaT", 30000, 1, 10000000, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateByte(moduleData->moduleNode, "subSampleBy", 0, 0, 20, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateBool(moduleData->moduleNode, "testingMode", false, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateInt(moduleData->moduleNode, "deltaT", 30000, 1, 10000000, SSHS_FLAGS_NORMAL,
+		"Maximum time difference in µs for events to be considered correlated and not be filtered out.");
+	sshsNodeCreateByte(moduleData->moduleNode, "subSampleBy", 0, 0, 20, SSHS_FLAGS_NORMAL,
+		"Sub-sample event addresses by shifting right by this amount.");
 
 	// Always initialize to zero at init.
 	// Corresponding variable is already zero in state memory.
 	sshsNodeCreateLong(moduleData->moduleNode, "invalidPointNum", 0, 0, INT64_MAX,
-		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+		SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE, "Number of events filtered out by this module.");
 
 	BAFilterState state = moduleData->moduleState;
 
@@ -137,8 +138,8 @@ static void caerBackgroundActivityFilterRun(caerModuleData moduleData, caerEvent
 	CAER_POLARITY_ITERATOR_VALID_END
 
 	// Only update SSHS once per packet (expensive call).
-	sshsNodeCreateLong(moduleData->moduleNode, "invalidPointNum", state->invalidPointNum, 0, INT64_MAX,
-		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+	sshsNodeUpdateReadOnlyAttribute(moduleData->moduleNode, "invalidPointNum", SSHS_LONG,
+		(union sshs_node_attr_value ) { .ilong = state->invalidPointNum });
 }
 
 static void caerBackgroundActivityFilterConfig(caerModuleData moduleData) {
@@ -170,8 +171,8 @@ static void caerBackgroundActivityFilterReset(caerModuleData moduleData, int16_t
 
 	// Reset invalid points counters to zero (startup state).
 	state->invalidPointNum = 0;
-	sshsNodeCreateLong(moduleData->moduleNode, "invalidPointNum", 0, 0, INT64_MAX,
-		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+	sshsNodeUpdateReadOnlyAttribute(moduleData->moduleNode, "invalidPointNum", SSHS_LONG,
+		(union sshs_node_attr_value ) { .ilong = 0 });
 }
 
 static bool allocateTimestampMap(caerModuleData moduleData, int16_t sourceID) {
