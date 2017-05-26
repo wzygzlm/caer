@@ -168,13 +168,15 @@ static void copyPacketsToTransferRing(outputCommonState state, caerEventPacketCo
 			int16_t sourceID = I16T(atomic_load_explicit(&state->sourceID, memory_order_relaxed));
 
 			if (sourceID == -1) {
-				state->sourceInfoNode = caerMainloopGetSourceInfo(eventSource);
-				if (state->sourceInfoNode == NULL) {
+				sshsNode sourceInfoNode = caerMainloopGetSourceInfo(eventSource);
+				if (sourceInfoNode == NULL) {
 					// This should never happen, but we handle it gracefully.
 					caerModuleLog(state->parentModule, CAER_LOG_ERROR,
 						"Failed to get source info to setup output module.");
 					return;
 				}
+
+				state->sourceInfoString = sshsNodeGetString(sourceInfoNode, "sourceString");
 
 				atomic_store(&state->sourceID, eventSource); // Remember this!
 			}
@@ -1220,9 +1222,7 @@ static void writeFileHeader(outputCommonState state) {
 
 	writeUntilDone(state->fileIO, (const uint8_t *) "\r\n", 2);
 
-	char *sourceString = sshsNodeGetString(state->sourceInfoNode, "sourceString");
-	writeUntilDone(state->fileIO, (const uint8_t *) sourceString, strlen(sourceString));
-	free(sourceString);
+	writeUntilDone(state->fileIO, (const uint8_t *) state->sourceInfoString, strlen(state->sourceInfoString));
 
 	// First prepend the time.
 	time_t currentTimeEpoch = time(NULL);
@@ -1323,6 +1323,8 @@ void caerOutputCommonOnServerConnection(uv_stream_t *server, int status) {
 			streams->clients[i] = client;
 			streams->activeClients++;
 
+			// TODO: add client IP to connected clients list.
+
 			return;
 		}
 	}
@@ -1384,7 +1386,8 @@ bool caerOutputCommonInit(caerModuleData moduleData, int fileDescriptor, outputC
 
 	// If in server mode, add SSHS attribute to track connected client IPs.
 	if (state->isNetworkStream && state->networkIO->server != NULL) {
-		sshsNodePutString(state->parentModule->moduleNode, "connectedClients", "");
+		sshsNodeCreateString(state->parentModule->moduleNode, "connectedClients", "", 0, SIZE_MAX,
+			SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE);
 	}
 
 	// Initial source ID has to be -1 (invalid).
@@ -1549,6 +1552,8 @@ void caerOutputCommonExit(caerModuleData moduleData) {
 		// Close file descriptor.
 		close(state->fileIO);
 	}
+
+	free(state->sourceInfoString);
 
 	// Print final statistics results.
 	caerModuleLog(state->parentModule, CAER_LOG_INFO,

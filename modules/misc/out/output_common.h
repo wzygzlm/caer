@@ -52,9 +52,9 @@ struct output_common_state {
 	atomic_bool outputThreadFailure;
 	/// Track source ID (cannot change!). One source per I/O module!
 	atomic_int_fast16_t sourceID;
-	/// Source information node for that particular source ID.
+	/// Source information string for that particular source ID.
 	/// Must be set by mainloop, external threads cannot get it directly!
-	sshsNode sourceInfoNode;
+	char *sourceInfoString;
 	/// The file descriptor for file writing.
 	int fileIO;
 	/// Network-like stream or file-like stream. Matters for header format.
