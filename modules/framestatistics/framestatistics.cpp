@@ -40,7 +40,8 @@ static bool caerFrameStatisticsInit(caerModuleData moduleData) {
 	caerFrameStatisticsState state = (caerFrameStatisticsState) moduleData->moduleState;
 
 	// Configurable number of bins.
-	sshsNodeCreate(moduleData->moduleNode, "numBins", 1024, 4, UINT16_MAX + 1);
+	sshsNodeCreate(moduleData->moduleNode, "numBins", 1024, "Number of bins in which to divide values up.", 4,
+		UINT16_MAX + 1);
 	state->numBins = sshsNodeGetInt(moduleData->moduleNode, "numBins");
 
 	// Add config listeners last, to avoid having them dangling if Init doesn't succeed.
