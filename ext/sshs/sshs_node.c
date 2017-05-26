@@ -468,36 +468,28 @@ void sshsNodeCreateAttribute(sshsNode node, const char *key, enum sshs_node_attr
 		free(newAttr);
 	}
 
-	mtx_unlock(&node->node_lock);
-
 	if (oldAttr == NULL) {
 		// Listener support. Call only on change, which is always the case here.
-		mtx_lock(&node->node_lock);
-
 		sshsNodeAttrListener l;
 		LL_FOREACH(node->attrListeners, l)
 		{
 			l->attribute_changed(node, l->userData, SSHS_ATTRIBUTE_ADDED, key, type, defaultValue);
 		}
-
-		mtx_unlock(&node->node_lock);
 	}
 	else {
 		// Let's check if anything changed with this update and call
 		// the appropriate listeners if needed.
 		if (attrValueChanged) {
 			// Listener support. Call only on change, which is always the case here.
-			mtx_lock(&node->node_lock);
-
 			sshsNodeAttrListener l;
 			LL_FOREACH(node->attrListeners, l)
 			{
 				l->attribute_changed(node, l->userData, SSHS_ATTRIBUTE_MODIFIED, key, type, defaultValue);
 			}
-
-			mtx_unlock(&node->node_lock);
 		}
 	}
+
+	mtx_unlock(&node->node_lock);
 }
 
 bool sshsNodeAttributeExists(sshsNode node, const char *key, enum sshs_node_attr_value_type type) {
@@ -587,22 +579,18 @@ bool sshsNodePutAttribute(sshsNode node, const char *key, enum sshs_node_attr_va
 		}
 	}
 
-	mtx_unlock(&node->node_lock);
-
 	// Let's check if anything changed with this update and call
 	// the appropriate listeners if needed.
 	if (sshsNodeCheckAttributeValueChanged(type, attrValueOld, value)) {
 		// Listener support. Call only on change, which is always the case here.
-		mtx_lock(&node->node_lock);
-
 		sshsNodeAttrListener l;
 		LL_FOREACH(node->attrListeners, l)
 		{
 			l->attribute_changed(node, l->userData, SSHS_ATTRIBUTE_MODIFIED, key, type, value);
 		}
-
-		mtx_unlock(&node->node_lock);
 	}
+
+	mtx_unlock(&node->node_lock);
 
 	// Free oldAttr's string memory, not used anymore.
 	if ((attr->flags & SSHS_FLAGS_NOTIFY_ONLY) == 0) {
