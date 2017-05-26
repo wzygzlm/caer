@@ -438,6 +438,8 @@ void sshsNodeCreateAttribute(sshsNode node, const char *key, enum sshs_node_attr
 		// Then we either update the value to the default value, if the
 		// appropriate flag is set, or else we check if the current value
 		// is still fine and within range; if it's not, we replace it.
+		union sshs_node_attr_value attrValueOld = oldAttr->value;
+
 		if (flags & SSHS_FLAGS_FORCE_DEFAULT_VALUE) {
 			attrValueChanged = true;
 
@@ -456,6 +458,11 @@ void sshsNodeCreateAttribute(sshsNode node, const char *key, enum sshs_node_attr
 					free(newAttr->value.string);
 				}
 			}
+		}
+
+		if (attrValueChanged && type == SSHS_STRING) {
+			// Free old string memory.
+			free(attrValueOld.string);
 		}
 
 		free(newAttr);
