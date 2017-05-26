@@ -106,9 +106,9 @@ void caerConfigInit(int argc, char *argv[]) {
 		atexit(&caerConfigWriteBack);
 	}
 	else {
-		caerLog(CAER_LOG_EMERGENCY, "Config",
-			"Could not create and/or read from the configuration file '%s'. Error: %d.", configFile.c_str(), errno);
-		exit(EXIT_FAILURE);
+		std::cout << "Supplied configuration file " << configFile << " could not be created or read. Error: "
+			<< strerror(errno) << "." << std::endl;
+		printHelpAndExit(cliDescription);
 	}
 
 	// Override with command-line arguments if requested.
@@ -118,16 +118,34 @@ void caerConfigInit(int argc, char *argv[]) {
 		auto iter = configOverrides.begin();
 
 		while (iter != configOverrides.end()) {
-			sshsNode node = sshsGetNode(sshsGetGlobal(), iter[0].c_str());
-			if (node == NULL) {
-				caerLog(CAER_LOG_EMERGENCY, "Config", "SSHS: node '%s' doesn't exist on override.", iter[0].c_str());
+			bool nodeExists = sshsExistsNode(sshsGetGlobal(), iter[0].c_str());
+
+			// Only allow operations on existing nodes.
+			if (!nodeExists) {
+				std::cout << "SSHS: node '" << iter[0] << "' doesn't exist on override." << std::endl;
+
+				iter += 4;
+				continue;
 			}
-			else {
-				if (!sshsNodeStringToAttributeConverter(node, iter[1].c_str(), iter[2].c_str(), iter[3].c_str())) {
-					caerLog(CAER_LOG_EMERGENCY, "Config",
-						"SSHS: failed to convert attribute '%s' of type '%s' with value '%s' on override.",
-						iter[1].c_str(), iter[2].c_str(), iter[3].c_str());
-				}
+
+			// This cannot fail, since we know the node exists from above.
+			sshsNode node = sshsGetNode(sshsGetGlobal(), iter[0].c_str());
+
+			// Check if attribute exists. Only allow operations on existing attributes!
+			bool attrExists = sshsNodeAttributeExists(node, iter[1].c_str(),
+				sshsHelperStringToTypeConverter(iter[2].c_str()));
+
+			if (!attrExists) {
+				std::cout << "SSHS: attribute '" << iter[1] << "' of type '" << iter[2]
+					<< "' doesn't exist on override." << std::endl;
+
+				iter += 4;
+				continue;
+			}
+
+			if (!sshsNodeStringToAttributeConverter(node, iter[1].c_str(), iter[2].c_str(), iter[3].c_str())) {
+				std::cout << "SSHS: failed to convert attribute '" << iter[1] << "' of type '" << iter[2]
+					<< "' with value '" << iter[3] << "' on override." << std::endl;
 			}
 
 			iter += 4;
