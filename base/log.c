@@ -27,13 +27,15 @@ void caerLogInit(void) {
 	strcpy(logFilePath, logFileDirClean);
 	strcat(logFilePath, logFileName);
 
-	sshsNodeCreateString(logNode, "logFile", logFilePath, 2, PATH_MAX, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateString(logNode, "logFile", logFilePath, 2, PATH_MAX, SSHS_FLAGS_NORMAL,
+		"Path to the file where all log messages are written to.");
 
 	free(logFilePath);
 	free(logFileDirClean);
 	free(logFileDir);
 
-	sshsNodeCreateByte(logNode, "logLevel", CAER_LOG_NOTICE, CAER_LOG_EMERGENCY, CAER_LOG_DEBUG, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateByte(logNode, "logLevel", CAER_LOG_NOTICE, CAER_LOG_EMERGENCY, CAER_LOG_DEBUG, SSHS_FLAGS_NORMAL,
+		"Global log-level.");
 
 	// Try to open the specified file and error out if not possible.
 	char *logFile = sshsNodeGetString(logNode, "logFile");
