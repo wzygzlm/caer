@@ -1528,7 +1528,7 @@ void caerOutputCommonExit(caerModuleData moduleData) {
 	if (state->isNetworkStream) {
 		if (state->networkIO->server != NULL) {
 			// Server shut down, no more clients.
-			sshsNodePutString(state->parentModule->moduleNode, "connectedClients", "");
+			sshsNodeRemoveAttribute(state->parentModule->moduleNode, "connectedClients", SSHS_STRING);
 		}
 
 		// Cleanup all remaining handles and run until all callbacks are done.

@@ -2008,8 +2008,12 @@ void caerInputCommonExit(caerModuleData moduleData) {
 	free(state->packets.currPacketData);
 	free(state->packets.currPacket);
 
+	// Clear sourceInfo node.
+	sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
+	sshsNodeRemoveAllAttributes(sourceInfoNode);
+
 	if (sshsNodeGetBool(moduleData->moduleNode, "autoRestart")) {
-		// Prime input module again so that it will try to restart if new devices detected.
+		// Prime input module again so that it will try to restart automatically.
 		sshsNodePutBool(moduleData->moduleNode, "running", true);
 	}
 }

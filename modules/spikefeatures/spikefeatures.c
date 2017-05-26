@@ -39,29 +39,17 @@ static struct caer_module_functions caerSpikeFeaturesFunctions = { .moduleInit =
 	&caerSpikeFeaturesRun, .moduleConfig = &caerSpikeFeaturesConfig, .moduleExit = &caerSpikeFeaturesExit,
 	.moduleReset = &caerSpikeFeaturesReset };
 
+static const struct caer_event_stream_in moduleInputs[] = { { .type = POLARITY_EVENT, .number = 1, .readOnly = true }, };
 
-static const struct caer_event_stream_in moduleInputs[] = {
-    { .type = POLARITY_EVENT, .number = 1, .readOnly = true },
-};
+static const struct caer_event_stream_out moduleOutputs[] = { { .type = FRAME_EVENT } };
 
-static const struct caer_event_stream_out moduleOutputs[] = {
-    { .type = FRAME_EVENT }
-};
-
-static const struct caer_module_info moduleInfo = {
-    .version = 1,
-    .name = "SpikeFeatures",
-    .type = CAER_MODULE_PROCESSOR,
-    .memSize = sizeof(struct SFFilter_state),
-    .functions = &caerSpikeFeaturesFunctions,
-    .inputStreams = moduleInputs,
-    .inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(moduleInputs),
-    .outputStreams = moduleOutputs,
-    .outputStreamsSize = CAER_EVENT_STREAM_OUT_SIZE(moduleOutputs)
-};
+static const struct caer_module_info moduleInfo = { .version = 1, .name = "SpikeFeatures",
+	.type = CAER_MODULE_PROCESSOR, .memSize = sizeof(struct SFFilter_state), .functions = &caerSpikeFeaturesFunctions,
+	.inputStreams = moduleInputs, .inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(moduleInputs), .outputStreams =
+		moduleOutputs, .outputStreamsSize = CAER_EVENT_STREAM_OUT_SIZE(moduleOutputs) };
 
 caerModuleInfo caerModuleGetInfo(void) {
-    return (&moduleInfo);
+	return (&moduleInfo);
 }
 
 static bool caerSpikeFeaturesInit(caerModuleData moduleData) {
@@ -83,30 +71,24 @@ static bool caerSpikeFeaturesInit(caerModuleData moduleData) {
 	return (true);
 }
 
-static void caerSpikeFeaturesRun(caerModuleData moduleData, caerEventPacketContainer in,
-    caerEventPacketContainer *out){
+static void caerSpikeFeaturesRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out) {
 
-
-	caerPolarityEventPacketConst polarity = (caerPolarityEventPacketConst)
-	    caerEventPacketContainerFindEventPacketByTypeConst(in, POLARITY_EVENT);
+	caerPolarityEventPacketConst polarity =
+		(caerPolarityEventPacketConst) caerEventPacketContainerFindEventPacketByTypeConst(in, POLARITY_EVENT);
 
 	// Only process packets with content.
 	if (polarity == NULL) {
 		return;
 	}
 
-	int32_t sourceID = caerEventPacketHeaderGetEventSource(&polarity->packetHeader);
+	int16_t sourceID = caerEventPacketHeaderGetEventSource(&polarity->packetHeader);
 	sshsNode sourceInfoNodeCA = caerMainloopGetSourceInfo(sourceID);
 	sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
 	if (!sshsNodeAttributeExists(sourceInfoNode, "dataSizeX", SSHS_SHORT)) { //to do for visualizer change name of field to a more generic one
 		sshsNodeCreateShort(sourceInfoNode, "dataSizeX", sshsNodeGetShort(sourceInfoNodeCA, "dvsSizeX"), 1, 1024,
-					SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+			SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
 		sshsNodeCreateShort(sourceInfoNode, "dataSizeY", sshsNodeGetShort(sourceInfoNodeCA, "dvsSizeY"), 1, 1024,
-					SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
-	}
-	if (sourceInfoNode == NULL) {
-		// This should never happen, but we handle it gracefully.
-		return;
+			SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
 	}
 
 	int16_t sizeX = sshsNodeGetShort(sourceInfoNodeCA, "dvsSizeX");
@@ -125,7 +107,8 @@ static void caerSpikeFeaturesRun(caerModuleData moduleData, caerEventPacketConta
 	if (state->surfaceMapLastTs == NULL) {
 		if (!allocateSurfaceMapLastTs(state, caerEventPacketHeaderGetEventSource(&polarity->packetHeader))) {
 			// Failed to allocate memory, nothing to do.
-			caerLog(CAER_LOG_ERROR, moduleData->moduleSubSystemString, "Failed to allocate memory for surfaceMapLastTs.");
+			caerLog(CAER_LOG_ERROR, moduleData->moduleSubSystemString,
+				"Failed to allocate memory for surfaceMapLastTs.");
 			return;
 		}
 	}
@@ -145,15 +128,16 @@ static void caerSpikeFeaturesRun(caerModuleData moduleData, caerEventPacketConta
 	for (size_t x = 0; x < sizeX; x++) {
 		for (size_t y = 0; y < sizeY; y++) {
 			state->surfaceMapLastTs->buffer2d[x][y] = ts;
-			if(state->surfaceMap->buffer2d[x][y] == 0){
+			if (state->surfaceMap->buffer2d[x][y] == 0) {
 				continue;
-			}else{
-				int64_t dt = (state->surfaceMapLastTs->buffer2d[x][y]  - ts);
+			}
+			else {
+				int64_t dt = (state->surfaceMapLastTs->buffer2d[x][y] - ts);
 				float decay = state->tau * dt;
 				//printf("decay %f\n", decay);
 				state->surfaceMap->buffer2d[x][y] -= state->tau; // decay
-				if(state->surfaceMap->buffer2d[x][y]  < 0){
-					state->surfaceMap->buffer2d[x][y]  = 0;
+				if (state->surfaceMap->buffer2d[x][y] < 0) {
+					state->surfaceMap->buffer2d[x][y] = 0;
 				}
 			}
 		}
@@ -165,19 +149,18 @@ static void caerSpikeFeaturesRun(caerModuleData moduleData, caerEventPacketConta
 	// Allocate packet container for result packet.
 	*out = caerEventPacketContainerAllocate(1);
 	if (*out == NULL) {
-	    return; // Error.
+		return; // Error.
 	}
 
 	// everything that is in the out packet container will be automatically be free after main loop
 	caerFrameEventPacket frameOut = caerFrameEventPacketAllocate(1, moduleData->moduleID, 0, sizeX, sizeY, 3);
 	if (frameOut == NULL) {
-	    return; // Error.
+		return; // Error.
 	}
 	else {
-	    // Add output packet to packet container.
-	    caerEventPacketContainerSetEventPacket(*out, 0, (caerEventPacketHeader) frameOut);
+		// Add output packet to packet container.
+		caerEventPacketContainerSetEventPacket(*out, 0, (caerEventPacketHeader) frameOut);
 	}
-
 
 	// put info into frame
 	caerFrameEvent singleplot = caerFrameEventPacketGetEvent(frameOut, 0);
@@ -195,8 +178,6 @@ static void caerSpikeFeaturesRun(caerModuleData moduleData, caerEventPacketConta
 	caerFrameEventSetLengthXLengthYChannelNumber(singleplot, sizeX, sizeY, 3, frameOut);
 	//validate frame
 	caerFrameEventValidate(singleplot, frameOut);
-
-
 }
 
 static void caerSpikeFeaturesConfig(caerModuleData moduleData) {
@@ -218,6 +199,10 @@ static void caerSpikeFeaturesExit(caerModuleData moduleData) {
 	for (size_t i = 0; i < num_features_map; i++) {
 		simple2DBufferFreeLong(state->featuresMap[i]);
 	}
+
+	// Clear sourceInfo node.
+	sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
+	sshsNodeRemoveAllAttributes(sourceInfoNode);
 }
 
 static void caerSpikeFeaturesReset(caerModuleData moduleData, int16_t resetCallSourceID) {
@@ -290,6 +275,6 @@ static bool allocateFeaturesMap(SFFilterState state, int16_t sourceID) {
 			return (false);
 		}
 	}
+
 	return (true);
 }
-

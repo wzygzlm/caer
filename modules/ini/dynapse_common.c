@@ -1680,6 +1680,11 @@ void caerInputDYNAPSEExit(caerModuleData moduleData) {
 	caerDeviceDataStop(((caerInputDynapseState) moduleData->moduleState)->deviceState);
 	//caerDeviceClose((caerDeviceHandle *) &moduleData->moduleState);
 	caerDeviceClose(&(((caerInputDynapseState) moduleData->moduleState)->deviceState));
+
+	// Clear sourceInfo node.
+	sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
+	sshsNodeRemoveAllAttributes(sourceInfoNode);
+
 	if (sshsNodeGetBool(moduleData->moduleNode, "autoRestart")) {
 		// Prime input module again so that it will try to restart if new devices detected.
 		sshsNodePutBool(moduleData->moduleNode, "running", true);

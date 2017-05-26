@@ -141,10 +141,9 @@ void caerConfigWriteBack(void) {
 	int configFileFd = open(configFile.c_str(), O_WRONLY | O_TRUNC);
 
 	if (configFileFd >= 0) {
-		const char *filterKeys[] = { "running", "connectedClients" };
-		const char *filterNodes[] = { "sourceInfo" };
+		const char *filterKeys[] = { "running" };
 
-		sshsNodeExportSubTreeToXML(sshsGetNode(sshsGetGlobal(), "/"), configFileFd, filterKeys, 2, filterNodes, 1);
+		sshsNodeExportSubTreeToXML(sshsGetNode(sshsGetGlobal(), "/"), configFileFd, filterKeys, 1, NULL, 0);
 
 		close(configFileFd);
 	}

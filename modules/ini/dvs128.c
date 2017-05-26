@@ -184,6 +184,10 @@ static void caerInputDVS128Exit(caerModuleData moduleData) {
 
 	caerDeviceClose((caerDeviceHandle *) &moduleData->moduleState);
 
+	// Clear sourceInfo node.
+	sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
+	sshsNodeRemoveAllAttributes(sourceInfoNode);
+
 	if (sshsNodeGetBool(moduleData->moduleNode, "autoRestart")) {
 		// Prime input module again so that it will try to restart if new devices detected.
 		sshsNodePutBool(moduleData->moduleNode, "running", true);

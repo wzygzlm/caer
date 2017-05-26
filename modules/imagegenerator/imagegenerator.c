@@ -110,8 +110,9 @@ static void caerImageGeneratorConfig(caerModuleData moduleData) {
 }
 
 static void caerImageGeneratorExit(caerModuleData moduleData) {
-	imagegeneratorState state = moduleData->moduleState;
-	return;
+	// Clear sourceInfo node.
+	sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
+	sshsNodeRemoveAllAttributes(sourceInfoNode);
 }
 
 //This function implement 3sigma normalization and converts the image in nullhop format
@@ -207,7 +208,7 @@ static void caerImageGeneratorRun(caerModuleData moduleData, caerEventPacketCont
 	int sourceID = caerEventPacketHeaderGetEventSource(&polarity->packetHeader);
 	sshsNode sourceInfoNodeCA = caerMainloopGetSourceInfo(sourceID);
 	sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
-	if (!sshsNodeAttributeExists(sourceInfoNode, "dataSizeX", SSHS_SHORT)) { //to do for visualizer change name of field to a more generic one
+	if (!sshsNodeAttributeExists(sourceInfoNode, "dataSizeX", SSHS_SHORT)) {
 		sshsNodeCreateShort(sourceInfoNode, "dataSizeX", sshsNodeGetShort(sourceInfoNodeCA, "dvsSizeX"), 1, 1024,
 							SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
 		sshsNodeCreateShort(sourceInfoNode, "dataSizeY", sshsNodeGetShort(sourceInfoNodeCA, "dvsSizeY"), 1, 1024,
