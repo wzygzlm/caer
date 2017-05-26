@@ -309,7 +309,7 @@ void caerMainloopRun(void) {
 	moduleSearchDir.append("modules/");
 
 	sshsNodeCreateString(moduleSearchNode, "moduleSearchPath", moduleSearchDir.generic_string().c_str(), 2, PATH_MAX,
-		SSHS_FLAGS_NORMAL);
+		SSHS_FLAGS_NORMAL, "Directory to search in for loadable modules.");
 
 	// Now get actual search directory.
 	char *moduleSearchPathC = sshsNodeGetString(moduleSearchNode, "moduleSearchPath");
@@ -341,7 +341,8 @@ void caerMainloopRun(void) {
 		modulesList += modulePath.stem().string() + ",";
 	}
 	modulesList.pop_back(); // Remove trailing comma.
-	sshsNodeCreateString(moduleSearchNode, "modulesListOptions", modulesList.c_str(), 1, 10000, SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE);
+	sshsNodeCreateString(moduleSearchNode, "modulesListOptions", modulesList.c_str(), 1, 10000,
+		SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE, "List of loadable modules.");
 
 	// No data at start-up.
 	glMainloopData.dataAvailable.store(0);
@@ -350,14 +351,14 @@ void caerMainloopRun(void) {
 	glMainloopData.systemRunning.store(true);
 
 	sshsNode systemNode = sshsGetNode(sshsGetGlobal(), "/caer/");
-	sshsNodeCreateBool(systemNode, "running", true, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateBool(systemNode, "running", true, SSHS_FLAGS_NORMAL, "Global system start/stop.");
 	sshsNodeAddAttributeListener(systemNode, nullptr, &caerMainloopSystemRunningListener);
 
 	// Mainloop running control.
 	glMainloopData.running.store(true);
 
 	glMainloopData.configNode = sshsGetNode(sshsGetGlobal(), "/");
-	sshsNodeCreateBool(glMainloopData.configNode, "running", true, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateBool(glMainloopData.configNode, "running", true, SSHS_FLAGS_NORMAL, "Mainloop start/stop.");
 	sshsNodeAddAttributeListener(glMainloopData.configNode, nullptr, &caerMainloopRunningListener);
 
 	while (glMainloopData.systemRunning.load()) {
