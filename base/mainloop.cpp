@@ -1319,7 +1319,7 @@ static void buildConnectivity() {
 	for (auto &m : glMainloopData.globalExecution) {
 		// INPUT module or PROCESSOR with data output defined.
 		if (m.get().libraryInfo->type == CAER_MODULE_INPUT
-			|| (m.get().libraryInfo->type == CAER_MODULE_PROCESSOR && m.get().libraryInfo->outputStreams != NULL)) {
+			|| (m.get().libraryInfo->type == CAER_MODULE_PROCESSOR && m.get().libraryInfo->outputStreams != nullptr)) {
 			for (auto &o : m.get().outputs) {
 				if (caerMainloopStreamExists(m.get().id, o.first)) {
 					// Update active outputs with a viable index.
@@ -1966,8 +1966,7 @@ static int caerMainloopRunner() {
 				}
 			}
 
-			outOfLoop:
-			if (modifiedInputsInUse) {
+			outOfLoop: if (modifiedInputsInUse) {
 				// Go to check next module, this one is fine.
 				continue;
 			}
@@ -2132,8 +2131,8 @@ bool caerMainloopStreamExists(int16_t sourceId, int16_t typeId) {
 
 sshsNode caerMainloopGetSourceNode(int16_t sourceID) {
 	caerModuleData moduleData = glMainloopData.modules[sourceID].runtimeData;
-	if (moduleData == NULL) {
-		return (NULL);
+	if (moduleData == nullptr) {
+		return (nullptr);
 	}
 
 	return (moduleData->moduleNode);
@@ -2151,8 +2150,8 @@ sshsNode caerMainloopGetSourceInfo(int16_t sourceID) {
 
 void *caerMainloopGetSourceState(int16_t sourceID) {
 	caerModuleData moduleData = glMainloopData.modules[sourceID].runtimeData;
-	if (moduleData == NULL) {
-		return (NULL);
+	if (moduleData == nullptr) {
+		return (nullptr);
 	}
 
 	return (moduleData->moduleState);
