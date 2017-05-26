@@ -492,7 +492,8 @@ void sshsNodeCreateAttribute(sshsNode node, const char *key, enum sshs_node_attr
 	mtx_unlock(&node->node_lock);
 }
 
-bool sshsNodeAttributeExists(sshsNode node, const char *key, enum sshs_node_attr_value_type type) {
+// Remember to 'mtx_unlock(&node->node_lock);' after this!
+static inline sshsNodeAttr sshsNodeFindAttribute(sshsNode node, const char *key, enum sshs_node_attr_value_type type) {
 	size_t keyLength = strlen(key);
 	size_t fullKeyLength = offsetof(struct sshs_node_attr, key) + keyLength
 		+ 1- offsetof(struct sshs_node_attr, value_type);
@@ -506,6 +507,53 @@ bool sshsNodeAttributeExists(sshsNode node, const char *key, enum sshs_node_attr
 
 	sshsNodeAttr attr;
 	HASH_FIND(hh, node->attributes, searchKey, fullKeyLength, attr);
+
+	return (attr);
+}
+
+// We don't care about unlocking anything here, as we exit hard on error anyway.
+static inline void sshsNodeVerifyValidAttribute(sshsNodeAttr attr, const char *key, enum sshs_node_attr_value_type type,
+	const char *funcName) {
+	if (attr == NULL) {
+		char errorMsg[1024];
+		snprintf(errorMsg, 1024, "%s(): attribute '%s' of type '%s' not present, please create it first.", funcName,
+			key, sshsHelperTypeToStringConverter(type));
+
+		(*sshsGetGlobalErrorLogCallback())(errorMsg);
+
+		// This is a critical usage error that *must* be fixed!
+		exit(EXIT_FAILURE);
+	}
+}
+
+void sshsNodeDeleteAttribute(sshsNode node, const char *key, enum sshs_node_attr_value_type type) {
+	sshsNodeAttr attr = sshsNodeFindAttribute(node, key, type);
+
+	// Verify that a valid attribute exists.
+	sshsNodeVerifyValidAttribute(attr, key, type, "sshsNodeDeleteAttribute");
+
+	// Remove attribute from node.
+	HASH_DELETE(hh, node->attributes, attr);
+
+	// Listener support.
+	sshsNodeAttrListener l;
+	LL_FOREACH(node->attrListeners, l)
+	{
+		l->attribute_changed(node, l->userData, SSHS_ATTRIBUTE_REMOVED, key, type, attr->value);
+	}
+
+	mtx_unlock(&node->node_lock);
+
+	// Free attribute's string memory, then attribute itself.
+	if (type == SSHS_STRING) {
+		free(attr->value.string);
+	}
+
+	free(attr);
+}
+
+bool sshsNodeAttributeExists(sshsNode node, const char *key, enum sshs_node_attr_value_type type) {
+	sshsNodeAttr attr = sshsNodeFindAttribute(node, key, type);
 
 	mtx_unlock(&node->node_lock);
 
@@ -520,34 +568,10 @@ bool sshsNodeAttributeExists(sshsNode node, const char *key, enum sshs_node_attr
 
 bool sshsNodePutAttribute(sshsNode node, const char *key, enum sshs_node_attr_value_type type,
 	union sshs_node_attr_value value) {
-	size_t keyLength = strlen(key);
-	size_t fullKeyLength = offsetof(struct sshs_node_attr, key) + keyLength
-		+ 1- offsetof(struct sshs_node_attr, value_type);
-
-	uint8_t searchKey[fullKeyLength];
-
-	memcpy(searchKey, &type, sizeof(enum sshs_node_attr_value_type));
-	strcpy((char *) (searchKey + sizeof(enum sshs_node_attr_value_type)), key);
-
-	mtx_lock(&node->node_lock);
-
-	sshsNodeAttr attr;
-	HASH_FIND(hh, node->attributes, searchKey, fullKeyLength, attr);
+	sshsNodeAttr attr = sshsNodeFindAttribute(node, key, type);
 
 	// Verify that a valid attribute exists.
-	if (attr == NULL) {
-		mtx_unlock(&node->node_lock);
-
-		char errorMsg[1024];
-		snprintf(errorMsg, 1024,
-			"sshsNodePutAttribute(): attribute '%s' of type '%s' not present, please create it first.", key,
-			sshsHelperTypeToStringConverter(type));
-
-		(*sshsGetGlobalErrorLogCallback())(errorMsg);
-
-		// This is a critical usage error that *must* be fixed!
-		exit(EXIT_FAILURE);
-	}
+	sshsNodeVerifyValidAttribute(attr, key, type, "sshsNodePutAttribute");
 
 	// Value must be present, so update old one, after checking range and flags.
 	if (attr->flags & SSHS_FLAGS_READ_ONLY) {
@@ -637,34 +661,10 @@ static bool sshsNodeCheckAttributeValueChanged(enum sshs_node_attr_value_type ty
 }
 
 union sshs_node_attr_value sshsNodeGetAttribute(sshsNode node, const char *key, enum sshs_node_attr_value_type type) {
-	size_t keyLength = strlen(key);
-	size_t fullKeyLength = offsetof(struct sshs_node_attr, key) + keyLength
-		+ 1- offsetof(struct sshs_node_attr, value_type);
-
-	uint8_t searchKey[fullKeyLength];
-
-	memcpy(searchKey, &type, sizeof(enum sshs_node_attr_value_type));
-	strcpy((char *) (searchKey + sizeof(enum sshs_node_attr_value_type)), key);
-
-	mtx_lock(&node->node_lock);
-
-	sshsNodeAttr attr;
-	HASH_FIND(hh, node->attributes, searchKey, fullKeyLength, attr);
+	sshsNodeAttr attr = sshsNodeFindAttribute(node, key, type);
 
 	// Verify that a valid attribute exists.
-	if (attr == NULL) {
-		mtx_unlock(&node->node_lock);
-
-		char errorMsg[1024];
-		snprintf(errorMsg, 1024,
-			"sshsNodeGetAttribute(): attribute '%s' of type '%s' not present, please create it first.", key,
-			sshsHelperTypeToStringConverter(type));
-
-		(*sshsGetGlobalErrorLogCallback())(errorMsg);
-
-		// This is a critical usage error that *must* be fixed!
-		exit(EXIT_FAILURE);
-	}
+	sshsNodeVerifyValidAttribute(attr, key, type, "sshsNodeGetAttribute");
 
 	// Copy the value while still holding the lock, to ensure accessing it is
 	// still possible and the value behind it valid.
@@ -691,6 +691,7 @@ static int sshsNodeAttrCmp(const void *a, const void *b) {
 	return (strcmp((*aa)->key, (*bb)->key));
 }
 
+// Remember to 'mtx_unlock(&node->node_lock);' after this!
 static sshsNodeAttr *sshsNodeGetAttributes(sshsNode node, size_t *numAttributes) {
 	mtx_lock(&node->node_lock);
 
@@ -698,8 +699,6 @@ static sshsNodeAttr *sshsNodeGetAttributes(sshsNode node, size_t *numAttributes)
 
 	// If none, exit gracefully.
 	if (attributeCount == 0) {
-		mtx_unlock(&node->node_lock);
-
 		*numAttributes = 0;
 		return (NULL);
 	}
@@ -711,8 +710,6 @@ static sshsNodeAttr *sshsNodeGetAttributes(sshsNode node, size_t *numAttributes)
 	for (sshsNodeAttr a = node->attributes; a != NULL; a = a->hh.next) {
 		attributes[i++] = a;
 	}
-
-	mtx_unlock(&node->node_lock);
 
 	// Sort by name.
 	qsort(attributes, attributeCount, sizeof(sshsNodeAttr), &sshsNodeAttrCmp);
@@ -972,6 +969,8 @@ static mxml_node_t *sshsNodeGenerateXML(sshsNode node, bool recursive, const cha
 
 		free(value);
 	}
+
+	mtx_unlock(&node->node_lock);
 
 	free(attributes);
 
@@ -1265,6 +1264,8 @@ const char **sshsNodeGetAttributeKeys(sshsNode node, size_t *numKeys) {
 	sshsNodeAttr *attributes = sshsNodeGetAttributes(node, &numAttributes);
 
 	if (attributes == NULL) {
+		mtx_unlock(&node->node_lock);
+
 		*numKeys = 0;
 		return (NULL);
 	}
@@ -1277,6 +1278,8 @@ const char **sshsNodeGetAttributeKeys(sshsNode node, size_t *numKeys) {
 		attributeKeys[i] = attributes[i]->key;
 	}
 
+	mtx_unlock(&node->node_lock);
+
 	free(attributes);
 
 	*numKeys = numAttributes;
@@ -1288,6 +1291,8 @@ enum sshs_node_attr_value_type *sshsNodeGetAttributeTypes(sshsNode node, const c
 	sshsNodeAttr *attributes = sshsNodeGetAttributes(node, &numAttributes);
 
 	if (attributes == NULL) {
+		mtx_unlock(&node->node_lock);
+
 		*numTypes = 0;
 		return (NULL);
 	}
@@ -1305,6 +1310,8 @@ enum sshs_node_attr_value_type *sshsNodeGetAttributeTypes(sshsNode node, const c
 		}
 	}
 
+	mtx_unlock(&node->node_lock);
+
 	free(attributes);
 
 	// If we found nothing, return nothing.
@@ -1319,34 +1326,10 @@ enum sshs_node_attr_value_type *sshsNodeGetAttributeTypes(sshsNode node, const c
 
 union sshs_node_attr_range sshsNodeGetAttributeMinRange(sshsNode node, const char *key,
 	enum sshs_node_attr_value_type type) {
-	size_t keyLength = strlen(key);
-	size_t fullKeyLength = offsetof(struct sshs_node_attr, key) + keyLength
-		+ 1- offsetof(struct sshs_node_attr, value_type);
-
-	uint8_t searchKey[fullKeyLength];
-
-	memcpy(searchKey, &type, sizeof(enum sshs_node_attr_value_type));
-	strcpy((char *) (searchKey + sizeof(enum sshs_node_attr_value_type)), key);
-
-	mtx_lock(&node->node_lock);
-
-	sshsNodeAttr attr;
-	HASH_FIND(hh, node->attributes, searchKey, fullKeyLength, attr);
+	sshsNodeAttr attr = sshsNodeFindAttribute(node, key, type);
 
 	// Verify that a valid attribute exists.
-	if (attr == NULL) {
-		mtx_unlock(&node->node_lock);
-
-		char errorMsg[1024];
-		snprintf(errorMsg, 1024,
-			"sshsNodeGetAttributeMinRange(): attribute '%s' of type '%s' not present, please create it first.", key,
-			sshsHelperTypeToStringConverter(type));
-
-		(*sshsGetGlobalErrorLogCallback())(errorMsg);
-
-		// This is a critical usage error that *must* be fixed!
-		exit(EXIT_FAILURE);
-	}
+	sshsNodeVerifyValidAttribute(attr, key, type, "sshsNodeGetAttributeMinRange");
 
 	union sshs_node_attr_range minRange = attr->min;
 
@@ -1357,34 +1340,10 @@ union sshs_node_attr_range sshsNodeGetAttributeMinRange(sshsNode node, const cha
 
 union sshs_node_attr_range sshsNodeGetAttributeMaxRange(sshsNode node, const char *key,
 	enum sshs_node_attr_value_type type) {
-	size_t keyLength = strlen(key);
-	size_t fullKeyLength = offsetof(struct sshs_node_attr, key) + keyLength
-		+ 1- offsetof(struct sshs_node_attr, value_type);
-
-	uint8_t searchKey[fullKeyLength];
-
-	memcpy(searchKey, &type, sizeof(enum sshs_node_attr_value_type));
-	strcpy((char *) (searchKey + sizeof(enum sshs_node_attr_value_type)), key);
-
-	mtx_lock(&node->node_lock);
-
-	sshsNodeAttr attr;
-	HASH_FIND(hh, node->attributes, searchKey, fullKeyLength, attr);
+	sshsNodeAttr attr = sshsNodeFindAttribute(node, key, type);
 
 	// Verify that a valid attribute exists.
-	if (attr == NULL) {
-		mtx_unlock(&node->node_lock);
-
-		char errorMsg[1024];
-		snprintf(errorMsg, 1024,
-			"sshsNodeGetAttributeMaxRange(): attribute '%s' of type '%s' not present, please create it first.", key,
-			sshsHelperTypeToStringConverter(type));
-
-		(*sshsGetGlobalErrorLogCallback())(errorMsg);
-
-		// This is a critical usage error that *must* be fixed!
-		exit(EXIT_FAILURE);
-	}
+	sshsNodeVerifyValidAttribute(attr, key, type, "sshsNodeGetAttributeMaxRange");
 
 	union sshs_node_attr_range maxRange = attr->max;
 
@@ -1394,34 +1353,10 @@ union sshs_node_attr_range sshsNodeGetAttributeMaxRange(sshsNode node, const cha
 }
 
 enum sshs_node_attr_flags sshsNodeGetAttributeFlags(sshsNode node, const char *key, enum sshs_node_attr_value_type type) {
-	size_t keyLength = strlen(key);
-	size_t fullKeyLength = offsetof(struct sshs_node_attr, key) + keyLength
-		+ 1- offsetof(struct sshs_node_attr, value_type);
-
-	uint8_t searchKey[fullKeyLength];
-
-	memcpy(searchKey, &type, sizeof(enum sshs_node_attr_value_type));
-	strcpy((char *) (searchKey + sizeof(enum sshs_node_attr_value_type)), key);
-
-	mtx_lock(&node->node_lock);
-
-	sshsNodeAttr attr;
-	HASH_FIND(hh, node->attributes, searchKey, fullKeyLength, attr);
+	sshsNodeAttr attr = sshsNodeFindAttribute(node, key, type);
 
 	// Verify that a valid attribute exists.
-	if (attr == NULL) {
-		mtx_unlock(&node->node_lock);
-
-		char errorMsg[1024];
-		snprintf(errorMsg, 1024,
-			"sshsNodeGetAttributeFlags(): attribute '%s' of type '%s' not present, please create it first.", key,
-			sshsHelperTypeToStringConverter(type));
-
-		(*sshsGetGlobalErrorLogCallback())(errorMsg);
-
-		// This is a critical usage error that *must* be fixed!
-		exit(EXIT_FAILURE);
-	}
+	sshsNodeVerifyValidAttribute(attr, key, type, "sshsNodeGetAttributeFlags");
 
 	enum sshs_node_attr_flags flags = attr->flags;
 

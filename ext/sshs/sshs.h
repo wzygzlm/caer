@@ -76,6 +76,7 @@ enum sshs_node_node_events {
 enum sshs_node_attribute_events {
 	SSHS_ATTRIBUTE_ADDED = 0,
 	SSHS_ATTRIBUTE_MODIFIED = 1,
+	SSHS_ATTRIBUTE_REMOVED = 2,
 };
 
 const char *sshsNodeGetName(sshsNode node) CAER_SYMBOL_EXPORT;
@@ -101,6 +102,7 @@ void sshsNodeRemoveAllAttributeListeners(sshsNode node) CAER_SYMBOL_EXPORT;
 void sshsNodeCreateAttribute(sshsNode node, const char *key, enum sshs_node_attr_value_type type,
 	union sshs_node_attr_value defaultValue, union sshs_node_attr_range minValue, union sshs_node_attr_range maxValue,
 	enum sshs_node_attr_flags flags) CAER_SYMBOL_EXPORT;
+void sshsNodeDeleteAttribute(sshsNode node, const char *key, enum sshs_node_attr_value_type type) CAER_SYMBOL_EXPORT;
 bool sshsNodeAttributeExists(sshsNode node, const char *key, enum sshs_node_attr_value_type type) CAER_SYMBOL_EXPORT;
 bool sshsNodePutAttribute(sshsNode node, const char *key, enum sshs_node_attr_value_type type,
 	union sshs_node_attr_value value) CAER_SYMBOL_EXPORT;
