@@ -209,9 +209,12 @@ static int caerConfigServerRunner(void *inPtr) {
 	sshsNode serverNode = sshsGetNode(sshsGetGlobal(), "/caer/server/");
 
 	// Ensure default values are present.
-	sshsNodeCreateString(serverNode, "ipAddress", "127.0.0.1", 7, 15, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateInt(serverNode, "portNumber", 4040, 1, UINT16_MAX, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateShort(serverNode, "backlogSize", 5, 1, 512, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateString(serverNode, "ipAddress", "127.0.0.1", 7, 15, SSHS_FLAGS_NORMAL,
+		"IPv4 address to listen on for configuration server connections.");
+	sshsNodeCreateInt(serverNode, "portNumber", 4040, 1, UINT16_MAX, SSHS_FLAGS_NORMAL,
+		"Port to listen on for configuration server connections.");
+	sshsNodeCreateShort(serverNode, "backlogSize", 5, 1, 512, SSHS_FLAGS_NORMAL,
+		"Maximum number of pending connections.");
 
 	int retVal;
 	bool eventLoopInitialized = false;
