@@ -47,23 +47,42 @@ static bool caerCameraCalibrationInit(caerModuleData moduleData) {
 	CameraCalibrationState state = moduleData->moduleState;
 
 	// Create config settings.
-	sshsNodeCreateBool(moduleData->moduleNode, "doCalibration", false, SSHS_FLAGS_NORMAL); // Do calibration using live images
-	sshsNodeCreateString(moduleData->moduleNode, "saveFileName", "camera_calib.xml", 2, PATH_MAX, SSHS_FLAGS_NORMAL); // The name of the file where to write the calculated calibration settings
-	sshsNodeCreateInt(moduleData->moduleNode, "captureDelay", 500000, 0, 60000000, SSHS_FLAGS_NORMAL); // Only use a frame for calibration if at least this much time has passed
-	sshsNodeCreateInt(moduleData->moduleNode, "minNumberOfPoints", 20, 3, 100, SSHS_FLAGS_NORMAL); // Minimum number of points to start calibration with.
-	sshsNodeCreateFloat(moduleData->moduleNode, "maxTotalError", 0.30f, 0.0f, 1.0f, SSHS_FLAGS_NORMAL); // Maximum total average error allowed (in pixels).
-	sshsNodeCreateString(moduleData->moduleNode, "calibrationPattern", "chessboard", 10, 21, SSHS_FLAGS_NORMAL); // One of the Chessboard, circles, or asymmetric circle pattern
-	sshsNodeCreateInt(moduleData->moduleNode, "boardWidth", 9, 1, 64, SSHS_FLAGS_NORMAL); // The size of the board (width)
-	sshsNodeCreateInt(moduleData->moduleNode, "boardHeigth", 5, 1, 64, SSHS_FLAGS_NORMAL); // The size of the board (heigth)
-	sshsNodeCreateFloat(moduleData->moduleNode, "boardSquareSize", 1.0f, 0.0f, 1000.0f, SSHS_FLAGS_NORMAL); // The size of a square in your defined unit (point, millimeter, etc.)
-	sshsNodeCreateFloat(moduleData->moduleNode, "aspectRatio", 0.0f, 0.0f, 1.0f, SSHS_FLAGS_NORMAL); // The aspect ratio
-	sshsNodeCreateBool(moduleData->moduleNode, "assumeZeroTangentialDistortion", false, SSHS_FLAGS_NORMAL); // Assume zero tangential distortion
-	sshsNodeCreateBool(moduleData->moduleNode, "fixPrincipalPointAtCenter", false, SSHS_FLAGS_NORMAL); // Fix the principal point at the center
-	sshsNodeCreateBool(moduleData->moduleNode, "useFisheyeModel", false, SSHS_FLAGS_NORMAL); // Use Fisheye camera model for calibration
+	sshsNodeCreateBool(moduleData->moduleNode, "doCalibration", false, SSHS_FLAGS_NORMAL,
+		"Do calibration using live images.");
+	sshsNodeCreateString(moduleData->moduleNode, "saveFileName", "camera_calib.xml", 2, PATH_MAX, SSHS_FLAGS_NORMAL,
+		"The name of the file where to write the calculated calibration settings.");
+	sshsNodeCreateInt(moduleData->moduleNode, "captureDelay", 500000, 0, 60000000, SSHS_FLAGS_NORMAL,
+		"Only use a frame for calibration if at least this much time has passed.");
+	sshsNodeCreateInt(moduleData->moduleNode, "minNumberOfPoints", 20, 3, 100, SSHS_FLAGS_NORMAL,
+		"Minimum number of points to start calibration with.");
+	sshsNodeCreateFloat(moduleData->moduleNode, "maxTotalError", 0.30f, 0.0f, 1.0f, SSHS_FLAGS_NORMAL,
+		"Maximum total average error allowed (in pixels).");
+	sshsNodeCreateString(moduleData->moduleNode, "calibrationPattern", "chessboard", 10, 21, SSHS_FLAGS_NORMAL,
+		"Pattern to run calibration with.");
+	sshsNodeCreateString(moduleData->moduleNode, "calibrationPatternListOptions",
+		"chessboard,circlesGrid,asymmetricCirclesGrid", 0, 100, SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE,
+		"Available calibration patterns.");
+	sshsNodeCreateInt(moduleData->moduleNode, "boardWidth", 9, 1, 64, SSHS_FLAGS_NORMAL,
+		"The size of the board (width).");
+	sshsNodeCreateInt(moduleData->moduleNode, "boardHeigth", 5, 1, 64, SSHS_FLAGS_NORMAL,
+		"The size of the board (heigth).");
+	sshsNodeCreateFloat(moduleData->moduleNode, "boardSquareSize", 1.0f, 0.0f, 1000.0f, SSHS_FLAGS_NORMAL,
+		"The size of a square in your defined unit (point, millimeter, etc.).");
+	sshsNodeCreateFloat(moduleData->moduleNode, "aspectRatio", 0.0f, 0.0f, 1.0f, SSHS_FLAGS_NORMAL,
+		"The aspect ratio.");
+	sshsNodeCreateBool(moduleData->moduleNode, "assumeZeroTangentialDistortion", false, SSHS_FLAGS_NORMAL,
+		"Assume zero tangential distortion.");
+	sshsNodeCreateBool(moduleData->moduleNode, "fixPrincipalPointAtCenter", false, SSHS_FLAGS_NORMAL,
+		"Fix the principal point at the center.");
+	sshsNodeCreateBool(moduleData->moduleNode, "useFisheyeModel", false, SSHS_FLAGS_NORMAL,
+		"Use fisheye camera model for calibration.");
 
-	sshsNodeCreateBool(moduleData->moduleNode, "doUndistortion", false, SSHS_FLAGS_NORMAL); // Do undistortion of incoming images using calibration loaded from file
-	sshsNodeCreateString(moduleData->moduleNode, "loadFileName", "camera_calib.xml", 2, PATH_MAX, SSHS_FLAGS_NORMAL); // The name of the file from which to load the calibration settings for undistortion
-	sshsNodeCreateBool(moduleData->moduleNode, "fitAllPixels", false, SSHS_FLAGS_NORMAL); // Whether to fit all the input pixels (black borders) or maximize the image, at the cost of loosing some pixels.
+	sshsNodeCreateBool(moduleData->moduleNode, "doUndistortion", false, SSHS_FLAGS_NORMAL,
+		"Do undistortion of incoming images using calibration loaded from file.");
+	sshsNodeCreateString(moduleData->moduleNode, "loadFileName", "camera_calib.xml", 2, PATH_MAX, SSHS_FLAGS_NORMAL,
+		"The name of the file from which to load the calibration settings for undistortion.");
+	sshsNodeCreateBool(moduleData->moduleNode, "fitAllPixels", false, SSHS_FLAGS_NORMAL,
+		"Whether to fit all the input pixels (black borders) or maximize the image, at the cost of loosing some pixels.");
 
 	// Update all settings.
 	updateSettings(moduleData);
