@@ -94,68 +94,10 @@ static inline void sshsNodePut(sshsNode node, const char *key, const std::string
 	sshsNodePutString(node, key, value.c_str());
 }
 
-template<class T>
-static inline T sshsNodeGet(sshsNode node, const char *key) {
-	static_assert(true, "sshsNodeGet() can only be used with bool, int{8,16,32,64}_t, float, double and strings.");
-}
-
-template<>
-static inline bool sshsNodeGet<bool>(sshsNode node, const char *key) {
-	return (sshsNodeGetBool(node, key));
-}
-
-template<>
-static inline int8_t sshsNodeGet<int8_t>(sshsNode node, const char *key) {
-	return (sshsNodeGetByte(node, key));
-}
-
-template<>
-static inline int16_t sshsNodeGet<int16_t>(sshsNode node, const char *key) {
-	return (sshsNodeGetShort(node, key));
-}
-
-template<>
-static inline int32_t sshsNodeGet<int32_t>(sshsNode node, const char *key) {
-	return (sshsNodeGetInt(node, key));
-}
-
-template<>
-static inline int64_t sshsNodeGet<int64_t>(sshsNode node, const char *key) {
-	return (sshsNodeGetLong(node, key));
-}
-
-template<>
-static inline float sshsNodeGet<float>(sshsNode node, const char *key) {
-	return (sshsNodeGetFloat(node, key));
-}
-
-template<>
-static inline double sshsNodeGet<double>(sshsNode node, const char *key) {
-	return (sshsNodeGetDouble(node, key));
-}
-
-template<>
-static inline char *sshsNodeGet<char *>(sshsNode node, const char *key) {
-	return (sshsNodeGetString(node, key));
-}
-
-template<>
-static inline const char *sshsNodeGet<const char *>(sshsNode node, const char *key) {
-	return (sshsNodeGetString(node, key));
-}
-
-template<>
-static inline std::string sshsNodeGet<std::string>(sshsNode node, const char *key) {
+// Additional getter for std::string.
+static inline std::string sshsNodeGetStdString(sshsNode node, const char *key) {
 	char *str = sshsNodeGetString(node, key);
 	std::string cppStr(str);
-	free(str);
-	return (cppStr);
-}
-
-template<>
-static inline const std::string sshsNodeGet<const std::string>(sshsNode node, const char *key) {
-	char *str = sshsNodeGetString(node, key);
-	const std::string cppStr(str);
 	free(str);
 	return (cppStr);
 }
