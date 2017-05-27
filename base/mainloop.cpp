@@ -1527,7 +1527,7 @@ static void runModules(caerEventPacketContainer in) {
 				}
 			}
 
-			// Deallocate container memory. Packet have been handled above.
+			// Deallocate container memory. Packets have been handled above.
 			free(out);
 		}
 	}
@@ -2129,8 +2129,45 @@ bool caerMainloopStreamExists(int16_t sourceId, int16_t typeId) {
 		!= glMainloopData.streams.end());
 }
 
+int16_t *caerMainloopGetModuleInputIDs(int16_t id, size_t *inputsSize) {
+	*inputsSize = 0;
+
+	// Only makes sense to be called from PROCESSORs or OUTPUTs, as INPUTs
+	// do not have inputs themselves.
+	if (caerMainloopModuleIsType(id, CAER_MODULE_INPUT)) {
+		return (nullptr);
+	}
+
+	size_t inDefSize = glMainloopData.modules.at(id).inputDefinition.size();
+
+	int16_t *inputs = (int16_t *) malloc(inDefSize * sizeof(int16_t));
+	if (inputs == nullptr) {
+		return (nullptr);
+	}
+
+	for (auto inDef : glMainloopData.modules.at(id).inputDefinition) {
+		inputs[(*inputsSize)++] = inDef.first;
+	}
+
+	return (inputs);
+}
+
+static inline caerModuleData caerMainloopGetSourceData(int16_t sourceID) {
+	caerModuleData moduleData = glMainloopData.modules.at(sourceID).runtimeData;
+	if (moduleData == nullptr) {
+		return (nullptr);
+	}
+
+	// Sources must be INPUTs or PROCESSORs.
+	if (caerMainloopModuleIsType(sourceID, CAER_MODULE_OUTPUT)) {
+		return (nullptr);
+	}
+
+	return (moduleData);
+}
+
 sshsNode caerMainloopGetSourceNode(int16_t sourceID) {
-	caerModuleData moduleData = glMainloopData.modules[sourceID].runtimeData;
+	caerModuleData moduleData = caerMainloopGetSourceData(sourceID);
 	if (moduleData == nullptr) {
 		return (nullptr);
 	}
@@ -2139,7 +2176,7 @@ sshsNode caerMainloopGetSourceNode(int16_t sourceID) {
 }
 
 sshsNode caerMainloopGetSourceInfo(int16_t sourceID) {
-	caerModuleData moduleData = glMainloopData.modules[sourceID].runtimeData;
+	caerModuleData moduleData = caerMainloopGetSourceData(sourceID);
 	if (moduleData == nullptr) {
 		return (nullptr);
 	}
@@ -2158,7 +2195,7 @@ sshsNode caerMainloopGetSourceInfo(int16_t sourceID) {
 }
 
 void *caerMainloopGetSourceState(int16_t sourceID) {
-	caerModuleData moduleData = glMainloopData.modules[sourceID].runtimeData;
+	caerModuleData moduleData = caerMainloopGetSourceData(sourceID);
 	if (moduleData == nullptr) {
 		return (nullptr);
 	}

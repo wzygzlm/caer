@@ -23,6 +23,8 @@ bool caerMainloopModuleExists(int16_t id) CAER_SYMBOL_EXPORT;
 bool caerMainloopModuleIsType(int16_t id, enum caer_module_type type) CAER_SYMBOL_EXPORT;
 bool caerMainloopStreamExists(int16_t sourceId, int16_t typeId) CAER_SYMBOL_EXPORT;
 
+int16_t *caerMainloopGetModuleInputIDs(int16_t id, size_t *inputsSize) CAER_SYMBOL_EXPORT;
+
 sshsNode caerMainloopGetSourceNode(int16_t sourceID) CAER_SYMBOL_EXPORT;
 sshsNode caerMainloopGetSourceInfo(int16_t sourceID) CAER_SYMBOL_EXPORT;
 void *caerMainloopGetSourceState(int16_t sourceID) CAER_SYMBOL_EXPORT;
