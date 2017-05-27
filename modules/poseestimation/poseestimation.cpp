@@ -8,7 +8,7 @@ PoseEstimation::PoseEstimation(PoseEstimationSettings settings) {
 
 void PoseEstimation::updateSettings(PoseEstimationSettings settings) {
     this->settings = settings;
-    
+
     // Load calibration files keep this in the constructor
     if(loadCalibrationFile(this->settings)){
         this->calibrationLoaded = true;
@@ -34,27 +34,27 @@ bool PoseEstimation::findMarkers(caerFrameEvent frame) {
     // findCorner functions in OpenCV only support 8 bit depth.
     Mat view;
     orig.convertTo(view, CV_8UC(orig.channels()), 1.0 / 256.0);
-    
+
     // marker detection with aruco markers integration in opencv
-    aruco::Dictionary dictionary = aruco::getPredefinedDictionary(aruco::DICT_ARUCO_ORIGINAL);
-    
-    vector<int> ids; 
-    vector<std::vector<cv::Point2f> > corners, rejected; 
-    
-    aruco::DetectorParameters *detectorParams = new aruco::DetectorParameters();
+    Ptr<aruco::Dictionary> dictionary = aruco::getPredefinedDictionary(aruco::DICT_ARUCO_ORIGINAL);
+
+    vector<int> ids;
+    vector<std::vector<cv::Point2f> > corners, rejected;
+
+    Ptr<aruco::DetectorParameters> detectorParams = new aruco::DetectorParameters();
     detectorParams->doCornerRefinement = true; // do corner refinement in markers
 
     // detect
-    aruco::detectMarkers(view, dictionary, corners, ids, *detectorParams, rejected);
-    
+    aruco::detectMarkers(view, dictionary, corners, ids, detectorParams, rejected);
+
     // if at least one marker has been detected
-    if (ids.size() > 0){ 
+    if (ids.size() > 0){
         aruco::drawDetectedMarkers(view, corners, ids);
     }else{
         return (false);
-    } 
-       
-    // from camera calibration 
+    }
+
+    // from camera calibration
     double fx, fy, m, distance, avr_size, x, object_image_sensor_mm;
     fx = undistortCameraMatrix.at<double>(0,0);
     fy = undistortCameraMatrix.at<double>(1,1);
@@ -63,10 +63,10 @@ bool PoseEstimation::findMarkers(caerFrameEvent frame) {
     // estimate markers pose
     if( corners.size() > 0){
         Mat rvecs, tvecs;
-        aruco::estimatePoseSingleMarkers(corners, 0.05, undistortCameraMatrix, undistortDistCoeffs, rvecs, tvecs); 
+        aruco::estimatePoseSingleMarkers(corners, 0.05, undistortCameraMatrix, undistortDistCoeffs, rvecs, tvecs);
         // rvecs tvecs tell us where the marker is in camera coordinates [R T; 0 1] (for homogenous coordinates)
         // the inverse is [R^t -R^t*T; 0 1]
-        for(unsigned int k=0; k<corners.size(); k++){    
+        for(unsigned int k=0; k<corners.size(); k++){
             // project 3d axis to 2d image plane using rvecs and tvecs
             float length = 0.07;
             vector< Point3f > axisPoints;
@@ -79,7 +79,7 @@ bool PoseEstimation::findMarkers(caerFrameEvent frame) {
             // draw axis lines
             line(view, imagePoints[0], imagePoints[1], Scalar(0, 0, 255), 3);
             line(view, imagePoints[0], imagePoints[2], Scalar(0, 255, 0), 3);
-            line(view, imagePoints[0], imagePoints[3], Scalar(255, 0, 0), 3);             
+            line(view, imagePoints[0], imagePoints[3], Scalar(255, 0, 0), 3);
             //estimate distance in mm
             cv::RotatedRect box = cv::minAreaRect(cv::Mat(corners[k]));
             cv::Point2f p = box.size;
@@ -92,7 +92,7 @@ bool PoseEstimation::findMarkers(caerFrameEvent frame) {
             // distance_mm = object_real_world_mm * focal-length_mm / object_image_sensor_mm
             distance = object_real_world_mm * focal_lenght_mm / object_image_sensor_mm;
             caerLog(CAER_LOG_NOTICE, "PoseEstimation CXX findMarkers()", "\n distance corner %d for maker %d is at a distance %.2f mm ", k, ids[k], distance);
-        }       
+        }
     }
     //place back the markers in the frame
     view.convertTo(orig, CV_16UC(orig.channels()), 256.0);
@@ -115,13 +115,13 @@ bool PoseEstimation::loadCalibrationFile(PoseEstimationSettings settings) {
 	fs["distortion_coefficients"] >> undistortDistCoeffs;
 	fs["use_fisheye_model"] >> useFisheyeModel;
 
-	if (!fs["camera_matrix"].empty() && !fs["distortion_coefficients"].empty()) 
+	if (!fs["camera_matrix"].empty() && !fs["distortion_coefficients"].empty())
 	{
 		caerLog(CAER_LOG_NOTICE, "PoseEstimation CXX loadCalibrationFile()", "Camera matrix and distorsion coefficients succesfully loaded");
 	}else{
-		caerLog(CAER_LOG_ERROR, "PoseEstimation CXX loadCalibrationFile()", "Camera matrix and distorsion coefficients not loaded");    
-	}    
-		
+		caerLog(CAER_LOG_ERROR, "PoseEstimation CXX loadCalibrationFile()", "Camera matrix and distorsion coefficients not loaded");
+	}
+
 	// Close file.
 	fs.release();
 
