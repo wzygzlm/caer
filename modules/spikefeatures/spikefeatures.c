@@ -85,14 +85,14 @@ static void caerSpikeFeaturesRun(caerModuleData moduleData, caerEventPacketConta
 	sshsNode sourceInfoNodeCA = caerMainloopGetSourceInfo(sourceID);
 	sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
 	if (!sshsNodeAttributeExists(sourceInfoNode, "dataSizeX", SSHS_SHORT)) { //to do for visualizer change name of field to a more generic one
-		sshsNodeCreateShort(sourceInfoNode, "dataSizeX", sshsNodeGetShort(sourceInfoNodeCA, "dvsSizeX"), 1, 1024,
+		sshsNodeCreateShort(sourceInfoNode, "dataSizeX", sshsNodeGetShort(sourceInfoNodeCA, "polaritySizeX"), 1, 1024,
 			SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE, "Data width.");
-		sshsNodeCreateShort(sourceInfoNode, "dataSizeY", sshsNodeGetShort(sourceInfoNodeCA, "dvsSizeY"), 1, 1024,
+		sshsNodeCreateShort(sourceInfoNode, "dataSizeY", sshsNodeGetShort(sourceInfoNodeCA, "polaritySizeY"), 1, 1024,
 			SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE, "Data height.");
 	}
 
-	int16_t sizeX = sshsNodeGetShort(sourceInfoNodeCA, "dvsSizeX");
-	int16_t sizeY = sshsNodeGetShort(sourceInfoNodeCA, "dvsSizeY");
+	int16_t sizeX = sshsNodeGetShort(sourceInfoNodeCA, "polaritySizeX");
+	int16_t sizeY = sshsNodeGetShort(sourceInfoNodeCA, "polaritySizeY");
 
 	SFFilterState state = moduleData->moduleState;
 
@@ -225,8 +225,8 @@ static bool allocateSurfaceMapLastTs(SFFilterState state, int16_t sourceID) {
 		return (false);
 	}
 
-	int16_t sizeX = sshsNodeGetShort(sourceInfoNode, "dvsSizeX");
-	int16_t sizeY = sshsNodeGetShort(sourceInfoNode, "dvsSizeY");
+	int16_t sizeX = sshsNodeGetShort(sourceInfoNode, "polaritySizeX");
+	int16_t sizeY = sshsNodeGetShort(sourceInfoNode, "polaritySizeY");
 
 	state->surfaceMapLastTs = simple2DBufferInitLong((size_t) sizeX, (size_t) sizeY);
 	if (state->surfaceMapLastTs == NULL) {
@@ -246,8 +246,8 @@ static bool allocateSurfaceMap(SFFilterState state, int16_t sourceID) {
 		return (false);
 	}
 
-	int16_t sizeX = sshsNodeGetShort(sourceInfoNode, "dvsSizeX");
-	int16_t sizeY = sshsNodeGetShort(sourceInfoNode, "dvsSizeY");
+	int16_t sizeX = sshsNodeGetShort(sourceInfoNode, "polaritySizeX");
+	int16_t sizeY = sshsNodeGetShort(sourceInfoNode, "polaritySizeY");
 
 	state->surfaceMap = simple2DBufferInitFloat((size_t) sizeX, (size_t) sizeY);
 	if (state->surfaceMap == NULL) {

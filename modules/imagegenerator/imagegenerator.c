@@ -119,8 +119,8 @@ static void caerImageGeneratorRun(caerModuleData moduleData, caerEventPacketCont
 		return;
 	}
 
-	float cam_sizeX = sshsNodeGetShort(sourceInfo, "dvsSizeX");
-	float cam_sizeY = sshsNodeGetShort(sourceInfo, "dvsSizeY");
+	float cam_sizeX = sshsNodeGetShort(sourceInfo, "polaritySizeX");
+	float cam_sizeY = sshsNodeGetShort(sourceInfo, "polaritySizeY");
 
 	imagegeneratorState state = moduleData->moduleState;
 

@@ -366,9 +366,9 @@ static void caerRectangulartrackerDynamicRun(caerModuleData moduleData, caerEven
 	sshsNode sourceInfoNodeCA = caerMainloopGetSourceInfo(sourceID);
 	sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
 	if (!sshsNodeAttributeExists(sourceInfoNode, "dataSizeX", SSHS_SHORT)) {
-		sshsNodeCreateShort(sourceInfoNode, "dataSizeX", sshsNodeGetShort(sourceInfoNodeCA, "dvsSizeX"), 1, 1024,
+		sshsNodeCreateShort(sourceInfoNode, "dataSizeX", sshsNodeGetShort(sourceInfoNodeCA, "polaritySizeX"), 1, 1024,
 			SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE, "Data width.");
-		sshsNodeCreateShort(sourceInfoNode, "dataSizeY", sshsNodeGetShort(sourceInfoNodeCA, "dvsSizeY"), 1, 1024,
+		sshsNodeCreateShort(sourceInfoNode, "dataSizeY", sshsNodeGetShort(sourceInfoNodeCA, "polaritySizeY"), 1, 1024,
 			SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE, "Data height.");
 	}
 

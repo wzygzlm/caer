@@ -209,8 +209,8 @@ static void caerCameraCalibrationRun(caerModuleData moduleData, caerEventPacketC
 			return;
 		}
 
-		state->settings.imageWidth = U32T(sshsNodeGetShort(sourceInfoNode, "apsSizeX"));
-		state->settings.imageHeigth = U32T(sshsNodeGetShort(sourceInfoNode, "apsSizeY"));
+		state->settings.imageWidth = U32T(sshsNodeGetShort(sourceInfoNode, "frameSizeX"));
+		state->settings.imageHeigth = U32T(sshsNodeGetShort(sourceInfoNode, "frameSizeY"));
 	}
 
 	// Calibration is done only using frames.

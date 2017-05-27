@@ -74,8 +74,8 @@ static void caerRotateRun(caerModuleData moduleData, caerEventPacketContainer in
 
 	int16_t sourceID = caerEventPacketHeaderGetEventSource(&polarity->packetHeader);
 	sshsNode sourceInfoNodeCA = caerMainloopGetSourceInfo(sourceID);
-	int16_t sizeX = sshsNodeGetShort(sourceInfoNodeCA, "dvsSizeX");
-	int16_t sizeY = sshsNodeGetShort(sourceInfoNodeCA, "dvsSizeY");
+	int16_t sizeX = sshsNodeGetShort(sourceInfoNodeCA, "polaritySizeX");
+	int16_t sizeY = sshsNodeGetShort(sourceInfoNodeCA, "polaritySizeY");
 
 	// Iterate over events
 	CAER_POLARITY_ITERATOR_VALID_START(polarity)

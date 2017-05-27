@@ -834,15 +834,15 @@ static bool caerVisualizerModuleInitSize(caerModuleData moduleData, caerEventPac
 			packetSizeX = sshsNodeGetShort(sourceInfoNode, "visualizerSizeX");
 			packetSizeY = sshsNodeGetShort(sourceInfoNode, "visualizerSizeY");
 		}
-		else if (sshsNodeAttributeExists(sourceInfoNode, "dvsSizeX", SSHS_SHORT)
+		else if (sshsNodeAttributeExists(sourceInfoNode, "polaritySizeX", SSHS_SHORT)
 			&& caerEventPacketHeaderGetEventType(caerEventPacketContainerIteratorElement) == POLARITY_EVENT) {
-			packetSizeX = sshsNodeGetShort(sourceInfoNode, "dvsSizeX");
-			packetSizeY = sshsNodeGetShort(sourceInfoNode, "dvsSizeY");
+			packetSizeX = sshsNodeGetShort(sourceInfoNode, "polaritySizeX");
+			packetSizeY = sshsNodeGetShort(sourceInfoNode, "polaritySizeY");
 		}
-		else if (sshsNodeAttributeExists(sourceInfoNode, "apsSizeX", SSHS_SHORT)
+		else if (sshsNodeAttributeExists(sourceInfoNode, "frameSizeX", SSHS_SHORT)
 			&& caerEventPacketHeaderGetEventType(caerEventPacketContainerIteratorElement) == FRAME_EVENT) {
-			packetSizeX = sshsNodeGetShort(sourceInfoNode, "apsSizeX");
-			packetSizeY = sshsNodeGetShort(sourceInfoNode, "apsSizeY");
+			packetSizeX = sshsNodeGetShort(sourceInfoNode, "frameSizeX");
+			packetSizeY = sshsNodeGetShort(sourceInfoNode, "frameSizeY");
 		}
 		else if (sshsNodeAttributeExists(sourceInfoNode, "dataSizeX", SSHS_SHORT)) {
 			packetSizeX = sshsNodeGetShort(sourceInfoNode, "dataSizeX");

@@ -186,8 +186,8 @@ static bool allocateTimestampMap(caerModuleData moduleData, int16_t sourceID) {
 
 	BAFilterState state = moduleData->moduleState;
 
-	int16_t sizeX = sshsNodeGetShort(sourceInfoNode, "dvsSizeX");
-	int16_t sizeY = sshsNodeGetShort(sourceInfoNode, "dvsSizeY");
+	int16_t sizeX = sshsNodeGetShort(sourceInfoNode, "polaritySizeX");
+	int16_t sizeY = sshsNodeGetShort(sourceInfoNode, "polaritySizeY");
 
 	state->timestampMap = simple2DBufferInitLong((size_t) sizeX, (size_t) sizeY);
 	if (state->timestampMap == NULL) {
