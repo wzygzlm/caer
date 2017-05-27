@@ -2130,7 +2130,10 @@ bool caerMainloopStreamExists(int16_t sourceId, int16_t typeId) {
 }
 
 int16_t *caerMainloopGetModuleInputIDs(int16_t id, size_t *inputsSize) {
-	*inputsSize = 0;
+	// If inputsSize is known, allow not passing it in.
+	if (inputsSize != nullptr) {
+		*inputsSize = 0;
+	}
 
 	// Only makes sense to be called from PROCESSORs or OUTPUTs, as INPUTs
 	// do not have inputs themselves.
@@ -2145,10 +2148,14 @@ int16_t *caerMainloopGetModuleInputIDs(int16_t id, size_t *inputsSize) {
 		return (nullptr);
 	}
 
+	size_t idx = 0;
 	for (auto inDef : glMainloopData.modules.at(id).inputDefinition) {
-		inputs[(*inputsSize)++] = inDef.first;
+		inputs[idx++] = inDef.first;
 	}
 
+	if (inputsSize != nullptr) {
+		*inputsSize = idx;
+	}
 	return (inputs);
 }
 
