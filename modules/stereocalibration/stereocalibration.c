@@ -51,26 +51,26 @@ static bool caerStereoCalibrationInit(caerModuleData moduleData) {
 	StereoCalibrationState state = moduleData->moduleState;
 
 	// Create config settings.
-	sshsNodeCreateBool(moduleData->moduleNode, "doCalibration", false, SSHS_FLAGS_NORMAL); // Do calibration using live images
-	sshsNodeCreateBool(moduleData->moduleNode, "isCalibrated", false, SSHS_FLAGS_NORMAL); // Do calibration using live images
+	sshsNodeCreateBool(moduleData->moduleNode, "doCalibration", false, SSHS_FLAGS_NORMAL, "TODO."); // Do calibration using live images
+	sshsNodeCreateBool(moduleData->moduleNode, "isCalibrated", false, SSHS_FLAGS_NORMAL, "TODO."); // Do calibration using live images
 	sshsNodeCreateString(moduleData->moduleNode, "saveFileName_intrinsics", "intrinsics.xml", 2, PATH_MAX,
-		SSHS_FLAGS_NORMAL);
+		SSHS_FLAGS_NORMAL, "TODO.");
 	sshsNodeCreateString(moduleData->moduleNode, "loadFileName_cam0", "camera_calib_0.xml", 2, PATH_MAX,
-		SSHS_FLAGS_NORMAL); // The name of the file from which to load the calibration
-	sshsNodeCreateBool(moduleData->moduleNode, "useFisheyeModel_cam0", false, SSHS_FLAGS_NORMAL); // Use Fisheye camera model for calibration
+		SSHS_FLAGS_NORMAL, "TODO."); // The name of the file from which to load the calibration
+	sshsNodeCreateBool(moduleData->moduleNode, "useFisheyeModel_cam0", false, SSHS_FLAGS_NORMAL, "TODO."); // Use Fisheye camera model for calibration
 	sshsNodeCreateString(moduleData->moduleNode, "saveFileName_extrinsics", "extrinsics.xml", 2, PATH_MAX,
-		SSHS_FLAGS_NORMAL);
+		SSHS_FLAGS_NORMAL, "TODO.");
 	sshsNodeCreateString(moduleData->moduleNode, "loadFileName_cam1", "camera_calib_1.xml", 2, PATH_MAX,
-		SSHS_FLAGS_NORMAL); // The name of the file from which to load the calibration
-	sshsNodeCreateBool(moduleData->moduleNode, "useFisheyeModel_cam1", false, SSHS_FLAGS_NORMAL); // Use Fisheye camera model for calibration
-	sshsNodeCreateInt(moduleData->moduleNode, "boardWidth", 9, 1, 64, SSHS_FLAGS_NORMAL); // The size of the board (width)
-	sshsNodeCreateInt(moduleData->moduleNode, "boardHeigth", 5, 1, 64, SSHS_FLAGS_NORMAL); // The size of the board (height)
-	sshsNodeCreateInt(moduleData->moduleNode, "captureDelay", 100000, 0, 60000000, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateInt(moduleData->moduleNode, "numPairsImagesBeforCalib", 50, 3, 100, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateFloat(moduleData->moduleNode, "boardSquareSize", 1.0f, 0.0f, 1000.0f, SSHS_FLAGS_NORMAL); // The size of a square in your defined unit (point, millimeter, etc.)
-	sshsNodeCreateFloat(moduleData->moduleNode, "acceptableAvrEpipolarErr", 200.0f, 0.0f, 2000.0f, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateFloat(moduleData->moduleNode, "acceptableRMSErr", 200.0f, 0.0f, 2000.0f, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateBool(moduleData->moduleNode, "doDisparity", false, SSHS_FLAGS_NORMAL); // Do calibration using live images
+		SSHS_FLAGS_NORMAL, "TODO."); // The name of the file from which to load the calibration
+	sshsNodeCreateBool(moduleData->moduleNode, "useFisheyeModel_cam1", false, SSHS_FLAGS_NORMAL, "TODO."); // Use Fisheye camera model for calibration
+	sshsNodeCreateInt(moduleData->moduleNode, "boardWidth", 9, 1, 64, SSHS_FLAGS_NORMAL, "TODO."); // The size of the board (width)
+	sshsNodeCreateInt(moduleData->moduleNode, "boardHeigth", 5, 1, 64, SSHS_FLAGS_NORMAL, "TODO."); // The size of the board (height)
+	sshsNodeCreateInt(moduleData->moduleNode, "captureDelay", 100000, 0, 60000000, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateInt(moduleData->moduleNode, "numPairsImagesBeforCalib", 50, 3, 100, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateFloat(moduleData->moduleNode, "boardSquareSize", 1.0f, 0.0f, 1000.0f, SSHS_FLAGS_NORMAL, "TODO."); // The size of a square in your defined unit (point, millimeter, etc.)
+	sshsNodeCreateFloat(moduleData->moduleNode, "acceptableAvrEpipolarErr", 200.0f, 0.0f, 2000.0f, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateFloat(moduleData->moduleNode, "acceptableRMSErr", 200.0f, 0.0f, 2000.0f, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateBool(moduleData->moduleNode, "doDisparity", false, SSHS_FLAGS_NORMAL, "TODO."); // Do calibration using live images
 
 	// Update all settings.
 	updateSettings(moduleData);
