@@ -53,8 +53,8 @@ caerModuleInfo caerModuleGetInfo(void) {
 }
 
 static bool caerSpikeFeaturesInit(caerModuleData moduleData) {
-	sshsNodeCreateInt(moduleData->moduleNode, "decayTime", 3, 0, 2000, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateFloat(moduleData->moduleNode, "tau", 0.02, 0, 100, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateInt(moduleData->moduleNode, "decayTime", 3, 0, 2000, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateFloat(moduleData->moduleNode, "tau", 0.02, 0, 100, SSHS_FLAGS_NORMAL, "TODO.");
 
 	SFFilterState state = moduleData->moduleState;
 
@@ -86,9 +86,9 @@ static void caerSpikeFeaturesRun(caerModuleData moduleData, caerEventPacketConta
 	sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
 	if (!sshsNodeAttributeExists(sourceInfoNode, "dataSizeX", SSHS_SHORT)) { //to do for visualizer change name of field to a more generic one
 		sshsNodeCreateShort(sourceInfoNode, "dataSizeX", sshsNodeGetShort(sourceInfoNodeCA, "dvsSizeX"), 1, 1024,
-			SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+			SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE, "Data width.");
 		sshsNodeCreateShort(sourceInfoNode, "dataSizeY", sshsNodeGetShort(sourceInfoNodeCA, "dvsSizeY"), 1, 1024,
-			SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+			SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE, "Data height.");
 	}
 
 	int16_t sizeX = sshsNodeGetShort(sourceInfoNodeCA, "dvsSizeX");
