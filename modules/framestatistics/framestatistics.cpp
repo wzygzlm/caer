@@ -40,8 +40,8 @@ static bool caerFrameStatisticsInit(caerModuleData moduleData) {
 	caerFrameStatisticsState state = (caerFrameStatisticsState) moduleData->moduleState;
 
 	// Configurable number of bins.
-	sshsNodeCreate(moduleData->moduleNode, "numBins", 1024, "Number of bins in which to divide values up.", 4,
-		UINT16_MAX + 1);
+	sshsNodeCreate(moduleData->moduleNode, "numBins", 1024, 4, UINT16_MAX + 1, SSHS_FLAGS_NORMAL,
+		"Number of bins in which to divide values up.");
 	state->numBins = sshsNodeGetInt(moduleData->moduleNode, "numBins");
 
 	// Add config listeners last, to avoid having them dangling if Init doesn't succeed.
@@ -56,11 +56,15 @@ static void caerFrameStatisticsRun(caerModuleData moduleData, caerEventPacketCon
 	caerEventPacketContainer *out) {
 	UNUSED_ARGUMENT(out);
 
-	if (in == nullptr) {
+	caerFrameEventPacket inPacket =
+		reinterpret_cast<caerFrameEventPacket>(caerEventPacketContainerGetEventPacket(in, 0));
+
+	// Only process packets with content.
+	if (inPacket == nullptr) {
 		return;
 	}
 
-	const libcaer::events::FrameEventPacket frames(caerEventPacketContainerGetEventPacket(in, 0), false);
+	const libcaer::events::FrameEventPacket frames(inPacket, false);
 
 	caerFrameStatisticsState state = static_cast<caerFrameStatisticsState>(moduleData->moduleState);
 
