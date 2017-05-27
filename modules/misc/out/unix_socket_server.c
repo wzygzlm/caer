@@ -24,9 +24,12 @@ caerModuleInfo caerModuleGetInfo(void) {
 static bool caerOutputUnixSocketServerInit(caerModuleData moduleData) {
 	// First, always create all needed setting nodes, set their default values
 	// and add their listeners.
-	sshsNodeCreateString(moduleData->moduleNode, "socketPath", "/tmp/caer.sock", 2, PATH_MAX, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateShort(moduleData->moduleNode, "backlogSize", 5, 1, 32, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateShort(moduleData->moduleNode, "concurrentConnections", 10, 1, 128, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateString(moduleData->moduleNode, "socketPath", "/tmp/caer.sock", 2, PATH_MAX, SSHS_FLAGS_NORMAL,
+		"Unix Socket path for writing output data (server mode, create new socket).");
+	sshsNodeCreateShort(moduleData->moduleNode, "backlogSize", 5, 1, 32, SSHS_FLAGS_NORMAL,
+		"Maximum number of pending connections.");
+	sshsNodeCreateShort(moduleData->moduleNode, "concurrentConnections", 10, 1, 128, SSHS_FLAGS_NORMAL,
+		"Maximum number of concurrent active connections.");
 
 	// Allocate memory.
 	size_t numClients = (size_t) sshsNodeGetShort(moduleData->moduleNode, "concurrentConnections");

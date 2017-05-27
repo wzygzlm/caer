@@ -23,7 +23,8 @@ caerModuleInfo caerModuleGetInfo(void) {
 }
 
 static bool caerInputFileInit(caerModuleData moduleData) {
-	sshsNodeCreateString(moduleData->moduleNode, "filePath", "", 0, PATH_MAX, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateString(moduleData->moduleNode, "filePath", "", 0, PATH_MAX, SSHS_FLAGS_NORMAL,
+		"File path for reading input data.");
 
 	char *filePath = sshsNodeGetString(moduleData->moduleNode, "filePath");
 
@@ -37,7 +38,7 @@ static bool caerInputFileInit(caerModuleData moduleData) {
 	int fileFd = open(filePath, O_RDONLY);
 	if (fileFd < 0) {
 		caerModuleLog(moduleData, CAER_LOG_CRITICAL, "Could not open input file '%s' for reading. Error: %d.", filePath,
-			errno);
+		errno);
 		free(filePath);
 
 		return (false);

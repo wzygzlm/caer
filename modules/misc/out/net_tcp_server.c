@@ -23,10 +23,14 @@ caerModuleInfo caerModuleGetInfo(void) {
 static bool caerOutputNetTCPServerInit(caerModuleData moduleData) {
 	// First, always create all needed setting nodes, set their default values
 	// and add their listeners.
-	sshsNodeCreateString(moduleData->moduleNode, "ipAddress", "127.0.0.1", 7, 15, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateInt(moduleData->moduleNode, "portNumber", 7777, 1, UINT16_MAX, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateShort(moduleData->moduleNode, "backlogSize", 5, 1, 32, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateShort(moduleData->moduleNode, "concurrentConnections", 10, 1, 128, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateString(moduleData->moduleNode, "ipAddress", "127.0.0.1", 7, 15, SSHS_FLAGS_NORMAL,
+		"IPv4 address to listen on (server mode).");
+	sshsNodeCreateInt(moduleData->moduleNode, "portNumber", 7777, 1, UINT16_MAX, SSHS_FLAGS_NORMAL,
+		"Port number to listen on (server mode).");
+	sshsNodeCreateShort(moduleData->moduleNode, "backlogSize", 5, 1, 32, SSHS_FLAGS_NORMAL,
+		"Maximum number of pending connections.");
+	sshsNodeCreateShort(moduleData->moduleNode, "concurrentConnections", 10, 1, 128, SSHS_FLAGS_NORMAL,
+		"Maximum number of concurrent active connections.");
 
 	int retVal;
 

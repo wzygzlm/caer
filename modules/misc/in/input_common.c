@@ -128,14 +128,20 @@ static bool parseNetworkHeader(inputCommonState state) {
 
 	// TODO: Network: get sourceInfo node info via config-server side-channel.
 	state->header.sourceID = networkHeader.sourceID;
-	sshsNodeCreateShort(state->sourceInfoNode, "dvsSizeX", 240, 1, INT16_MAX, SSHS_FLAGS_READ_ONLY);
-	sshsNodeCreateShort(state->sourceInfoNode, "dvsSizeY", 180, 1, INT16_MAX, SSHS_FLAGS_READ_ONLY);
-	sshsNodeCreateShort(state->sourceInfoNode, "apsSizeX", 240, 1, INT16_MAX, SSHS_FLAGS_READ_ONLY);
-	sshsNodeCreateShort(state->sourceInfoNode, "apsSizeY", 180, 1, INT16_MAX, SSHS_FLAGS_READ_ONLY);
-	sshsNodeCreateShort(state->sourceInfoNode, "dataSizeX", 240, 1, INT16_MAX, SSHS_FLAGS_READ_ONLY);
-	sshsNodeCreateShort(state->sourceInfoNode, "dataSizeY", 180, 1, INT16_MAX, SSHS_FLAGS_READ_ONLY);
-	sshsNodeCreateShort(state->sourceInfoNode, "visualizerSizeX", 240, 1, INT16_MAX, SSHS_FLAGS_READ_ONLY);
-	sshsNodeCreateShort(state->sourceInfoNode, "visualizerSizeY", 180, 1, INT16_MAX, SSHS_FLAGS_READ_ONLY);
+	sshsNodeCreateShort(state->sourceInfoNode, "polaritySizeX", 240, 1, INT16_MAX, SSHS_FLAGS_READ_ONLY,
+		"Polarity events width.");
+	sshsNodeCreateShort(state->sourceInfoNode, "polaritySizeY", 180, 1, INT16_MAX, SSHS_FLAGS_READ_ONLY,
+		"Polarity events height.");
+	sshsNodeCreateShort(state->sourceInfoNode, "frameSizeX", 240, 1, INT16_MAX, SSHS_FLAGS_READ_ONLY,
+		"Frame events width.");
+	sshsNodeCreateShort(state->sourceInfoNode, "frameSizeY", 180, 1, INT16_MAX, SSHS_FLAGS_READ_ONLY,
+		"Frame events height.");
+	sshsNodeCreateShort(state->sourceInfoNode, "dataSizeX", 240, 1, INT16_MAX, SSHS_FLAGS_READ_ONLY, "Data width.");
+	sshsNodeCreateShort(state->sourceInfoNode, "dataSizeY", 180, 1, INT16_MAX, SSHS_FLAGS_READ_ONLY, "Data height.");
+	sshsNodeCreateShort(state->sourceInfoNode, "visualizerSizeX", 240, 1, INT16_MAX, SSHS_FLAGS_READ_ONLY,
+		"Visualization width.");
+	sshsNodeCreateShort(state->sourceInfoNode, "visualizerSizeY", 180, 1, INT16_MAX, SSHS_FLAGS_READ_ONLY,
+		"Visualization height.");
 
 	// TODO: Network: add sourceString.
 
@@ -255,17 +261,17 @@ static void parseSourceString(char *sourceString, inputCommonState state) {
 
 	// Put size information inside sourceInfo node.
 	if (dvsSizeX != 0 && dvsSizeY != 0) {
-		sshsNodeCreateShort(state->sourceInfoNode, "dvsSizeX", dvsSizeX, 1, INT16_MAX,
-			SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
-		sshsNodeCreateShort(state->sourceInfoNode, "dvsSizeY", dvsSizeY, 1, INT16_MAX,
-			SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+		sshsNodeCreateShort(state->sourceInfoNode, "polaritySizeX", dvsSizeX, 1, INT16_MAX,
+			SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE, "Polarity events width.");
+		sshsNodeCreateShort(state->sourceInfoNode, "polaritySizeY", dvsSizeY, 1, INT16_MAX,
+			SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE, "Polarity events height.");
 	}
 
 	if (apsSizeX != 0 && apsSizeY != 0) {
-		sshsNodeCreateShort(state->sourceInfoNode, "apsSizeX", apsSizeX, 1, INT16_MAX,
-			SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
-		sshsNodeCreateShort(state->sourceInfoNode, "apsSizeY", apsSizeY, 1, INT16_MAX,
-			SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+		sshsNodeCreateShort(state->sourceInfoNode, "frameSizeX", apsSizeX, 1, INT16_MAX,
+			SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE, "Frame events width.");
+		sshsNodeCreateShort(state->sourceInfoNode, "frameSizeY", apsSizeY, 1, INT16_MAX,
+			SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE, "Frame events height.");
 	}
 
 	if (dataSizeX == 0 && dataSizeY == 0) {
@@ -277,16 +283,16 @@ static void parseSourceString(char *sourceString, inputCommonState state) {
 
 	if (dataSizeX != 0 && dataSizeY != 0) {
 		sshsNodeCreateShort(state->sourceInfoNode, "dataSizeX", dataSizeX, 1, INT16_MAX,
-			SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+			SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE, "Data width.");
 		sshsNodeCreateShort(state->sourceInfoNode, "dataSizeY", dataSizeY, 1, INT16_MAX,
-			SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+			SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE, "Data height.");
 	}
 
 	if (visualizerSizeX != 0 && visualizerSizeY != 0) {
 		sshsNodeCreateShort(state->sourceInfoNode, "visualizerSizeX", visualizerSizeX, 1, INT16_MAX,
-			SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+			SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE, "Visualization width.");
 		sshsNodeCreateShort(state->sourceInfoNode, "visualizerSizeY", visualizerSizeY, 1, INT16_MAX,
-			SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+			SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE, "Visualization height.");
 	}
 
 	// Generate source string for output modules.
@@ -305,7 +311,7 @@ static void parseSourceString(char *sourceString, inputCommonState state) {
 	sourceStringFile[sourceStringFileLength] = '\0';
 
 	sshsNodeCreateString(state->sourceInfoNode, "sourceString", sourceStringFile, 1, 2048,
-		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+		SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE, "Device source information.");
 }
 
 static bool parseFileHeader(inputCommonState state) {
@@ -488,8 +494,9 @@ static bool parseFileHeader(inputCommonState state) {
 						memcpy(newSourceString + currSourceStringLength, headerLine, addSourceStringLength);
 						newSourceString[currSourceStringLength + addSourceStringLength] = '\0';
 
-						sshsNodeCreateString(state->sourceInfoNode, "sourceString", newSourceString, 1, 2048,
-							SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+						sshsNodeUpdateReadOnlyAttribute(state->sourceInfoNode, "sourceString", SSHS_STRING,
+							(union sshs_node_attr_value ) { .string = newSourceString });
+
 						free(newSourceString);
 					}
 				}
@@ -1826,7 +1833,7 @@ bool isNetworkMessageBased) {
 	state->parentModule = moduleData;
 	state->sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
 	sshsNodeCreateLong(state->sourceInfoNode, "highestTimestamp", -1, -1, INT64_MAX,
-		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+		SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE, "Highest timestamp generated by device.");
 
 	// Check for invalid file descriptors.
 	if (readFd < -1) {
@@ -1841,39 +1848,45 @@ bool isNetworkMessageBased) {
 	state->isNetworkMessageBased = isNetworkMessageBased;
 
 	// Add auto-restart setting.
-	sshsNodeCreateBool(moduleData->moduleNode, "autoRestart", true, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateBool(moduleData->moduleNode, "autoRestart", true, SSHS_FLAGS_NORMAL,
+		"Automatically restart module after shutdown.");
 
 	// Handle configuration.
-	sshsNodeCreateBool(moduleData->moduleNode, "validOnly", false, SSHS_FLAGS_NORMAL); // only send valid events
-	sshsNodeCreateBool(moduleData->moduleNode, "keepPackets", false, SSHS_FLAGS_NORMAL); // ensure all packets are kept
-	sshsNodeCreateBool(moduleData->moduleNode, "pause", false, SSHS_FLAGS_NORMAL); // support pausing a stream
-	sshsNodeCreateInt(moduleData->moduleNode, "bufferSize", 65536, 512, 512 * 1024, SSHS_FLAGS_NORMAL); // in bytes, size of data buffer
-	sshsNodeCreateInt(moduleData->moduleNode, "transferBufferSize", 128, 8, 1024, SSHS_FLAGS_NORMAL); // in packet groups
+	sshsNodeCreateBool(moduleData->moduleNode, "validOnly", false, SSHS_FLAGS_NORMAL, "Only read valid events.");
+	sshsNodeCreateBool(moduleData->moduleNode, "keepPackets", false, SSHS_FLAGS_NORMAL,
+		"Ensure all packets are kept (stall input if transfer-buffer full).");
+	sshsNodeCreateBool(moduleData->moduleNode, "pause", false, SSHS_FLAGS_NORMAL, "Pause the event stream.");
+	sshsNodeCreateInt(moduleData->moduleNode, "bufferSize", 65536, 512, 512 * 1024, SSHS_FLAGS_NORMAL,
+		"Size of read data buffer in bytes.");
+	sshsNodeCreateInt(moduleData->moduleNode, "ringBufferSize", 128, 8, 1024, SSHS_FLAGS_NORMAL,
+		"Size of EventPacketContainer and EventPacket queues, used for transfers between input threads and mainloop.");
 
 	sshsNodeCreateInt(moduleData->moduleNode, "PacketContainerMaxPacketSize", 8192, 1, 10 * 1024 * 1024,
-		SSHS_FLAGS_NORMAL); // in events, size of slice to generate
-	sshsNodeCreateInt(moduleData->moduleNode, "PacketContainerInterval", 10000, 1, 120 * 1000 * 1000,
-		SSHS_FLAGS_NORMAL); // in µs, size of time slice to generate
-	sshsNodeCreateInt(moduleData->moduleNode, "PacketContainerDelay", 10000, 1, 120 * 1000 * 1000, SSHS_FLAGS_NORMAL); // in µs, delay between consecutive slices
+		SSHS_FLAGS_NORMAL,
+		"Maximum packet size in events, when any packet reaches this size, the EventPacketContainer is sent for processing.");
+	sshsNodeCreateInt(moduleData->moduleNode, "PacketContainerInterval", 10000, 1, 120 * 1000 * 1000, SSHS_FLAGS_NORMAL,
+		"Time interval in µs, each sent EventPacketContainer will span this interval.");
+	sshsNodeCreateInt(moduleData->moduleNode, "PacketContainerDelay", 10000, 1, 120 * 1000 * 1000, SSHS_FLAGS_NORMAL,
+		"Time delay in µs between consecutive EventPacketContainers sent for processing.");
 
 	atomic_store(&state->validOnly, sshsNodeGetBool(moduleData->moduleNode, "validOnly"));
 	atomic_store(&state->keepPackets, sshsNodeGetBool(moduleData->moduleNode, "keepPackets"));
 	atomic_store(&state->pause, sshsNodeGetBool(moduleData->moduleNode, "pause"));
+	int ringSize = sshsNodeGetInt(moduleData->moduleNode, "ringBufferSize");
 
 	atomic_store(&state->packetContainer.sizeSlice,
 		sshsNodeGetInt(moduleData->moduleNode, "PacketContainerMaxPacketSize"));
 	atomic_store(&state->packetContainer.timeSlice, sshsNodeGetInt(moduleData->moduleNode, "PacketContainerInterval"));
 	atomic_store(&state->packetContainer.timeDelay, sshsNodeGetInt(moduleData->moduleNode, "PacketContainerDelay"));
 
-	// Initialize transfer ring-buffers. transferBufferSize only changes here at init time!
-	state->transferRingPackets = ringBufferInit((size_t) sshsNodeGetInt(moduleData->moduleNode, "transferBufferSize"));
+	// Initialize transfer ring-buffers. ringBufferSize only changes here at init time!
+	state->transferRingPackets = ringBufferInit((size_t) ringSize);
 	if (state->transferRingPackets == NULL) {
 		caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Failed to allocate packets transfer ring-buffer.");
 		return (false);
 	}
 
-	state->transferRingPacketContainers = ringBufferInit(
-		(size_t) sshsNodeGetInt(moduleData->moduleNode, "transferBufferSize"));
+	state->transferRingPacketContainers = ringBufferInit((size_t) ringSize);
 	if (state->transferRingPacketContainers == NULL) {
 		caerModuleLog(state->parentModule, CAER_LOG_ERROR,
 			"Failed to allocate packet containers transfer ring-buffer.");
@@ -1920,7 +1933,7 @@ bool isNetworkMessageBased) {
 		if ((errno = thrd_join(state->inputAssemblerThread, NULL)) != thrd_success) {
 			// This should never happen!
 			caerModuleLog(state->parentModule, CAER_LOG_CRITICAL, "Failed to join input assembler thread. Error: %d.",
-				errno);
+			errno);
 		}
 
 		caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Failed to start input reader thread.");
@@ -1950,7 +1963,7 @@ void caerInputCommonExit(caerModuleData moduleData) {
 	if ((errno = thrd_join(state->inputAssemblerThread, NULL)) != thrd_success) {
 		// This should never happen!
 		caerModuleLog(state->parentModule, CAER_LOG_CRITICAL, "Failed to join input assembler thread. Error: %d.",
-			errno);
+		errno);
 	}
 
 	// Now clean up the transfer ring-buffers and its contents.
@@ -2031,9 +2044,8 @@ void caerInputCommonRun(caerModuleData moduleData, caerEventPacketContainer in, 
 		caerMainloopDataNotifyDecrease(NULL);
 		atomic_fetch_sub_explicit(&state->dataAvailableModule, 1, memory_order_relaxed);
 
-		sshsNodeCreateLong(state->sourceInfoNode, "highestTimestamp",
-			caerEventPacketContainerGetHighestEventTimestamp(*out), -1, INT64_MAX,
-			SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+		sshsNodeUpdateReadOnlyAttribute(state->sourceInfoNode, "highestTimestamp", SSHS_LONG,
+			(union sshs_node_attr_value ) { .ilong = caerEventPacketContainerGetHighestEventTimestamp(*out) });
 
 		caerEventPacketHeader special = caerEventPacketContainerGetEventPacket(*out, SPECIAL_EVENT);
 

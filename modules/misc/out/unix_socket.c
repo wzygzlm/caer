@@ -23,7 +23,8 @@ caerModuleInfo caerModuleGetInfo(void) {
 static bool caerOutputUnixSocketInit(caerModuleData moduleData) {
 	// First, always create all needed setting nodes, set their default values
 	// and add their listeners.
-	sshsNodeCreateString(moduleData->moduleNode, "socketPath", "/tmp/caer.sock", 2, PATH_MAX, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateString(moduleData->moduleNode, "socketPath", "/tmp/caer.sock", 2, PATH_MAX, SSHS_FLAGS_NORMAL,
+		"Unix Socket path for writing output data (client mode, connect to existing socket).");
 
 	// Allocate memory.
 	size_t numClients = 1;

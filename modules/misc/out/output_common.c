@@ -1387,16 +1387,18 @@ bool caerOutputCommonInit(caerModuleData moduleData, int fileDescriptor, outputC
 	// If in server mode, add SSHS attribute to track connected client IPs.
 	if (state->isNetworkStream && state->networkIO->server != NULL) {
 		sshsNodeCreateString(state->parentModule->moduleNode, "connectedClients", "", 0, SIZE_MAX,
-			SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE);
+			SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE, "IPs of clients currently connected to output server.");
 	}
 
 	// Initial source ID has to be -1 (invalid).
 	atomic_store(&state->sourceID, -1);
 
 	// Handle configuration.
-	sshsNodeCreateBool(moduleData->moduleNode, "validOnly", false, SSHS_FLAGS_NORMAL); // only send valid events
-	sshsNodeCreateBool(moduleData->moduleNode, "keepPackets", false, SSHS_FLAGS_NORMAL); // ensure all packets are kept
-	sshsNodeCreateInt(moduleData->moduleNode, "ringBufferSize", 512, 8, 4096, SSHS_FLAGS_NORMAL); // in packet containers
+	sshsNodeCreateBool(moduleData->moduleNode, "validOnly", false, SSHS_FLAGS_NORMAL, "Only send valid events.");
+	sshsNodeCreateBool(moduleData->moduleNode, "keepPackets", false, SSHS_FLAGS_NORMAL,
+		"Ensure all packets are kept (stall output if transfer-buffer full).");
+	sshsNodeCreateInt(moduleData->moduleNode, "ringBufferSize", 512, 8, 4096, SSHS_FLAGS_NORMAL,
+		"Size of EventPacketContainer and EventPacket queues, used for transfers between mainloop and output threads.");
 
 	atomic_store(&state->validOnly, sshsNodeGetBool(moduleData->moduleNode, "validOnly"));
 	atomic_store(&state->keepPackets, sshsNodeGetBool(moduleData->moduleNode, "keepPackets"));
@@ -1518,8 +1520,10 @@ void caerOutputCommonExit(caerModuleData moduleData) {
 
 	ringBufferFree(state->compressorRing);
 
-	while ((packetContainer = ringBufferGet(state->outputRing)) != NULL) {
-		caerEventPacketContainerFree(packetContainer);
+	libuvWriteBuf packetBuffer;
+
+	while ((packetBuffer = ringBufferGet(state->outputRing)) != NULL) {
+		free(packetBuffer);
 
 		// This should never happen!
 		caerModuleLog(state->parentModule, CAER_LOG_CRITICAL, "Output ring-buffer was not empty!");
