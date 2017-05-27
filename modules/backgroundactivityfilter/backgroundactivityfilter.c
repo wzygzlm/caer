@@ -74,8 +74,7 @@ static bool caerBackgroundActivityFilterInit(caerModuleData moduleData) {
 		return (false);
 	}
 
-	state->deltaT = sshsNodeGetInt(moduleData->moduleNode, "deltaT");
-	state->subSampleBy = sshsNodeGetByte(moduleData->moduleNode, "subSampleBy");
+	caerBackgroundActivityFilterConfig(moduleData);
 
 	// Add config listeners last, to avoid having them dangling if Init doesn't succeed.
 	sshsNodeAddAttributeListener(moduleData->moduleNode, moduleData, &caerModuleConfigDefaultListener);
