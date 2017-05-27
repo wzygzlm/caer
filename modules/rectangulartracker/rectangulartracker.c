@@ -218,32 +218,32 @@ caerModuleInfo caerModuleGetInfo(void) {
 }
 
 static bool caerRectangulartrackerInit(caerModuleData moduleData) {
-	sshsNodeCreateBool(moduleData->moduleNode, "dynamicSizeEnabled", false, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateBool(moduleData->moduleNode, "dynamicAspectRatioEnabled", false, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateBool(moduleData->moduleNode, "dynamicAngleEnabled", false, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateBool(moduleData->moduleNode, "pathsEnabled", false, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateBool(moduleData->moduleNode, "showPaths", false, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateInt(moduleData->moduleNode, "maxClusterNum", 10, 1, 100, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateFloat(moduleData->moduleNode, "thresholdMassForVisibleCluster", 30.0f, 1.0f, 100.0f, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateFloat(moduleData->moduleNode, "defaultClusterRadius", 25.0f, 1.0f, 100.0f, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateBool(moduleData->moduleNode, "forceBoundary", false, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateBool(moduleData->moduleNode, "smoothMove", false, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateBool(moduleData->moduleNode, "useVelocity", false, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateBool(moduleData->moduleNode, "initializeVelocityToAverage", false, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateBool(moduleData->moduleNode, "growMergedSizeEnabled", false, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateBool(moduleData->moduleNode, "angleFollowsVelocity", false, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateBool(moduleData->moduleNode, "useNearestCluster", false, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateFloat(moduleData->moduleNode, "aspectRatio", 1.0f, 0.5f, 4.0f, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateBool(moduleData->moduleNode, "peopleCounting", false, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateBool(moduleData->moduleNode, "resetCountingNum", false, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateInt(moduleData->moduleNode, "totalPeopleNum", 0, 0, 1000, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateFloat(moduleData->moduleNode, "botLine", 0.5f, 0.0f, 1.0f, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateFloat(moduleData->moduleNode, "topLine", 0.6f, 0.0f, 1.0f, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateFloat(moduleData->moduleNode, "leftLine", 0.01f, 0.0f, 1.0f, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateFloat(moduleData->moduleNode, "rightLine", 0.99f, 0.0f, 1.0f, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateBool(moduleData->moduleNode, "useOnePolarityOnlyEnabled", false, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateBool(moduleData->moduleNode, "useOffPolarityOnlyEnabled", false, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateBool(moduleData->moduleNode, "showAllClusters", false, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateBool(moduleData->moduleNode, "dynamicSizeEnabled", false, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateBool(moduleData->moduleNode, "dynamicAspectRatioEnabled", false, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateBool(moduleData->moduleNode, "dynamicAngleEnabled", false, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateBool(moduleData->moduleNode, "pathsEnabled", false, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateBool(moduleData->moduleNode, "showPaths", false, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateInt(moduleData->moduleNode, "maxClusterNum", 10, 1, 100, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateFloat(moduleData->moduleNode, "thresholdMassForVisibleCluster", 30.0f, 1.0f, 100.0f, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateFloat(moduleData->moduleNode, "defaultClusterRadius", 25.0f, 1.0f, 100.0f, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateBool(moduleData->moduleNode, "forceBoundary", false, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateBool(moduleData->moduleNode, "smoothMove", false, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateBool(moduleData->moduleNode, "useVelocity", false, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateBool(moduleData->moduleNode, "initializeVelocityToAverage", false, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateBool(moduleData->moduleNode, "growMergedSizeEnabled", false, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateBool(moduleData->moduleNode, "angleFollowsVelocity", false, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateBool(moduleData->moduleNode, "useNearestCluster", false, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateFloat(moduleData->moduleNode, "aspectRatio", 1.0f, 0.5f, 4.0f, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateBool(moduleData->moduleNode, "peopleCounting", false, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateBool(moduleData->moduleNode, "resetCountingNum", false, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateInt(moduleData->moduleNode, "totalPeopleNum", 0, 0, 1000, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateFloat(moduleData->moduleNode, "botLine", 0.5f, 0.0f, 1.0f, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateFloat(moduleData->moduleNode, "topLine", 0.6f, 0.0f, 1.0f, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateFloat(moduleData->moduleNode, "leftLine", 0.01f, 0.0f, 1.0f, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateFloat(moduleData->moduleNode, "rightLine", 0.99f, 0.0f, 1.0f, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateBool(moduleData->moduleNode, "useOnePolarityOnlyEnabled", false, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateBool(moduleData->moduleNode, "useOffPolarityOnlyEnabled", false, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateBool(moduleData->moduleNode, "showAllClusters", false, SSHS_FLAGS_NORMAL, "TODO.");
 
 	RTFilterState state = moduleData->moduleState;
 
@@ -349,9 +349,9 @@ static void caerRectangulartrackerRun(caerModuleData moduleData, caerEventPacket
 	sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
 	if (!sshsNodeAttributeExists(sourceInfoNode, "dataSizeX", SSHS_SHORT)) {
 		sshsNodeCreateShort(sourceInfoNode, "dataSizeX", sshsNodeGetShort(sourceInfoNodeCA, "dvsSizeX"), 1, 1024,
-			SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+			SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE, "Data width.");
 		sshsNodeCreateShort(sourceInfoNode, "dataSizeY", sshsNodeGetShort(sourceInfoNodeCA, "dvsSizeY"), 1, 1024,
-			SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+			SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE, "Data height.");
 	}
 
 	int16_t sizeX = sshsNodeGetShort(sourceInfoNode, "dataSizeX");
