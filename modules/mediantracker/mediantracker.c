@@ -52,8 +52,9 @@ caerModuleInfo caerModuleGetInfo(void) {
 }
 
 static bool caerMediantrackerInit(caerModuleData moduleData) {
-	sshsNodeCreateInt(moduleData->moduleNode, "tauUs", 25, 0, 1000, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateFloat(moduleData->moduleNode, "numStdDevsForBoundingBox", 1.0f, 0.0f, 10.0f, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateInt(moduleData->moduleNode, "tauUs", 25, 0, 1000, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateFloat(moduleData->moduleNode, "numStdDevsForBoundingBox", 1.0f, 0.0f, 10.0f, SSHS_FLAGS_NORMAL,
+		"TODO.");
 
 	MTFilterState state = moduleData->moduleState;
 
@@ -94,9 +95,9 @@ static void caerMediantrackerRun(caerModuleData moduleData, caerEventPacketConta
 	sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
 	if (!sshsNodeAttributeExists(sourceInfoNode, "dataSizeX", SSHS_SHORT)) {
 		sshsNodeCreateShort(sourceInfoNode, "dataSizeX", sshsNodeGetShort(sourceInfoNodeCA, "dvsSizeX"), 1, 1024,
-			SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+			SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE, "Data width.");
 		sshsNodeCreateShort(sourceInfoNode, "dataSizeY", sshsNodeGetShort(sourceInfoNodeCA, "dvsSizeY"), 1, 1024,
-			SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+			SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE, "Data height.");
 	}
 
 	int16_t sizeX = sshsNodeGetShort(sourceInfoNode, "dataSizeX");
