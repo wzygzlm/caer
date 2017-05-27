@@ -20,7 +20,6 @@ static void caerBackgroundActivityFilterRun(caerModuleData moduleData, caerEvent
 static void caerBackgroundActivityFilterConfig(caerModuleData moduleData);
 static void caerBackgroundActivityFilterExit(caerModuleData moduleData);
 static void caerBackgroundActivityFilterReset(caerModuleData moduleData, int16_t resetCallSourceID);
-static bool allocateTimestampMap(caerModuleData moduleData, int16_t sourceID);
 
 static const struct caer_module_functions BAFilterFunctions = { .moduleInit = &caerBackgroundActivityFilterInit,
 	.moduleRun = &caerBackgroundActivityFilterRun, .moduleConfig = &caerBackgroundActivityFilterConfig, .moduleExit =
@@ -38,6 +37,18 @@ caerModuleInfo caerModuleGetInfo(void) {
 }
 
 static bool caerBackgroundActivityFilterInit(caerModuleData moduleData) {
+	// Wait for input to be ready. All inputs, once they are up and running, will
+	// have a valid sourceInfo node to query, especially if dealing with data.
+	int16_t *inputs = caerMainloopGetModuleInputIDs(moduleData->moduleID, NULL);
+	if (inputs == NULL) {
+		return (false);
+	}
+
+	sshsNode sourceInfo = caerMainloopGetSourceInfo(inputs[0]);
+	if (sourceInfo == NULL) {
+		return (false);
+	}
+
 	sshsNodeCreateInt(moduleData->moduleNode, "deltaT", 30000, 1, 10000000, SSHS_FLAGS_NORMAL,
 		"Maximum time difference in µs for events to be considered correlated and not be filtered out.");
 	sshsNodeCreateByte(moduleData->moduleNode, "subSampleBy", 0, 0, 20, SSHS_FLAGS_NORMAL,
@@ -49,6 +60,16 @@ static bool caerBackgroundActivityFilterInit(caerModuleData moduleData) {
 		SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE, "Number of events filtered out by this module.");
 
 	BAFilterState state = moduleData->moduleState;
+
+	// Allocate map using info from sourceInfo.
+	int16_t sizeX = sshsNodeGetShort(sourceInfo, "polaritySizeX");
+	int16_t sizeY = sshsNodeGetShort(sourceInfo, "polaritySizeY");
+
+	state->timestampMap = simple2DBufferInitLong((size_t) sizeX, (size_t) sizeY);
+	if (state->timestampMap == NULL) {
+		caerModuleLog(moduleData, CAER_LOG_ERROR, "Failed to allocate memory for timestampMap.");
+		return (false);
+	}
 
 	state->deltaT = sshsNodeGetInt(moduleData->moduleNode, "deltaT");
 	state->subSampleBy = sshsNodeGetByte(moduleData->moduleNode, "subSampleBy");
@@ -73,15 +94,6 @@ static void caerBackgroundActivityFilterRun(caerModuleData moduleData, caerEvent
 	}
 
 	BAFilterState state = moduleData->moduleState;
-
-	// If the map is not allocated yet, do it.
-	if (state->timestampMap == NULL) {
-		if (!allocateTimestampMap(moduleData, caerEventPacketHeaderGetEventSource(&polarity->packetHeader))) {
-			// Failed to allocate memory, nothing to do.
-			caerModuleLog(moduleData, CAER_LOG_ERROR, "Failed to allocate memory for timestampMap.");
-			return;
-		}
-	}
 
 	// Iterate over events and filter out ones that are not supported by other
 	// events within a certain region in the specified timeframe.
@@ -173,27 +185,4 @@ static void caerBackgroundActivityFilterReset(caerModuleData moduleData, int16_t
 	state->invalidPointNum = 0;
 	sshsNodeUpdateReadOnlyAttribute(moduleData->moduleNode, "invalidPointNum", SSHS_LONG,
 		(union sshs_node_attr_value ) { .ilong = 0 });
-}
-
-static bool allocateTimestampMap(caerModuleData moduleData, int16_t sourceID) {
-	// Get size information from source.
-	sshsNode sourceInfoNode = caerMainloopGetSourceInfo(sourceID);
-	if (sourceInfoNode == NULL) {
-		// This should never happen, but we handle it gracefully.
-		caerModuleLog(moduleData, CAER_LOG_ERROR, "Failed to get source info to allocate timestamp map.");
-		return (false);
-	}
-
-	BAFilterState state = moduleData->moduleState;
-
-	int16_t sizeX = sshsNodeGetShort(sourceInfoNode, "polaritySizeX");
-	int16_t sizeY = sshsNodeGetShort(sourceInfoNode, "polaritySizeY");
-
-	state->timestampMap = simple2DBufferInitLong((size_t) sizeX, (size_t) sizeY);
-	if (state->timestampMap == NULL) {
-		return (false);
-	}
-
-	// TODO: size the map differently if subSampleBy is set!
-	return (true);
 }
