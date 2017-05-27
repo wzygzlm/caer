@@ -19,21 +19,20 @@ struct PoseEstimationState_struct {
 typedef struct PoseEstimationState_struct *PoseEstimationState;
 
 static bool caerPoseEstimationInit(caerModuleData moduleData);
-static void caerPoseEstimationRun(caerModuleData moduleData, caerEventPacketContainer in,
-	caerEventPacketContainer *out);
+static void caerPoseEstimationRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out);
 static void caerPoseEstimationExit(caerModuleData moduleData);
 static void updateSettings(caerModuleData moduleData);
 
 static const struct caer_module_functions PoseEstimationFunctions = { .moduleInit = &caerPoseEstimationInit,
-	.moduleRun = &caerPoseEstimationRun, .moduleConfig = NULL, .moduleExit =
-		&caerPoseEstimationExit };
+	.moduleRun = &caerPoseEstimationRun, .moduleConfig = NULL, .moduleExit = &caerPoseEstimationExit };
 
-static const struct caer_event_stream_in PoseEstimationInputs[] = { { .type = FRAME_EVENT, .number = 1, .readOnly = false } };
+static const struct caer_event_stream_in PoseEstimationInputs[] = { { .type = FRAME_EVENT, .number = 1, .readOnly =
+	false } };
 
 static const struct caer_module_info PoseEstimationInfo = { .version = 1, .name = "PoseEstimation", .type =
-	CAER_MODULE_PROCESSOR, .memSize = sizeof(struct PoseEstimationState_struct), .functions =
-	&PoseEstimationFunctions, .inputStreams = PoseEstimationInputs, .inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(
-		PoseEstimationInputs), .outputStreams = NULL, .outputStreamsSize = 0, };
+	CAER_MODULE_PROCESSOR, .memSize = sizeof(struct PoseEstimationState_struct), .functions = &PoseEstimationFunctions,
+	.inputStreams = PoseEstimationInputs, .inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(PoseEstimationInputs),
+	.outputStreams = NULL, .outputStreamsSize = 0, };
 
 caerModuleInfo caerModuleGetInfo(void) {
 	return (&PoseEstimationInfo);
@@ -43,10 +42,14 @@ static bool caerPoseEstimationInit(caerModuleData moduleData) {
 	PoseEstimationState state = moduleData->moduleState;
 
 	// Create config settings.
-	sshsNodeCreateBool(moduleData->moduleNode, "detectMarkers", false, SSHS_FLAGS_NORMAL); // Do calibration using live images
-	sshsNodeCreateString(moduleData->moduleNode, "saveFileName", "camera_calib.xml", 1, PATH_MAX, SSHS_FLAGS_NORMAL); // The name of the file where to write the calculated calibration settings
-	sshsNodeCreateString(moduleData->moduleNode, "loadFileName", "camera_calib.xml", 1, PATH_MAX, SSHS_FLAGS_NORMAL); // The name of the file from which to load the calibration
-	sshsNodeCreateInt(moduleData->moduleNode, "captureDelay", 500000, 0, 10 * 1000 * 1000, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateBool(moduleData->moduleNode, "detectMarkers", false, SSHS_FLAGS_NORMAL,
+		"Do calibration using live images.");
+	sshsNodeCreateString(moduleData->moduleNode, "saveFileName", "camera_calib.xml", 1, PATH_MAX, SSHS_FLAGS_NORMAL,
+		"The name of the file where to write the calculated calibration settings.");
+	sshsNodeCreateString(moduleData->moduleNode, "loadFileName", "camera_calib.xml", 1, PATH_MAX, SSHS_FLAGS_NORMAL,
+		"The name of the file from which to load the calibration.");
+	sshsNodeCreateInt(moduleData->moduleNode, "captureDelay", 500000, 0, 10 * 1000 * 1000, SSHS_FLAGS_NORMAL,
+		"Time delay between consecutive frames for them to be analyzed.");
 
 	// Update all settings.
 	updateSettings(moduleData);
@@ -85,8 +88,7 @@ static void caerPoseEstimationExit(caerModuleData moduleData) {
 	free(state->settings.loadFileName);
 }
 
-static void caerPoseEstimationRun(caerModuleData moduleData, caerEventPacketContainer in,
-	caerEventPacketContainer *out) {
+static void caerPoseEstimationRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out) {
 	UNUSED_ARGUMENT(out);
 
 	// Interpret variable arguments (same as above in main function).
