@@ -44,6 +44,26 @@ caerModuleInfo caerModuleGetInfo(void) {
 }
 
 static bool caerCameraCalibrationInit(caerModuleData moduleData) {
+	// Wait for input to be ready. All inputs, once they are up and running, will
+	// have a valid sourceInfo node to query, especially if dealing with data.
+	size_t inputsSize;
+	int16_t *inputs = caerMainloopGetModuleInputIDs(moduleData->moduleID, &inputsSize);
+	if (inputs == NULL) {
+		return (false);
+	}
+
+	int16_t sourceID = inputs[0];
+	free(inputs);
+
+	// Both input packets (polarity and frame) must be from the same source, which
+	// means inputSize should be 1 here (one module from which both come). If it isn't,
+	// it means we connected the module wrongly.
+	if (inputsSize != 1) {
+		caerModuleLog(moduleData, CAER_LOG_ERROR,
+			"Polarity and Frame inputs come from two different sources. Both must be from the same source!");
+		return (false);
+	}
+
 	CameraCalibrationState state = moduleData->moduleState;
 
 	// Create config settings.
@@ -85,6 +105,14 @@ static bool caerCameraCalibrationInit(caerModuleData moduleData) {
 		"Whether to fit all the input pixels (black borders) or maximize the image, at the cost of loosing some pixels.");
 
 	// Update all settings.
+	sshsNode sourceInfo = caerMainloopGetSourceInfo(sourceID);
+	if (sourceInfo == NULL) {
+		return (false);
+	}
+
+	state->settings.imageWidth = U32T(sshsNodeGetShort(sourceInfo, "frameSizeX"));
+	state->settings.imageHeigth = U32T(sshsNodeGetShort(sourceInfo, "frameSizeY"));
+
 	updateSettings(moduleData);
 
 	// Initialize C++ class for OpenCV integration.
@@ -187,31 +215,6 @@ static void caerCameraCalibrationRun(caerModuleData moduleData, caerEventPacketC
 	caerFrameEventPacket frame = (caerFrameEventPacket) caerEventPacketContainerFindEventPacketByType(in, FRAME_EVENT);
 
 	CameraCalibrationState state = moduleData->moduleState;
-
-	// As soon as we have a packet, we can get the source ID and initialize the image size.
-	if (polarity != NULL || frame != NULL) {
-		int16_t sourceID = -1;
-
-		if (polarity != NULL) {
-			sourceID = caerEventPacketHeaderGetEventSource(&polarity->packetHeader);
-		}
-
-		if (frame != NULL) {
-			sourceID = caerEventPacketHeaderGetEventSource(&frame->packetHeader);
-		}
-
-		// At this point we must have a valid source ID.
-		// Get size information from source.
-		sshsNode sourceInfoNode = caerMainloopGetSourceInfo(sourceID);
-		if (sourceInfoNode == NULL) {
-			// This should never happen, but we handle it gracefully.
-			caerModuleLog(moduleData, CAER_LOG_ERROR, "Failed to get source info to setup calibration settings.");
-			return;
-		}
-
-		state->settings.imageWidth = U32T(sshsNodeGetShort(sourceInfoNode, "frameSizeX"));
-		state->settings.imageHeigth = U32T(sshsNodeGetShort(sourceInfoNode, "frameSizeY"));
-	}
 
 	// Calibration is done only using frames.
 	if (state->settings.doCalibration && !state->calibrationCompleted && frame != NULL) {
