@@ -92,6 +92,8 @@ struct RTFilter_state {
 	bool useOnePolarityOnlyEnabled;
 	bool useOffPolarityOnlyEnabled;
 	bool showAllClusters;
+	int16_t sizeX;
+	int16_t sizeY;
 };
 
 // constants
@@ -218,14 +220,26 @@ caerModuleInfo caerModuleGetInfo(void) {
 }
 
 static bool caerRectangulartrackerInit(caerModuleData moduleData) {
+	// Wait for input to be ready. All inputs, once they are up and running, will
+	// have a valid sourceInfo node to query, especially if dealing with data.
+	int16_t *inputs = caerMainloopGetModuleInputIDs(moduleData->moduleID, NULL);
+	if (inputs == NULL) {
+		return (false);
+	}
+
+	int16_t sourceID = inputs[0];
+	free(inputs);
+
 	sshsNodeCreateBool(moduleData->moduleNode, "dynamicSizeEnabled", false, SSHS_FLAGS_NORMAL, "TODO.");
 	sshsNodeCreateBool(moduleData->moduleNode, "dynamicAspectRatioEnabled", false, SSHS_FLAGS_NORMAL, "TODO.");
 	sshsNodeCreateBool(moduleData->moduleNode, "dynamicAngleEnabled", false, SSHS_FLAGS_NORMAL, "TODO.");
 	sshsNodeCreateBool(moduleData->moduleNode, "pathsEnabled", false, SSHS_FLAGS_NORMAL, "TODO.");
 	sshsNodeCreateBool(moduleData->moduleNode, "showPaths", false, SSHS_FLAGS_NORMAL, "TODO.");
 	sshsNodeCreateInt(moduleData->moduleNode, "maxClusterNum", 10, 1, 100, SSHS_FLAGS_NORMAL, "TODO.");
-	sshsNodeCreateFloat(moduleData->moduleNode, "thresholdMassForVisibleCluster", 30.0f, 1.0f, 100.0f, SSHS_FLAGS_NORMAL, "TODO.");
-	sshsNodeCreateFloat(moduleData->moduleNode, "defaultClusterRadius", 25.0f, 1.0f, 100.0f, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateFloat(moduleData->moduleNode, "thresholdMassForVisibleCluster", 30.0f, 1.0f, 100.0f,
+		SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateFloat(moduleData->moduleNode, "defaultClusterRadius", 25.0f, 1.0f, 100.0f, SSHS_FLAGS_NORMAL,
+		"TODO.");
 	sshsNodeCreateBool(moduleData->moduleNode, "forceBoundary", false, SSHS_FLAGS_NORMAL, "TODO.");
 	sshsNodeCreateBool(moduleData->moduleNode, "smoothMove", false, SSHS_FLAGS_NORMAL, "TODO.");
 	sshsNodeCreateBool(moduleData->moduleNode, "useVelocity", false, SSHS_FLAGS_NORMAL, "TODO.");
@@ -246,6 +260,14 @@ static bool caerRectangulartrackerInit(caerModuleData moduleData) {
 	sshsNodeCreateBool(moduleData->moduleNode, "showAllClusters", false, SSHS_FLAGS_NORMAL, "TODO.");
 
 	RTFilterState state = moduleData->moduleState;
+
+	sshsNode sourceInfo = caerMainloopGetSourceInfo(sourceID);
+	if (sourceInfo == NULL) {
+		return (false);
+	}
+
+	state->sizeX = sshsNodeGetShort(sourceInfo, "polaritySizeX");
+	state->sizeY = sshsNodeGetShort(sourceInfo, "polaritySizeY");
 
 	state->dynamicSizeEnabled = sshsNodeGetBool(moduleData->moduleNode, "dynamicSizeEnabled");
 	state->dynamicAspectRatioEnabled = sshsNodeGetBool(moduleData->moduleNode, "dynamicAspectRatioEnabled");
@@ -324,6 +346,13 @@ static bool caerRectangulartrackerInit(caerModuleData moduleData) {
 		inTopZone[i] = false;
 	}
 
+	// Create own sourceInfo node.
+	sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
+	sshsNodeCreateShort(sourceInfoNode, "dataSizeX", state->sizeX, 1, 1024, SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE,
+		"Data width.");
+	sshsNodeCreateShort(sourceInfoNode, "dataSizeY", state->sizeY, 1, 1024, SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE,
+		"Data height.");
+
 	// Add config listeners last, to avoid having them dangling if Init doesn't succeed.
 	sshsNodeAddAttributeListener(moduleData->moduleNode, moduleData, &caerModuleConfigDefaultListener);
 
@@ -343,19 +372,6 @@ static void caerRectangulartrackerRun(caerModuleData moduleData, caerEventPacket
 	}
 
 	RTFilterState state = moduleData->moduleState;
-
-	int16_t sourceID = caerEventPacketHeaderGetEventSource(&polarity->packetHeader);
-	sshsNode sourceInfoNodeCA = caerMainloopGetSourceInfo(sourceID);
-	sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
-	if (!sshsNodeAttributeExists(sourceInfoNode, "dataSizeX", SSHS_SHORT)) {
-		sshsNodeCreateShort(sourceInfoNode, "dataSizeX", sshsNodeGetShort(sourceInfoNodeCA, "polaritySizeX"), 1, 1024,
-			SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE, "Data width.");
-		sshsNodeCreateShort(sourceInfoNode, "dataSizeY", sshsNodeGetShort(sourceInfoNodeCA, "polaritySizeY"), 1, 1024,
-			SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE, "Data height.");
-	}
-
-	int16_t sizeX = sshsNodeGetShort(sourceInfoNode, "dataSizeX");
-	int16_t sizeY = sshsNodeGetShort(sourceInfoNode, "dataSizeY");
 
 	for (int i = 1; i < state->maxClusterNum; i++) {
 		state->clusterList[i].lastPacketLocation_x = state->clusterList[i].location_x;
@@ -377,7 +393,7 @@ static void caerRectangulartrackerRun(caerModuleData moduleData, caerEventPacket
 		if (!caerPolarityEventIsValid(caerPolarityIteratorElement)) {
 			continue;
 		}
-		if ((x >= sizeX) || (y >= sizeY)) {
+		if ((x >= state->sizeX) || (y >= state->sizeY)) {
 			continue;
 		}
 
@@ -427,7 +443,7 @@ static void caerRectangulartrackerRun(caerModuleData moduleData, caerEventPacket
 		}
 		if (ts > nextUpdateTimeUs) {
 			nextUpdateTimeUs = ts + updateIntervalUs;
-			updateClusterList(moduleData, ts, sizeX, sizeY);
+			updateClusterList(moduleData, ts, state->sizeX, state->sizeY);
 		}
 
 	CAER_POLARITY_ITERATOR_VALID_END
@@ -439,7 +455,8 @@ static void caerRectangulartrackerRun(caerModuleData moduleData, caerEventPacket
 		return; // Error.
 	}
 
-	caerFrameEventPacket frame = caerFrameEventPacketAllocate(1, moduleData->moduleID, 0, sizeX, sizeY, 3);
+	caerFrameEventPacket frame = caerFrameEventPacketAllocate(1, moduleData->moduleID, 0, state->sizeX, state->sizeY,
+		3);
 	if (frame == NULL) {
 		return; // Error.
 	}
@@ -453,20 +470,20 @@ static void caerRectangulartrackerRun(caerModuleData moduleData, caerEventPacket
 		int xxx = caerPolarityEventGetX(caerPolarityIteratorElement);
 		int yyy = caerPolarityEventGetY(caerPolarityIteratorElement);
 		int pol = caerPolarityEventGetPolarity(caerPolarityIteratorElement);
-		int address = 3 * (yyy * sizeX + xxx);
+		int address = 3 * (yyy * state->sizeX + xxx);
 		if (pol == 0) {
-			singleplot->pixels[address] = 65000; // red
-			singleplot->pixels[address + 1] = 1; // green
-			singleplot->pixels[address + 2] = 1; // blue
+			singleplot->pixels[address] = UINT16_MAX; // red
+			singleplot->pixels[address + 1] = 0; // green
+			singleplot->pixels[address + 2] = 0; // blue
 		}
 		else {
-			singleplot->pixels[address] = 1; // red
-			singleplot->pixels[address + 1] = 65000; // green
-			singleplot->pixels[address + 2] = 1; // blue
+			singleplot->pixels[address] = 0; // red
+			singleplot->pixels[address + 1] = UINT16_MAX; // green
+			singleplot->pixels[address + 2] = 0; // blue
 		}CAER_POLARITY_ITERATOR_VALID_END
 
 	//add info to the frame
-	caerFrameEventSetLengthXLengthYChannelNumber(singleplot, sizeX, sizeY, 3, frame);
+	caerFrameEventSetLengthXLengthYChannelNumber(singleplot, state->sizeX, state->sizeY, 3, frame);
 	//validate frame
 	caerFrameEventValidate(singleplot, frame);
 
@@ -474,14 +491,14 @@ static void caerRectangulartrackerRun(caerModuleData moduleData, caerEventPacket
 	for (int i = 0; i < state->maxClusterNum; i++) {
 		if (!state->clusterList[i].isEmpty && (state->clusterList[i].visibilityFlag || state->showAllClusters)) {
 			updateColor(&state->clusterList[i]);
-			drawCluster(caerFrameEventPacketGetEvent(frame, 0), &state->clusterList[i], sizeX, sizeY, state->showPaths,
-				state->forceBoundary);
+			drawCluster(caerFrameEventPacketGetEvent(frame, 0), &state->clusterList[i], state->sizeX, state->sizeY,
+				state->showPaths, state->forceBoundary);
 		}
 	}
 
 	// people counting
 	if (state->peopleCounting) {
-		countPeople(caerFrameEventPacketGetEvent(frame, 0), moduleData, sizeX, sizeY);
+		countPeople(caerFrameEventPacketGetEvent(frame, 0), moduleData, state->sizeX, state->sizeY);
 	}
 }
 
@@ -1250,9 +1267,9 @@ static void drawline(caerFrameEvent singleplot, float x1, float y1, float x2, fl
 			if ((p < 0) || (p >= 3 * sizeX * sizeY)) {
 				continue;
 			}
-			singleplot->pixels[p] = (uint16_t) ((int) 65000);			// red
-			singleplot->pixels[p + 1] = (uint16_t) ((int) 65000);		// green
-			singleplot->pixels[p + 2] = (uint16_t) ((int) 65000);	// blue
+			singleplot->pixels[p] = UINT16_MAX;			// red
+			singleplot->pixels[p + 1] = UINT16_MAX;		// green
+			singleplot->pixels[p + 2] = UINT16_MAX;	// blue
 		}
 	}
 	else if (ys == yl) {
@@ -1265,9 +1282,9 @@ static void drawline(caerFrameEvent singleplot, float x1, float y1, float x2, fl
 			if ((p < 0) || (p >= 3 * sizeX * sizeY)) {
 				continue;
 			}
-			singleplot->pixels[p] = (uint16_t) ((int) 65000);			// red
-			singleplot->pixels[p + 1] = (uint16_t) ((int) 65000);		// green
-			singleplot->pixels[p + 2] = (uint16_t) ((int) 65000);	// blue
+			singleplot->pixels[p] = UINT16_MAX;			// red
+			singleplot->pixels[p + 1] = UINT16_MAX;		// green
+			singleplot->pixels[p + 2] = UINT16_MAX;	// blue
 		}
 	}
 	else {
@@ -1283,9 +1300,9 @@ static void drawline(caerFrameEvent singleplot, float x1, float y1, float x2, fl
 				if ((p < 0) || (p >= 3 * sizeX * sizeY)) {
 					continue;
 				}
-				singleplot->pixels[p] = (uint16_t) ((int) 65000);			// red
-				singleplot->pixels[p + 1] = (uint16_t) ((int) 65000);		// green
-				singleplot->pixels[p + 2] = (uint16_t) ((int) 65000);	// blue
+				singleplot->pixels[p] = UINT16_MAX;			// red
+				singleplot->pixels[p + 1] = UINT16_MAX;		// green
+				singleplot->pixels[p + 2] = UINT16_MAX;	// blue
 			}
 		}
 		else {
@@ -1298,9 +1315,9 @@ static void drawline(caerFrameEvent singleplot, float x1, float y1, float x2, fl
 				if ((p < 0) || (p >= 3 * sizeX * sizeY)) {
 					continue;
 				}
-				singleplot->pixels[p] = (uint16_t) ((int) 65000);			// red
-				singleplot->pixels[p + 1] = (uint16_t) ((int) 65000);		// green
-				singleplot->pixels[p + 2] = (uint16_t) ((int) 65000);	// blue
+				singleplot->pixels[p] = UINT16_MAX;			// red
+				singleplot->pixels[p + 1] = UINT16_MAX;		// green
+				singleplot->pixels[p + 2] = UINT16_MAX;	// blue
 			}
 		}
 	}
@@ -1313,9 +1330,9 @@ static void drawpath(caerFrameEvent singleplot, Path *path, int sizeX) {
 		int y = (int) current->location_y;
 		int p = 3 * (y * sizeX + x);
 
-		singleplot->pixels[p] = (uint16_t) ((int) 65000);			// red
-		singleplot->pixels[p + 1] = (uint16_t) ((int) 1);		// green
-		singleplot->pixels[p + 2] = (uint16_t) ((int) 65000);	// blue
+		singleplot->pixels[p] = UINT16_MAX;			// red
+		singleplot->pixels[p + 1] = 0;		// green
+		singleplot->pixels[p + 2] = UINT16_MAX;	// blue
 
 		current = current->next;
 	}
@@ -1334,9 +1351,9 @@ static void updateCurrentClusterNum(caerModuleData moduleData) {
 
 static void updateColor(Cluster *c) {
 	float brightness = fmax(0.0f, fmin(1.0f, (float) getLifetime(c) / FULL_BRIGHTNESS_LIFETIME));
-	c->color.r = (uint16_t) (65535.0f * brightness);
-	c->color.g = (uint16_t) (65535.0f * brightness);
-	c->color.b = (uint16_t) (65535.0f * brightness);
+	c->color.r = (uint16_t) ((float) UINT16_MAX * brightness);
+	c->color.g = (uint16_t) ((float) UINT16_MAX * brightness);
+	c->color.b = (uint16_t) ((float) UINT16_MAX * brightness);
 }
 
 static void checkCountingArea(caerModuleData moduleData, int16_t sizeX, int16_t sizeY) {
@@ -1394,9 +1411,9 @@ static void countPeople(caerFrameEvent singleplot, caerModuleData moduleData, in
 		for (size_t x = 0; x < sizeX; x++) {
 			if ((x == (int) rx && y <= ty && y >= by) || (x == (int) lx && y <= ty && y >= by)
 				|| (y == (int) ty && x <= rx && x >= lx) || (y == (int) by && x <= rx && x >= lx)) {
-				singleplot->pixels[counter] = (uint16_t) ((int) 65000);			// red
-				singleplot->pixels[counter + 1] = (uint16_t) ((int) 65000);		// green
-				singleplot->pixels[counter + 2] = (uint16_t) ((int) 65000);	// blue
+				singleplot->pixels[counter] = UINT16_MAX;			// red
+				singleplot->pixels[counter + 1] = UINT16_MAX;		// green
+				singleplot->pixels[counter + 2] = UINT16_MAX;	// blue
 			}
 			counter += 3;
 		}
