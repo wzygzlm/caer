@@ -37,11 +37,12 @@ caerModuleInfo caerModuleGetInfo(void) {
 }
 
 static bool caerRotateInit(caerModuleData moduleData) {
-	sshsNodeCreateBool(moduleData->moduleNode, "swapXY", false, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateBool(moduleData->moduleNode, "rotate90deg", false, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateBool(moduleData->moduleNode, "invertX", false, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateBool(moduleData->moduleNode, "invertY", false, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateFloat(moduleData->moduleNode, "angleDeg", 0.0f, 0.0f, 360.0f, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateBool(moduleData->moduleNode, "swapXY", false, SSHS_FLAGS_NORMAL, "Swap X and Y axes.");
+	sshsNodeCreateBool(moduleData->moduleNode, "rotate90deg", false, SSHS_FLAGS_NORMAL, "Rotate by 90 degrees.");
+	sshsNodeCreateBool(moduleData->moduleNode, "invertX", false, SSHS_FLAGS_NORMAL, "Invert X axis.");
+	sshsNodeCreateBool(moduleData->moduleNode, "invertY", false, SSHS_FLAGS_NORMAL, "Invert Y axis.");
+	sshsNodeCreateFloat(moduleData->moduleNode, "angleDeg", 0.0f, 0.0f, 360.0f, SSHS_FLAGS_NORMAL,
+		"Rotate by arbitrary angle.");
 
 	RotateState state = moduleData->moduleState;
 
@@ -79,7 +80,7 @@ static void caerRotateRun(caerModuleData moduleData, caerEventPacketContainer in
 	// Iterate over events
 	CAER_POLARITY_ITERATOR_VALID_START(polarity)
 
-		// Get values on which to operate.
+	// Get values on which to operate.
 		uint16_t x = caerPolarityEventGetX(caerPolarityIteratorElement);
 		uint16_t y = caerPolarityEventGetY(caerPolarityIteratorElement);
 
