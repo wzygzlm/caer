@@ -92,6 +92,10 @@ static bool caerImageGeneratorInit(caerModuleData moduleData) {
 		SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE, "Output frame width.");
 	sshsNodeCreateShort(sourceInfoNode, "frameSizeY", outputFrameSizeY, 1, 1024,
 		SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE, "Output frame height.");
+	sshsNodeCreateShort(sourceInfoNode, "dataSizeX", outputFrameSizeX, 1, 1024,
+		SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE, "Output data width.");
+	sshsNodeCreateShort(sourceInfoNode, "dataSizeY", outputFrameSizeY, 1, 1024,
+		SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE, "Output data height.");
 
 	// Add config listeners last, to avoid having them dangling if Init doesn't succeed.
 	sshsNodeAddAttributeListener(moduleData->moduleNode, moduleData, &caerModuleConfigDefaultListener);

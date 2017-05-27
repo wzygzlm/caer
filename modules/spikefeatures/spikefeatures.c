@@ -91,6 +91,10 @@ static bool caerSpikeFeaturesInit(caerModuleData moduleData) {
 		"Output frame width.");
 	sshsNodeCreateShort(sourceInfoNode, "frameSizeY", sizeY, 1, 1024, SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE,
 		"Output frame height.");
+	sshsNodeCreateShort(sourceInfoNode, "dataSizeX", sizeX, 1, 1024, SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE,
+		"Output data width.");
+	sshsNodeCreateShort(sourceInfoNode, "dataSizeY", sizeY, 1, 1024, SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE,
+		"Output data height.");
 
 	// Add config listeners last, to avoid having them dangling if Init doesn't succeed.
 	sshsNodeAddAttributeListener(moduleData->moduleNode, moduleData, &caerModuleConfigDefaultListener);

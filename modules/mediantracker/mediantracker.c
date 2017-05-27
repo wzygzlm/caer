@@ -84,6 +84,10 @@ static bool caerMediantrackerInit(caerModuleData moduleData) {
 
 	// Create own sourceInfo node.
 	sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
+	sshsNodeCreateShort(sourceInfoNode, "frameSizeX", state->sizeX, 1, 1024,
+		SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE, "Output frame width.");
+	sshsNodeCreateShort(sourceInfoNode, "frameSizeY", state->sizeY, 1, 1024,
+		SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE, "Output frame height.");
 	sshsNodeCreateShort(sourceInfoNode, "dataSizeX", state->sizeX, 1, 1024, SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE,
 		"Data width.");
 	sshsNodeCreateShort(sourceInfoNode, "dataSizeY", state->sizeY, 1, 1024, SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE,
