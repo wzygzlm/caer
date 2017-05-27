@@ -48,53 +48,53 @@ bool caerGenSpikeInit(caerModuleData moduleData) {
 
 	sshsNode spikeNode = sshsGetRelativeNode(deviceConfigNodeMain, "spikeGen/");
 
-	sshsNodeCreateBool(spikeNode, "doStim", false, SSHS_FLAGS_NORMAL | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+	sshsNodeCreateBool(spikeNode, "doStim", false,  SSHS_FLAGS_FORCE_DEFAULT_VALUE, "Enable stimulation.");
 	atomic_store(&state->genSpikeState.doStim, sshsNodeGetBool(spikeNode, "doStim"));
 
 	// TODO: fix range limits.
-	sshsNodeCreateInt(spikeNode, "stim_type", U8T(STIM_REGULAR), 0, 1024, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateInt(spikeNode, "stim_type", U8T(STIM_REGULAR), 0, 1024, SSHS_FLAGS_NORMAL, "TODO.");
 	atomic_store(&state->genSpikeState.stim_type, sshsNodeGetInt(spikeNode, "stim_type"));
 
-	sshsNodeCreateInt(spikeNode, "stim_avr", 3, 0, 1024, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateInt(spikeNode, "stim_avr", 3, 0, 1024, SSHS_FLAGS_NORMAL, "TODO.");
 	atomic_store(&state->genSpikeState.stim_avr, sshsNodeGetInt(spikeNode, "stim_avr"));
 
-	sshsNodeCreateInt(spikeNode, "stim_std", 1, 0, 1024, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateInt(spikeNode, "stim_std", 1, 0, 1024, SSHS_FLAGS_NORMAL, "TODO.");
 	atomic_store(&state->genSpikeState.stim_std, sshsNodeGetInt(spikeNode, "stim_std"));
 
-	sshsNodeCreateInt(spikeNode, "stim_duration", 10, 0, 1024, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateInt(spikeNode, "stim_duration", 10, 0, 1024, SSHS_FLAGS_NORMAL, "TODO.");
 	atomic_store(&state->genSpikeState.stim_duration, sshsNodeGetInt(spikeNode, "stim_duration"));
 
-	sshsNodeCreateBool(spikeNode, "repeat", false, SSHS_FLAGS_NORMAL | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+	sshsNodeCreateBool(spikeNode, "repeat", false, SSHS_FLAGS_FORCE_DEFAULT_VALUE, "TODO.");
 	atomic_store(&state->genSpikeState.repeat, sshsNodeGetBool(spikeNode, "repeat"));
 
-	sshsNodeCreateBool(spikeNode, "teaching", true, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateBool(spikeNode, "teaching", true, SSHS_FLAGS_NORMAL, "TODO.");
 	atomic_store(&state->genSpikeState.teaching, sshsNodeGetBool(spikeNode, "teaching"));
 
-	sshsNodeCreateBool(spikeNode, "sendTeachingStimuli", true, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateBool(spikeNode, "sendTeachingStimuli", true, SSHS_FLAGS_NORMAL, "TODO.");
 	atomic_store(&state->genSpikeState.sendTeachingStimuli, sshsNodeGetBool(spikeNode, "sendTeachingStimuli"));
 
-	sshsNodeCreateBool(spikeNode, "sendInhibitoryStimuli", false, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateBool(spikeNode, "sendInhibitoryStimuli", false, SSHS_FLAGS_NORMAL, "TODO.");
 	atomic_store(&state->genSpikeState.sendInhibitoryStimuli, sshsNodeGetBool(spikeNode, "sendInhibitoryStimuli"));
 
-	sshsNodeCreateBool(spikeNode, "setCam", false, SSHS_FLAGS_NORMAL | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+	sshsNodeCreateBool(spikeNode, "setCam", false, SSHS_FLAGS_FORCE_DEFAULT_VALUE, "TODO.");
 	atomic_store(&state->genSpikeState.setCam, sshsNodeGetBool(spikeNode, "setCam"));
 
-	sshsNodeCreateBool(spikeNode, "setCamSingle", false, SSHS_FLAGS_NORMAL | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+	sshsNodeCreateBool(spikeNode, "setCamSingle", false, SSHS_FLAGS_FORCE_DEFAULT_VALUE, "TODO.");
 	atomic_store(&state->genSpikeState.setCamSingle, sshsNodeGetBool(spikeNode, "setCamSingle"));
 
-	sshsNodeCreateBool(spikeNode, "clearCam", false, SSHS_FLAGS_NORMAL | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+	sshsNodeCreateBool(spikeNode, "clearCam", false, SSHS_FLAGS_FORCE_DEFAULT_VALUE, "TODO.");
 	atomic_store(&state->genSpikeState.clearCam, sshsNodeGetBool(spikeNode, "clearCam"));
 
-	sshsNodeCreateBool(spikeNode, "clearAllCam", false, SSHS_FLAGS_NORMAL | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+	sshsNodeCreateBool(spikeNode, "clearAllCam", false, SSHS_FLAGS_FORCE_DEFAULT_VALUE, "TODO.");
 	atomic_store(&state->genSpikeState.clearAllCam, sshsNodeGetBool(spikeNode, "clearAllCam"));
 
-	sshsNodeCreateBool(spikeNode, "doStimPrimitiveBias", true, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateBool(spikeNode, "doStimPrimitiveBias", true, SSHS_FLAGS_NORMAL, "TODO.");
 	atomic_store(&state->genSpikeState.doStimPrimitiveBias, sshsNodeGetBool(spikeNode, "doStimPrimitiveBias"));
 
-	sshsNodeCreateBool(spikeNode, "doStimPrimitiveCam", true, SSHS_FLAGS_NORMAL); //false
+	sshsNodeCreateBool(spikeNode, "doStimPrimitiveCam", true, SSHS_FLAGS_NORMAL, "TODO."); //false
 	atomic_store(&state->genSpikeState.doStimPrimitiveCam, sshsNodeGetBool(spikeNode, "doStimPrimitiveCam"));
 
-	sshsNodeCreateBool(spikeNode, "loadDefaultBiases", false, SSHS_FLAGS_NORMAL); //1 //false
+	sshsNodeCreateBool(spikeNode, "loadDefaultBiases", false, SSHS_FLAGS_NORMAL, "TODO."); //1 //false
 	atomic_store(&state->genSpikeState.loadDefaultBiases, sshsNodeGetBool(spikeNode, "loadDefaultBiases"));
 
 	atomic_store(&state->genSpikeState.started, false);
@@ -110,7 +110,7 @@ bool caerGenSpikeInit(caerModuleData moduleData) {
 	state->genSpikeState.ETFstepnum = 6;	//internal
 
 	// init status
-	sshsNodeCreateBool(spikeNode, "loadDefaultBiases", false, SSHS_FLAGS_NORMAL | SSHS_FLAGS_FORCE_DEFAULT_VALUE);
+	sshsNodeCreateBool(spikeNode, "loadDefaultBiases", false, SSHS_FLAGS_FORCE_DEFAULT_VALUE, "TODO.");
 	atomic_store(&state->genSpikeState.loadDefaultBiases, sshsNodeGetBool(spikeNode, "loadDefaultBiases"));
 
 	// Start separate stimulation thread.
@@ -122,28 +122,28 @@ bool caerGenSpikeInit(caerModuleData moduleData) {
 	}
 
 	/*address*/
-	sshsNodeCreateBool(spikeNode, "sx", false, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateBool(spikeNode, "sx", false, SSHS_FLAGS_NORMAL, "TODO.");
 	atomic_store(&state->genSpikeState.sx, sshsNodeGetBool(spikeNode, "sx"));
 
-	sshsNodeCreateBool(spikeNode, "sy", false, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateBool(spikeNode, "sy", false, SSHS_FLAGS_NORMAL, "TODO.");
 	atomic_store(&state->genSpikeState.sy, sshsNodeGetBool(spikeNode, "sy"));
 
-	sshsNodeCreateInt(spikeNode, "core_d", 0, 0, 1024, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateInt(spikeNode, "core_d", 0, 0, 1024, SSHS_FLAGS_NORMAL, "TODO.");
 	atomic_store(&state->genSpikeState.core_d, sshsNodeGetInt(spikeNode, "core_d"));
 
-	sshsNodeCreateInt(spikeNode, "core_s", 0, 0, 1024, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateInt(spikeNode, "core_s", 0, 0, 1024, SSHS_FLAGS_NORMAL, "TODO.");
 	atomic_store(&state->genSpikeState.core_s, sshsNodeGetInt(spikeNode, "core_s"));
 
-	sshsNodeCreateInt(spikeNode, "address", 1, 0, INT32_MAX, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateInt(spikeNode, "address", 1, 0, INT32_MAX, SSHS_FLAGS_NORMAL, "TODO.");
 	atomic_store(&state->genSpikeState.address, sshsNodeGetInt(spikeNode, "address"));
 
-	sshsNodeCreateInt(spikeNode, "dx", 0, 0, 1024, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateInt(spikeNode, "dx", 0, 0, 1024, SSHS_FLAGS_NORMAL, "TODO.");
 	atomic_store(&state->genSpikeState.dx, sshsNodeGetInt(spikeNode, "dx"));
 
-	sshsNodeCreateInt(spikeNode, "dy", 0, 0, 1024, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateInt(spikeNode, "dy", 0, 0, 1024, SSHS_FLAGS_NORMAL, "TODO.");
 	atomic_store(&state->genSpikeState.dy, sshsNodeGetInt(spikeNode, "dy"));
 
-	sshsNodeCreateInt(spikeNode, "chip_id", DYNAPSE_CONFIG_DYNAPSE_U0, 0, 1024, SSHS_FLAGS_NORMAL); //4
+	sshsNodeCreateInt(spikeNode, "chip_id", DYNAPSE_CONFIG_DYNAPSE_U0, 0, 1024, SSHS_FLAGS_NORMAL, "TODO."); //4
 	atomic_store(&state->genSpikeState.chip_id, sshsNodeGetInt(spikeNode, "chip_id"));
 
 	return (true);
