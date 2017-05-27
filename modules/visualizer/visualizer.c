@@ -772,7 +772,7 @@ static int caerVisualizerRenderThread(void *visualizerState) {
 
 // InitSize is deferred and called from Run, because we need actual packets.
 static bool caerVisualizerModuleInit(caerModuleData moduleData);
-static bool caerVisualizerModuleInitSize(caerModuleData moduleData, caerEventPacketContainer container);
+static bool caerVisualizerModuleInitSize(caerModuleData moduleData, int16_t *inputs, size_t inputsSize);
 static void caerVisualizerModuleRun(caerModuleData moduleData, caerEventPacketContainer in,
 	caerEventPacketContainer *out);
 static void caerVisualizerModuleExit(caerModuleData moduleData);
@@ -793,6 +793,14 @@ caerModuleInfo caerModuleGetInfo(void) {
 }
 
 static bool caerVisualizerModuleInit(caerModuleData moduleData) {
+	// Wait for input to be ready. All inputs, once they are up and running, will
+	// have a valid sourceInfo node to query, especially if dealing with data.
+	size_t inputsSize;
+	int16_t *inputs = caerMainloopGetModuleInputIDs(moduleData->moduleID, &inputsSize);
+	if (inputs == NULL) {
+		return (false);
+	}
+
 	sshsNodeCreateString(moduleData->moduleNode, "renderer", "Polarity", 0, 100, SSHS_FLAGS_NORMAL,
 		"Renderer to use to generate content.");
 	sshsNodeCreateString(moduleData->moduleNode, "rendererListOptions", caerVisualizerRendererListOptionsString, 0, 200,
@@ -802,24 +810,27 @@ static bool caerVisualizerModuleInit(caerModuleData moduleData) {
 	sshsNodeCreateString(moduleData->moduleNode, "eventHandlerListOptions", caerVisualizerHandlerListOptionsString, 0,
 		200, SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE, "List of available event handlers.");
 
+	// Initialize visualizer. Needs information from a packet (the source ID)!
+	if (!caerVisualizerModuleInitSize(moduleData, inputs, inputsSize)) {
+		return (false);
+	}
+
 	return (true);
 }
 
-static bool caerVisualizerModuleInitSize(caerModuleData moduleData, caerEventPacketContainer container) {
+static bool caerVisualizerModuleInitSize(caerModuleData moduleData, int16_t *inputs, size_t inputsSize) {
 	// Default sizes if nothing else is specified in sourceInfo node.
 	int16_t sizeX = 20;
 	int16_t sizeY = 20;
 	int16_t sourceID = -1;
 
 	// Search for biggest sizes amongst all event packets.
-	CAER_EVENT_PACKET_CONTAINER_ITERATOR_START(container)
+	for (size_t i = 0; i < inputsSize; i++) {
 		// Get size information from source.
-		sourceID = caerEventPacketHeaderGetEventSource(caerEventPacketContainerIteratorElement);
+		sourceID = inputs[i];
 
 		sshsNode sourceInfoNode = caerMainloopGetSourceInfo(sourceID);
 		if (sourceInfoNode == NULL) {
-			// This should never happen, but we handle it gracefully.
-			caerModuleLog(moduleData, CAER_LOG_ERROR, "Failed to get source info to setup visualizer resolution.");
 			return (false);
 		}
 
@@ -834,16 +845,6 @@ static bool caerVisualizerModuleInitSize(caerModuleData moduleData, caerEventPac
 			packetSizeX = sshsNodeGetShort(sourceInfoNode, "visualizerSizeX");
 			packetSizeY = sshsNodeGetShort(sourceInfoNode, "visualizerSizeY");
 		}
-		else if (sshsNodeAttributeExists(sourceInfoNode, "polaritySizeX", SSHS_SHORT)
-			&& caerEventPacketHeaderGetEventType(caerEventPacketContainerIteratorElement) == POLARITY_EVENT) {
-			packetSizeX = sshsNodeGetShort(sourceInfoNode, "polaritySizeX");
-			packetSizeY = sshsNodeGetShort(sourceInfoNode, "polaritySizeY");
-		}
-		else if (sshsNodeAttributeExists(sourceInfoNode, "frameSizeX", SSHS_SHORT)
-			&& caerEventPacketHeaderGetEventType(caerEventPacketContainerIteratorElement) == FRAME_EVENT) {
-			packetSizeX = sshsNodeGetShort(sourceInfoNode, "frameSizeX");
-			packetSizeY = sshsNodeGetShort(sourceInfoNode, "frameSizeY");
-		}
 		else if (sshsNodeAttributeExists(sourceInfoNode, "dataSizeX", SSHS_SHORT)) {
 			packetSizeX = sshsNodeGetShort(sourceInfoNode, "dataSizeX");
 			packetSizeY = sshsNodeGetShort(sourceInfoNode, "dataSizeY");
@@ -856,7 +857,7 @@ static bool caerVisualizerModuleInitSize(caerModuleData moduleData, caerEventPac
 		if (packetSizeY > sizeY) {
 			sizeY = packetSizeY;
 		}
-	CAER_EVENT_PACKET_CONTAINER_ITERATOR_END
+	}
 
 	// Search for renderer in list.
 	caerVisualizerRenderer renderer = NULL;
@@ -915,13 +916,6 @@ static void caerVisualizerModuleRun(caerModuleData moduleData, caerEventPacketCo
 	// Without a packet container with events, we cannot initialize or render anything.
 	if (in == NULL || caerEventPacketContainerGetEventsNumber(in) == 0) {
 		return;
-	}
-
-	// Initialize visualizer. Needs information from a packet (the source ID)!
-	if (moduleData->moduleState == NULL) {
-		if (!caerVisualizerModuleInitSize(moduleData, in)) {
-			return;
-		}
 	}
 
 	// Render given packet container.
