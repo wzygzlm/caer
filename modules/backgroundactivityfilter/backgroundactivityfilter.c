@@ -44,10 +44,8 @@ static bool caerBackgroundActivityFilterInit(caerModuleData moduleData) {
 		return (false);
 	}
 
-	sshsNode sourceInfo = caerMainloopGetSourceInfo(inputs[0]);
-	if (sourceInfo == NULL) {
-		return (false);
-	}
+	int16_t sourceID = inputs[0];
+	free(inputs);
 
 	sshsNodeCreateInt(moduleData->moduleNode, "deltaT", 30000, 1, 10000000, SSHS_FLAGS_NORMAL,
 		"Maximum time difference in µs for events to be considered correlated and not be filtered out.");
@@ -62,6 +60,11 @@ static bool caerBackgroundActivityFilterInit(caerModuleData moduleData) {
 	BAFilterState state = moduleData->moduleState;
 
 	// Allocate map using info from sourceInfo.
+	sshsNode sourceInfo = caerMainloopGetSourceInfo(sourceID);
+	if (sourceInfo == NULL) {
+		return (false);
+	}
+
 	int16_t sizeX = sshsNodeGetShort(sourceInfo, "polaritySizeX");
 	int16_t sizeY = sshsNodeGetShort(sourceInfo, "polaritySizeY");
 
