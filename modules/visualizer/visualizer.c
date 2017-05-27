@@ -20,7 +20,8 @@ struct caer_visualizer_renderers {
 	caerVisualizerRenderer renderer;
 };
 
-static const char *caerVisualizerRendererListOptionsString = "Polarity,Frame,IMU_6-axes,2D_Points,Spikes,Spikes_Raster_Plot,ETF4D,Polarity_and_Frames";
+static const char *caerVisualizerRendererListOptionsString =
+	"Polarity,Frame,IMU_6-axes,2D_Points,Spikes,Spikes_Raster_Plot,ETF4D,Polarity_and_Frames";
 
 static struct caer_visualizer_renderers caerVisualizerRendererList[] = { { "Polarity",
 	&caerVisualizerRendererPolarityEvents }, { "Frame", &caerVisualizerRendererFrameEvents }, { "IMU_6-axes",
@@ -225,11 +226,16 @@ caerVisualizerState caerVisualizerInit(caerVisualizerRenderer renderer, caerVisu
 	}
 
 	// Configuration.
-	sshsNodeCreateInt(parentModule->moduleNode, "subsampleRendering", 1, 1, 1024 * 1024, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateBool(parentModule->moduleNode, "showStatistics", defaultShowStatistics, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateFloat(parentModule->moduleNode, "zoomFactor", defaultZoomFactor, 0.5f, 50.0f, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateInt(parentModule->moduleNode, "windowPositionX", VISUALIZER_DEFAULT_POSITION_X, 0, INT32_MAX, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateInt(parentModule->moduleNode, "windowPositionY", VISUALIZER_DEFAULT_POSITION_Y, 0, INT32_MAX, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateInt(parentModule->moduleNode, "subsampleRendering", 1, 1, 1024 * 1024, SSHS_FLAGS_NORMAL,
+		"Speed-up rendering by only taking every Nth EventPacketContainer to render.");
+	sshsNodeCreateBool(parentModule->moduleNode, "showStatistics", defaultShowStatistics, SSHS_FLAGS_NORMAL,
+		"Show event statistics above content (top of window).");
+	sshsNodeCreateFloat(parentModule->moduleNode, "zoomFactor", defaultZoomFactor, 0.5f, 50.0f, SSHS_FLAGS_NORMAL,
+		"Content zoom factor.");
+	sshsNodeCreateInt(parentModule->moduleNode, "windowPositionX", VISUALIZER_DEFAULT_POSITION_X, 0, INT32_MAX,
+		SSHS_FLAGS_NORMAL, "Position of window on screen (X coordinate).");
+	sshsNodeCreateInt(parentModule->moduleNode, "windowPositionY", VISUALIZER_DEFAULT_POSITION_Y, 0, INT32_MAX,
+		SSHS_FLAGS_NORMAL, "Position of window on screen (Y coordinate).");
 
 	atomic_store(&state->packetSubsampleRendering, sshsNodeGetInt(parentModule->moduleNode, "subsampleRendering"));
 
@@ -406,7 +412,7 @@ void caerVisualizerExit(caerVisualizerState state) {
 	if ((errno = thrd_join(state->renderingThread, NULL)) != thrd_success) {
 		// This should never happen!
 		caerModuleLog(state->parentModule, CAER_LOG_CRITICAL, "Visualizer: Failed to join rendering thread. Error: %d.",
-			errno);
+		errno);
 	}
 
 	// Now clean up the ring-buffer and its contents.
@@ -787,12 +793,14 @@ caerModuleInfo caerModuleGetInfo(void) {
 }
 
 static bool caerVisualizerModuleInit(caerModuleData moduleData) {
-	sshsNodeCreateString(moduleData->moduleNode, "renderer", "Polarity", 0, 100, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateString(moduleData->moduleNode, "rendererListOptions", caerVisualizerRendererListOptionsString,
-		0, 200, SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE);
-	sshsNodeCreateString(moduleData->moduleNode, "eventHandler", "None", 0, 100, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateString(moduleData->moduleNode, "eventHandlerListOptions", caerVisualizerHandlerListOptionsString,
-		0, 200, SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE);
+	sshsNodeCreateString(moduleData->moduleNode, "renderer", "Polarity", 0, 100, SSHS_FLAGS_NORMAL,
+		"Renderer to use to generate content.");
+	sshsNodeCreateString(moduleData->moduleNode, "rendererListOptions", caerVisualizerRendererListOptionsString, 0, 200,
+		SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE, "List of available renderers.");
+	sshsNodeCreateString(moduleData->moduleNode, "eventHandler", "None", 0, 100, SSHS_FLAGS_NORMAL,
+		"Event handlers to handle mouse and keyboard events.");
+	sshsNodeCreateString(moduleData->moduleNode, "eventHandlerListOptions", caerVisualizerHandlerListOptionsString, 0,
+		200, SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE, "List of available event handlers.");
 
 	return (true);
 }
@@ -811,8 +819,7 @@ static bool caerVisualizerModuleInitSize(caerModuleData moduleData, caerEventPac
 		sshsNode sourceInfoNode = caerMainloopGetSourceInfo(sourceID);
 		if (sourceInfoNode == NULL) {
 			// This should never happen, but we handle it gracefully.
-			caerModuleLog(moduleData, CAER_LOG_ERROR,
-				"Failed to get source info to setup visualizer resolution.");
+			caerModuleLog(moduleData, CAER_LOG_ERROR, "Failed to get source info to setup visualizer resolution.");
 			return (false);
 		}
 
