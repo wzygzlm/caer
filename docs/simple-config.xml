@@ -15,9 +15,9 @@
                 <attr key="portNumber" type="int">4040</attr>
             </node>
         </node>
-        <node name="davis240" path="/davis240/">
+        <node name="davisCamera" path="/davisCamera/">
             <attr key="moduleId" type="short">1</attr>
-            <attr key="moduleLibrary" type="string">caer_davisfx2</attr>
+            <attr key="moduleLibrary" type="string">caer_davis</attr>
         </node>
         <node name="eventVisualizer" path="/eventVisualizer/">
             <attr key="moduleId" type="short">3</attr>

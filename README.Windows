@@ -38,7 +38,7 @@ put the source code into 'C:\msys64\home\caer\' and use TortoiseGit
 
 6) Switch to the cAER checkout directory: cd /home/caer/
 
-7) Configure, run CMake: cmake -G "MSYS Makefiles" -DCMAKE_INSTALL_PREFIX=/mingw64 -DDAVISFX2=1 -DBAFILTER=1 .
+7) Configure, run CMake: cmake -G "MSYS Makefiles" -DCMAKE_INSTALL_PREFIX=/mingw64 -DDAVIS=1 -DBAFILTER=1 .
 Change this to suit your needs, by enabling/disabling the proper modules!
 
 8) Build, run Make: make

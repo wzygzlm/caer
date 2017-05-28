@@ -1,4 +1,37 @@
-#include "davis_common.h"
+#include "main.h"
+#include "base/mainloop.h"
+#include "base/module.h"
+
+#include <libcaer/events/packetContainer.h>
+#include <libcaer/events/special.h>
+#include <libcaer/events/polarity.h>
+#include <libcaer/events/frame.h>
+#include <libcaer/events/imu6.h>
+#include <libcaer/events/sample.h>
+#include <libcaer/devices/davis.h>
+
+static bool caerInputDAVISInit(caerModuleData moduleData);
+static void caerInputDAVISExit(caerModuleData moduleData);
+static void caerInputDAVISRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out);
+// INIT: common to all DAVIS systems.
+// RUN: common to all DAVIS systems.
+// CONFIG: Nothing to do here in the main thread!
+// All configuration is asynchronous through SSHS listeners.
+// EXIT: common to all DAVIS systems.
+
+static const struct caer_module_functions DAVISFunctions = { .moduleInit = &caerInputDAVISInit, .moduleRun =
+	&caerInputDAVISRun, .moduleConfig = NULL, .moduleExit = &caerInputDAVISExit };
+
+static const struct caer_event_stream_out DAVISOutputs[] = { { .type = SPECIAL_EVENT }, { .type = POLARITY_EVENT }, {
+	.type = FRAME_EVENT }, { .type = IMU6_EVENT }, { .type = SAMPLE_EVENT } };
+
+static const struct caer_module_info DAVISInfo = { .version = 1, .name = "DAVIS", .type = CAER_MODULE_INPUT,
+	.memSize = 0, .functions = &DAVISFunctions, .inputStreams = NULL, .inputStreamsSize = 0, .outputStreams =
+		DAVISOutputs, .outputStreamsSize = CAER_EVENT_STREAM_OUT_SIZE(DAVISOutputs), };
+
+caerModuleInfo caerModuleGetInfo(void) {
+	return (&DAVISInfo);
+}
 
 static void createDefaultConfiguration(caerModuleData moduleData, struct caer_davis_info *devInfo);
 static void sendDefaultConfiguration(caerModuleData moduleData, struct caer_davis_info *devInfo);
@@ -91,7 +124,7 @@ static inline const char *chipIDToName(int16_t chipID, bool withEndSlash) {
 	return ((withEndSlash) ? ("Unknown/") : ("Unknown"));
 }
 
-bool caerInputDAVISInit(caerModuleData moduleData, uint16_t deviceType) {
+static bool caerInputDAVISInit(caerModuleData moduleData) {
 	caerModuleLog(moduleData, CAER_LOG_DEBUG, "Initializing module ...");
 
 	// USB port/bus/SN settings/restrictions.
@@ -110,7 +143,7 @@ bool caerInputDAVISInit(caerModuleData moduleData, uint16_t deviceType) {
 	/// Start data acquisition, and correctly notify mainloop of new data and module of exceptional
 	// shutdown cases (device pulled, ...).
 	char *serialNumber = sshsNodeGetString(moduleData->moduleNode, "serialNumber");
-	moduleData->moduleState = caerDeviceOpen(U16T(moduleData->moduleID), deviceType,
+	moduleData->moduleState = caerDeviceOpen(U16T(moduleData->moduleID), CAER_DEVICE_DAVIS,
 		U8T(sshsNodeGetShort(moduleData->moduleNode, "busNumber")),
 		U8T(sshsNodeGetShort(moduleData->moduleNode, "devAddress")), serialNumber);
 	free(serialNumber);
@@ -277,7 +310,7 @@ bool caerInputDAVISInit(caerModuleData moduleData, uint16_t deviceType) {
 	return (true);
 }
 
-void caerInputDAVISExit(caerModuleData moduleData) {
+static void caerInputDAVISExit(caerModuleData moduleData) {
 	// Device related configuration has its own sub-node.
 	struct caer_davis_info devInfo = caerDavisInfoGet(moduleData->moduleState);
 	sshsNode deviceConfigNode = sshsGetRelativeNode(moduleData->moduleNode, chipIDToName(devInfo.chipID, true));
@@ -340,7 +373,7 @@ void caerInputDAVISExit(caerModuleData moduleData) {
 	}
 }
 
-void caerInputDAVISRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out) {
+static void caerInputDAVISRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out) {
 	UNUSED_ARGUMENT(in);
 
 	*out = caerDeviceDataGet(moduleData->moduleState);

@@ -28,8 +28,7 @@ The following options are currently supported:
 
 The following modules can currently be selected to be built:
 -DDVS128=1 -- DVS128 device input.
--DDAVISFX2=1 -- DAVIS FX2 devices input (DAVIS240A/B/C).
--DDAVISFX3=1 -- DAVIS FX3 devices input (DAVIS346, dev-kits).
+-DDAVIS=1 -- DAVIS device input.
 -DDYNAPSE=1 -- Dynap-se device input (neuromorphic chip).
 -DBAFILTER=1 -- Filter background activity (uncorrelated noise).
 -DFRAMEENHANCER=1 -- Demosaic/enhance frames.

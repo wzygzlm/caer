@@ -2,16 +2,12 @@ IF (NOT DVS128)
 	SET(DVS128 0 CACHE BOOL "Enable support for DVS128 devices")
 ENDIF()
 
-IF (NOT DAVISFX2)
-	SET(DAVISFX2 0 CACHE BOOL "Enable support for DAVIS FX2 devices (DAVIS240A/B/C)")
-ENDIF()
-
-IF (NOT DAVISFX3)
-	SET(DAVISFX3 0 CACHE BOOL "Enable support for DAVIS FX3 devices (new chips)")
+IF (NOT DAVIS)
+	SET(DAVIS 0 CACHE BOOL "Enable support for DAVIS devices")
 ENDIF()
 
 IF (NOT DYNAPSE)
-	SET(DYNAPSE 0 CACHE BOOL "Enable support for DYNAPSE (neuromorphic processor)")
+	SET(DYNAPSE 0 CACHE BOOL "Enable support for DYNAP-SE (neuromorphic processor)")
 ENDIF()
 
 IF (DVS128)
@@ -25,26 +21,15 @@ IF (DVS128)
 	TARGET_LINK_LIBRARIES(dvs128 ${CAER_C_LIBS})
 ENDIF()
 
-IF (DAVISFX2)
-	ADD_LIBRARY(davisfx2 SHARED davis_common.c davis_fx2.c)
+IF (DAVIS)
+	ADD_LIBRARY(davis SHARED davis_common.c)
 
-	SET_TARGET_PROPERTIES(davisfx2
+	SET_TARGET_PROPERTIES(davis
 		PROPERTIES
 		PREFIX "caer_"
 	)
 
-	TARGET_LINK_LIBRARIES(davisfx2 ${CAER_C_LIBS})
-ENDIF()
-
-IF (DAVISFX3)
-	ADD_LIBRARY(davisfx3 SHARED davis_common.c davis_fx3.c)
-
-	SET_TARGET_PROPERTIES(davisfx3
-		PROPERTIES
-		PREFIX "caer_"
-	)
-
-	TARGET_LINK_LIBRARIES(davisfx3 ${CAER_C_LIBS})
+	TARGET_LINK_LIBRARIES(davis ${CAER_C_LIBS})
 ENDIF()
 
 IF (DYNAPSE)
