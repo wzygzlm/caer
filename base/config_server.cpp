@@ -1,18 +1,16 @@
 #include "config_server.h"
-#include <stdatomic.h>
-#include "ext/libuv.h"
-
-#ifdef HAVE_PTHREADS
-#include "ext/c11threads_posix.h"
-#endif
+#include <atomic>
+#include <thread>
+#include <boost/asio.hpp>
+#include "ext/threads_ext.h"
 
 #define CONFIG_SERVER_NAME "Config Server"
 #define UV_RET_CHECK_CS(RET_VAL, FUNC_NAME, CLEANUP_ACTIONS) UV_RET_CHECK(RET_VAL, CONFIG_SERVER_NAME, FUNC_NAME, CLEANUP_ACTIONS)
 
 static struct {
-	atomic_bool running;
+	std::atomic_bool running;
 	uv_async_t asyncShutdown;
-	thrd_t thread;
+	std::thread thread;
 } configServerThread;
 
 static void configServerConnection(uv_stream_t *server, int status);
@@ -20,27 +18,29 @@ static void configServerAlloc(uv_handle_t *client, size_t suggestedSize, uv_buf_
 static void configServerRead(uv_stream_t *client, ssize_t sizeRead, const uv_buf_t *buf);
 static void configServerShutdown(uv_shutdown_t *clientShutdown, int status);
 static void configServerAsyncShutdown(uv_async_t *asyncShutdown);
-static int caerConfigServerRunner(void *inPtr);
+static void caerConfigServerRunner();
 static void caerConfigServerHandleRequest(uv_stream_t *client, uint8_t action, uint8_t type, const uint8_t *extra,
 	size_t extraLength, const uint8_t *node, size_t nodeLength, const uint8_t *key, size_t keyLength,
 	const uint8_t *value, size_t valueLength);
 
 void caerConfigServerStart(void) {
 	// Start the thread.
-	if ((errno = thrd_create(&configServerThread.thread, &caerConfigServerRunner, NULL)) == thrd_success) {
-		// Successfully started thread.
-		caerLog(CAER_LOG_DEBUG, CONFIG_SERVER_NAME, "Thread created successfully.");
+	try {
+		configServerThread.thread = std::thread(caerConfigServerRunner);
 	}
-	else {
+	catch (const std::system_error &ex) {
 		// Failed to create thread.
-		caerLog(CAER_LOG_EMERGENCY, CONFIG_SERVER_NAME, "Failed to create thread. Error: %d.", errno);
+		caerLog(CAER_LOG_EMERGENCY, CONFIG_SERVER_NAME, "Failed to create thread. Error: %s.", ex.what());
 		exit(EXIT_FAILURE);
 	}
+
+	// Successfully started thread.
+	caerLog(CAER_LOG_DEBUG, CONFIG_SERVER_NAME, "Thread created successfully.");
 }
 
 void caerConfigServerStop(void) {
 	// Only execute if the server thread was actually started.
-	if (!atomic_load(&configServerThread.running)) {
+	if (!configServerThread.running.load()) {
 		return;
 	}
 
@@ -48,15 +48,17 @@ void caerConfigServerStop(void) {
 	uv_async_send(&configServerThread.asyncShutdown);
 
 	// Then wait on it to finish.
-	if ((errno = thrd_join(configServerThread.thread, NULL)) == thrd_success) {
-		// Successfully joined thread.
-		caerLog(CAER_LOG_DEBUG, CONFIG_SERVER_NAME, "Thread terminated successfully.");
+	try {
+		configServerThread.thread.join();
 	}
-	else {
+	catch (const std::system_error &ex) {
 		// Failed to join thread.
-		caerLog(CAER_LOG_EMERGENCY, CONFIG_SERVER_NAME, "Failed to terminate thread. Error: %d.", errno);
+		caerLog(CAER_LOG_EMERGENCY, CONFIG_SERVER_NAME, "Failed to terminate thread. Error: %s.", ex.what());
 		exit(EXIT_FAILURE);
 	}
+
+	// Successfully joined thread.
+	caerLog(CAER_LOG_DEBUG, CONFIG_SERVER_NAME, "Thread terminated successfully.");
 }
 
 static void configServerConnection(uv_stream_t *server, int status) {
@@ -199,9 +201,7 @@ static void configServerAsyncShutdown(uv_async_t *asyncShutdown) {
 	uv_stop(asyncShutdown->loop);
 }
 
-static int caerConfigServerRunner(void *inPtr) {
-	UNUSED_ARGUMENT(inPtr);
-
+static void caerConfigServerRunner() {
 	// Set thread name.
 	thrd_set_name("ConfigServer");
 
@@ -239,7 +239,7 @@ static int caerConfigServerRunner(void *inPtr) {
 	// Initialize async callback to stop the event loop on termination.
 	retVal = uv_async_init(&configServerLoop, &configServerThread.asyncShutdown, &configServerAsyncShutdown);
 	UV_RET_CHECK_CS(retVal, "uv_async_init", goto loopCleanup);
-	atomic_store(&configServerThread.running, true);
+	configServerThread.running.store(true);
 
 	// Open a TCP server socket for configuration handling.
 	// TCP chosen for reliability, which is more important here than speed.
@@ -262,13 +262,11 @@ static int caerConfigServerRunner(void *inPtr) {
 
 	// Cleanup event loop and memory.
 	loopCleanup: {
-		bool errorCleanup = (retVal < 0);
-
 		if (tcpServerInitialized) {
 			uv_close((uv_handle_t *) &configServerTCP, NULL);
 		}
 
-		if (atomic_load(&configServerThread.running)) {
+		if (configServerThread.running.load()) {
 			uv_close((uv_handle_t *) &configServerThread.asyncShutdown, NULL);
 		}
 
@@ -282,14 +280,7 @@ static int caerConfigServerRunner(void *inPtr) {
 		}
 
 		// Mark the configuration server thread as stopped.
-		atomic_store(&configServerThread.running, false);
-
-		if (errorCleanup) {
-			return (EXIT_FAILURE);
-		}
-		else {
-			return (EXIT_SUCCESS);
-		}
+		configServerThread.running.store(false);
 	}
 }
 
@@ -407,7 +398,7 @@ static void caerConfigServerHandleRequest(uv_stream_t *client, uint8_t action, u
 			sshsNode wantedNode = sshsGetNode(configStore, (const char *) node);
 
 			// Check if attribute exists.
-			bool result = sshsNodeAttributeExists(wantedNode, (const char *) key, type);
+			bool result = sshsNodeAttributeExists(wantedNode, (const char *) key, (enum sshs_node_attr_value_type) type);
 
 			// Send back result to client. Format is the same as incoming data.
 			const uint8_t *sendResult = (const uint8_t *) ((result) ? ("true") : ("false"));
@@ -433,7 +424,7 @@ static void caerConfigServerHandleRequest(uv_stream_t *client, uint8_t action, u
 			sshsNode wantedNode = sshsGetNode(configStore, (const char *) node);
 
 			// Check if attribute exists. Only allow operations on existing attributes!
-			bool attrExists = sshsNodeAttributeExists(wantedNode, (const char *) key, type);
+			bool attrExists = sshsNodeAttributeExists(wantedNode, (const char *) key, (enum sshs_node_attr_value_type) type);
 
 			if (!attrExists) {
 				// Send back error message to client.
@@ -443,9 +434,9 @@ static void caerConfigServerHandleRequest(uv_stream_t *client, uint8_t action, u
 				break;
 			}
 
-			union sshs_node_attr_value result = sshsNodeGetAttribute(wantedNode, (const char *) key, type);
+			union sshs_node_attr_value result = sshsNodeGetAttribute(wantedNode, (const char *) key, (enum sshs_node_attr_value_type) type);
 
-			char *resultStr = sshsHelperValueToStringConverter(type, result);
+			char *resultStr = sshsHelperValueToStringConverter((enum sshs_node_attr_value_type) type, result);
 
 			if (resultStr == NULL) {
 				// Send back error message to client.
@@ -483,7 +474,7 @@ static void caerConfigServerHandleRequest(uv_stream_t *client, uint8_t action, u
 			sshsNode wantedNode = sshsGetNode(configStore, (const char *) node);
 
 			// Check if attribute exists. Only allow operations on existing attributes!
-			bool attrExists = sshsNodeAttributeExists(wantedNode, (const char *) key, type);
+			bool attrExists = sshsNodeAttributeExists(wantedNode, (const char *) key, (enum sshs_node_attr_value_type) type);
 
 			if (!attrExists) {
 				// Send back error message to client.
@@ -494,7 +485,7 @@ static void caerConfigServerHandleRequest(uv_stream_t *client, uint8_t action, u
 			}
 
 			// Put given value into config node. Node, attr and type are already verified.
-			const char *typeStr = sshsHelperTypeToStringConverter(type);
+			const char *typeStr = sshsHelperTypeToStringConverter((enum sshs_node_attr_value_type) type);
 			if (!sshsNodeStringToAttributeConverter(wantedNode, (const char *) key, typeStr, (const char *) value)) {
 				// Send back error message to client.
 				caerConfigSendError(client, "Impossible to convert value according to type.");

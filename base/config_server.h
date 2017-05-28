@@ -30,6 +30,8 @@ enum caer_config_actions {
 	CAER_CONFIG_GET_RANGE_MAX = 9,
 	CAER_CONFIG_GET_FLAGS = 10,
 	CAER_CONFIG_GET_DESCRIPTION = 11,
+	CAER_CONFIG_ADD_MODULE = 12,
+	CAER_CONFIG_REMOVE_MODULE = 13,
 };
 
 void caerConfigServerStart(void);
