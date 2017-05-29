@@ -169,7 +169,6 @@ ENDIF()
 
 # Search for external libraries with pkg-config.
 INCLUDE(FindPkgConfig)
-
 # Basic device support, XML configuration, networking and I/O.
 PKG_CHECK_MODULES(LIBCAER REQUIRED libcaer>=2.0.1)
 PKG_CHECK_MODULES(MXML REQUIRED mxml>=2.7)

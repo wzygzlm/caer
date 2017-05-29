@@ -896,47 +896,46 @@ void ResetBiases(void *spikeGenState) {
 	uint32_t chipId_t, coreId;
 	uint32_t chipId = 0;
 
-	for (chipId_t = 0; chipId_t < 1; chipId_t++) {
+	chipId_t = atomic_load(&state->genSpikeState.chip_id);
 
-		if (chipId_t == 0)
-			chipId = DYNAPSE_CONFIG_DYNAPSE_U0;
-		else if (chipId_t == 1)
-			chipId = DYNAPSE_CONFIG_DYNAPSE_U2;
-		else if (chipId_t == 2)
-			chipId = DYNAPSE_CONFIG_DYNAPSE_U1;
-		else if (chipId_t == 3)
-			chipId = DYNAPSE_CONFIG_DYNAPSE_U3;
+	if (chipId_t == 0)
+		chipId = DYNAPSE_CONFIG_DYNAPSE_U0;
+	else if (chipId_t == 1)
+		chipId = DYNAPSE_CONFIG_DYNAPSE_U2;
+	else if (chipId_t == 2)
+		chipId = DYNAPSE_CONFIG_DYNAPSE_U1;
+	else if (chipId_t == 3)
+		chipId = DYNAPSE_CONFIG_DYNAPSE_U3;
 
-		caerDeviceConfigSet(usb_handle, DYNAPSE_CONFIG_CHIP,
-		DYNAPSE_CONFIG_CHIP_ID, chipId);
+	caerDeviceConfigSet(usb_handle, DYNAPSE_CONFIG_CHIP,
+	DYNAPSE_CONFIG_CHIP_ID, chipId);
 
-		for (coreId = 0; coreId < 4; coreId++) {
-			caerDynapseSetBias(state, chipId, coreId, "IF_AHTAU_N", 7, 35, "LowBias", "NBias");
-			caerDynapseSetBias(state, chipId, coreId, "IF_AHTHR_N", 7, 1, "HighBias", "NBias");
-			caerDynapseSetBias(state, chipId, coreId, "IF_AHW_P", 7, 1, "HighBias", "PBias");
-			caerDynapseSetBias(state, chipId, coreId, "IF_BUF_P", 3, 80, "HighBias", "PBias");
-			caerDynapseSetBias(state, chipId, coreId, "IF_CASC_N", 7, 1, "HighBias", "NBias");
-			caerDynapseSetBias(state, chipId, coreId, "IF_DC_P", 7, 2, "HighBias", "PBias");
-			caerDynapseSetBias(state, chipId, coreId, "IF_NMDA_N", 7, 1, "HighBias", "PBias");
-			caerDynapseSetBias(state, chipId, coreId, "IF_RFR_N", 0, 108, "HighBias", "NBias");
-			caerDynapseSetBias(state, chipId, coreId, "IF_TAU1_N", 6, 24, "LowBias", "NBias");
-			caerDynapseSetBias(state, chipId, coreId, "IF_TAU2_N", 5, 15, "HighBias", "NBias");
-			caerDynapseSetBias(state, chipId, coreId, "IF_THR_N", 4, 20, "HighBias", "NBias");
-			caerDynapseSetBias(state, chipId, coreId, "NPDPIE_TAU_F_P", 5, 41, "HighBias", "PBias");
-			caerDynapseSetBias(state, chipId, coreId, "NPDPIE_TAU_S_P", 7, 40, "HighBias", "NBias");
-			caerDynapseSetBias(state, chipId, coreId, "NPDPIE_THR_F_P", 2, 200, "HighBias", "PBias");
-			caerDynapseSetBias(state, chipId, coreId, "NPDPIE_THR_S_P", 7, 0, "HighBias", "PBias");
-			caerDynapseSetBias(state, chipId, coreId, "NPDPII_TAU_F_P", 7, 40, "HighBias", "NBias");
-			caerDynapseSetBias(state, chipId, coreId, "NPDPII_TAU_S_P", 7, 40, "HighBias", "NBias");
-			caerDynapseSetBias(state, chipId, coreId, "NPDPII_THR_F_P", 7, 40, "HighBias", "PBias");
-			caerDynapseSetBias(state, chipId, coreId, "NPDPII_THR_S_P", 7, 40, "HighBias", "PBias");
-			caerDynapseSetBias(state, chipId, coreId, "PS_WEIGHT_EXC_F_N", 0, 216, "HighBias", "NBias");
-			caerDynapseSetBias(state, chipId, coreId, "PS_WEIGHT_EXC_S_N", 7, 1, "HighBias", "NBias");
-			caerDynapseSetBias(state, chipId, coreId, "PS_WEIGHT_INH_F_N", 7, 1, "HighBias", "NBias");
-			caerDynapseSetBias(state, chipId, coreId, "PS_WEIGHT_INH_S_N", 7, 1, "HighBias", "NBias");
-			caerDynapseSetBias(state, chipId, coreId, "PULSE_PWLK_P", 0, 43, "HighBias", "PBias");
-			caerDynapseSetBias(state, chipId, coreId, "R2R_P", 4, 85, "HighBias", "PBias");
-		}
+	for (coreId = 0; coreId < 4; coreId++) {
+		caerDynapseSetBias(state, chipId, coreId, "IF_AHTAU_N", 7, 35, "LowBias", "NBias");
+		caerDynapseSetBias(state, chipId, coreId, "IF_AHTHR_N", 7, 1, "HighBias", "NBias");
+		caerDynapseSetBias(state, chipId, coreId, "IF_AHW_P", 7, 1, "HighBias", "PBias");
+		caerDynapseSetBias(state, chipId, coreId, "IF_BUF_P", 3, 80, "HighBias", "PBias");
+		caerDynapseSetBias(state, chipId, coreId, "IF_CASC_N", 7, 1, "HighBias", "NBias");
+		caerDynapseSetBias(state, chipId, coreId, "IF_DC_P", 7, 2, "HighBias", "PBias");
+		caerDynapseSetBias(state, chipId, coreId, "IF_NMDA_N", 7, 1, "HighBias", "PBias");
+		caerDynapseSetBias(state, chipId, coreId, "IF_RFR_N", 0, 108, "HighBias", "NBias");
+		caerDynapseSetBias(state, chipId, coreId, "IF_TAU1_N", 6, 24, "LowBias", "NBias");
+		caerDynapseSetBias(state, chipId, coreId, "IF_TAU2_N", 5, 15, "HighBias", "NBias");
+		caerDynapseSetBias(state, chipId, coreId, "IF_THR_N", 4, 20, "HighBias", "NBias");
+		caerDynapseSetBias(state, chipId, coreId, "NPDPIE_TAU_F_P", 5, 41, "HighBias", "PBias");
+		caerDynapseSetBias(state, chipId, coreId, "NPDPIE_TAU_S_P", 7, 40, "HighBias", "NBias");
+		caerDynapseSetBias(state, chipId, coreId, "NPDPIE_THR_F_P", 2, 200, "HighBias", "PBias");
+		caerDynapseSetBias(state, chipId, coreId, "NPDPIE_THR_S_P", 7, 0, "HighBias", "PBias");
+		caerDynapseSetBias(state, chipId, coreId, "NPDPII_TAU_F_P", 7, 40, "HighBias", "NBias");
+		caerDynapseSetBias(state, chipId, coreId, "NPDPII_TAU_S_P", 7, 40, "HighBias", "NBias");
+		caerDynapseSetBias(state, chipId, coreId, "NPDPII_THR_F_P", 7, 40, "HighBias", "PBias");
+		caerDynapseSetBias(state, chipId, coreId, "NPDPII_THR_S_P", 7, 40, "HighBias", "PBias");
+		caerDynapseSetBias(state, chipId, coreId, "PS_WEIGHT_EXC_F_N", 0, 216, "HighBias", "NBias");
+		caerDynapseSetBias(state, chipId, coreId, "PS_WEIGHT_EXC_S_N", 7, 1, "HighBias", "NBias");
+		caerDynapseSetBias(state, chipId, coreId, "PS_WEIGHT_INH_F_N", 7, 1, "HighBias", "NBias");
+		caerDynapseSetBias(state, chipId, coreId, "PS_WEIGHT_INH_S_N", 7, 1, "HighBias", "NBias");
+		caerDynapseSetBias(state, chipId, coreId, "PULSE_PWLK_P", 0, 43, "HighBias", "PBias");
+		caerDynapseSetBias(state, chipId, coreId, "R2R_P", 4, 85, "HighBias", "PBias");
 	}
 
 }

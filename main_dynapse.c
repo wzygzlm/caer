@@ -68,6 +68,14 @@
 #include "modules/helloworld/helloworld.h"
 #endif
 
+#ifdef ENABLE_SYNAPSERECONFIG
+#include "modules/synapsereconfig/synapsereconfig.h"
+#endif
+
+#ifdef ENABLE_FPGASPIKEGEN
+#include "modules/fpgaspikegen/fpgaspikegen.h"
+#endif
+
 #ifdef ENABLE_EFFECTIVETRANSFERFUNCTION
 #include "modules/effectivetransferfunction/effectivetransferfunction.h"
 #endif
@@ -145,6 +153,14 @@ static bool mainloop_1(void) {
 
 #ifdef ENABLE_HELLOWORLD
 	caerHelloWorldModule(12, spike);
+#endif
+
+#ifdef ENABLE_SYNAPSERECONFIG
+	caerSynapseReconfigModule(15, spike);
+#endif
+
+#ifdef ENABLE_FPGASPIKEGEN
+    caerFpgaSpikeGenModule(17, spike);
 #endif
 
 #ifdef ENABLE_RECURRENTNET
