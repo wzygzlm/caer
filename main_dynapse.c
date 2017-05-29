@@ -80,6 +80,9 @@
 #include "modules/effectivetransferfunction/effectivetransferfunction.h"
 #endif
 
+#ifdef ENABLE_RECURRENTNET
+#include "modules/recurrentnet/recurrentnet.h"
+#endif
 
 // Common filters support.
 
@@ -158,6 +161,10 @@ static bool mainloop_1(void) {
 
 #ifdef ENABLE_FPGASPIKEGEN
     caerFpgaSpikeGenModule(17, spike);
+#endif
+
+#ifdef ENABLE_RECURRENTNET
+	caerRecurrentNet(85, spike);
 #endif
 
 	// A simple visualizer exists to show what the output looks like.

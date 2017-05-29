@@ -75,6 +75,9 @@
 #ifdef ENABLE_RECTANGULARTRACKER_DYNAMIC
 #include "modules/rectangulartracker_dynamic/rectangulartracker_dynamic.h"
 #endif
+#ifdef ENABLE_RECTANGULARTRACKER_PI
+#include "modules/rectangulartracker_pi/rectangulartracker_pi.h"
+#endif
 #ifdef ENABLE_MEDIANTRACKER
 #include "modules/mediantracker/mediantracker.h"
 #endif
@@ -103,11 +106,17 @@
 #ifdef ENABLE_DEPRESSINGSYNAPSEFILTER
 #include "modules/depressingsynapsefilter/depressingsynapsefilter.h"
 #endif
+#ifdef ENABLE_SPIKEFEATURES
+#include "modules/spikefeatures/spikefeatures.h"
+#endif
+#ifdef ENABLE_SPIRALVIEW
+#include "modules/spiralview/spiralview.h"
+#endif
 
 #ifdef ENABLE_IMAGEGENERATOR
 #include "modules/imagegenerator/imagegenerator.h"
-#define CLASSIFYSIZE 128
-#define DISPLAYIMGSIZE 128
+#define CLASSIFYSIZE 180
+#define DISPLAYIMGSIZE 180
 #endif
 #ifdef ENABLE_CAFFEINTERFACE
 #define CAFFEVISUALIZERSIZE 1024 
@@ -235,6 +244,11 @@ static bool mainloop_1(void) {
 	caerRectangulartrackerDynamicFilter(120, polarity, &rectangularDynamicFrame);
 #endif
 
+	// Rectangular tracker for raspberry pi
+#ifdef ENABLE_RECTANGULARTRACKER_PI
+	caerRectangulartrackerPiFilter(121, polarity);
+#endif
+
 	// Filter that track one object by using the median position information
 #ifdef ENABLE_MEDIANTRACKER
 	caerFrameEventPacket medianFrame = NULL;
@@ -275,17 +289,27 @@ static bool mainloop_1(void) {
 	caerPoseCalibration(6, polarity, frame);
 #endif
 
+#ifdef ENABLE_SPIKEFEATURES
+	caerFrameEventPacket spikeFeatures = NULL;
+	caerSpikeFeatures(26, polarity, &spikeFeatures);
+#endif
+
+
 	// A simple visualizer exists to show what the output looks like.
 #ifdef ENABLE_VISUALIZER
-	if (polarity != NULL) {
-		caerVisualizer(60, "Polarity", &caerVisualizerRendererPolarityEvents, visualizerEventHandler, (caerEventPacketHeader) polarity);
-	}
+	caerVisualizer(60, "Polarity", &caerVisualizerRendererPolarityEvents, visualizerEventHandler, (caerEventPacketHeader) polarity);
+#if defined(ENABLE_FILE_INPUT)
 	if (frame != NULL) {
 		caerVisualizer(61, "Frame", &caerVisualizerRendererFrameEvents, visualizerEventHandler, (caerEventPacketHeader) frame);
 	}
 	if (imu != NULL) {
 		caerVisualizer(62, "IMU6", &caerVisualizerRendererIMU6Events, visualizerEventHandler, (caerEventPacketHeader) imu);
 	}
+#endif
+#if defined(DAVISFX2) || defined(DAVISFX3)
+	caerVisualizer(61, "Frame", &caerVisualizerRendererFrameEvents, visualizerEventHandler, (caerEventPacketHeader) frame);
+	caerVisualizer(62, "IMU6", &caerVisualizerRendererIMU6Events, visualizerEventHandler, (caerEventPacketHeader) imu);
+#endif
 #ifdef ENABLE_MEANRATEFILTER_DVS
 	if(freqplot != NULL){
 		caerVisualizer(70, "MeanRateFrequency", &caerVisualizerRendererFrameEvents, NULL, (caerEventPacketHeader) freqplot);
@@ -295,6 +319,11 @@ static bool mainloop_1(void) {
 	caerVisualizer(71, "FrameRes", &caerVisualizerRendererFrameEvents, visualizerEventHandler, (caerEventPacketHeader) frameRes);
 #endif
 	//caerVisualizerMulti(68, "PolarityAndFrame", &caerVisualizerMultiRendererPolarityAndFrameEvents, visualizerEventHandler, container);
+#ifdef	ENABLE_SPIKEFEATURES
+	if(spikeFeatures != NULL){
+		caerVisualizer(74, "SpikeSurface", &caerVisualizerRendererFrameEvents, visualizerEventHandler, (caerEventPacketHeader) spikeFeatures);
+	}
+#endif
 #endif
 
 #ifdef ENABLE_FILE_OUTPUT
@@ -344,6 +373,20 @@ static bool mainloop_1(void) {
    }
 #endif
 #endif
+
+#if defined(ENABLE_SPIRALVIEW) && defined(ENABLE_IMAGEGENERATOR)
+	// it creates images by accumulating spikes
+	int * spiralview = calloc((int)CLASSIFYSIZE * CLASSIFYSIZE * 3, sizeof(int));
+	if (spiralview == NULL) {
+			return (false); // Failure.
+	}
+
+	caerFrameEventPacket spiralFrame = NULL;
+	if(haveimage[0]){
+		caerSpiralView(27, polarity, CLASSIFYSIZE, classifyhist, spiralview, &spiralFrame);
+	}
+#endif
+
 
 	// this modules requires image generator
 #if defined(ENABLE_CAFFEINTERFACE) || defined(ENABLE_NULLHOPINTERFACE)
@@ -405,6 +448,12 @@ static bool mainloop_1(void) {
 #if defined(ENABLE_DENOISINGAUTOENCODER) && defined(ENABLE_IMAGEGENERATOR) && defined(ENABLE_VISUALIZER)
 	caerFrameEventPacket frameAutoEncoderFeatures = NULL;
 	frameAutoEncoderFeatures = caerDenAutoEncoder(24, imagegeneratorFrame);
+#endif
+
+#if defined(ENABLE_VISUALIZER) && defined (ENABLE_IMAGEGENERATOR) && defined(ENABLE_SPIRALVIEW)
+	 if(haveimage[0]){
+		 caerVisualizer(88, "SpiralView", &caerVisualizerRendererFrameEvents, NULL, (caerEventPacketHeader) spiralFrame);
+	}
 #endif
 
 #if defined(ENABLE_VISUALIZER) && defined (ENABLE_IMAGEGENERATOR)

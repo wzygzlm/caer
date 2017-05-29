@@ -62,6 +62,12 @@
 #ifdef ENABLE_STEREOCALIBRATION
 #include "modules/stereocalibration/stereocalibration.h"
 #endif
+#ifdef ENABLE_IMAGEGENERATOR
+#include "modules/imagegenerator/imagegenerator.h"
+#define CLASSIFYSIZE 128 
+#define DISPLAYIMGSIZE 128 
+#endif
+
 
 static bool mainloop_twocameras(void);
 
@@ -181,6 +187,48 @@ static bool mainloop_twocameras(void) {
 	caerStereoCalibration(7, frame_cam0, frame_cam1);
 #endif
 
+#ifdef ENABLE_IMAGEGENERATOR
+        // it creates images by accumulating spikes
+        int * classifyhist_cam0 = calloc((int)CLASSIFYSIZE * CLASSIFYSIZE, sizeof(int));
+        if (classifyhist_cam0 == NULL) {
+                        return (false); // Failure.
+        }else{
+	 caerMainloopFreeAfterLoop(&free, classifyhist_cam0);
+	}
+        bool *haveimage_cam0;
+        haveimage_cam0 = (bool*)malloc(1);
+	caerMainloopFreeAfterLoop(&free, haveimage_cam0);
+
+       // it creates images by accumulating spikes
+        int * classifyhist_cam1 = calloc((int)CLASSIFYSIZE * CLASSIFYSIZE, sizeof(int));
+        if (classifyhist_cam1 == NULL) {
+                        return (false); // Failure.
+        }else{
+	 caerMainloopFreeAfterLoop(&free, classifyhist_cam1);
+	}
+        
+	bool *haveimage_cam1;
+        haveimage_cam1 = (bool*)malloc(1);
+	caerMainloopFreeAfterLoop(&free, haveimage_cam1);
+
+        // generate image and place it in classifyhist
+        caerImageGenerator(21, polarity_cam1, CLASSIFYSIZE, classifyhist_cam1, haveimage_cam1);
+        // generate image and place it in classifyhist
+        caerImageGenerator(20, polarity_cam0, CLASSIFYSIZE, classifyhist_cam0, haveimage_cam0);
+  
+   
+   //put image into a frame packet containing a single frame camera 1
+   caerFrameEventPacket imagegeneratorFrame_cam0 = NULL;
+   if(haveimage_cam0[0]){
+          caerImageGeneratorMakeFrame(20, classifyhist_cam0, &imagegeneratorFrame_cam0, CLASSIFYSIZE);
+   }
+   caerFrameEventPacket imagegeneratorFrame_cam1 = NULL;
+   if(haveimage_cam1[0]){
+          caerImageGeneratorMakeFrame(20, classifyhist_cam1, &imagegeneratorFrame_cam1, CLASSIFYSIZE);
+   }
+#endif
+
+
 	// A simple visualizer exists to show what the output looks like.
 #ifdef ENABLE_VISUALIZER
 	//caerVisualizerMulti(68, "PolarityAndFrame", &caerVisualizerMultiRendererPolarityAndFrameEvents, NULL, container_cam0);
@@ -200,6 +248,21 @@ static bool mainloop_twocameras(void) {
 	// Enable output to file (AER3.1 format).
 	caerOutputFile(9, 4, polarity_cam0, frame_cam0, imu_cam0, special_cam0);
 	caerOutputFile(99, 4, polarity_cam1, frame_cam1, imu_cam1, special_cam1);
+#endif
+
+#ifdef ENABLE_NETWORK_OUTPUT
+        // Send polarity packets out via TCP. This is the server mode!
+        // External clients connect to cAER, and we send them the data.
+        // WARNING: slow clients can dramatically slow this and the whole
+        // processing pipeline down!
+	#ifdef ENABLE_IMAGEGENERATOR
+        if(haveimage_cam0[0]){
+        	caerOutputNetTCPServer(8, 1, imagegeneratorFrame_cam0);//, imagegeneratorFrame_cam1);
+	}
+	if(haveimage_cam1[0]){
+                caerOutputNetTCPServer(8, 1, imagegeneratorFrame_cam1);//, imagegeneratorFrame_cam1);
+        }
+	#endif
 #endif
 
 	return (true); // If false is returned, processing of this loop stops.

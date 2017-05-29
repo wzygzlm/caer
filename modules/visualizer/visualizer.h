@@ -10,6 +10,8 @@
 
 #define VISUALIZER_DEFAULT_ZOOM 2.0f
 #define VISUALIZER_REFRESH_RATE 60.0f
+#define VISUALIZER_DEFAULT_POSITION_X 40
+#define VISUALIZER_DEFAULT_POSITION_Y 40
 
 struct caer_visualizer_public_state {
 	void *eventSourceModuleState;
@@ -17,6 +19,8 @@ struct caer_visualizer_public_state {
 	sshsNode visualizerConfigNode;
 	int32_t bitmapRendererSizeX;
 	int32_t bitmapRendererSizeY;
+	int32_t windowPositionX;
+	int32_t windowPositionY;
 	ALLEGRO_FONT *displayFont;
 };
 
