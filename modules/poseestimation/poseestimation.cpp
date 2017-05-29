@@ -35,17 +35,25 @@ bool PoseEstimation::findMarkers(caerFrameEvent frame) {
     Mat view;
     orig.convertTo(view, CV_8UC(orig.channels()), 1.0 / 256.0);
 
-    // marker detection with aruco markers integration in opencv
-    Ptr<aruco::Dictionary> dictionary = aruco::getPredefinedDictionary(aruco::DICT_ARUCO_ORIGINAL);
-
     vector<int> ids;
     vector<std::vector<cv::Point2f> > corners, rejected;
+
+    // marker detection with aruco markers integration in opencv
+#if CV_VERSION_MAJOR == 3 && CV_VERSION_MINOR == 2
+    Ptr<aruco::Dictionary> dictionary = aruco::getPredefinedDictionary(aruco::DICT_ARUCO_ORIGINAL);
 
     Ptr<aruco::DetectorParameters> detectorParams = new aruco::DetectorParameters();
     detectorParams->doCornerRefinement = true; // do corner refinement in markers
 
-    // detect
     aruco::detectMarkers(view, dictionary, corners, ids, detectorParams, rejected);
+#else
+    aruco::Dictionary dictionary = aruco::getPredefinedDictionary(aruco::DICT_ARUCO_ORIGINAL);
+
+    aruco::DetectorParameters *detectorParams = new aruco::DetectorParameters();
+    detectorParams->doCornerRefinement = true; // do corner refinement in markers
+
+    aruco::detectMarkers(view, dictionary, corners, ids, *detectorParams, rejected);
+#endif
 
     // if at least one marker has been detected
     if (ids.size() > 0){
