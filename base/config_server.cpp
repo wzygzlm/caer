@@ -1,8 +1,9 @@
 #include "config_server.h"
+#include "ext/threads_ext.h"
+
 #include <atomic>
 #include <thread>
 #include <boost/asio.hpp>
-#include "ext/threads_ext.h"
 #include "ext/sshs/sshs.hpp"
 
 #include <libcaercpp/libcaer.hpp>
