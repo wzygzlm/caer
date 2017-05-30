@@ -29,6 +29,13 @@ private:
 public:
 	ConfigServerConnection(asioTCP::socket s) :
 			socket(std::move(s)) {
+		log(logLevel::INFO, CONFIG_SERVER_NAME, "New connection from client %s:%d.",
+			socket.remote_endpoint().address().to_string().c_str(), socket.remote_endpoint().port());
+	}
+
+	~ConfigServerConnection() {
+		log(logLevel::INFO, CONFIG_SERVER_NAME, "Closing connection from client %s:%d.",
+			socket.remote_endpoint().address().to_string().c_str(), socket.remote_endpoint().port());
 	}
 
 	void start() {
@@ -45,8 +52,7 @@ public:
 		boost::asio::async_write(socket, boost::asio::buffer(data, dataLength),
 			[this, self](const boost::system::error_code &error, std::size_t /*length*/) {
 				if (error) {
-					log(logLevel::ERROR, CONFIG_SERVER_NAME,
-						"Failed to write response. Error: %s (%d).", error.message().c_str(), error.value());
+					handleError(error, "Failed to write response");
 				}
 				else {
 					// Restart.
@@ -62,8 +68,7 @@ private:
 		boost::asio::async_read(socket, boost::asio::buffer(data, CAER_CONFIG_SERVER_HEADER_SIZE),
 			[this, self](const boost::system::error_code &error, std::size_t /*length*/) {
 				if (error) {
-					log(logLevel::ERROR, CONFIG_SERVER_NAME,
-						"Failed to read header. Error: %s (%d).", error.message().c_str(), error.value());
+					handleError(error, "Failed to read header");
 				}
 				else {
 					// If we have enough data, we start parsing the lengths.
@@ -88,8 +93,7 @@ private:
 		boost::asio::async_read(socket, boost::asio::buffer(data + CAER_CONFIG_SERVER_HEADER_SIZE, dataLength),
 			[this, self](const boost::system::error_code &error, std::size_t /*length*/) {
 				if (error) {
-					log(logLevel::ERROR, CONFIG_SERVER_NAME,
-						"Failed to read data. Error: %s (%d).", error.message().c_str(), error.value());
+					handleError(error, "Failed to read data");
 				}
 				else {
 					// Decode command header fields.
@@ -111,6 +115,18 @@ private:
 						valueLength);
 				}
 			});
+	}
+
+	void handleError(const boost::system::error_code &error, const char *message) {
+		if (error == asio::error::eof) {
+			// Handle EOF separately.
+			log(logLevel::INFO, CONFIG_SERVER_NAME, "Client %s:%d closed the connection.",
+				socket.remote_endpoint().address().to_string().c_str(), socket.remote_endpoint().port());
+		}
+		else {
+			log(logLevel::ERROR, CONFIG_SERVER_NAME, "%s. Error: %s (%d).", message, error.message().c_str(),
+				error.value());
+		}
 	}
 };
 
