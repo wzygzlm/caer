@@ -4,7 +4,9 @@
 #include <boost/asio.hpp>
 #include "ext/threads_ext.h"
 #include "ext/sshs/sshs.hpp"
+
 #include <libcaercpp/libcaer.hpp>
+using namespace libcaer::log;
 
 namespace asio = boost::asio;
 namespace asioIP = boost::asio::ip;
@@ -124,7 +126,7 @@ private:
 	void acceptStart() {
 		acceptor.async_accept(socket, [this](const boost::system::error_code &error) {
 			if (error) {
-				libcaer::log::log(libcaer::log::logLevel::ERROR, CONFIG_SERVER_NAME,
+				log(logLevel::ERROR, CONFIG_SERVER_NAME,
 					"Failed to accept new config server connection. Error: %s.", error.message().c_str());
 			}
 			else {
