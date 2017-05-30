@@ -43,8 +43,13 @@ public:
 		auto self(shared_from_this());
 
 		boost::asio::async_write(socket, boost::asio::buffer(data, dataLength),
-			[this, self](boost::system::error_code ec, std::size_t /*length*/) {
-				if (!ec) {
+			[this, self](const boost::system::error_code &error, std::size_t /*length*/) {
+				if (error) {
+					log(logLevel::ERROR, CONFIG_SERVER_NAME,
+						"Failed to write response. Error: %s (%d).", error.message().c_str(), error.value());
+				}
+				else {
+					// Restart.
 					readHeader();
 				}
 			});
@@ -55,9 +60,12 @@ private:
 		auto self(shared_from_this());
 
 		boost::asio::async_read(socket, boost::asio::buffer(data, CAER_CONFIG_SERVER_HEADER_SIZE),
-			[this, self](boost::system::error_code ec, std::size_t /*length*/) {
-				// TODO: HANDLE EOF, log closed connection
-				if (!ec) {
+			[this, self](const boost::system::error_code &error, std::size_t /*length*/) {
+				if (error) {
+					log(logLevel::ERROR, CONFIG_SERVER_NAME,
+						"Failed to read header. Error: %s (%d).", error.message().c_str(), error.value());
+				}
+				else {
 					// If we have enough data, we start parsing the lengths.
 					// The main header is 10 bytes.
 					// Decode length header fields (all in little-endian).
@@ -78,9 +86,12 @@ private:
 		auto self(shared_from_this());
 
 		boost::asio::async_read(socket, boost::asio::buffer(data + CAER_CONFIG_SERVER_HEADER_SIZE, dataLength),
-			[this, self](boost::system::error_code ec, std::size_t /*length*/) {
-				// TODO: HANDLE EOF, log closed connection
-				if (!ec) {
+			[this, self](const boost::system::error_code &error, std::size_t /*length*/) {
+				if (error) {
+					log(logLevel::ERROR, CONFIG_SERVER_NAME,
+						"Failed to read data. Error: %s (%d).", error.message().c_str(), error.value());
+				}
+				else {
 					// Decode command header fields.
 					uint8_t action = data[0];
 					uint8_t type = data[1];
@@ -128,7 +139,7 @@ private:
 		acceptor.async_accept(socket, [this](const boost::system::error_code &error) {
 			if (error) {
 				log(logLevel::ERROR, CONFIG_SERVER_NAME,
-					"Failed to accept new config server connection. Error: %s.", error.message().c_str());
+					"Failed to accept new connection. Error: %s (%d).", error.message().c_str(), error.value());
 			}
 			else {
 				std::make_shared<ConfigServerConnection>(std::move(socket))->start();
@@ -221,7 +232,7 @@ static inline void caerConfigSendError(std::shared_ptr<ConfigServerConnection> c
 
 	client->writeResponse(responseLength);
 
-	caerLog(CAER_LOG_DEBUG, "Config Server", "Sent back error message '%s' to client.", errorMsg);
+	caerLog(CAER_LOG_DEBUG, CONFIG_SERVER_NAME, "Sent back error message '%s' to client.", errorMsg);
 }
 
 static inline void caerConfigSendResponse(std::shared_ptr<ConfigServerConnection> client, uint8_t action, uint8_t type,
@@ -238,7 +249,7 @@ static inline void caerConfigSendResponse(std::shared_ptr<ConfigServerConnection
 
 	client->writeResponse(responseLength);
 
-	caerLog(CAER_LOG_DEBUG, "Config Server",
+	caerLog(CAER_LOG_DEBUG, CONFIG_SERVER_NAME,
 		"Sent back message to client: action=%" PRIu8 ", type=%" PRIu8 ", msgLength=%zu.", action, type, msgLength);
 }
 
