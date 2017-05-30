@@ -3,30 +3,174 @@
 #include <thread>
 #include <boost/asio.hpp>
 #include "ext/threads_ext.h"
+#include "ext/sshs/sshs.hpp"
+#include <libcaercpp/libcaer.hpp>
+
+namespace asio = boost::asio;
+namespace asioIP = boost::asio::ip;
+using asioTCP = boost::asio::ip::tcp;
 
 #define CONFIG_SERVER_NAME "Config Server"
-#define UV_RET_CHECK_CS(RET_VAL, FUNC_NAME, CLEANUP_ACTIONS) UV_RET_CHECK(RET_VAL, CONFIG_SERVER_NAME, FUNC_NAME, CLEANUP_ACTIONS)
 
-static struct {
-	std::atomic_bool running;
-	uv_async_t asyncShutdown;
-	std::thread thread;
-} configServerThread;
+class ConfigServerConnection;
 
-static void configServerConnection(uv_stream_t *server, int status);
-static void configServerAlloc(uv_handle_t *client, size_t suggestedSize, uv_buf_t *buf);
-static void configServerRead(uv_stream_t *client, ssize_t sizeRead, const uv_buf_t *buf);
-static void configServerShutdown(uv_shutdown_t *clientShutdown, int status);
-static void configServerAsyncShutdown(uv_async_t *asyncShutdown);
-static void caerConfigServerRunner();
-static void caerConfigServerHandleRequest(uv_stream_t *client, uint8_t action, uint8_t type, const uint8_t *extra,
-	size_t extraLength, const uint8_t *node, size_t nodeLength, const uint8_t *key, size_t keyLength,
-	const uint8_t *value, size_t valueLength);
+static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection> client, uint8_t action, uint8_t type,
+	const uint8_t *extra, size_t extraLength, const uint8_t *node, size_t nodeLength, const uint8_t *key,
+	size_t keyLength, const uint8_t *value, size_t valueLength);
+
+class ConfigServerConnection: public std::enable_shared_from_this<ConfigServerConnection> {
+private:
+	asioTCP::socket socket;
+	uint8_t data[CAER_CONFIG_SERVER_BUFFER_SIZE];
+
+public:
+	ConfigServerConnection(asioTCP::socket s) :
+			socket(std::move(s)) {
+	}
+
+	void start() {
+		readHeader();
+	}
+
+	uint8_t *getData() {
+		return (data);
+	}
+
+	void writeResponse(size_t dataLength) {
+		auto self(shared_from_this());
+
+		boost::asio::async_write(socket, boost::asio::buffer(data, dataLength),
+			[this, self](boost::system::error_code ec, std::size_t /*length*/) {
+				if (!ec) {
+					readHeader();
+				}
+			});
+	}
+
+private:
+	void readHeader() {
+		auto self(shared_from_this());
+
+		boost::asio::async_read(socket, boost::asio::buffer(data, CAER_CONFIG_SERVER_HEADER_SIZE),
+			[this, self](boost::system::error_code ec, std::size_t /*length*/) {
+				// TODO: HANDLE EOF, log closed connection
+				if (!ec) {
+					// If we have enough data, we start parsing the lengths.
+					// The main header is 10 bytes.
+					// Decode length header fields (all in little-endian).
+					uint16_t extraLength = le16toh(*(uint16_t * )(data + 2));
+					uint16_t nodeLength = le16toh(*(uint16_t * )(data + 4));
+					uint16_t keyLength = le16toh(*(uint16_t * )(data + 6));
+					uint16_t valueLength = le16toh(*(uint16_t * )(data + 8));
+
+					// Total length to get for command.
+					size_t readLength = (size_t) (extraLength + nodeLength + keyLength + valueLength);
+
+					readData(readLength);
+				}
+			});
+	}
+
+	void readData(size_t dataLength) {
+		auto self(shared_from_this());
+
+		boost::asio::async_read(socket, boost::asio::buffer(data + CAER_CONFIG_SERVER_HEADER_SIZE, dataLength),
+			[this, self](boost::system::error_code ec, std::size_t /*length*/) {
+				// TODO: HANDLE EOF, log closed connection
+				if (!ec) {
+					// Decode command header fields.
+					uint8_t action = data[0];
+					uint8_t type = data[1];
+
+					// Decode length header fields (all in little-endian).
+					uint16_t extraLength = le16toh(*(uint16_t * )(data + 2));
+					uint16_t nodeLength = le16toh(*(uint16_t * )(data + 4));
+					uint16_t keyLength = le16toh(*(uint16_t * )(data + 6));
+					uint16_t valueLength = le16toh(*(uint16_t * )(data + 8));
+
+					// Now we have everything. The header fields are already
+					// fully decoded: handle request (and send back data eventually).
+					caerConfigServerHandleRequest(self, action, type, data + CAER_CONFIG_SERVER_HEADER_SIZE,
+						extraLength, data + CAER_CONFIG_SERVER_HEADER_SIZE + extraLength, nodeLength,
+						data + CAER_CONFIG_SERVER_HEADER_SIZE + extraLength + nodeLength, keyLength,
+						data + CAER_CONFIG_SERVER_HEADER_SIZE + extraLength + nodeLength + keyLength,
+						valueLength);
+				}
+			});
+	}
+};
+
+class ConfigServer {
+private:
+	asio::io_service ioService;
+	asioTCP::acceptor acceptor;
+	asioTCP::socket socket;
+	std::thread ioThread;
+
+public:
+	ConfigServer(const asioIP::address &listenAddress, unsigned short listenPort) :
+			acceptor(ioService, asioTCP::endpoint(listenAddress, listenPort)),
+			socket(ioService) {
+		acceptStart();
+
+		threadStart();
+	}
+
+	void stop() {
+		threadStop();
+	}
+
+private:
+	void acceptStart() {
+		acceptor.async_accept(socket, [this](const boost::system::error_code &error) {
+			if (error) {
+				libcaer::log::log(libcaer::log::logLevel::ERROR, CONFIG_SERVER_NAME,
+					"Failed to accept new config server connection. Error: %s.", error.message().c_str());
+			}
+			else {
+				std::make_shared<ConfigServerConnection>(std::move(socket))->start();
+			}
+
+			acceptStart();
+		});
+	}
+
+	void threadStart() {
+		ioThread = std::thread([this]() {
+			// Set thread name.
+			thrd_set_name("ConfigServer");
+
+			// Run IO service.
+			while (!ioService.stopped()) {
+				ioService.run();
+			}
+		});
+	}
+
+	void threadStop() {
+		ioService.stop();
+
+		ioThread.join();
+	}
+};
+
+static std::unique_ptr<ConfigServer> cfg;
 
 void caerConfigServerStart(void) {
+	// Get the right configuration node first.
+	sshsNode serverNode = sshsGetNode(sshsGetGlobal(), "/caer/server/");
+
+	// Ensure default values are present.
+	sshsNodeCreate(serverNode, "ipAddress", "127.0.0.1", 7, 15, SSHS_FLAGS_NORMAL,
+		"IPv4 address to listen on for configuration server connections.");
+	sshsNodeCreate(serverNode, "portNumber", 4040, 1, UINT16_MAX, SSHS_FLAGS_NORMAL,
+		"Port to listen on for configuration server connections.");
+
 	// Start the thread.
 	try {
-		configServerThread.thread = std::thread(caerConfigServerRunner);
+		cfg = std::make_unique<ConfigServer>(
+			asioIP::address::from_string(sshsNodeGetStdString(serverNode, "ipAddress")),
+			sshsNodeGetInt(serverNode, "portNumber"));
 	}
 	catch (const std::system_error &ex) {
 		// Failed to create thread.
@@ -39,17 +183,8 @@ void caerConfigServerStart(void) {
 }
 
 void caerConfigServerStop(void) {
-	// Only execute if the server thread was actually started.
-	if (!configServerThread.running.load()) {
-		return;
-	}
-
-	// Disable the configuration server thread.
-	uv_async_send(&configServerThread.asyncShutdown);
-
-	// Then wait on it to finish.
 	try {
-		configServerThread.thread.join();
+		cfg->stop();
 	}
 	catch (const std::system_error &ex) {
 		// Failed to join thread.
@@ -61,229 +196,6 @@ void caerConfigServerStop(void) {
 	caerLog(CAER_LOG_DEBUG, CONFIG_SERVER_NAME, "Thread terminated successfully.");
 }
 
-static void configServerConnection(uv_stream_t *server, int status) {
-	UV_RET_CHECK_CS(status, "Connection", return);
-
-	uv_tcp_t *tcpClient = calloc(1, sizeof(*tcpClient));
-	if (tcpClient == NULL) {
-		caerLog(CAER_LOG_ERROR, CONFIG_SERVER_NAME, "Failed to allocate memory for new client.");
-		return;
-	}
-
-	int retVal;
-
-	retVal = uv_tcp_init(server->loop, tcpClient);
-	UV_RET_CHECK_CS(retVal, "uv_tcp_init", free(tcpClient));
-
-	retVal = uv_accept(server, (uv_stream_t *) tcpClient);
-	UV_RET_CHECK_CS(retVal, "uv_accept", uv_close((uv_handle_t * ) tcpClient, &libuvCloseFree));
-
-	retVal = uv_read_start((uv_stream_t *) tcpClient, &configServerAlloc, &configServerRead);
-	UV_RET_CHECK_CS(retVal, "uv_read_start", uv_close((uv_handle_t * ) tcpClient, &libuvCloseFree));
-}
-
-static void configServerAlloc(uv_handle_t *client, size_t suggestedSize, uv_buf_t *buf) {
-	UNUSED_ARGUMENT(suggestedSize);
-
-	// We use one buffer per connection, with a fixed maximum size, and
-	// re-use it until we have read a full message.
-	if (client->data == NULL) {
-		client->data = simpleBufferInit(CAER_CONFIG_SERVER_BUFFER_SIZE);
-
-		if (client->data == NULL) {
-			// Allocation failure!
-			buf->base = NULL;
-			buf->len = 0;
-
-			caerLog(CAER_LOG_ERROR, CONFIG_SERVER_NAME, "Failed to allocate memory for client buffer.");
-			return;
-		}
-	}
-
-	simpleBuffer dataBuf = client->data;
-
-	buf->base = (char *) (dataBuf->buffer + dataBuf->bufferUsedSize);
-	buf->len = dataBuf->bufferSize - dataBuf->bufferUsedSize;
-}
-
-static void configServerRead(uv_stream_t *client, ssize_t sizeRead, const uv_buf_t *buf) {
-	UNUSED_ARGUMENT(buf); // Use our own buffer directly.
-
-	// sizeRead < 0: Error or EndOfFile (EOF).
-	if (sizeRead < 0) {
-		uv_shutdown_t *clientShutdown = NULL;
-
-		struct sockaddr_in tcpClientAddr;
-		int tcpClientAddrLength = sizeof(struct sockaddr_in);
-		char tcpClientIP[16] = { 0 };
-
-		int retVal = uv_tcp_getpeername((uv_tcp_t *) client, (struct sockaddr *) &tcpClientAddr, &tcpClientAddrLength);
-		UV_RET_CHECK_CS(retVal, "uv_tcp_getpeername", goto closeConnection);
-
-		retVal = uv_ip4_name(&tcpClientAddr, tcpClientIP, 16);
-		UV_RET_CHECK_CS(retVal, "uv_ip4_name", goto closeConnection);
-
-		if (sizeRead == UV_EOF) {
-			caerLog(CAER_LOG_INFO, CONFIG_SERVER_NAME, "Client %s:%d closed connection.", tcpClientIP,
-				tcpClientAddr.sin_port);
-		}
-		else {
-			caerLog(CAER_LOG_ERROR, CONFIG_SERVER_NAME, "Read failed with client %s:%d, error %ld (%s).", tcpClientIP,
-				tcpClientAddr.sin_port, sizeRead, uv_err_name((int) sizeRead));
-		}
-
-		closeConnection:
-		// Close connection.
-		clientShutdown = calloc(1, sizeof(*clientShutdown));
-		if (clientShutdown == NULL) {
-			caerLog(CAER_LOG_ERROR, CONFIG_SERVER_NAME, "Failed to allocate memory for client shutdown.");
-
-			// Hard close.
-			uv_close((uv_handle_t *) client, &libuvCloseFreeData);
-			return;
-		}
-
-		retVal = uv_shutdown(clientShutdown, client, &configServerShutdown);
-		UV_RET_CHECK_CS(retVal, "uv_shutdown",
-			free(clientShutdown); uv_close((uv_handle_t *) client, &libuvCloseFreeData));
-	}
-
-	// sizeRead == 0: EAGAIN, do nothing.
-
-	// sizeRead > 0: received data.
-	if (sizeRead > 0) {
-		simpleBuffer dataBuf = client->data;
-
-		// Update main client buffer with just read data.
-		dataBuf->bufferUsedSize += (size_t) sizeRead;
-
-		// If we have enough data, we start parsing the lengths.
-		// The main header is 10 bytes.
-		if (dataBuf->bufferUsedSize >= CAER_CONFIG_SERVER_HEADER_SIZE) {
-			// Decode length header fields (all in little-endian).
-			uint16_t extraLength = le16toh(*(uint16_t * )(dataBuf->buffer + 2));
-			uint16_t nodeLength = le16toh(*(uint16_t * )(dataBuf->buffer + 4));
-			uint16_t keyLength = le16toh(*(uint16_t * )(dataBuf->buffer + 6));
-			uint16_t valueLength = le16toh(*(uint16_t * )(dataBuf->buffer + 8));
-
-			// Total length to get for command.
-			size_t readLength = (size_t) (extraLength + nodeLength + keyLength + valueLength);
-
-			if (dataBuf->bufferUsedSize >= (CAER_CONFIG_SERVER_HEADER_SIZE + readLength)) {
-				// Decode remaining header fields.
-				uint8_t action = dataBuf->buffer[0];
-				uint8_t type = dataBuf->buffer[1];
-
-				// Now we have everything. The header fields are already
-				// fully decoded: handle request (and send back data eventually).
-				caerConfigServerHandleRequest(client, action, type, dataBuf->buffer + CAER_CONFIG_SERVER_HEADER_SIZE,
-					extraLength, dataBuf->buffer + CAER_CONFIG_SERVER_HEADER_SIZE + extraLength, nodeLength,
-					dataBuf->buffer + CAER_CONFIG_SERVER_HEADER_SIZE + extraLength + nodeLength, keyLength,
-					dataBuf->buffer + CAER_CONFIG_SERVER_HEADER_SIZE + extraLength + nodeLength + keyLength,
-					valueLength);
-
-				// Reset buffer for next request.
-				dataBuf->bufferUsedSize = 0;
-			}
-		}
-	}
-}
-
-static void configServerShutdown(uv_shutdown_t *clientShutdown, int status) {
-	uv_close((uv_handle_t *) clientShutdown->handle, &libuvCloseFreeData);
-
-	free(clientShutdown);
-
-	UV_RET_CHECK_CS(status, "AfterShutdown", return);
-}
-
-static void configServerAsyncShutdown(uv_async_t *asyncShutdown) {
-	uv_stop(asyncShutdown->loop);
-}
-
-static void caerConfigServerRunner() {
-	// Set thread name.
-	thrd_set_name("ConfigServer");
-
-	// Get the right configuration node first.
-	sshsNode serverNode = sshsGetNode(sshsGetGlobal(), "/caer/server/");
-
-	// Ensure default values are present.
-	sshsNodeCreateString(serverNode, "ipAddress", "127.0.0.1", 7, 15, SSHS_FLAGS_NORMAL,
-		"IPv4 address to listen on for configuration server connections.");
-	sshsNodeCreateInt(serverNode, "portNumber", 4040, 1, UINT16_MAX, SSHS_FLAGS_NORMAL,
-		"Port to listen on for configuration server connections.");
-	sshsNodeCreateShort(serverNode, "backlogSize", 5, 1, 512, SSHS_FLAGS_NORMAL,
-		"Maximum number of pending connections.");
-
-	int retVal;
-	bool eventLoopInitialized = false;
-	bool tcpServerInitialized = false;
-
-	uv_loop_t configServerLoop;
-	uv_tcp_t configServerTCP;
-
-	// Generate address.
-	struct sockaddr_in configServerAddress;
-
-	char *ipAddress = sshsNodeGetString(serverNode, "ipAddress");
-	retVal = uv_ip4_addr(ipAddress, sshsNodeGetInt(serverNode, "portNumber"), &configServerAddress);
-	UV_RET_CHECK_CS(retVal, "uv_ip4_addr", free(ipAddress); goto loopCleanup);
-	free(ipAddress);
-
-	// Main event loop for handling connections.
-	retVal = uv_loop_init(&configServerLoop);
-	UV_RET_CHECK_CS(retVal, "uv_loop_init", goto loopCleanup);
-	eventLoopInitialized = true;
-
-	// Initialize async callback to stop the event loop on termination.
-	retVal = uv_async_init(&configServerLoop, &configServerThread.asyncShutdown, &configServerAsyncShutdown);
-	UV_RET_CHECK_CS(retVal, "uv_async_init", goto loopCleanup);
-	configServerThread.running.store(true);
-
-	// Open a TCP server socket for configuration handling.
-	// TCP chosen for reliability, which is more important here than speed.
-	retVal = uv_tcp_init(&configServerLoop, &configServerTCP);
-	UV_RET_CHECK_CS(retVal, "uv_tcp_init", goto loopCleanup);
-	tcpServerInitialized = true;
-
-	// Bind socket to above address.
-	retVal = uv_tcp_bind(&configServerTCP, (struct sockaddr *) &configServerAddress, 0);
-	UV_RET_CHECK_CS(retVal, "uv_tcp_bind", goto loopCleanup);
-
-	// Listen to new connections on the socket.
-	retVal = uv_listen((uv_stream_t *) &configServerTCP, sshsNodeGetShort(serverNode, "backlogSize"),
-		&configServerConnection);
-	UV_RET_CHECK_CS(retVal, "uv_listen", goto loopCleanup);
-
-	// Run event loop.
-	retVal = uv_run(&configServerLoop, UV_RUN_DEFAULT);
-	UV_RET_CHECK_CS(retVal, "uv_run", goto loopCleanup);
-
-	// Cleanup event loop and memory.
-	loopCleanup: {
-		if (tcpServerInitialized) {
-			uv_close((uv_handle_t *) &configServerTCP, NULL);
-		}
-
-		if (configServerThread.running.load()) {
-			uv_close((uv_handle_t *) &configServerThread.asyncShutdown, NULL);
-		}
-
-		if (eventLoopInitialized) {
-			// Cleanup all remaining handles and run until all callbacks are done.
-			retVal = libuvCloseLoopHandles(&configServerLoop);
-			UV_RET_CHECK_CS(retVal, "libuvCloseLoopHandles",);
-
-			retVal = uv_loop_close(&configServerLoop);
-			UV_RET_CHECK_CS(retVal, "uv_loop_close",);
-		}
-
-		// Mark the configuration server thread as stopped.
-		configServerThread.running.store(false);
-	}
-}
-
 // The response from the server follows a simplified version of the request
 // protocol. A byte for ACTION, a byte for TYPE, 2 bytes for MSG_LEN and then
 // up to 4092 bytes of MSG, for a maximum total of 4096 bytes again.
@@ -292,25 +204,11 @@ static inline void setMsgLen(uint8_t *buf, uint16_t msgLen) {
 	*((uint16_t *) (buf + 2)) = htole16(msgLen);
 }
 
-static inline void caerConfigSendError(uv_stream_t *client, const char *errorMsg) {
+static inline void caerConfigSendError(std::shared_ptr<ConfigServerConnection> client, const char *errorMsg) {
 	size_t errorMsgLength = strlen(errorMsg);
 	size_t responseLength = 4 + errorMsgLength + 1; // +1 for terminating NUL byte.
 
-	libuvWriteMultiBuf buffers = libuvWriteBufAlloc(1);
-	if (buffers == NULL) {
-		caerLog(CAER_LOG_ERROR, CONFIG_SERVER_NAME, "Failed to allocate memory for client error response.");
-		return;
-	}
-
-	libuvWriteBufInit(&buffers->buffers[0], responseLength);
-
-	uint8_t *response = (uint8_t *) buffers->buffers[0].buf.base;
-	if (response == NULL) {
-		free(buffers);
-
-		caerLog(CAER_LOG_ERROR, CONFIG_SERVER_NAME, "Failed to allocate memory for client error response.");
-		return;
-	}
+	uint8_t *response = client->getData();
 
 	response[0] = CAER_CONFIG_ERROR;
 	response[1] = SSHS_STRING;
@@ -318,31 +216,16 @@ static inline void caerConfigSendError(uv_stream_t *client, const char *errorMsg
 	memcpy(response + 4, errorMsg, errorMsgLength);
 	response[4 + errorMsgLength] = '\0';
 
-	int retVal = libuvWrite(client, buffers);
-	UV_RET_CHECK_CS(retVal, "libuvWrite", free(response); free(buffers); return);
+	client->writeResponse(responseLength);
 
 	caerLog(CAER_LOG_DEBUG, "Config Server", "Sent back error message '%s' to client.", errorMsg);
 }
 
-static inline void caerConfigSendResponse(uv_stream_t *client, uint8_t action, uint8_t type, const uint8_t *msg,
-	size_t msgLength) {
+static inline void caerConfigSendResponse(std::shared_ptr<ConfigServerConnection> client, uint8_t action, uint8_t type,
+	const uint8_t *msg, size_t msgLength) {
 	size_t responseLength = 4 + msgLength;
 
-	libuvWriteMultiBuf buffers = libuvWriteBufAlloc(1);
-	if (buffers == NULL) {
-		caerLog(CAER_LOG_ERROR, CONFIG_SERVER_NAME, "Failed to allocate memory for client response.");
-		return;
-	}
-
-	libuvWriteBufInit(&buffers->buffers[0], responseLength);
-
-	uint8_t *response = (uint8_t *) buffers->buffers[0].buf.base;
-	if (response == NULL) {
-		free(buffers);
-
-		caerLog(CAER_LOG_ERROR, CONFIG_SERVER_NAME, "Failed to allocate memory for client response.");
-		return;
-	}
+	uint8_t *response = client->getData();
 
 	response[0] = action;
 	response[1] = type;
@@ -350,16 +233,15 @@ static inline void caerConfigSendResponse(uv_stream_t *client, uint8_t action, u
 	memcpy(response + 4, msg, msgLength);
 	// Msg must already be NUL terminated!
 
-	int retVal = libuvWrite(client, buffers);
-	UV_RET_CHECK_CS(retVal, "libuvWrite", free(response); free(buffers); return);
+	client->writeResponse(responseLength);
 
 	caerLog(CAER_LOG_DEBUG, "Config Server",
 		"Sent back message to client: action=%" PRIu8 ", type=%" PRIu8 ", msgLength=%zu.", action, type, msgLength);
 }
 
-static void caerConfigServerHandleRequest(uv_stream_t *client, uint8_t action, uint8_t type, const uint8_t *extra,
-	size_t extraLength, const uint8_t *node, size_t nodeLength, const uint8_t *key, size_t keyLength,
-	const uint8_t *value, size_t valueLength) {
+static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection> client, uint8_t action, uint8_t type,
+	const uint8_t *extra, size_t extraLength, const uint8_t *node, size_t nodeLength, const uint8_t *key,
+	size_t keyLength, const uint8_t *value, size_t valueLength) {
 	UNUSED_ARGUMENT(extra);
 
 	caerLog(CAER_LOG_DEBUG, "Config Server",
@@ -398,7 +280,8 @@ static void caerConfigServerHandleRequest(uv_stream_t *client, uint8_t action, u
 			sshsNode wantedNode = sshsGetNode(configStore, (const char *) node);
 
 			// Check if attribute exists.
-			bool result = sshsNodeAttributeExists(wantedNode, (const char *) key, (enum sshs_node_attr_value_type) type);
+			bool result = sshsNodeAttributeExists(wantedNode, (const char *) key,
+				(enum sshs_node_attr_value_type) type);
 
 			// Send back result to client. Format is the same as incoming data.
 			const uint8_t *sendResult = (const uint8_t *) ((result) ? ("true") : ("false"));
@@ -424,7 +307,8 @@ static void caerConfigServerHandleRequest(uv_stream_t *client, uint8_t action, u
 			sshsNode wantedNode = sshsGetNode(configStore, (const char *) node);
 
 			// Check if attribute exists. Only allow operations on existing attributes!
-			bool attrExists = sshsNodeAttributeExists(wantedNode, (const char *) key, (enum sshs_node_attr_value_type) type);
+			bool attrExists = sshsNodeAttributeExists(wantedNode, (const char *) key,
+				(enum sshs_node_attr_value_type) type);
 
 			if (!attrExists) {
 				// Send back error message to client.
@@ -434,7 +318,8 @@ static void caerConfigServerHandleRequest(uv_stream_t *client, uint8_t action, u
 				break;
 			}
 
-			union sshs_node_attr_value result = sshsNodeGetAttribute(wantedNode, (const char *) key, (enum sshs_node_attr_value_type) type);
+			union sshs_node_attr_value result = sshsNodeGetAttribute(wantedNode, (const char *) key,
+				(enum sshs_node_attr_value_type) type);
 
 			char *resultStr = sshsHelperValueToStringConverter((enum sshs_node_attr_value_type) type, result);
 
@@ -474,7 +359,8 @@ static void caerConfigServerHandleRequest(uv_stream_t *client, uint8_t action, u
 			sshsNode wantedNode = sshsGetNode(configStore, (const char *) node);
 
 			// Check if attribute exists. Only allow operations on existing attributes!
-			bool attrExists = sshsNodeAttributeExists(wantedNode, (const char *) key, (enum sshs_node_attr_value_type) type);
+			bool attrExists = sshsNodeAttributeExists(wantedNode, (const char *) key,
+				(enum sshs_node_attr_value_type) type);
 
 			if (!attrExists) {
 				// Send back error message to client.
