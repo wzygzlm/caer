@@ -13,7 +13,7 @@
 
 struct DSFilter_state {
 	float weight;
-	float tauUs;
+	float tauMs;
 	simple2DBufferFloat neuronStateMap;
 	simple2DBufferLong neuronLasttMap;
 	simple2DBufferInt neuronIniMap;
@@ -21,7 +21,8 @@ struct DSFilter_state {
 
 typedef struct DSFilter_state *DSFilterState;
 
-static const int maxState = 1;
+static const float maxState = 1.0f;
+static const float MstoUs = 1000;
 
 static bool caerDepressingSynapsefilterInit(caerModuleData moduleData);
 static void caerDepressingSynapsefilterRun(caerModuleData moduleData, size_t argsNumber, va_list args);
@@ -45,12 +46,12 @@ void caerDepressingSynapseFilter(uint16_t moduleID, caerPolarityEventPacket pola
 
 static bool caerDepressingSynapsefilterInit(caerModuleData moduleData) {
 	sshsNodePutFloatIfAbsent(moduleData->moduleNode, "weight", 0.001f);
-	sshsNodePutFloatIfAbsent(moduleData->moduleNode, "tauUs", 1000000.0f);
+	sshsNodePutFloatIfAbsent(moduleData->moduleNode, "tauMs", 1000.0f);
 
 	DSFilterState state = moduleData->moduleState;
 
 	state->weight= sshsNodeGetFloat(moduleData->moduleNode, "weight");
-	state->tauUs = sshsNodeGetFloat(moduleData->moduleNode, "tauUs");
+	state->tauMs = sshsNodeGetFloat(moduleData->moduleNode, "tauMs");
 
 	// Add config listeners last, to avoid having them dangling if Init doesn't succeed.
 	sshsNodeAddAttributeListener(moduleData->moduleNode, moduleData, &caerModuleConfigDefaultListener);
@@ -69,6 +70,8 @@ static void caerDepressingSynapsefilterRun(caerModuleData moduleData, size_t arg
 	}
 
 	DSFilterState state = moduleData->moduleState;
+
+	float tauUs = state->tauMs * MstoUs;
 
 	// If the map is not allocated yet, do it.
 	if (state->neuronStateMap == NULL) {
@@ -123,23 +126,23 @@ static void caerDepressingSynapsefilterRun(caerModuleData moduleData, size_t arg
 
 	// update states
 	if (state->neuronIniMap->buffer2d[x][y] == 0){
-		state->neuronLasttMap = ts;
+		state->neuronLasttMap->buffer2d[x][y] = ts;
 		state->neuronIniMap->buffer2d[x][y] = 1;
 	}
 
-	if (ts < state->neuronLasttMap[x][y]){
+	if (ts < state->neuronLasttMap->buffer2d[x][y]){
 		state->neuronIniMap->buffer2d[x][y] = 0;
 		state->neuronStateMap->buffer2d[x][y] = 0;
 	}
 
 	int64_t dt = ts - state->neuronLasttMap->buffer2d[x][y];
-	float delta = dt / state->tauUs;
+	float delta = (float)dt / tauUs;
 	float expValue = delta > 20 ? 0 : (float) exp(-delta);
 	float newstate = (state->neuronStateMap->buffer2d[x][y] * expValue) + state->weight;
 	if (newstate > maxState){
 		newstate = maxState;
 	}
-	bool spike = (rand() / RAND_MAX) > state->neuronStateMap->buffer2d[x][y];
+	bool spike = ((float)rand() / (float)RAND_MAX) > state->neuronStateMap->buffer2d[x][y];
 	if (!spike){
 		caerPolarityEventInvalidate(caerPolarityIteratorElement, polarity);
 	}
@@ -154,22 +157,32 @@ static void caerDepressingSynapsefilterRun(caerModuleData moduleData, size_t arg
 static void caerDepressingSynapsefilterConfig(caerModuleData moduleData) {
 	caerModuleConfigUpdateReset(moduleData);
 
-	RFilterState state = moduleData->moduleState;
-	state->swapXY= sshsNodeGetBool(moduleData->moduleNode, "swapXY");
-	state->rotate90deg = sshsNodeGetBool(moduleData->moduleNode, "rotate90deg");
-	state->invertX = sshsNodeGetBool(moduleData->moduleNode, "invertX");
-	state->invertY = sshsNodeGetBool(moduleData->moduleNode, "invertY");
-	state->angleDeg = sshsNodeGetFloat(moduleData->moduleNode, "angleDeg");
+	DSFilterState state = moduleData->moduleState;
+	state->weight= sshsNodeGetFloat(moduleData->moduleNode, "weight");
+	state->tauMs = sshsNodeGetFloat(moduleData->moduleNode, "tauMs");
 }
 
 static void caerDepressingSynapsefilterExit(caerModuleData moduleData) {
 	// Remove listener, which can reference invalid memory in userData.
 	sshsNodeRemoveAttributeListener(moduleData->moduleNode, moduleData, &caerModuleConfigDefaultListener);
 
+	DSFilterState state = moduleData->moduleState;
+
+	// Ensure map is freed.
+	simple2DBufferFreeLong(state->neuronLasttMap);
+	simple2DBufferFreeInt(state->neuronIniMap);
+	simple2DBufferFreeFloat(state->neuronStateMap);
 }
 
 static void caerDepressingSynapsefilterReset(caerModuleData moduleData, uint16_t resetCallSourceID) {
 	UNUSED_ARGUMENT(resetCallSourceID);
+
+	DSFilterState state = moduleData->moduleState;
+
+	// Ensure map is freed.
+	simple2DBufferFreeLong(state->neuronLasttMap);
+	simple2DBufferFreeInt(state->neuronIniMap);
+	simple2DBufferFreeFloat(state->neuronStateMap);
 }
 
 static bool allocateNeuronStateMap(DSFilterState state, int16_t sourceID) {
@@ -187,6 +200,12 @@ static bool allocateNeuronStateMap(DSFilterState state, int16_t sourceID) {
 	state->neuronStateMap = simple2DBufferInitFloat((size_t) sizeX, (size_t) sizeY);
 	if (state->neuronStateMap == NULL) {
 		return (false);
+	}
+
+	for (int i=0; i<sizeX; i++){
+		for (int j=0; j<sizeY; j++){
+			state->neuronStateMap->buffer2d[i][j] = 0.0f;
+		}
 	}
 
 	return (true);
@@ -209,6 +228,12 @@ static bool allocateNeuronLasttMap(DSFilterState state, int16_t sourceID) {
 		return (false);
 	}
 
+	for (int i=0; i<sizeX; i++){
+		for (int j=0; j<sizeY; j++){
+			state->neuronLasttMap->buffer2d[i][j] = 0;
+		}
+	}
+
 	return (true);
 }
 
@@ -225,8 +250,15 @@ static bool allocateNeuronIniMap(DSFilterState state, int16_t sourceID) {
 	int16_t sizeY = sshsNodeGetShort(sourceInfoNode, "dvsSizeY");
 
 	state->neuronIniMap = simple2DBufferInitInt((size_t) sizeX, (size_t) sizeY);
+
 	if (state->neuronIniMap == NULL) {
 		return (false);
+	}
+
+	for (int i=0; i<sizeX; i++){
+		for (int j=0; j<sizeY; j++){
+			state->neuronIniMap->buffer2d[i][j] = 0;
+		}
 	}
 
 	return (true);

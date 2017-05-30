@@ -19,6 +19,7 @@ ADD_SUBDIRECTORY(nullhopinterface)
 ADD_SUBDIRECTORY(infofilter)
 ADD_SUBDIRECTORY(rectangulartracker)
 ADD_SUBDIRECTORY(rectangulartracker_dynamic)
+ADD_SUBDIRECTORY(rectangulartracker_pi)
 ADD_SUBDIRECTORY(mediantracker)
 ADD_SUBDIRECTORY(dvstodynapse)
 ADD_SUBDIRECTORY(synapsereconfig)
@@ -35,6 +36,9 @@ ADD_SUBDIRECTORY(opencvopticflow)
 ADD_SUBDIRECTORY(denoisingautoencoder)
 ADD_SUBDIRECTORY(pixelmatrix)
 ADD_SUBDIRECTORY(depressingsynapsefilter)
+ADD_SUBDIRECTORY(spiralview)
+ADD_SUBDIRECTORY(spikefeatures)
+ADD_SUBDIRECTORY(recurrentnet)
 
 # Support private modules that don't get considered for commit,
 # by reserving a directory called PrivateModules with its own

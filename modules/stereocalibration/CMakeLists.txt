@@ -14,7 +14,34 @@ IF (ENABLE_STEREOCALIBRATION)
 	SET(STEREOCALIBRATION_INCDIRS ${OPENCV3_INCLUDE_DIRS})
 	SET(STEREOCALIBRATION_LIBDIRS ${OPENCV3_LIBRARY_DIRS})
 
-	SET(STEREOCALIBRATION_C_LIBS "-lallegro_audio -lallegro_acodec" )
+
+        # Visualizer support via Allegro library
+        PKG_CHECK_MODULES(ALLEGRO5 allegro-5>=5.0.11)
+        PKG_CHECK_MODULES(ALLEGRO5_MAIN allegro_main-5>=5.0.11)
+        PKG_CHECK_MODULES(ALLEGRO5_PRIMITIVES allegro_primitives-5)
+
+        IF (NOT ALLEGRO5_FOUND)
+                # Check alternative pkg-config naming
+                PKG_CHECK_MODULES(ALLEGRO5 allegro-5.0>=5.0.11)
+                PKG_CHECK_MODULES(ALLEGRO5_MAIN allegro_main-5.0>=5.0.11)
+                PKG_CHECK_MODULES(ALLEGRO5_PRIMITIVES allegro_primitives-5.0)
+        ENDIF()
+
+        IF (NOT ALLEGRO5_FOUND OR NOT ALLEGRO5_MAIN_FOUND)
+                MESSAGE(SEND_ERROR "Allegro-5 main library not found!")
+                RETURN()
+        ENDIF()
+
+        IF (NOT ALLEGRO5_PRIMITIVES_FOUND)
+                MESSAGE(SEND_ERROR "Allegro-5 primitives not found!")
+                RETURN()
+        ENDIF()
+
+        SET(STEREOCALIBRATION_LIBS ${ALLEGRO5_LIBRARIES} ${ALLEGRO5_MAIN_LIBRARIES})
+        SET(STEREOCALIBRATION_INCDIRS ${ALLEGRO5_INCLUDE_DIRS} ${ALLEGRO5_MAIN_INCLUDE_DIRS})
+        SET(STEREOCALIBRATION_LIBDIRS ${ALLEGRO5_LIBRARY_DIRS} ${ALLEGRO5_MAIN_LIBRARY_DIRS})
+
+	SET(STEREOCALIBRATION_C_LIBS "-L/usr/local/lib -lallegro -lallegro_audio -lallegro_acodec" )
 	SET(STEREOCALIBRATION_CXX_LIBS ${OPENCV3_LIBRARIES} -lopencv_aruco)
 
 	SET(STEREOCALIBRATION_C_SRC_FILES  modules/stereocalibration/stereocalibration.c)

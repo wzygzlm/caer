@@ -1,21 +1,17 @@
 /*
- * rectangulartracker_dynamic.c
+ * rectangulartracker_pi.c
  *
- *	This rectangular tracker has a dynamic linked list structure for the list of all clusters
- *	So the total number of clusters can be changed to any non-negative number during running
- *	May has bugs
+ *	Suppose to run in raspberry pi for Mensa project
  *
  *  Created on: Jan 2017
  *      Author: Tianyu
  */
 
-#include "rectangulartracker_dynamic.h"
+#include "rectangulartracker_pi.h"
 #include "base/mainloop.h"
 #include "base/module.h"
-//#include "ext/buffers.h"
 #include "math.h"
 #include "ext/colorjet/colorjet.h"
-#include "wrapper.h"
 
 typedef struct path {
 	float location_x;
@@ -108,7 +104,6 @@ struct RTFilter_state {
 	bool useOnePolarityOnlyEnabled;
 	bool useOffPolarityOnlyEnabled;
 	bool showAllClusters;
-	struct OpenCV* cpp_class;
 	int64_t clusterCounter;
 	bool dontMergeEver;
 	int clusterMassDecayTauUs;
@@ -133,7 +128,7 @@ static const float ASPECT_RATIO_MIN_DYNAMIC_ANGLE_DISABLED = 0.5f;
 static const float ASPECT_RATIO_MAX_DYNAMIC_ANGLE_ENABLED = 1.0f;
 static const float ASPECT_RATIO_MIN_DYNAMIC_ANGLE_ENABLED = 0.5f;
 static const float AVERAGE_VELOCITY_MIXING_FACTOR = 0.001f;
-static const float FULL_BRIGHTNESS_LIFETIME = 100000.0f;
+//static const float FULL_BRIGHTNESS_LIFETIME = 100000.0f;
 
 
 static float surround = 2.0f;
@@ -182,11 +177,11 @@ ClusterList * clusterBeginPointer = NULL;
 
 typedef struct RTFilter_state *RTFilterState;
 
-static bool caerRectangulartrackerDynamicInit(caerModuleData moduleData);
-static void caerRectangulartrackerDynamicRun(caerModuleData moduleData, size_t argsNumber, va_list args);
-static void caerRectangulartrackerDynamicConfig(caerModuleData moduleData);
-static void caerRectangulartrackerDynamicExit(caerModuleData moduleData);
-static void caerRectangulartrackerDynamicReset(caerModuleData moduleData, uint16_t resetCallSourceID);
+static bool caerRectangulartrackerPiInit(caerModuleData moduleData);
+static void caerRectangulartrackerPiRun(caerModuleData moduleData, size_t argsNumber, va_list args);
+static void caerRectangulartrackerPiConfig(caerModuleData moduleData);
+static void caerRectangulartrackerPiExit(caerModuleData moduleData);
+static void caerRectangulartrackerPiReset(caerModuleData moduleData, uint16_t resetCallSourceID);
 static Cluster * getNearestCluster(RTFilterState state, uint16_t x, uint16_t y, int64_t ts);
 static Cluster * getFirstContainingCluster(RTFilterState state, uint16_t x, uint16_t y, int64_t ts);
 static void updateClusterList(RTFilterState state, int64_t ts, int16_t sizeX, int16_t sizeY);
@@ -223,30 +218,26 @@ static void removeAllPath(Path * head);
 static void addPath(Path ** head, float x, float y, int64_t t, int events);
 static void updateVelocity(Cluster *c, float thresholdMassForVisibleCluster);
 static void updateClusterPaths(RTFilterState state, int64_t ts);
-static void drawCluster(caerFrameEvent singleplot, Cluster *c, int sizeX, int sizeY, bool showPaths, bool forceBoundary);
-static void drawline(caerFrameEvent singleplot, float x1, float y1, float x2, float y2, int sizeX, int sizeY, COLOUR color);
-static void drawpath(caerFrameEvent singleplot, Path *path, int sizeX);
 static void updateCurrentClusterNum(RTFilterState state);
-static void updateColor(Cluster *c);
 static void checkCountingArea(RTFilterState state, int16_t sizeX, int16_t sizeY);
-static void countPeople(caerFrameEvent singleplot, caerModuleData moduleData, int16_t sizeX, int16_t sizeY);
+static void countPeople(caerModuleData moduleData, int16_t sizeX, int16_t sizeY);
 
 static void addCluster(ClusterList ** head, Cluster * newClusterPointer);
 static void removeCluster(ClusterList ** head, int64_t clusterID);
 static Cluster * findClusterByIndex(ClusterList ** head, int index);
 
-static struct caer_module_functions caerRectangulartrackerDynamicFunctions = { .moduleInit = &caerRectangulartrackerDynamicInit, .moduleRun = &caerRectangulartrackerDynamicRun, .moduleConfig = &caerRectangulartrackerDynamicConfig, .moduleExit = &caerRectangulartrackerDynamicExit, .moduleReset = &caerRectangulartrackerDynamicReset };
+static struct caer_module_functions caerRectangulartrackerPiFunctions = { .moduleInit = &caerRectangulartrackerPiInit, .moduleRun = &caerRectangulartrackerPiRun, .moduleConfig = &caerRectangulartrackerPiConfig, .moduleExit = &caerRectangulartrackerPiExit, .moduleReset = &caerRectangulartrackerPiReset };
 
-void caerRectangulartrackerDynamicFilter(uint16_t moduleID, caerPolarityEventPacket polarity, caerFrameEventPacket frame) {
-	caerModuleData moduleData = caerMainloopFindModule(moduleID, "RT_Dynamic_Filter", CAER_MODULE_PROCESSOR);
+void caerRectangulartrackerPiFilter(uint16_t moduleID, caerPolarityEventPacket polarity) {
+	caerModuleData moduleData = caerMainloopFindModule(moduleID, "RT_PI_Filter", CAER_MODULE_PROCESSOR);
 	if (moduleData == NULL) {
 		return;
 	}
-	caerModuleSM(&caerRectangulartrackerDynamicFunctions, moduleData,
-	sizeof(struct RTFilter_state), 2, polarity, frame);
+	caerModuleSM(&caerRectangulartrackerPiFunctions, moduleData,
+	sizeof(struct RTFilter_state), 1, polarity);
 }
 
-static bool caerRectangulartrackerDynamicInit(caerModuleData moduleData) {
+static bool caerRectangulartrackerPiInit(caerModuleData moduleData) {
 	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "dynamicSizeEnabled", false);
 	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "dynamicAspectRatioEnabled", false);
 	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "dynamicAngleEnabled", false);
@@ -322,7 +313,6 @@ static bool caerRectangulartrackerDynamicInit(caerModuleData moduleData) {
 	state->currentClusterNum = 0;
 	state->currentVisibleNum = 0;
 	state->clusterCounter = 0;
-	state->cpp_class = newOpenCV();
 
 	// people counting initialization
 	state->peopleIn = 0;
@@ -342,12 +332,11 @@ static bool caerRectangulartrackerDynamicInit(caerModuleData moduleData) {
 	// Nothing that can fail here.
 	return (true);
 }
-static void caerRectangulartrackerDynamicRun(caerModuleData moduleData, size_t argsNumber, va_list args) {
+static void caerRectangulartrackerPiRun(caerModuleData moduleData, size_t argsNumber, va_list args) {
 	UNUSED_ARGUMENT(argsNumber);
 
 	// Interpret variable arguments (same as above in main function).
 	caerPolarityEventPacket polarity = va_arg(args, caerPolarityEventPacket);
-	caerFrameEventPacket *frame = va_arg(args, caerFrameEventPacket*);
 
 	//Only process packets with content.
 	if (polarity == NULL) {
@@ -449,55 +438,14 @@ static void caerRectangulartrackerDynamicRun(caerModuleData moduleData, size_t a
 
 	CAER_POLARITY_ITERATOR_VALID_END
 
-	//plot events
-	*frame = caerFrameEventPacketAllocate(1, I16T(moduleData->moduleID), 0, sizeX, sizeY, 3);
-	caerMainloopFreeAfterLoop(&free, *frame);
-	if (*frame != NULL) {
-		caerFrameEvent singleplot = caerFrameEventPacketGetEvent(*frame, 0);
-		CAER_POLARITY_ITERATOR_VALID_START(polarity)
-			int xxx = caerPolarityEventGetX(caerPolarityIteratorElement);
-			int yyy = caerPolarityEventGetY(caerPolarityIteratorElement);
-			int pol = caerPolarityEventGetPolarity(caerPolarityIteratorElement);
-			if (state->disableEvents){
-				if ((xxx > state->disableArea_small_x) && (xxx < state->disableArea_big_x) && (yyy > state->disableArea_small_y) && (yyy < state->disableArea_big_y)){
-					continue;
-				}
-			}
-			int address = 3 * (yyy * sizeX + xxx);
-			if (pol == 0) {
-				singleplot->pixels[address] = 65000; // red
-				singleplot->pixels[address + 1] = 1; // green
-				singleplot->pixels[address + 2] = 1; // blue
-			}
-			else {
-				singleplot->pixels[address] = 1; // red
-				singleplot->pixels[address + 1] = 65000; // green
-				singleplot->pixels[address + 2] = 1; // blue
-			}
-		CAER_POLARITY_ITERATOR_VALID_END
-
-		//add info to the frame
-		caerFrameEventSetLengthXLengthYChannelNumber(singleplot, sizeX, sizeY, 3, *frame);
-		//validate frame
-		caerFrameEventValidate(singleplot, *frame);
-	}
-
-	// plot clusters
-	current = *(state->clusterBegin);
-	while (current != NULL){
-		if ((*frame != NULL ) && (current->cluster->visibilityFlag || state->showAllClusters)) {
-			updateColor(current->cluster);
-			drawCluster(caerFrameEventPacketGetEvent(*frame, 0), current->cluster, sizeX, sizeY, state->showPaths, state->forceBoundary);
-		}
-		current = current->next;
-	}
 
 	// people counting
 	if(state->peopleCounting) {
-		countPeople(caerFrameEventPacketGetEvent(*frame, 0), moduleData, sizeX, sizeY);
+		countPeople(moduleData, sizeX, sizeY);
 	}
 
 	sshsNodePutInt(moduleData->moduleNode, "currentVisibleNum", state->currentVisibleNum);
+	//printf("current visible number %i",state->currentVisibleNum);
 }
 
 static Cluster * getNearestCluster(RTFilterState state, uint16_t x, uint16_t y, int64_t ts) {
@@ -1168,148 +1116,7 @@ static float velocityAngleToRad(Cluster *c1, Cluster *c2) {
 	return (angleRad);
 }
 
-static void drawCluster(caerFrameEvent singleplot, Cluster *c, int sizeX, int sizeY, bool showPaths, bool forceBoundary) {
 
-	float A = c->angle;
-	float rx = c->radius_x;
-	float ry = c->radius_y;
-	float UL_x = c->location_x + rx * (float)cos(A) - ry * (float)sin(A);
-	float UL_y = c->location_y + ry * (float)cos(A) + rx * (float)sin(A);
-	float UR_x = c->location_x - rx * (float)cos(A) - ry * (float)sin(A);
-	float UR_y = c->location_y + ry * (float)cos(A) - rx * (float)sin(A);
-	float BL_x = c->location_x + rx * (float)cos(A) + ry * (float)sin(A);
-	float BL_y = c->location_y - ry * (float)cos(A) + rx * (float)sin(A);
-	float BR_x = c->location_x - rx * (float)cos(A) + ry * (float)sin(A);
-	float BR_y = c->location_y - ry * (float)cos(A) - rx * (float)sin(A);
-
-	if (forceBoundary){
-		UL_x = (UL_x > (float)sizeX) ? (float)sizeX : UL_x;
-		UL_x = (UL_x < 0) ? 0 : UL_x;
-		UL_y = (UL_y > (float)sizeY) ? (float)sizeY : UL_y;
-		UL_y = (UL_y < 0) ? 0 : UL_y;
-		UR_x = (UR_x > (float)sizeX) ? (float)sizeX : UR_x;
-		UR_x = (UR_x < 0) ? 0 : UR_x;
-		UR_y = (UR_y > (float)sizeY) ? (float)sizeY : UR_y;
-		UR_y = (UR_y < 0) ? 0 : UR_y;
-		BL_x = (BL_x > (float)sizeX) ? (float)sizeX : BL_x;
-		BL_x = (BL_x < 0) ? 0 : BL_x;
-		BL_y = (BL_y > (float)sizeY) ? (float)sizeY : BL_y;
-		BL_y = (BL_y < 0) ? 0 : BL_y;
-		BR_x = (BR_x > (float)sizeX) ? (float)sizeX : BR_x;
-		BR_x = (BR_x < 0) ? 0 : BR_x;
-		BR_y = (BR_y > (float)sizeY) ? (float)sizeY : BR_y;
-		BR_y = (BR_y < 0) ? 0 : BR_y;
-	}
-
-	drawline(singleplot, UL_x, UL_y, UR_x, UR_y, sizeX, sizeY, c->color);
-	drawline(singleplot, UL_x, UL_y, BL_x, BL_y, sizeX, sizeY, c->color);
-	drawline(singleplot, BL_x, BL_y, BR_x, BR_y, sizeX, sizeY, c->color);
-	drawline(singleplot, UR_x, UR_y, BR_x, BR_y, sizeX, sizeY, c->color);
-
-	if (showPaths) {
-		drawpath(singleplot, c->path, sizeX);
-	}
-}
-
-static void drawline(caerFrameEvent singleplot, float x1, float y1, float x2, float y2, int sizeX, int sizeY, COLOUR color){
-	int x, y, xs, xl, ys, yl, dx, dy, p;
-	if (x1 < x2){
-		xs = round(x1);
-		xl = round(x2);
-	}
-	else{
-		xs = round(x2);
-		xl = round(x1);
-	}
-	if (y1 < y2){
-		ys = round(y1);
-		yl = round(y2);
-	}
-	else{
-		ys = round(y2);
-		yl = round(y1);
-	}
-
-	if (xs == xl){
-		for(y = ys; y <= yl; y++) {
-			x = xs;
-			if ((x >= sizeX) || (x < 0) || (y >= sizeY) || (y < 0)){
-				continue;
-			}
-			p = 3*(y*sizeX + x);
-			if ((p < 0) || (p >= 3 * sizeX * sizeY)){
-				continue;
-			}
-			singleplot->pixels[p] = color.r;			// red
-			singleplot->pixels[p + 1] = color.g;		// green
-			singleplot->pixels[p + 2] = color.b;	// blue
-		}
-	}
-	else if (ys == yl){
-		for(x = xs; x <= xl; x++) {
-			y = ys;
-			if ((x >= sizeX) || (x < 0) || (y >= sizeY) || (y < 0)){
-				continue;
-			}
-			p = 3*(y*sizeX + x);
-			if ((p < 0) || (p >= 3 * sizeX * sizeY)){
-				continue;
-			}
-			singleplot->pixels[p] = color.r;			// red
-			singleplot->pixels[p + 1] = color.g;		// green
-			singleplot->pixels[p + 2] = color.b;	// blue
-		}
-	}
-	else {
-		dx = xl - xs;
-		dy = yl - ys;
-		if (dx > dy){
-			for(x = xs; x <= xl; x++) {
-				y = (round)(y2 - ((y2-y1)/(x2-x1)) * (x2-(float)x));
-				if ((x >= sizeX) || (x < 0) || (y >= sizeY) || (y < 0)){
-					continue;
-				}
-				p = 3*(y*sizeX + x);
-				if ((p < 0) || (p >= 3 * sizeX * sizeY)){
-					continue;
-				}
-				singleplot->pixels[p] = color.r;			// red
-				singleplot->pixels[p + 1] = color.g;		// green
-				singleplot->pixels[p + 2] = color.b;	// blue
-			}
-		}
-		else {
-			for(y = ys; y <= yl; y++) {
-				x = (round)(x2 - ((x2-x1)/(y2-y1)) * (y2-(float)y));
-				if ((x >= sizeX) || (x < 0) || (y >= sizeY) || (y < 0)){
-					continue;
-				}
-				p = 3*(y*sizeX + x);
-				if ((p < 0) || (p >= 3 * sizeX * sizeY)){
-					continue;
-				}
-				singleplot->pixels[p] = color.r;			// red
-				singleplot->pixels[p + 1] = color.g;		// green
-				singleplot->pixels[p + 2] = color.b;	// blue
-			}
-		}
-	}
-}
-
-static void drawpath(caerFrameEvent singleplot, Path *path, int sizeX){
-	Path *current = path;
-	while (current != NULL){
-		int x = (int)current->location_x;
-		int y = (int)current->location_y;
-		int p = 3*(y*sizeX + x);
-
-		singleplot->pixels[p] = (uint16_t) ( (int) 65000);			// red
-		singleplot->pixels[p + 1] = (uint16_t) ( (int) 1);		// green
-		singleplot->pixels[p + 2] = (uint16_t) ( (int) 65000);	// blue
-
-		current = current->next;
-	}
-}
 
 static void updateCurrentClusterNum(RTFilterState state){
 
@@ -1328,12 +1135,7 @@ static void updateCurrentClusterNum(RTFilterState state){
 
 }
 
-static void updateColor(Cluster *c){
-	float brightness = fmax(0.0f, fmin(1.0f, (float)getLifetime(c) / FULL_BRIGHTNESS_LIFETIME));
-	c->color.r = (uint16_t)(65535.0f * brightness);
-	c->color.g = (uint16_t)(65535.0f * brightness);
-	c->color.b = (uint16_t)(65535.0f * brightness);
-}
+
 
 static void checkCountingArea(RTFilterState state, int16_t sizeX, int16_t sizeY){
 
@@ -1369,7 +1171,7 @@ static void checkCountingArea(RTFilterState state, int16_t sizeX, int16_t sizeY)
 	}
 }
 
-static void countPeople(caerFrameEvent singleplot, caerModuleData moduleData, int16_t sizeX, int16_t sizeY){
+static void countPeople(caerModuleData moduleData, int16_t sizeX, int16_t sizeY){
 	RTFilterState state = moduleData->moduleState;
 
 	if (state->resetCountingNum){
@@ -1389,10 +1191,7 @@ static void countPeople(caerFrameEvent singleplot, caerModuleData moduleData, in
 	lineColor.r = 65535;
 	lineColor.g = 65535;
 
-	drawline(singleplot, lx, ty, rx, ty, sizeX, sizeY, lineColor);
-	drawline(singleplot, lx, by, rx, by, sizeX, sizeY, lineColor);
-	drawline(singleplot, lx, ty, lx, by, sizeX, sizeY, lineColor);
-	drawline(singleplot, rx, ty, rx, by, sizeX, sizeY, lineColor);
+
 
 	//TODO make algorithm for x dimension.
 	updateCurrentClusterNum(state);
@@ -1423,8 +1222,6 @@ static void countPeople(caerFrameEvent singleplot, caerModuleData moduleData, in
 	sshsNodePutInt(moduleData->moduleNode, "peopleOut", state->peopleOut);
 	sshsNodePutInt(moduleData->moduleNode, "totalPeopleNum", state->totalPeopleNum);
 
-	//add OpenCV info to the frame
-	OpenCV_generate(state->cpp_class, state->peopleIn, state->peopleOut, &singleplot, sizeX, sizeY);
 }
 
 static void addCluster(ClusterList ** head, Cluster * newClusterPointer) {
@@ -1501,7 +1298,7 @@ static Cluster * findClusterByIndex(ClusterList ** head, int index){
 //	}
 //}
 
-static void caerRectangulartrackerDynamicConfig(caerModuleData moduleData) {
+static void caerRectangulartrackerPiConfig(caerModuleData moduleData) {
 	caerModuleConfigUpdateReset(moduleData);
 
 	RTFilterState state = moduleData->moduleState;
@@ -1541,14 +1338,13 @@ static void caerRectangulartrackerDynamicConfig(caerModuleData moduleData) {
 	state->disableArea_big_y = sshsNodeGetInt(moduleData->moduleNode, "disableArea_big_y");
 }
 
-static void caerRectangulartrackerDynamicExit(caerModuleData moduleData) {
+static void caerRectangulartrackerPiExit(caerModuleData moduleData) {
 	// Remove listener, which can reference invalid memory in userData.
 	sshsNodeRemoveAttributeListener(moduleData->moduleNode, moduleData, &caerModuleConfigDefaultListener);
 
 	RTFilterState state = moduleData->moduleState;
-	deleteOpenCV(state->cpp_class);
 }
 
-static void caerRectangulartrackerDynamicReset(caerModuleData moduleData, uint16_t resetCallSourceID) {
+static void caerRectangulartrackerPiReset(caerModuleData moduleData, uint16_t resetCallSourceID) {
 	UNUSED_ARGUMENT(resetCallSourceID);
 }

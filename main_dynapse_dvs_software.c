@@ -292,7 +292,7 @@ static bool mainloop_1(void) {
 #ifdef ENABLE_IMAGEGENERATOR
 #if defined(ENABLE_CAFFEINTERFACE)
 	if(haveimage[0]){
-		caerImageGeneratorAddText(23, classifyhist, &imagegeneratorFrame, CLASSIFYSIZE, classification_results);
+		caerImageGeneratorAddText(23, classifyhist, &imagegeneratorFrame, CLASSIFYSIZE);
 	}
 #endif
 #endif
