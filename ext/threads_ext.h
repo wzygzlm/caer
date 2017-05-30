@@ -1,7 +1,22 @@
 #ifndef THREADS_EXT_H_
 #define THREADS_EXT_H_
 
+#ifdef __cplusplus
+
+#include <cstdlib>
+#include <cstdint>
+
+#else
+
+#include <stdlib.h>
 #include <stdint.h>
+
+#endif
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <pthread.h>
 #include <sys/time.h>
 
@@ -72,5 +87,9 @@ static inline int thrd_set_priority(int priority) {
 	return (thrd_error);
 #endif
 }
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* THREADS_EXT_H_ */
