@@ -1952,17 +1952,10 @@ int InputBuffer::completeLine(PromptBase& pi) {
   linenoiseCompletions lc;
   char32_t c = 0;
 
-  // completionCallback() expects a parsable entity, so find the previous break
-  // character and
-  // extract a copy to parse.  we also handle the case where tab is hit while
-  // not at end-of-line.
-  int startIndex = pos;
-  while (--startIndex >= 0) {
-    if (strchr(breakChars, buf32[startIndex])) {
-      break;
-    }
-  }
-  ++startIndex;
+  // CAER CHANGE: startIndex is 0 always, as we need the full string to be
+  // passed to completionCallback() so that it can orient itself and understand
+  // which particular completion step it has to do.
+  int startIndex = 0;
   int itemLength = pos - startIndex;
   Utf32String unicodeCopy(&buf32[startIndex], itemLength);
   Utf8String parseItem(unicodeCopy);
