@@ -4,6 +4,7 @@
 #include <atomic>
 #include <thread>
 #include <boost/asio.hpp>
+#include <boost/format.hpp>
 #include "ext/sshs/sshs.hpp"
 
 #include <libcaercpp/libcaer.hpp>
@@ -269,6 +270,33 @@ static inline void caerConfigSendResponse(std::shared_ptr<ConfigServerConnection
 		"Sent back message to client: action=%" PRIu8 ", type=%" PRIu8 ", msgLength=%zu.", action, type, msgLength);
 }
 
+static inline bool checkNodeExists(sshs configStore, const char *node, std::shared_ptr<ConfigServerConnection> client) {
+	bool nodeExists = sshsExistsNode(configStore, node);
+
+	// Only allow operations on existing nodes, this is for remote
+	// control, so we only manipulate what's already there!
+	if (!nodeExists) {
+		// Send back error message to client.
+		caerConfigSendError(client, "Node doesn't exist. Operations are only allowed on existing data.");
+	}
+
+	return (nodeExists);
+}
+
+static inline bool checkAttributeExists(sshsNode wantedNode, const char *key, enum sshs_node_attr_value_type type,
+	std::shared_ptr<ConfigServerConnection> client) {
+	// Check if attribute exists. Only allow operations on existing attributes!
+	bool attrExists = sshsNodeAttributeExists(wantedNode, key, type);
+
+	if (!attrExists) {
+		// Send back error message to client.
+		caerConfigSendError(client,
+			"Attribute of given type doesn't exist. Operations are only allowed on existing data.");
+	}
+
+	return (attrExists);
+}
+
 static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection> client, uint8_t action, uint8_t type,
 	const uint8_t *extra, size_t extraLength, const uint8_t *node, size_t nodeLength, const uint8_t *key,
 	size_t keyLength, const uint8_t *value, size_t valueLength) {
@@ -295,14 +323,7 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 		}
 
 		case CAER_CONFIG_ATTR_EXISTS: {
-			bool nodeExists = sshsExistsNode(configStore, (const char *) node);
-
-			// Only allow operations on existing nodes, this is for remote
-			// control, so we only manipulate what's already there!
-			if (!nodeExists) {
-				// Send back error message to client.
-				caerConfigSendError(client, "Node doesn't exist. Operations are only allowed on existing data.");
-
+			if (!checkNodeExists(configStore, (const char *) node, client)) {
 				break;
 			}
 
@@ -322,29 +343,14 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 		}
 
 		case CAER_CONFIG_GET: {
-			bool nodeExists = sshsExistsNode(configStore, (const char *) node);
-
-			// Only allow operations on existing nodes, this is for remote
-			// control, so we only manipulate what's already there!
-			if (!nodeExists) {
-				// Send back error message to client.
-				caerConfigSendError(client, "Node doesn't exist. Operations are only allowed on existing data.");
-
+			if (!checkNodeExists(configStore, (const char *) node, client)) {
 				break;
 			}
 
 			// This cannot fail, since we know the node exists from above.
 			sshsNode wantedNode = sshsGetNode(configStore, (const char *) node);
 
-			// Check if attribute exists. Only allow operations on existing attributes!
-			bool attrExists = sshsNodeAttributeExists(wantedNode, (const char *) key,
-				(enum sshs_node_attr_value_type) type);
-
-			if (!attrExists) {
-				// Send back error message to client.
-				caerConfigSendError(client,
-					"Attribute of given type doesn't exist. Operations are only allowed on existing data.");
-
+			if (!checkAttributeExists(wantedNode, (const char *) key, (enum sshs_node_attr_value_type) type, client)) {
 				break;
 			}
 
@@ -374,29 +380,14 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 		}
 
 		case CAER_CONFIG_PUT: {
-			bool nodeExists = sshsExistsNode(configStore, (const char *) node);
-
-			// Only allow operations on existing nodes, this is for remote
-			// control, so we only manipulate what's already there!
-			if (!nodeExists) {
-				// Send back error message to client.
-				caerConfigSendError(client, "Node doesn't exist. Operations are only allowed on existing data.");
-
+			if (!checkNodeExists(configStore, (const char *) node, client)) {
 				break;
 			}
 
 			// This cannot fail, since we know the node exists from above.
 			sshsNode wantedNode = sshsGetNode(configStore, (const char *) node);
 
-			// Check if attribute exists. Only allow operations on existing attributes!
-			bool attrExists = sshsNodeAttributeExists(wantedNode, (const char *) key,
-				(enum sshs_node_attr_value_type) type);
-
-			if (!attrExists) {
-				// Send back error message to client.
-				caerConfigSendError(client,
-					"Attribute of given type doesn't exist. Operations are only allowed on existing data.");
-
+			if (!checkAttributeExists(wantedNode, (const char *) key, (enum sshs_node_attr_value_type) type, client)) {
 				break;
 			}
 
@@ -416,14 +407,7 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 		}
 
 		case CAER_CONFIG_GET_CHILDREN: {
-			bool nodeExists = sshsExistsNode(configStore, (const char *) node);
-
-			// Only allow operations on existing nodes, this is for remote
-			// control, so we only manipulate what's already there!
-			if (!nodeExists) {
-				// Send back error message to client.
-				caerConfigSendError(client, "Node doesn't exist. Operations are only allowed on existing data.");
-
+			if (!checkNodeExists(configStore, (const char *) node, client)) {
 				break;
 			}
 
@@ -468,14 +452,7 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 		}
 
 		case CAER_CONFIG_GET_ATTRIBUTES: {
-			bool nodeExists = sshsExistsNode(configStore, (const char *) node);
-
-			// Only allow operations on existing nodes, this is for remote
-			// control, so we only manipulate what's already there!
-			if (!nodeExists) {
-				// Send back error message to client.
-				caerConfigSendError(client, "Node doesn't exist. Operations are only allowed on existing data.");
-
+			if (!checkNodeExists(configStore, (const char *) node, client)) {
 				break;
 			}
 
@@ -520,14 +497,7 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 		}
 
 		case CAER_CONFIG_GET_TYPES: {
-			bool nodeExists = sshsExistsNode(configStore, (const char *) node);
-
-			// Only allow operations on existing nodes, this is for remote
-			// control, so we only manipulate what's already there!
-			if (!nodeExists) {
-				// Send back error message to client.
-				caerConfigSendError(client, "Node doesn't exist. Operations are only allowed on existing data.");
-
+			if (!checkNodeExists(configStore, (const char *) node, client)) {
 				break;
 			}
 
@@ -574,10 +544,149 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 			break;
 		}
 
-		default:
+		case CAER_CONFIG_GET_RANGE_MIN: {
+			if (!checkNodeExists(configStore, (const char *) node, client)) {
+				break;
+			}
+
+			// This cannot fail, since we know the node exists from above.
+			sshsNode wantedNode = sshsGetNode(configStore, (const char *) node);
+
+			if (!checkAttributeExists(wantedNode, (const char *) key, (enum sshs_node_attr_value_type) type, client)) {
+				break;
+			}
+
+			union sshs_node_attr_range range = sshsNodeGetAttributeMinRange(wantedNode, (const char *) key,
+				(enum sshs_node_attr_value_type) type);
+
+			std::string rangeStr;
+
+			try {
+				if (type == SSHS_FLOAT || type == SSHS_DOUBLE) {
+					rangeStr = (boost::format("%g") % range.d).str();
+				}
+				else {
+					rangeStr = (boost::format("%" PRIi64) % range.i).str();
+				}
+			}
+			catch (const std::exception &) {
+				// Send back error message to client.
+				caerConfigSendError(client, "Failed to get minimum range string.");
+				break;
+			}
+
+			caerConfigSendResponse(client, CAER_CONFIG_GET_RANGE_MIN, type, (const uint8_t *) rangeStr.c_str(),
+				rangeStr.length() + 1);
+
+			break;
+		}
+
+		case CAER_CONFIG_GET_RANGE_MAX: {
+			if (!checkNodeExists(configStore, (const char *) node, client)) {
+				break;
+			}
+
+			// This cannot fail, since we know the node exists from above.
+			sshsNode wantedNode = sshsGetNode(configStore, (const char *) node);
+
+			if (!checkAttributeExists(wantedNode, (const char *) key, (enum sshs_node_attr_value_type) type, client)) {
+				break;
+			}
+
+			union sshs_node_attr_range range = sshsNodeGetAttributeMaxRange(wantedNode, (const char *) key,
+				(enum sshs_node_attr_value_type) type);
+
+			std::string rangeStr;
+
+			try {
+				if (type == SSHS_FLOAT || type == SSHS_DOUBLE) {
+					rangeStr = (boost::format("%g") % range.d).str();
+				}
+				else {
+					rangeStr = (boost::format("%" PRIi64) % range.i).str();
+				}
+			}
+			catch (const std::exception &) {
+				// Send back error message to client.
+				caerConfigSendError(client, "Failed to get maximum range string.");
+				break;
+			}
+
+			caerConfigSendResponse(client, CAER_CONFIG_GET_RANGE_MAX, type, (const uint8_t *) rangeStr.c_str(),
+				rangeStr.length() + 1);
+
+			break;
+		}
+
+		case CAER_CONFIG_GET_FLAGS: {
+			if (!checkNodeExists(configStore, (const char *) node, client)) {
+				break;
+			}
+
+			// This cannot fail, since we know the node exists from above.
+			sshsNode wantedNode = sshsGetNode(configStore, (const char *) node);
+
+			if (!checkAttributeExists(wantedNode, (const char *) key, (enum sshs_node_attr_value_type) type, client)) {
+				break;
+			}
+
+			enum sshs_node_attr_flags flags = sshsNodeGetAttributeFlags(wantedNode, (const char *) key,
+				(enum sshs_node_attr_value_type) type);
+
+			const char *flagsStr;
+
+			if (flags & SSHS_FLAGS_READ_ONLY) {
+				flagsStr = "READ_ONLY";
+			}
+			else if (flags & SSHS_FLAGS_NOTIFY_ONLY) {
+				flagsStr = "NOTIFY_ONLY";
+			}
+			else {
+				flagsStr = "NORMAL";
+			}
+
+			caerConfigSendResponse(client, CAER_CONFIG_GET_FLAGS, SSHS_STRING, (const uint8_t *) flagsStr,
+				strlen(flagsStr) + 1);
+
+			break;
+		}
+
+		case CAER_CONFIG_GET_DESCRIPTION: {
+			if (!checkNodeExists(configStore, (const char *) node, client)) {
+				break;
+			}
+
+			// This cannot fail, since we know the node exists from above.
+			sshsNode wantedNode = sshsGetNode(configStore, (const char *) node);
+
+			if (!checkAttributeExists(wantedNode, (const char *) key, (enum sshs_node_attr_value_type) type, client)) {
+				break;
+			}
+
+			const char *description = sshsNodeGetAttributeDescription(wantedNode, (const char *) key,
+				(enum sshs_node_attr_value_type) type);
+
+			caerConfigSendResponse(client, CAER_CONFIG_GET_DESCRIPTION, SSHS_STRING, (const uint8_t *) description,
+				strlen(description) + 1);
+
+			break;
+		}
+
+		case CAER_CONFIG_ADD_MODULE: {
+			// TODO: implement.
+			break;
+		}
+
+		case CAER_CONFIG_REMOVE_MODULE: {
+			// TODO: implement.
+			break;
+		}
+
+		default: {
 			// Unknown action, send error back to client.
 			caerConfigSendError(client, "Unknown action.");
 
 			break;
+		}
 	}
 }
