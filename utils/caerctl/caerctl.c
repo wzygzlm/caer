@@ -1,13 +1,8 @@
-#include <stdlib.h>
-#include <stdio.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <inttypes.h>
-#include "ext/libuv.h"
-#include "ext/nets.h"
-#include "ext/sshs/sshs.h"
+#include "main.h"
 #include "base/config_server.h"
-#include "utils/ext/libuvline/libuvline.h"
+#include "ext/sshs/sshs.h"
+#include "utils/ext/linenoise-ng/linenoise.h"
+#include <boost/asio.hpp>
 
 #ifdef __APPLE__
 #include <sys/syslimits.h>
