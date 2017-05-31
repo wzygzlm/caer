@@ -4,5 +4,5 @@ ADD_EXECUTABLE(caer-ctl
 	../ext/linenoise-ng/ConvertUTF.cpp
 	../ext/linenoise-ng/wcwidth.cpp
 	../ext/linenoise-ng/linenoise.cpp
-	caerctl.c)
+	caerctl.cpp)
 INSTALL(TARGETS caer-ctl DESTINATION ${CMAKE_INSTALL_BINDIR})
