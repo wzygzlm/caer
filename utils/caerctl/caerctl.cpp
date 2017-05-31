@@ -2,29 +2,81 @@
 #include "base/config_server.h"
 #include "ext/sshs/sshs.h"
 #include "utils/ext/linenoise-ng/linenoise.h"
-#include <boost/asio.hpp>
+#include <unistd.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
 
 #ifdef __APPLE__
 #include <sys/syslimits.h>
 #endif
 
-static void handleInputLine(const char *buf, size_t bufLength);
-static void handleCommandCompletion(const char *buf, size_t bufLength, libuvTTYCompletions autoComplete);
+#define CAERCTL_HISTORY_FILE_NAME ".caerctl_history"
 
-static void actionCompletion(const char *buf, size_t bufLength, libuvTTYCompletions autoComplete,
+/**
+ * Write N bytes to the socket S from buffer B.
+ *
+ * @param sock socket S.
+ * @param buffer buffer B.
+ * @param bytesToWrite number of bytes to write.
+ *
+ * @return Return true on success, false on failure.
+ */
+static inline bool sendUntilDone(int sock, const uint8_t *buffer, size_t bytesToWrite) {
+	size_t curWritten = 0;
+
+	while (curWritten < bytesToWrite) {
+		ssize_t sendResult = send(sock, buffer + curWritten, bytesToWrite - curWritten, 0);
+		if (sendResult <= 0) {
+			return (false);
+		}
+
+		curWritten += (size_t) sendResult;
+	}
+
+	return (true);
+}
+
+/**
+ * Read N bytes from the socket S into buffer B.
+ *
+ * @param sock socket S.
+ * @param buffer buffer B.
+ * @param bytesToRead number of bytes to read.
+ *
+ * @return Return true on success, false on failure.
+ */
+static inline bool recvUntilDone(int sock, uint8_t *buffer, size_t bytesToRead) {
+	size_t curRead = 0;
+
+	while (curRead < bytesToRead) {
+		ssize_t recvResult = recv(sock, buffer + curRead, bytesToRead - curRead, 0);
+		if (recvResult <= 0) {
+			return (false);
+		}
+
+		curRead += (size_t) recvResult;
+	}
+
+	return (true);
+}
+
+static void handleInputLine(const char *buf, size_t bufLength);
+static void handleCommandCompletion(const char *buf, linenoiseCompletions *autoComplete);
+
+static void actionCompletion(const char *buf, size_t bufLength, linenoiseCompletions *autoComplete,
 	const char *partialActionString, size_t partialActionStringLength);
-static void nodeCompletion(const char *buf, size_t bufLength, libuvTTYCompletions autoComplete, uint8_t actionCode,
+static void nodeCompletion(const char *buf, size_t bufLength, linenoiseCompletions *autoComplete, uint8_t actionCode,
 	const char *partialNodeString, size_t partialNodeStringLength);
-static void keyCompletion(const char *buf, size_t bufLength, libuvTTYCompletions autoComplete, uint8_t actionCode,
+static void keyCompletion(const char *buf, size_t bufLength, linenoiseCompletions *autoComplete, uint8_t actionCode,
 	const char *nodeString, size_t nodeStringLength, const char *partialKeyString, size_t partialKeyStringLength);
-static void typeCompletion(const char *buf, size_t bufLength, libuvTTYCompletions autoComplete, uint8_t actionCode,
+static void typeCompletion(const char *buf, size_t bufLength, linenoiseCompletions *autoComplete, uint8_t actionCode,
 	const char *nodeString, size_t nodeStringLength, const char *keyString, size_t keyStringLength,
 	const char *partialTypeString, size_t partialTypeStringLength);
-static void valueCompletion(const char *buf, size_t bufLength, libuvTTYCompletions autoComplete, uint8_t actionCode,
+static void valueCompletion(const char *buf, size_t bufLength, linenoiseCompletions *autoComplete, uint8_t actionCode,
 	const char *nodeString, size_t nodeStringLength, const char *keyString, size_t keyStringLength,
 	const char *typeString, size_t typeStringLength, const char *partialValueString, size_t partialValueStringLength);
-static void addCompletionSuffix(libuvTTYCompletions autoComplete, const char *buf, size_t completionPoint,
-	const char *suffix,
+static void addCompletionSuffix(linenoiseCompletions *lc, const char *buf, size_t completionPoint, const char *suffix,
 	bool endSpace, bool endSlash);
 
 static const struct {
@@ -35,7 +87,7 @@ static const struct {
 	3, CAER_CONFIG_GET }, { "put", 3, CAER_CONFIG_PUT } };
 static const size_t actionsLength = sizeof(actions) / sizeof(actions[0]);
 
-static uv_os_sock_t sockFd = -1;
+static int sockFd = -1;
 
 int main(int argc, char *argv[]) {
 	// First of all, parse the IP:Port we need to connect to.
@@ -56,21 +108,6 @@ int main(int argc, char *argv[]) {
 		sscanf(argv[2], "%" SCNu16, &portNumber);
 	}
 
-	// Get history file path relative to home directory.
-	char homeDir[PATH_MAX];
-	size_t homeDirLength = PATH_MAX;
-
-	int retVal = uv_os_homedir(homeDir, &homeDirLength);
-	UV_RET_CHECK_STDERR(retVal, "uv_os_homedir", return (EXIT_FAILURE));
-
-	strcat(homeDir, "/.caerctl_history");
-
-	// Generate address to connect to.
-	struct sockaddr_in configServerAddress;
-
-	retVal = uv_ip4_addr(ipAddress, portNumber, &configServerAddress);
-	UV_RET_CHECK_STDERR(retVal, "uv_ip4_addr", return (EXIT_FAILURE));
-
 	// Connect to the remote cAER config server.
 	sockFd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (sockFd < 0) {
@@ -78,61 +115,88 @@ int main(int argc, char *argv[]) {
 		return (EXIT_FAILURE);
 	}
 
-	if (connect(sockFd, (struct sockaddr *) &configServerAddress, sizeof(struct sockaddr_in)) < 0) {
-		fprintf(stderr, "Failed to connect to remote config server.\n");
+	struct sockaddr_in configServerAddress;
+	memset(&configServerAddress, 0, sizeof(struct sockaddr_in));
 
+	configServerAddress.sin_family = AF_INET;
+	configServerAddress.sin_port = htons(portNumber);
+
+	if (inet_pton(AF_INET, ipAddress, &configServerAddress.sin_addr) == 0) {
 		close(sockFd);
+
+		fprintf(stderr, "No valid IP address found. '%s' is invalid!\n", ipAddress);
+		return (EXIT_FAILURE);
+	}
+
+	if (connect(sockFd, (struct sockaddr *) &configServerAddress, sizeof(struct sockaddr_in)) < 0) {
+		close(sockFd);
+
+		fprintf(stderr, "Failed to connect to remote config server.\n");
 		return (EXIT_FAILURE);
 	}
 
 	// Create a shell prompt with the IP:Port displayed.
-	size_t shellPromptLength = (size_t) snprintf(NULL, 0, "cAER @ %s:%" PRIu16, ipAddress, portNumber);
+	size_t shellPromptLength = (size_t) snprintf(NULL, 0, "cAER @ %s:%" PRIu16 " >> ", ipAddress, portNumber);
 	char shellPrompt[shellPromptLength + 1]; // +1 for terminating NUL byte.
-	snprintf(shellPrompt, shellPromptLength + 1, "cAER @ %s:%" PRIu16, ipAddress, portNumber);
+	snprintf(shellPrompt, shellPromptLength + 1, "cAER @ %s:%" PRIu16 " >> ", ipAddress, portNumber);
 
-	// Main event loop for connection handling.
-	uv_loop_t caerctlLoop;
-	retVal = uv_loop_init(&caerctlLoop);
-	UV_RET_CHECK_STDERR(retVal, "uv_loop_init", close(sockFd); return (EXIT_FAILURE));
+	// Set our own command completion function.
+	linenoiseSetCompletionCallback(&handleCommandCompletion);
 
-	// TTY handling.
-	struct libuv_tty_struct caerctlTTY;
-	retVal = libuvTTYInit(&caerctlLoop, &caerctlTTY, shellPrompt, &handleInputLine);
-	UV_RET_CHECK_STDERR(retVal, "libuvTTYInit", goto loopCleanup);
+	// Generate command history file path (in user home).
+	char commandHistoryFilePath[1024];
 
-	libuvTTYHistorySetFile(&caerctlTTY, homeDir);
-
-	retVal = libuvTTYAutoCompleteSetCallback(&caerctlTTY, &handleCommandCompletion);
-	UV_RET_CHECK_STDERR(retVal, "libuvTTYAutoCompleteSetCallback", goto ttyCleanup);
-
-	// Run event loop.
-	retVal = uv_run(&caerctlLoop, UV_RUN_DEFAULT);
-	UV_RET_CHECK_STDERR(retVal, "uv_run", goto ttyCleanup);
-
-	// Cleanup event loop and memory.
-	ttyCleanup: {
-		libuvTTYClose(&caerctlTTY);
-	}
-
-	loopCleanup: {
-		bool errorCleanup = (retVal < 0);
-
-		// Cleanup all remaining handles and run until all callbacks are done.
-		retVal = libuvCloseLoopHandles(&caerctlLoop);
-		UV_RET_CHECK_STDERR(retVal, "libuvCloseLoopHandles",);
-
-		retVal = uv_loop_close(&caerctlLoop);
-		UV_RET_CHECK_STDERR(retVal, "uv_loop_close",);
-
+	const char *userHomeDir = getenv("HOME");
+	if (userHomeDir == NULL) {
 		close(sockFd);
 
-		if (errorCleanup) {
-			return (EXIT_FAILURE);
-		}
-		else {
-			return (EXIT_SUCCESS);
-		}
+		fprintf(stderr, "Failed to determine user's home directory.\n");
+		return (EXIT_FAILURE);
 	}
+
+	snprintf(commandHistoryFilePath, 1024, "%s/" CAERCTL_HISTORY_FILE_NAME, userHomeDir);
+
+	// Load command history file.
+	linenoiseHistoryLoad(commandHistoryFilePath);
+
+	while (true) {
+		// Display prompt and read input (NOTE: remember to free input after use!).
+		char *inputLine = linenoise(shellPrompt);
+
+		// Check for EOF first.
+		if (inputLine == NULL) {
+			// Exit loop.
+			break;
+		}
+
+		// Add input to command history.
+		linenoiseHistoryAdd(inputLine);
+
+		// Then, after having added to history, check for termination commands.
+		if (strncmp(inputLine, "quit", 4) == 0 || strncmp(inputLine, "exit", 4) == 0) {
+			// Exit loop, free memory.
+			free(inputLine);
+			break;
+		}
+
+		// Try to generate a request, if there's any content.
+		size_t inputLineLength = strlen(inputLine);
+
+		if (inputLineLength > 0) {
+			handleInputLine(inputLine, inputLineLength);
+		}
+
+		// Free input after use.
+		free(inputLine);
+	}
+
+	// Close connection.
+	close(sockFd);
+
+	// Save command history file.
+	linenoiseHistorySave(commandHistoryFilePath);
+
+	return (EXIT_SUCCESS);
 }
 
 static inline void setExtraLen(uint8_t *buf, uint16_t extraLen) {
@@ -380,10 +444,12 @@ static void handleInputLine(const char *buf, size_t bufLength) {
 
 	// Display results.
 	fprintf(stdout, "Result: action=%s, type=%s, msgLength=%" PRIu16 ", msg='%s'.\n", actionString,
-		sshsHelperTypeToStringConverter(type), msgLength, dataBuffer + 4);
+		sshsHelperTypeToStringConverter((enum sshs_node_attr_value_type) type), msgLength, dataBuffer + 4);
 }
 
-static void handleCommandCompletion(const char *buf, size_t bufLength, libuvTTYCompletions autoComplete) {
+static void handleCommandCompletion(const char *buf, linenoiseCompletions *autoComplete) {
+	size_t bufLength = strlen(buf);
+
 	// First let's split up the command into its constituents.
 	char *commandParts[MAX_CMD_PARTS + 1] = { NULL };
 
@@ -528,7 +594,7 @@ static void handleCommandCompletion(const char *buf, size_t bufLength, libuvTTYC
 	}
 }
 
-static void actionCompletion(const char *buf, size_t bufLength, libuvTTYCompletions autoComplete,
+static void actionCompletion(const char *buf, size_t bufLength, linenoiseCompletions *autoComplete,
 	const char *partialActionString, size_t partialActionStringLength) {
 	UNUSED_ARGUMENT(buf);
 	UNUSED_ARGUMENT(bufLength);
@@ -549,7 +615,7 @@ static void actionCompletion(const char *buf, size_t bufLength, libuvTTYCompleti
 	}
 }
 
-static void nodeCompletion(const char *buf, size_t bufLength, libuvTTYCompletions autoComplete, uint8_t actionCode,
+static void nodeCompletion(const char *buf, size_t bufLength, linenoiseCompletions *autoComplete, uint8_t actionCode,
 	const char *partialNodeString, size_t partialNodeStringLength) {
 	UNUSED_ARGUMENT(actionCode);
 
@@ -611,7 +677,7 @@ static void nodeCompletion(const char *buf, size_t bufLength, libuvTTYCompletion
 	for (size_t i = 0; i < msgLength; i++) {
 		if (strncasecmp((const char *) dataBuffer + 4 + i, lastNode + 1, strlen(lastNode + 1)) == 0) {
 			addCompletionSuffix(autoComplete, buf, bufLength - strlen(lastNode + 1), (const char *) dataBuffer + 4 + i,
-			false, true);
+				false, true);
 		}
 
 		// Jump to the NUL character after this string.
@@ -619,7 +685,7 @@ static void nodeCompletion(const char *buf, size_t bufLength, libuvTTYCompletion
 	}
 }
 
-static void keyCompletion(const char *buf, size_t bufLength, libuvTTYCompletions autoComplete, uint8_t actionCode,
+static void keyCompletion(const char *buf, size_t bufLength, linenoiseCompletions *autoComplete, uint8_t actionCode,
 	const char *nodeString, size_t nodeStringLength, const char *partialKeyString, size_t partialKeyStringLength) {
 	UNUSED_ARGUMENT(actionCode);
 
@@ -666,8 +732,7 @@ static void keyCompletion(const char *buf, size_t bufLength, libuvTTYCompletions
 	for (size_t i = 0; i < msgLength; i++) {
 		if (strncasecmp((const char *) dataBuffer + 4 + i, partialKeyString, partialKeyStringLength) == 0) {
 			addCompletionSuffix(autoComplete, buf, bufLength - partialKeyStringLength,
-				(const char *) dataBuffer + 4 + i,
-				true, false);
+				(const char *) dataBuffer + 4 + i, true, false);
 		}
 
 		// Jump to the NUL character after this string.
@@ -675,7 +740,7 @@ static void keyCompletion(const char *buf, size_t bufLength, libuvTTYCompletions
 	}
 }
 
-static void typeCompletion(const char *buf, size_t bufLength, libuvTTYCompletions autoComplete, uint8_t actionCode,
+static void typeCompletion(const char *buf, size_t bufLength, linenoiseCompletions *autoComplete, uint8_t actionCode,
 	const char *nodeString, size_t nodeStringLength, const char *keyString, size_t keyStringLength,
 	const char *partialTypeString, size_t partialTypeStringLength) {
 	UNUSED_ARGUMENT(actionCode);
@@ -697,7 +762,7 @@ static void typeCompletion(const char *buf, size_t bufLength, libuvTTYCompletion
 	dataBuffer[CAER_CONFIG_SERVER_HEADER_SIZE + nodeStringLength + 1 + keyStringLength] = '\0';
 
 	if (!sendUntilDone(sockFd, dataBuffer,
-		CAER_CONFIG_SERVER_HEADER_SIZE + nodeStringLength + 1 + keyStringLength + 1)) {
+	CAER_CONFIG_SERVER_HEADER_SIZE + nodeStringLength + 1 + keyStringLength + 1)) {
 		// Failed to contact remote host, no auto-completion!
 		return;
 	}
@@ -735,7 +800,7 @@ static void typeCompletion(const char *buf, size_t bufLength, libuvTTYCompletion
 	}
 }
 
-static void valueCompletion(const char *buf, size_t bufLength, libuvTTYCompletions autoComplete, uint8_t actionCode,
+static void valueCompletion(const char *buf, size_t bufLength, linenoiseCompletions *autoComplete, uint8_t actionCode,
 	const char *nodeString, size_t nodeStringLength, const char *keyString, size_t keyStringLength,
 	const char *typeString, size_t typeStringLength, const char *partialValueString, size_t partialValueStringLength) {
 	UNUSED_ARGUMENT(actionCode);
@@ -780,7 +845,7 @@ static void valueCompletion(const char *buf, size_t bufLength, libuvTTYCompletio
 	dataBuffer[CAER_CONFIG_SERVER_HEADER_SIZE + nodeStringLength + 1 + keyStringLength] = '\0';
 
 	if (!sendUntilDone(sockFd, dataBuffer,
-		CAER_CONFIG_SERVER_HEADER_SIZE + nodeStringLength + 1 + keyStringLength + 1)) {
+	CAER_CONFIG_SERVER_HEADER_SIZE + nodeStringLength + 1 + keyStringLength + 1)) {
 		// Failed to contact remote host, no auto-completion!
 		return;
 	}
@@ -820,9 +885,8 @@ static void valueCompletion(const char *buf, size_t bufLength, libuvTTYCompletio
 	}
 }
 
-static void addCompletionSuffix(libuvTTYCompletions autoComplete, const char *buf, size_t completionPoint,
-	const char *suffix,
-	bool endSpace, bool endSlash) {
+static void addCompletionSuffix(linenoiseCompletions *autoComplete, const char *buf, size_t completionPoint,
+	const char *suffix, bool endSpace, bool endSlash) {
 	char concat[2048];
 
 	if (endSpace) {
@@ -842,5 +906,5 @@ static void addCompletionSuffix(libuvTTYCompletions autoComplete, const char *bu
 		}
 	}
 
-	libuvTTYAutoCompleteAddCompletion(autoComplete, concat);
+	linenoiseAddCompletion(autoComplete, concat);
 }
