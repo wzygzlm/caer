@@ -297,6 +297,8 @@ static inline bool checkAttributeExists(sshsNode wantedNode, const char *key, en
 	return (attrExists);
 }
 
+// TODO: don't allow concurrent write requests (PUT, ADD_MODULE, REMOVE_MODULE).
+// Easy to do with a RW-lock over all operations.
 static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection> client, uint8_t action, uint8_t type,
 	const uint8_t *extra, size_t extraLength, const uint8_t *node, size_t nodeLength, const uint8_t *key,
 	size_t keyLength, const uint8_t *value, size_t valueLength) {
@@ -394,8 +396,20 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 			// Put given value into config node. Node, attr and type are already verified.
 			const char *typeStr = sshsHelperTypeToStringConverter((enum sshs_node_attr_value_type) type);
 			if (!sshsNodeStringToAttributeConverter(wantedNode, (const char *) key, typeStr, (const char *) value)) {
-				// Send back error message to client.
-				caerConfigSendError(client, "Impossible to convert value according to type.");
+				// Send back correct error message to client.
+				if (errno == EINVAL) {
+					caerConfigSendError(client, "Impossible to convert value according to type.");
+				}
+				else if (errno == EPERM) {
+					caerConfigSendError(client, "Cannot write to a read-only attribute.");
+				}
+				else if (errno == ERANGE) {
+					caerConfigSendError(client, "Value out of attribute range.");
+				}
+				else {
+					// Unknown error.
+					caerConfigSendError(client, "Unknown error.");
+				}
 
 				break;
 			}
