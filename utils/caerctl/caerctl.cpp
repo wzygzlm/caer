@@ -477,7 +477,7 @@ static void handleCommandCompletion(const char *buf, linenoiseCompletions *autoC
 	// This is actually much more useful to understand where we are and what to do.
 	size_t commandDepth = idx;
 
-	if (commandDepth > 0 && bufLength > 1 && buf[bufLength - 1] != ' ') {
+	if (commandDepth > 0 && bufLength > 0 && buf[bufLength - 1] != ' ') {
 		// If commands are present, ensure they have been "confirmed" by at least
 		// one terminating spacing character. Else don't calculate the last command.
 		commandDepth--;
