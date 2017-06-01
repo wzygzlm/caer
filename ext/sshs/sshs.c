@@ -75,6 +75,7 @@ bool sshsExistsNode(sshs st, const char *nodePath) {
 	size_t nodePathLength = strlen(nodePath);
 
 	if (!sshsCheckAbsoluteNodePath(nodePath, nodePathLength)) {
+		errno = EINVAL;
 		return (false);
 	}
 
@@ -97,6 +98,7 @@ bool sshsExistsNode(sshs st, const char *nodePath) {
 
 		// If node doesn't exist, return that.
 		if (next == NULL) {
+			errno = ENOENT;
 			return (false);
 		}
 
@@ -113,6 +115,7 @@ sshsNode sshsGetNode(sshs st, const char *nodePath) {
 	size_t nodePathLength = strlen(nodePath);
 
 	if (!sshsCheckAbsoluteNodePath(nodePath, nodePathLength)) {
+		errno = EINVAL;
 		return (NULL);
 	}
 
@@ -151,6 +154,7 @@ bool sshsExistsRelativeNode(sshsNode node, const char *nodePath) {
 	size_t nodePathLength = strlen(nodePath);
 
 	if (!sshsCheckRelativeNodePath(nodePath, nodePathLength)) {
+		errno = EINVAL;
 		return (false);
 	}
 
@@ -168,6 +172,7 @@ bool sshsExistsRelativeNode(sshsNode node, const char *nodePath) {
 
 		// If node doesn't exist, return that.
 		if (next == NULL) {
+			errno = ENOENT;
 			return (false);
 		}
 
@@ -184,6 +189,7 @@ sshsNode sshsGetRelativeNode(sshsNode node, const char *nodePath) {
 	size_t nodePathLength = strlen(nodePath);
 
 	if (!sshsCheckRelativeNodePath(nodePath, nodePathLength)) {
+		errno = EINVAL;
 		return (NULL);
 	}
 
@@ -217,6 +223,7 @@ bool sshsBeginTransaction(sshs st, char *nodePaths[], size_t nodePathsLength) {
 	// Check all node paths, then lock them.
 	for (size_t i = 0; i < nodePathsLength; i++) {
 		if (!sshsCheckAbsoluteNodePath(nodePaths[i], strlen(nodePaths[i]))) {
+			errno = EINVAL;
 			return (false);
 		}
 	}
@@ -232,6 +239,7 @@ bool sshsEndTransaction(sshs st, char *nodePaths[], size_t nodePathsLength) {
 	// Check all node paths, then unlock them.
 	for (size_t i = 0; i < nodePathsLength; i++) {
 		if (!sshsCheckAbsoluteNodePath(nodePaths[i], strlen(nodePaths[i]))) {
+			errno = EINVAL;
 			return (false);
 		}
 	}

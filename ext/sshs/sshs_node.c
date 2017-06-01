@@ -591,6 +591,7 @@ bool sshsNodeAttributeExists(sshsNode node, const char *key, enum sshs_node_attr
 
 	// If attr == NULL, the specified attribute was not found.
 	if (attr == NULL) {
+		errno = ENOENT;
 		return (false);
 	}
 
@@ -609,12 +610,14 @@ bool sshsNodePutAttribute(sshsNode node, const char *key, enum sshs_node_attr_va
 	if (attr->flags & SSHS_FLAGS_READ_ONLY) {
 		// Read-only flag set, cannot put new value!
 		mtx_unlock(&node->node_lock);
+		errno = EPERM;
 		return (false);
 	}
 
 	if (!sshsNodeCheckRange(type, value, attr->min, attr->max)) {
 		// New value out of range, cannot put new value!
 		mtx_unlock(&node->node_lock);
+		errno = ERANGE;
 		return (false);
 	}
 
@@ -732,6 +735,7 @@ static sshsNodeAttr *sshsNodeGetAttributes(sshsNode node, size_t *numAttributes)
 	// If none, exit gracefully.
 	if (attributeCount == 0) {
 		*numAttributes = 0;
+		errno = ENOENT;
 		return (NULL);
 	}
 
@@ -762,12 +766,14 @@ bool sshsNodeUpdateReadOnlyAttribute(sshsNode node, const char *key, enum sshs_n
 	if ((attr->flags & SSHS_FLAGS_READ_ONLY) == 0) {
 		// Read-only flag not set, cannot update read-only value!
 		mtx_unlock(&node->node_lock);
+		errno = EPERM;
 		return (false);
 	}
 
 	if (!sshsNodeCheckRange(type, value, attr->min, attr->max)) {
 		// New value out of range, cannot put new value!
 		mtx_unlock(&node->node_lock);
+		errno = ERANGE;
 		return (false);
 	}
 
@@ -1255,12 +1261,14 @@ static void sshsNodeConsumeXML(sshsNode node, mxml_node_t *content, bool recursi
 	}
 }
 
+// For more precise failure reason, look at errno.
 bool sshsNodeStringToAttributeConverter(sshsNode node, const char *key, const char *typeStr, const char *valueStr) {
 	// Parse the values according to type and put them in the node.
 	enum sshs_node_attr_value_type type;
 	type = sshsHelperStringToTypeConverter(typeStr);
 
 	if (type == SSHS_UNKNOWN) {
+		errno = EINVAL;
 		return (false);
 	}
 
@@ -1268,6 +1276,7 @@ bool sshsNodeStringToAttributeConverter(sshsNode node, const char *key, const ch
 	bool conversionSuccess = sshsHelperStringToValueConverter(type, valueStr, &value);
 
 	if (!conversionSuccess) {
+		errno = EINVAL;
 		return (false);
 	}
 
@@ -1340,6 +1349,7 @@ const char **sshsNodeGetChildNames(sshsNode node, size_t *numNames) {
 
 	if (children == NULL) {
 		*numNames = 0;
+		errno = ENOENT;
 		return (NULL);
 	}
 
@@ -1365,6 +1375,7 @@ const char **sshsNodeGetAttributeKeys(sshsNode node, size_t *numKeys) {
 		mtx_unlock(&node->node_lock);
 
 		*numKeys = 0;
+		errno = ENOENT;
 		return (NULL);
 	}
 
@@ -1392,6 +1403,7 @@ enum sshs_node_attr_value_type *sshsNodeGetAttributeTypes(sshsNode node, const c
 		mtx_unlock(&node->node_lock);
 
 		*numTypes = 0;
+		errno = ENOENT;
 		return (NULL);
 	}
 
