@@ -302,7 +302,7 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 	size_t keyLength, const uint8_t *value, size_t valueLength) {
 	UNUSED_ARGUMENT(extra);
 
-	caerLog(CAER_LOG_DEBUG, "Config Server",
+	caerLog(CAER_LOG_DEBUG, CONFIG_SERVER_NAME,
 		"Handling request: action=%" PRIu8 ", type=%" PRIu8 ", extraLength=%zu, nodeLength=%zu, keyLength=%zu, valueLength=%zu.",
 		action, type, extraLength, nodeLength, keyLength, valueLength);
 
