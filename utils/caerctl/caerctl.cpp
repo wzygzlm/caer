@@ -83,8 +83,13 @@ static const struct {
 	const char *name;
 	size_t nameLen;
 	uint8_t code;
-} actions[] = { { "node_exists", 11, CAER_CONFIG_NODE_EXISTS }, { "attr_exists", 11, CAER_CONFIG_ATTR_EXISTS }, { "get",
-	3, CAER_CONFIG_GET }, { "put", 3, CAER_CONFIG_PUT } };
+} actions[] = {
+	{ "node_exists", 11, CAER_CONFIG_NODE_EXISTS },
+	{ "attr_exists", 11, CAER_CONFIG_ATTR_EXISTS },
+	{ "get", 3, CAER_CONFIG_GET },
+	{ "put", 3, CAER_CONFIG_PUT },
+	{ "help", 4, CAER_CONFIG_GET_DESCRIPTION },
+};
 static const size_t actionsLength = sizeof(actions) / sizeof(actions[0]);
 
 static int sockFd = -1;
@@ -303,7 +308,8 @@ static void handleInputLine(const char *buf, size_t bufLength) {
 		}
 
 		case CAER_CONFIG_ATTR_EXISTS:
-		case CAER_CONFIG_GET: {
+		case CAER_CONFIG_GET:
+		case CAER_CONFIG_GET_DESCRIPTION: {
 			// Check parameters needed for operation.
 			if (commandParts[CMD_PART_NODE] == NULL) {
 				fprintf(stderr, "Error: missing node parameter.\n");
@@ -520,6 +526,7 @@ static void handleCommandCompletion(const char *buf, linenoiseCompletions *autoC
 
 		case CAER_CONFIG_ATTR_EXISTS:
 		case CAER_CONFIG_GET:
+		case CAER_CONFIG_GET_DESCRIPTION:
 			if (commandDepth == 1) {
 				size_t cmdNodeLength = 0;
 				if (commandParts[CMD_PART_NODE] != NULL) {
