@@ -50,7 +50,7 @@ public:
 	void writeResponse(size_t dataLength) {
 		auto self(shared_from_this());
 
-		boost::asio::async_write(socket, boost::asio::buffer(data, dataLength),
+		asio::async_write(socket, asio::buffer(data, dataLength),
 			[this, self](const boost::system::error_code &error, std::size_t /*length*/) {
 				if (error) {
 					handleError(error, "Failed to write response");
@@ -66,7 +66,7 @@ private:
 	void readHeader() {
 		auto self(shared_from_this());
 
-		boost::asio::async_read(socket, boost::asio::buffer(data, CAER_CONFIG_SERVER_HEADER_SIZE),
+		asio::async_read(socket, asio::buffer(data, CAER_CONFIG_SERVER_HEADER_SIZE),
 			[this, self](const boost::system::error_code &error, std::size_t /*length*/) {
 				if (error) {
 					handleError(error, "Failed to read header");
@@ -91,7 +91,7 @@ private:
 	void readData(size_t dataLength) {
 		auto self(shared_from_this());
 
-		boost::asio::async_read(socket, boost::asio::buffer(data + CAER_CONFIG_SERVER_HEADER_SIZE, dataLength),
+		asio::async_read(socket, asio::buffer(data + CAER_CONFIG_SERVER_HEADER_SIZE, dataLength),
 			[this, self](const boost::system::error_code &error, std::size_t /*length*/) {
 				if (error) {
 					handleError(error, "Failed to read data");
