@@ -54,54 +54,6 @@ static inline boost::filesystem::path getHomeDirectory() {
 		boost::system::errc::make_error_code(boost::system::errc::no_such_file_or_directory));
 }
 
-/**
- * Write N bytes to the socket S from buffer B.
- *
- * @param sock socket S.
- * @param buffer buffer B.
- * @param bytesToWrite number of bytes to write.
- *
- * @return Return true on success, false on failure.
- */
-static inline bool sendUntilDone(int sock, const uint8_t *buffer, size_t bytesToWrite) {
-	size_t curWritten = 0;
-
-	while (curWritten < bytesToWrite) {
-		ssize_t sendResult = send(sock, buffer + curWritten, bytesToWrite - curWritten, 0);
-		if (sendResult <= 0) {
-			return (false);
-		}
-
-		curWritten += (size_t) sendResult;
-	}
-
-	return (true);
-}
-
-/**
- * Read N bytes from the socket S into buffer B.
- *
- * @param sock socket S.
- * @param buffer buffer B.
- * @param bytesToRead number of bytes to read.
- *
- * @return Return true on success, false on failure.
- */
-static inline bool recvUntilDone(int sock, uint8_t *buffer, size_t bytesToRead) {
-	size_t curRead = 0;
-
-	while (curRead < bytesToRead) {
-		ssize_t recvResult = recv(sock, buffer + curRead, bytesToRead - curRead, 0);
-		if (recvResult <= 0) {
-			return (false);
-		}
-
-		curRead += (size_t) recvResult;
-	}
-
-	return (true);
-}
-
 static void handleInputLine(const char *buf, size_t bufLength);
 static void handleCommandCompletion(const char *buf, linenoiseCompletions *autoComplete);
 
@@ -133,7 +85,8 @@ static const struct {
 };
 static const size_t actionsLength = sizeof(actions) / sizeof(actions[0]);
 
-static int sockFd = -1;
+static asio::io_service ioService;
+static asioTCP::socket netSocket(ioService);
 
 int main(int argc, char *argv[]) {
 	// First of all, parse the IP:Port we need to connect to.
@@ -155,12 +108,9 @@ int main(int argc, char *argv[]) {
 	}
 
 	// Connect to the remote cAER config server.
-	asio::io_service ioService;
-	asioTCP::socket socket(ioService);
-	asioTCP::resolver resolver(ioService);
-
 	try {
-		asio::connect(socket, resolver.resolve( { ipAddress, portNumber }));
+		asioTCP::resolver resolver(ioService);
+		asio::connect(netSocket, resolver.resolve( { ipAddress, portNumber }));
 	}
 	catch (const boost::system::system_error &ex) {
 		fprintf(stderr, "Failed to connect to %s:%s, error message is:\n\t%s.\n", ipAddress, portNumber, ex.what());
@@ -430,8 +380,11 @@ static void handleInputLine(const char *buf, size_t bufLength) {
 	}
 
 	// Send formatted command to configuration server.
-	if (!sendUntilDone(sockFd, dataBuffer, dataBufferLength)) {
-		fprintf(stderr, "Error: unable to send data to config server (%d).\n", errno);
+	try {
+		asio::write(netSocket, asio::buffer(dataBuffer, dataBufferLength));
+	}
+	catch (const boost::system::system_error &ex) {
+		fprintf(stderr, "Unable to send data to config server, error message is:\n\t%s.\n", ex.what());
 		return;
 	}
 
@@ -439,8 +392,11 @@ static void handleInputLine(const char *buf, size_t bufLength) {
 	// protocol. A byte for ACTION, a byte for TYPE, 2 bytes for MSG_LEN and then
 	// up to 4092 bytes of MSG, for a maximum total of 4096 bytes again.
 	// MSG must be NUL terminated, and the NUL byte shall be part of the length.
-	if (!recvUntilDone(sockFd, dataBuffer, 4)) {
-		fprintf(stderr, "Error: unable to receive data from config server (%d).\n", errno);
+	try {
+		asio::read(netSocket, asio::buffer(dataBuffer, 4));
+	}
+	catch (const boost::system::system_error &ex) {
+		fprintf(stderr, "Unable to receive data to config server, error message is:\n\t%s.\n", ex.what());
 		return;
 	}
 
@@ -450,8 +406,11 @@ static void handleInputLine(const char *buf, size_t bufLength) {
 	uint16_t msgLength = le16toh(*(uint16_t * )(dataBuffer + 2));
 
 	// Total length to get for response.
-	if (!recvUntilDone(sockFd, dataBuffer + 4, msgLength)) {
-		fprintf(stderr, "Error: unable to receive data from config server (%d).\n", errno);
+	try {
+		asio::read(netSocket, asio::buffer(dataBuffer + 4, msgLength));
+	}
+	catch (const boost::system::system_error &ex) {
+		fprintf(stderr, "Unable to receive data to config server, error message is:\n\t%s.\n", ex.what());
 		return;
 	}
 
@@ -676,12 +635,18 @@ static void nodeCompletion(const char *buf, size_t bufLength, linenoiseCompletio
 	memcpy(dataBuffer + CAER_CONFIG_SERVER_HEADER_SIZE, partialNodeString, lastNodeLength);
 	dataBuffer[CAER_CONFIG_SERVER_HEADER_SIZE + lastNodeLength] = '\0';
 
-	if (!sendUntilDone(sockFd, dataBuffer, CAER_CONFIG_SERVER_HEADER_SIZE + lastNodeLength + 1)) {
+	try {
+		asio::write(netSocket, asio::buffer(dataBuffer, CAER_CONFIG_SERVER_HEADER_SIZE + lastNodeLength + 1));
+	}
+	catch (const boost::system::system_error &) {
 		// Failed to contact remote host, no auto-completion!
 		return;
 	}
 
-	if (!recvUntilDone(sockFd, dataBuffer, 4)) {
+	try {
+		asio::read(netSocket, asio::buffer(dataBuffer, 4));
+	}
+	catch (const boost::system::system_error &) {
 		// Failed to contact remote host, no auto-completion!
 		return;
 	}
@@ -692,7 +657,10 @@ static void nodeCompletion(const char *buf, size_t bufLength, linenoiseCompletio
 	uint16_t msgLength = le16toh(*(uint16_t * )(dataBuffer + 2));
 
 	// Total length to get for response.
-	if (!recvUntilDone(sockFd, dataBuffer + 4, msgLength)) {
+	try {
+		asio::read(netSocket, asio::buffer(dataBuffer + 4, msgLength));
+	}
+	catch (const boost::system::system_error &) {
 		// Failed to contact remote host, no auto-completion!
 		return;
 	}
@@ -731,12 +699,18 @@ static void keyCompletion(const char *buf, size_t bufLength, linenoiseCompletion
 	memcpy(dataBuffer + CAER_CONFIG_SERVER_HEADER_SIZE, nodeString, nodeStringLength);
 	dataBuffer[CAER_CONFIG_SERVER_HEADER_SIZE + nodeStringLength] = '\0';
 
-	if (!sendUntilDone(sockFd, dataBuffer, CAER_CONFIG_SERVER_HEADER_SIZE + nodeStringLength + 1)) {
+	try {
+		asio::write(netSocket, asio::buffer(dataBuffer, CAER_CONFIG_SERVER_HEADER_SIZE + nodeStringLength + 1));
+	}
+	catch (const boost::system::system_error &) {
 		// Failed to contact remote host, no auto-completion!
 		return;
 	}
 
-	if (!recvUntilDone(sockFd, dataBuffer, 4)) {
+	try {
+		asio::read(netSocket, asio::buffer(dataBuffer, 4));
+	}
+	catch (const boost::system::system_error &) {
 		// Failed to contact remote host, no auto-completion!
 		return;
 	}
@@ -747,7 +721,10 @@ static void keyCompletion(const char *buf, size_t bufLength, linenoiseCompletion
 	uint16_t msgLength = le16toh(*(uint16_t * )(dataBuffer + 2));
 
 	// Total length to get for response.
-	if (!recvUntilDone(sockFd, dataBuffer + 4, msgLength)) {
+	try {
+		asio::read(netSocket, asio::buffer(dataBuffer + 4, msgLength));
+	}
+	catch (const boost::system::system_error &) {
 		// Failed to contact remote host, no auto-completion!
 		return;
 	}
@@ -790,13 +767,19 @@ static void typeCompletion(const char *buf, size_t bufLength, linenoiseCompletio
 	memcpy(dataBuffer + CAER_CONFIG_SERVER_HEADER_SIZE + nodeStringLength + 1, keyString, keyStringLength);
 	dataBuffer[CAER_CONFIG_SERVER_HEADER_SIZE + nodeStringLength + 1 + keyStringLength] = '\0';
 
-	if (!sendUntilDone(sockFd, dataBuffer,
-	CAER_CONFIG_SERVER_HEADER_SIZE + nodeStringLength + 1 + keyStringLength + 1)) {
+	try {
+		asio::write(netSocket,
+			asio::buffer(dataBuffer, CAER_CONFIG_SERVER_HEADER_SIZE + nodeStringLength + 1 + keyStringLength + 1));
+	}
+	catch (const boost::system::system_error &) {
 		// Failed to contact remote host, no auto-completion!
 		return;
 	}
 
-	if (!recvUntilDone(sockFd, dataBuffer, 4)) {
+	try {
+		asio::read(netSocket, asio::buffer(dataBuffer, 4));
+	}
+	catch (const boost::system::system_error &) {
 		// Failed to contact remote host, no auto-completion!
 		return;
 	}
@@ -807,7 +790,10 @@ static void typeCompletion(const char *buf, size_t bufLength, linenoiseCompletio
 	uint16_t msgLength = le16toh(*(uint16_t * )(dataBuffer + 2));
 
 	// Total length to get for response.
-	if (!recvUntilDone(sockFd, dataBuffer + 4, msgLength)) {
+	try {
+		asio::read(netSocket, asio::buffer(dataBuffer + 4, msgLength));
+	}
+	catch (const boost::system::system_error &) {
 		// Failed to contact remote host, no auto-completion!
 		return;
 	}
@@ -873,13 +859,19 @@ static void valueCompletion(const char *buf, size_t bufLength, linenoiseCompleti
 	memcpy(dataBuffer + CAER_CONFIG_SERVER_HEADER_SIZE + nodeStringLength + 1, keyString, keyStringLength);
 	dataBuffer[CAER_CONFIG_SERVER_HEADER_SIZE + nodeStringLength + 1 + keyStringLength] = '\0';
 
-	if (!sendUntilDone(sockFd, dataBuffer,
-	CAER_CONFIG_SERVER_HEADER_SIZE + nodeStringLength + 1 + keyStringLength + 1)) {
+	try {
+		asio::write(netSocket,
+			asio::buffer(dataBuffer, CAER_CONFIG_SERVER_HEADER_SIZE + nodeStringLength + 1 + keyStringLength + 1));
+	}
+	catch (const boost::system::system_error &) {
 		// Failed to contact remote host, no auto-completion!
 		return;
 	}
 
-	if (!recvUntilDone(sockFd, dataBuffer, 4)) {
+	try {
+		asio::read(netSocket, asio::buffer(dataBuffer, 4));
+	}
+	catch (const boost::system::system_error &) {
 		// Failed to contact remote host, no auto-completion!
 		return;
 	}
@@ -889,7 +881,10 @@ static void valueCompletion(const char *buf, size_t bufLength, linenoiseCompleti
 	uint16_t msgLength = le16toh(*(uint16_t * )(dataBuffer + 2));
 
 	// Total length to get for response.
-	if (!recvUntilDone(sockFd, dataBuffer + 4, msgLength)) {
+	try {
+		asio::read(netSocket, asio::buffer(dataBuffer + 4, msgLength));
+	}
+	catch (const boost::system::system_error &) {
 		// Failed to contact remote host, no auto-completion!
 		return;
 	}
