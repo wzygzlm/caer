@@ -758,7 +758,7 @@ static void createDefaultConfiguration(caerModuleData moduleData, struct caer_da
 
 	// DAVIS RGB has additional timing counters.
 	if (IS_DAVISRGB(devInfo->chipID)) {
-		sshsNodeCreateShort(apsNode, "TransferTime", 1500, 0, I16T(devInfo->adcClock * 2048), SSHS_FLAGS_NORMAL,
+		sshsNodeCreateInt(apsNode, "TransferTime", 1500, 0, I32T(devInfo->adcClock * 2048), SSHS_FLAGS_NORMAL,
 			"Transfer time counter (3 in GS, 1 in RS, in cycles).");
 		sshsNodeCreateShort(apsNode, "RSFDSettleTime", 1000, 0, I16T(devInfo->adcClock * 128), SSHS_FLAGS_NORMAL,
 			"RS counter 0 (in cycles).");
@@ -1986,7 +1986,7 @@ static void apsConfigSend(sshsNode node, caerModuleData moduleData, struct caer_
 	// DAVIS RGB extra timing support.
 	if (IS_DAVISRGB(devInfo->chipID)) {
 		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVISRGB_CONFIG_APS_TRANSFER,
-			U32T(sshsNodeGetShort(node, "TransferTime")));
+			U32T(sshsNodeGetInt(node, "TransferTime")));
 		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVISRGB_CONFIG_APS_RSFDSETTLE,
 			U32T(sshsNodeGetShort(node, "RSFDSettleTime")));
 		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVISRGB_CONFIG_APS_GSPDRESET,
@@ -2133,7 +2133,7 @@ static void apsConfigListener(sshsNode node, void *userData, enum sshs_node_attr
 			caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_ADC_TEST_MODE,
 				changeValue.boolean);
 		}
-		else if (changeType == SSHS_SHORT && caerStrEquals(changeKey, "TransferTime")) {
+		else if (changeType == SSHS_INT && caerStrEquals(changeKey, "TransferTime")) {
 			caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVISRGB_CONFIG_APS_TRANSFER,
 				U32T(changeValue.ishort));
 		}
