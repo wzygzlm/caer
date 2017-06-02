@@ -6,12 +6,56 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <boost/filesystem.hpp>
+#include <boost/asio.hpp>
+#include <boost/program_options.hpp>
+
+#if defined(OS_UNIX) && OS_UNIX == 1
+#include <sys/types.h>
+#include <pwd.h>
+#endif
 
 #ifdef __APPLE__
 #include <sys/syslimits.h>
 #endif
 
 #define CAERCTL_HISTORY_FILE_NAME ".caerctl_history"
+
+static inline boost::filesystem::path getHomeDirectory() {
+	// First query main environment variables: HOME on Unix, USERPROFILE on Windows.
+	const char *homeDir = getenv("HOME");
+
+	if (homeDir || (homeDir = getenv("USERPROFILE"))) {
+		return (boost::filesystem::path(std::string(homeDir)));
+	}
+
+	// Unix: try to get it from the user data storage.
+#if defined(OS_UNIX) && OS_UNIX == 1
+	struct passwd userPasswd;
+	struct passwd *userPasswdPtr;
+	char userPasswdBuf[2048];
+
+	if (getpwuid_r(getuid(), &userPasswd, userPasswdBuf, sizeof(userPasswdBuf), &userPasswdPtr) == 0) {
+		return (boost::filesystem::path(std::string(userPasswd.pw_dir)));
+	}
+#endif
+
+#if defined(OS_WINDOWS) && OS_WINDOWS == 1
+	// Windows: try to get HOMEDRIVE and HOMEPATH from environment and concatenate them.
+	const char *homeDrive = getenv("HOMEDRIVE");
+	const char *homePath = getenv("HOMEPATH");
+
+	if (homeDrive && homePath) {
+		std::string winHome(homeDrive);
+		winHome += homePath;
+		return (boost::filesystem::path(winHome));
+	}
+#endif
+
+	// No clue about home directory.
+	throw boost::filesystem::filesystem_error("Unable to get home directory.",
+		boost::system::errc::make_error_code(boost::system::errc::no_such_file_or_directory));
+}
 
 /**
  * Write N bytes to the socket S from buffer B.
@@ -149,20 +193,22 @@ int main(int argc, char *argv[]) {
 	linenoiseSetCompletionCallback(&handleCommandCompletion);
 
 	// Generate command history file path (in user home).
-	char commandHistoryFilePath[1024];
+	boost::filesystem::path commandHistoryFilePath;
 
-	const char *userHomeDir = getenv("HOME");
-	if (userHomeDir == NULL) {
+	try {
+		commandHistoryFilePath = getHomeDirectory();
+	}
+	catch (const boost::filesystem::filesystem_error &) {
 		close(sockFd);
 
 		fprintf(stderr, "Failed to determine user's home directory.\n");
 		return (EXIT_FAILURE);
 	}
 
-	snprintf(commandHistoryFilePath, 1024, "%s/" CAERCTL_HISTORY_FILE_NAME, userHomeDir);
+	commandHistoryFilePath.append(CAERCTL_HISTORY_FILE_NAME);
 
 	// Load command history file.
-	linenoiseHistoryLoad(commandHistoryFilePath);
+	linenoiseHistoryLoad(commandHistoryFilePath.c_str());
 
 	while (true) {
 		// Display prompt and read input (NOTE: remember to free input after use!).
@@ -199,7 +245,7 @@ int main(int argc, char *argv[]) {
 	close(sockFd);
 
 	// Save command history file.
-	linenoiseHistorySave(commandHistoryFilePath);
+	linenoiseHistorySave(commandHistoryFilePath.c_str());
 
 	return (EXIT_SUCCESS);
 }
