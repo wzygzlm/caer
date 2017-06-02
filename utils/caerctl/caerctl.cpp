@@ -2,21 +2,18 @@
 #include "base/config_server.h"
 #include "ext/sshs/sshs.h"
 #include "utils/ext/linenoise-ng/linenoise.h"
-#include <unistd.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include <netinet/in.h>
 #include <boost/filesystem.hpp>
+#include <boost/format.hpp>
 #include <boost/asio.hpp>
 #include <boost/program_options.hpp>
+
+namespace asio = boost::asio;
+namespace asioIP = boost::asio::ip;
+using asioTCP = boost::asio::ip::tcp;
 
 #if defined(OS_UNIX) && OS_UNIX == 1
 #include <sys/types.h>
 #include <pwd.h>
-#endif
-
-#ifdef __APPLE__
-#include <sys/syslimits.h>
 #endif
 
 #define CAERCTL_HISTORY_FILE_NAME ".caerctl_history"
@@ -143,7 +140,7 @@ int main(int argc, char *argv[]) {
 	// Those are for now also the only two parameters permitted.
 	// If none passed, attempt to connect to default IP:Port.
 	const char *ipAddress = "127.0.0.1";
-	uint16_t portNumber = 4040;
+	const char *portNumber = "4040";
 
 	if (argc != 1 && argc != 3) {
 		fprintf(stderr, "Incorrect argument number. Either pass none for default IP:Port"
@@ -154,40 +151,24 @@ int main(int argc, char *argv[]) {
 	// If explicitly passed, parse arguments.
 	if (argc == 3) {
 		ipAddress = argv[1];
-		sscanf(argv[2], "%" SCNu16, &portNumber);
+		portNumber = argv[2];
 	}
 
 	// Connect to the remote cAER config server.
-	sockFd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-	if (sockFd < 0) {
-		fprintf(stderr, "Failed to create TCP socket.\n");
-		return (EXIT_FAILURE);
+	asio::io_service ioService;
+	asioTCP::socket socket(ioService);
+	asioTCP::resolver resolver(ioService);
+
+	try {
+		asio::connect(socket, resolver.resolve( { ipAddress, portNumber }));
 	}
-
-	struct sockaddr_in configServerAddress;
-	memset(&configServerAddress, 0, sizeof(struct sockaddr_in));
-
-	configServerAddress.sin_family = AF_INET;
-	configServerAddress.sin_port = htons(portNumber);
-
-	if (inet_pton(AF_INET, ipAddress, &configServerAddress.sin_addr) == 0) {
-		close(sockFd);
-
-		fprintf(stderr, "No valid IP address found. '%s' is invalid!\n", ipAddress);
-		return (EXIT_FAILURE);
-	}
-
-	if (connect(sockFd, (struct sockaddr *) &configServerAddress, sizeof(struct sockaddr_in)) < 0) {
-		close(sockFd);
-
-		fprintf(stderr, "Failed to connect to remote config server.\n");
+	catch (const boost::system::system_error &ex) {
+		fprintf(stderr, "Failed to connect to %s:%s, error message is:\n\t%s.\n", ipAddress, portNumber, ex.what());
 		return (EXIT_FAILURE);
 	}
 
 	// Create a shell prompt with the IP:Port displayed.
-	size_t shellPromptLength = (size_t) snprintf(NULL, 0, "cAER @ %s:%" PRIu16 " >> ", ipAddress, portNumber);
-	char shellPrompt[shellPromptLength + 1]; // +1 for terminating NUL byte.
-	snprintf(shellPrompt, shellPromptLength + 1, "cAER @ %s:%" PRIu16 " >> ", ipAddress, portNumber);
+	boost::format shellPrompt = boost::format("cAER @ %s:%s >> ") % ipAddress % portNumber;
 
 	// Set our own command completion function.
 	linenoiseSetCompletionCallback(&handleCommandCompletion);
@@ -198,10 +179,8 @@ int main(int argc, char *argv[]) {
 	try {
 		commandHistoryFilePath = getHomeDirectory();
 	}
-	catch (const boost::filesystem::filesystem_error &) {
-		close(sockFd);
-
-		fprintf(stderr, "Failed to determine user's home directory.\n");
+	catch (const boost::filesystem::filesystem_error &ex) {
+		fprintf(stderr, "Failed to get home directory for history file, error message is:\n\t%s.\n", ex.what());
 		return (EXIT_FAILURE);
 	}
 
@@ -212,7 +191,7 @@ int main(int argc, char *argv[]) {
 
 	while (true) {
 		// Display prompt and read input (NOTE: remember to free input after use!).
-		char *inputLine = linenoise(shellPrompt);
+		char *inputLine = linenoise(shellPrompt.str().c_str());
 
 		// Check for EOF first.
 		if (inputLine == NULL) {
@@ -240,9 +219,6 @@ int main(int argc, char *argv[]) {
 		// Free input after use.
 		free(inputLine);
 	}
-
-	// Close connection.
-	close(sockFd);
 
 	// Save command history file.
 	linenoiseHistorySave(commandHistoryFilePath.c_str());
