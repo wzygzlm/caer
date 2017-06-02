@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <cstdint>
 #include <cinttypes>
+#include <cerrno>
 
 #else
 
@@ -15,6 +16,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <inttypes.h>
+#include <errno.h>
 
 #endif
 
