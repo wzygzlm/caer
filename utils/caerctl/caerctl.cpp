@@ -2,14 +2,17 @@
 #include "base/config_server.h"
 #include "ext/sshs/sshs.h"
 #include "utils/ext/linenoise-ng/linenoise.h"
+#include <iostream>
 #include <boost/filesystem.hpp>
 #include <boost/format.hpp>
 #include <boost/asio.hpp>
 #include <boost/program_options.hpp>
+#include <boost/algorithm/string/join.hpp>
 
 namespace asio = boost::asio;
 namespace asioIP = boost::asio::ip;
 using asioTCP = boost::asio::ip::tcp;
+namespace po = boost::program_options;
 
 #if defined(OS_UNIX) && OS_UNIX == 1
 #include <sys/types.h>
@@ -88,40 +91,68 @@ static const size_t actionsLength = sizeof(actions) / sizeof(actions[0]);
 static asio::io_service ioService;
 static asioTCP::socket netSocket(ioService);
 
+[[ noreturn ]] static inline void printHelpAndExit(po::options_description &desc) {
+	std::cout << std::endl << desc << std::endl;
+	exit(EXIT_FAILURE);
+}
+
 int main(int argc, char *argv[]) {
-	// First of all, parse the IP:Port we need to connect to.
-	// Those are for now also the only two parameters permitted.
-	// If none passed, attempt to connect to default IP:Port.
-	const char *ipAddress = "127.0.0.1";
-	const char *portNumber = "4040";
+	// Allowed command-line options for caer-ctl.
+	po::options_description cliDescription("Command-line options");
+	cliDescription.add_options()("help,h", "print help text")("ipaddress,i", po::value<std::string>(),
+		"IP-address or hostname to connect to")("port,p", po::value<std::string>(), "port to connect to")("script,s",
+		po::value<std::vector<std::string>>()->multitoken(),
+		"script mode, sends the given command directly to the server as if typed in and exits.\n"
+			"Format: <action> <node> [<attribute> <type> [<value>]]\nExample: set /caer/logger/ logLevel byte 7");
 
-	if (argc != 1 && argc != 3) {
-		fprintf(stderr, "Incorrect argument number. Either pass none for default IP:Port"
-			"combination of 127.0.0.1:4040, or pass the IP followed by the Port.\n");
-		return (EXIT_FAILURE);
-	}
-
-	// If explicitly passed, parse arguments.
-	if (argc == 3) {
-		ipAddress = argv[1];
-		portNumber = argv[2];
-	}
-
-	// Connect to the remote cAER config server.
+	po::variables_map cliVarMap;
 	try {
-		asioTCP::resolver resolver(ioService);
-		asio::connect(netSocket, resolver.resolve( { ipAddress, portNumber }));
+		po::store(boost::program_options::parse_command_line(argc, argv, cliDescription), cliVarMap);
+		po::notify(cliVarMap);
 	}
-	catch (const boost::system::system_error &ex) {
-		fprintf(stderr, "Failed to connect to %s:%s, error message is:\n\t%s.\n", ipAddress, portNumber, ex.what());
-		return (EXIT_FAILURE);
+	catch (...) {
+		std::cout << "Failed to parse command-line options!" << std::endl;
+		printHelpAndExit(cliDescription);
 	}
 
-	// Create a shell prompt with the IP:Port displayed.
-	boost::format shellPrompt = boost::format("cAER @ %s:%s >> ") % ipAddress % portNumber;
+	// Parse/check command-line options.
+	if (cliVarMap.count("help")) {
+		printHelpAndExit(cliDescription);
+	}
 
-	// Set our own command completion function.
-	linenoiseSetCompletionCallback(&handleCommandCompletion);
+	std::string ipAddress("127.0.0.1");
+	if (cliVarMap.count("ipaddress")) {
+		ipAddress = cliVarMap["ipaddress"].as<std::string>();
+	}
+
+	std::string portNumber("4040");
+	if (cliVarMap.count("port")) {
+		portNumber = cliVarMap["port"].as<std::string>();
+	}
+
+	bool scriptMode = false;
+	if (cliVarMap.count("script")) {
+		std::vector<std::string> commandComponents = cliVarMap["script"].as<std::vector<std::string>>();
+
+		// At lest two components must be passed, any less is an error.
+		if (commandComponents.size() < 2) {
+			std::cout << "Script mode must have at least two components!" << std::endl;
+			printHelpAndExit(cliDescription);
+		}
+
+		// At most five components can be passed, any more is an error.
+		if (commandComponents.size() > 5) {
+			std::cout << "Script mode cannot have more than five components!" << std::endl;
+			printHelpAndExit(cliDescription);
+		}
+
+		if (commandComponents[0] == "quit" || commandComponents[0] == "exit") {
+			std::cout << "Script mode cannot use 'quit' or 'exit' actions!" << std::endl;
+			printHelpAndExit(cliDescription);
+		}
+
+		scriptMode = true;
+	}
 
 	// Generate command history file path (in user home).
 	boost::filesystem::path commandHistoryFilePath;
@@ -129,35 +160,36 @@ int main(int argc, char *argv[]) {
 	try {
 		commandHistoryFilePath = getHomeDirectory();
 	}
-	catch (const boost::filesystem::filesystem_error &ex) {
-		fprintf(stderr, "Failed to get home directory for history file, error message is:\n\t%s.\n", ex.what());
-		return (EXIT_FAILURE);
+	catch (const boost::filesystem::filesystem_error &) {
+		std::cerr << "Failed to get home directory for history file, using current working directory." << std::endl;
+		commandHistoryFilePath = boost::filesystem::current_path();
 	}
 
 	commandHistoryFilePath.append(CAERCTL_HISTORY_FILE_NAME);
 
+	// Connect to the remote cAER config server.
+	try {
+		asioTCP::resolver resolver(ioService);
+		asio::connect(netSocket, resolver.resolve( { ipAddress, portNumber }));
+	}
+	catch (const boost::system::system_error &ex) {
+		boost::format exMsg = boost::format("Failed to connect to %s:%s, error message is:\n\t%s.") % ipAddress
+			% portNumber % ex.what();
+		std::cerr << exMsg.str() << std::endl;
+		return (EXIT_FAILURE);
+	}
+
 	// Load command history file.
 	linenoiseHistoryLoad(commandHistoryFilePath.c_str());
 
-	while (true) {
-		// Display prompt and read input (NOTE: remember to free input after use!).
-		char *inputLine = linenoise(shellPrompt.str().c_str());
+	if (scriptMode) {
+		std::vector<std::string> commandComponents = cliVarMap["script"].as<std::vector<std::string>>();
 
-		// Check for EOF first.
-		if (inputLine == NULL) {
-			// Exit loop.
-			break;
-		}
+		std::string inputString = boost::algorithm::join(commandComponents, " ");
+		const char *inputLine = inputString.c_str();
 
 		// Add input to command history.
 		linenoiseHistoryAdd(inputLine);
-
-		// Then, after having added to history, check for termination commands.
-		if (strncmp(inputLine, "quit", 4) == 0 || strncmp(inputLine, "exit", 4) == 0) {
-			// Exit loop, free memory.
-			free(inputLine);
-			break;
-		}
 
 		// Try to generate a request, if there's any content.
 		size_t inputLineLength = strlen(inputLine);
@@ -165,9 +197,44 @@ int main(int argc, char *argv[]) {
 		if (inputLineLength > 0) {
 			handleInputLine(inputLine, inputLineLength);
 		}
+	}
+	else {
+		// Create a shell prompt with the IP:Port displayed.
+		boost::format shellPrompt = boost::format("cAER @ %s:%s >> ") % ipAddress % portNumber;
 
-		// Free input after use.
-		free(inputLine);
+		// Set our own command completion function.
+		linenoiseSetCompletionCallback(&handleCommandCompletion);
+
+		while (true) {
+			// Display prompt and read input (NOTE: remember to free input after use!).
+			char *inputLine = linenoise(shellPrompt.str().c_str());
+
+			// Check for EOF first.
+			if (inputLine == nullptr) {
+				// Exit loop.
+				break;
+			}
+
+			// Add input to command history.
+			linenoiseHistoryAdd(inputLine);
+
+			// Then, after having added to history, check for termination commands.
+			if (strncmp(inputLine, "quit", 4) == 0 || strncmp(inputLine, "exit", 4) == 0) {
+				// Exit loop, free memory.
+				free(inputLine);
+				break;
+			}
+
+			// Try to generate a request, if there's any content.
+			size_t inputLineLength = strlen(inputLine);
+
+			if (inputLineLength > 0) {
+				handleInputLine(inputLine, inputLineLength);
+			}
+
+			// Free input after use.
+			free(inputLine);
+		}
 	}
 
 	// Save command history file.
@@ -202,7 +269,7 @@ static inline void setValueLen(uint8_t *buf, uint16_t valueLen) {
 
 static void handleInputLine(const char *buf, size_t bufLength) {
 	// First let's split up the command into its constituents.
-	char *commandParts[MAX_CMD_PARTS + 1] = { NULL };
+	char *commandParts[MAX_CMD_PARTS + 1] = { nullptr };
 
 	// Create a copy of buf, so that strtok_r() can modify it.
 	char bufCopy[bufLength + 1];
@@ -210,24 +277,24 @@ static void handleInputLine(const char *buf, size_t bufLength) {
 
 	// Split string into usable parts.
 	size_t idx = 0;
-	char *tokenSavePtr = NULL, *nextCmdPart = NULL, *currCmdPart = bufCopy;
-	while ((nextCmdPart = strtok_r(currCmdPart, " ", &tokenSavePtr)) != NULL) {
+	char *tokenSavePtr = nullptr, *nextCmdPart = nullptr, *currCmdPart = bufCopy;
+	while ((nextCmdPart = strtok_r(currCmdPart, " ", &tokenSavePtr)) != nullptr) {
 		if (idx < MAX_CMD_PARTS) {
 			commandParts[idx] = nextCmdPart;
 		}
 		else {
 			// Abort, too many parts.
-			fprintf(stderr, "Error: command is made up of too many parts.\n");
+			std::cerr << "Error: command is made up of too many parts." << std::endl;
 			return;
 		}
 
 		idx++;
-		currCmdPart = NULL;
+		currCmdPart = nullptr;
 	}
 
 	// Check that we got something.
-	if (commandParts[CMD_PART_ACTION] == NULL) {
-		fprintf(stderr, "Error: empty command.\n");
+	if (commandParts[CMD_PART_ACTION] == nullptr) {
+		std::cerr << "Error: empty command." << std::endl;
 		return;
 	}
 
@@ -254,12 +321,12 @@ static void handleInputLine(const char *buf, size_t bufLength) {
 	switch (actionCode) {
 		case CAER_CONFIG_NODE_EXISTS: {
 			// Check parameters needed for operation.
-			if (commandParts[CMD_PART_NODE] == NULL) {
-				fprintf(stderr, "Error: missing node parameter.\n");
+			if (commandParts[CMD_PART_NODE] == nullptr) {
+				std::cerr << "Error: missing node parameter." << std::endl;
 				return;
 			}
-			if (commandParts[CMD_PART_NODE + 1] != NULL) {
-				fprintf(stderr, "Error: too many parameters for command.\n");
+			if (commandParts[CMD_PART_NODE + 1] != nullptr) {
+				std::cerr << "Error: too many parameters for command." << std::endl;
 				return;
 			}
 
@@ -283,20 +350,20 @@ static void handleInputLine(const char *buf, size_t bufLength) {
 		case CAER_CONFIG_GET:
 		case CAER_CONFIG_GET_DESCRIPTION: {
 			// Check parameters needed for operation.
-			if (commandParts[CMD_PART_NODE] == NULL) {
-				fprintf(stderr, "Error: missing node parameter.\n");
+			if (commandParts[CMD_PART_NODE] == nullptr) {
+				std::cerr << "Error: missing node parameter." << std::endl;
 				return;
 			}
-			if (commandParts[CMD_PART_KEY] == NULL) {
-				fprintf(stderr, "Error: missing key parameter.\n");
+			if (commandParts[CMD_PART_KEY] == nullptr) {
+				std::cerr << "Error: missing key parameter." << std::endl;
 				return;
 			}
-			if (commandParts[CMD_PART_TYPE] == NULL) {
-				fprintf(stderr, "Error: missing type parameter.\n");
+			if (commandParts[CMD_PART_TYPE] == nullptr) {
+				std::cerr << "Error: missing type parameter." << std::endl;
 				return;
 			}
-			if (commandParts[CMD_PART_TYPE + 1] != NULL) {
-				fprintf(stderr, "Error: too many parameters for command.\n");
+			if (commandParts[CMD_PART_TYPE + 1] != nullptr) {
+				std::cerr << "Error: too many parameters for command." << std::endl;
 				return;
 			}
 
@@ -305,7 +372,7 @@ static void handleInputLine(const char *buf, size_t bufLength) {
 
 			enum sshs_node_attr_value_type type = sshsHelperStringToTypeConverter(commandParts[CMD_PART_TYPE]);
 			if (type == SSHS_UNKNOWN) {
-				fprintf(stderr, "Error: invalid type parameter.\n");
+				std::cerr << "Error: invalid type parameter." << std::endl;
 				return;
 			}
 
@@ -326,24 +393,24 @@ static void handleInputLine(const char *buf, size_t bufLength) {
 
 		case CAER_CONFIG_PUT: {
 			// Check parameters needed for operation.
-			if (commandParts[CMD_PART_NODE] == NULL) {
-				fprintf(stderr, "Error: missing node parameter.\n");
+			if (commandParts[CMD_PART_NODE] == nullptr) {
+				std::cerr << "Error: missing node parameter." << std::endl;
 				return;
 			}
-			if (commandParts[CMD_PART_KEY] == NULL) {
-				fprintf(stderr, "Error: missing key parameter.\n");
+			if (commandParts[CMD_PART_KEY] == nullptr) {
+				std::cerr << "Error: missing key parameter." << std::endl;
 				return;
 			}
-			if (commandParts[CMD_PART_TYPE] == NULL) {
-				fprintf(stderr, "Error: missing type parameter.\n");
+			if (commandParts[CMD_PART_TYPE] == nullptr) {
+				std::cerr << "Error: missing type parameter." << std::endl;
 				return;
 			}
-			if (commandParts[CMD_PART_VALUE] == NULL) {
-				fprintf(stderr, "Error: missing value parameter.\n");
+			if (commandParts[CMD_PART_VALUE] == nullptr) {
+				std::cerr << "Error: missing value parameter." << std::endl;
 				return;
 			}
-			if (commandParts[CMD_PART_VALUE + 1] != NULL) {
-				fprintf(stderr, "Error: too many parameters for command.\n");
+			if (commandParts[CMD_PART_VALUE + 1] != nullptr) {
+				std::cerr << "Error: too many parameters for command." << std::endl;
 				return;
 			}
 
@@ -353,7 +420,7 @@ static void handleInputLine(const char *buf, size_t bufLength) {
 
 			enum sshs_node_attr_value_type type = sshsHelperStringToTypeConverter(commandParts[CMD_PART_TYPE]);
 			if (type == SSHS_UNKNOWN) {
-				fprintf(stderr, "Error: invalid type parameter.\n");
+				std::cerr << "Error: invalid type parameter." << std::endl;
 				return;
 			}
 
@@ -375,7 +442,7 @@ static void handleInputLine(const char *buf, size_t bufLength) {
 		}
 
 		default:
-			fprintf(stderr, "Error: unknown command.\n");
+			std::cerr << "Error: unknown command." << std::endl;
 			return;
 	}
 
@@ -384,7 +451,9 @@ static void handleInputLine(const char *buf, size_t bufLength) {
 		asio::write(netSocket, asio::buffer(dataBuffer, dataBufferLength));
 	}
 	catch (const boost::system::system_error &ex) {
-		fprintf(stderr, "Unable to send data to config server, error message is:\n\t%s.\n", ex.what());
+		boost::format exMsg = boost::format("Unable to send data to config server, error message is:\n\t%s.")
+			% ex.what();
+		std::cerr << exMsg.str() << std::endl;
 		return;
 	}
 
@@ -396,7 +465,9 @@ static void handleInputLine(const char *buf, size_t bufLength) {
 		asio::read(netSocket, asio::buffer(dataBuffer, 4));
 	}
 	catch (const boost::system::system_error &ex) {
-		fprintf(stderr, "Unable to receive data to config server, error message is:\n\t%s.\n", ex.what());
+		boost::format exMsg = boost::format("Unable to receive data from config server, error message is:\n\t%s.")
+			% ex.what();
+		std::cerr << exMsg.str() << std::endl;
 		return;
 	}
 
@@ -410,12 +481,14 @@ static void handleInputLine(const char *buf, size_t bufLength) {
 		asio::read(netSocket, asio::buffer(dataBuffer + 4, msgLength));
 	}
 	catch (const boost::system::system_error &ex) {
-		fprintf(stderr, "Unable to receive data to config server, error message is:\n\t%s.\n", ex.what());
+		boost::format exMsg = boost::format("Unable to receive data from config server, error message is:\n\t%s.")
+			% ex.what();
+		std::cerr << exMsg.str() << std::endl;
 		return;
 	}
 
 	// Convert action back to a string.
-	const char *actionString = NULL;
+	const char *actionString = nullptr;
 
 	// Detect error response.
 	if (action == CAER_CONFIG_ERROR) {
@@ -430,15 +503,17 @@ static void handleInputLine(const char *buf, size_t bufLength) {
 	}
 
 	// Display results.
-	fprintf(stdout, "Result: action=%s, type=%s, msgLength=%" PRIu16 ", msg='%s'.\n", actionString,
-		sshsHelperTypeToStringConverter((enum sshs_node_attr_value_type) type), msgLength, dataBuffer + 4);
+	boost::format resultMsg = boost::format("Result: action=%s, type=%s, msgLength=%" PRIu16 ", msg='%s'.")
+		% actionString % sshsHelperTypeToStringConverter((enum sshs_node_attr_value_type) type) % msgLength
+		% (dataBuffer + 4);
+	std::cout << resultMsg.str() << std::endl;
 }
 
 static void handleCommandCompletion(const char *buf, linenoiseCompletions *autoComplete) {
 	size_t bufLength = strlen(buf);
 
 	// First let's split up the command into its constituents.
-	char *commandParts[MAX_CMD_PARTS + 1] = { NULL };
+	char *commandParts[MAX_CMD_PARTS + 1] = { nullptr };
 
 	// Create a copy of buf, so that strtok_r() can modify it.
 	char bufCopy[bufLength + 1];
@@ -446,8 +521,8 @@ static void handleCommandCompletion(const char *buf, linenoiseCompletions *autoC
 
 	// Split string into usable parts.
 	size_t idx = 0;
-	char *tokenSavePtr = NULL, *nextCmdPart = NULL, *currCmdPart = bufCopy;
-	while ((nextCmdPart = strtok_r(currCmdPart, " ", &tokenSavePtr)) != NULL) {
+	char *tokenSavePtr = nullptr, *nextCmdPart = nullptr, *currCmdPart = bufCopy;
+	while ((nextCmdPart = strtok_r(currCmdPart, " ", &tokenSavePtr)) != nullptr) {
 		if (idx < MAX_CMD_PARTS) {
 			commandParts[idx] = nextCmdPart;
 		}
@@ -457,7 +532,7 @@ static void handleCommandCompletion(const char *buf, linenoiseCompletions *autoC
 		}
 
 		idx++;
-		currCmdPart = NULL;
+		currCmdPart = nullptr;
 	}
 
 	// Also calculate number of commands already present in line (word-depth).
@@ -474,7 +549,7 @@ static void handleCommandCompletion(const char *buf, linenoiseCompletions *autoC
 	if (commandDepth == 0) {
 		// Always start off with a command/action.
 		size_t cmdActionLength = 0;
-		if (commandParts[CMD_PART_ACTION] != NULL) {
+		if (commandParts[CMD_PART_ACTION] != nullptr) {
 			cmdActionLength = strlen(commandParts[CMD_PART_ACTION]);
 		}
 
@@ -496,7 +571,7 @@ static void handleCommandCompletion(const char *buf, linenoiseCompletions *autoC
 		case CAER_CONFIG_NODE_EXISTS:
 			if (commandDepth == 1) {
 				size_t cmdNodeLength = 0;
-				if (commandParts[CMD_PART_NODE] != NULL) {
+				if (commandParts[CMD_PART_NODE] != nullptr) {
 					cmdNodeLength = strlen(commandParts[CMD_PART_NODE]);
 				}
 
@@ -510,7 +585,7 @@ static void handleCommandCompletion(const char *buf, linenoiseCompletions *autoC
 		case CAER_CONFIG_GET_DESCRIPTION:
 			if (commandDepth == 1) {
 				size_t cmdNodeLength = 0;
-				if (commandParts[CMD_PART_NODE] != NULL) {
+				if (commandParts[CMD_PART_NODE] != nullptr) {
 					cmdNodeLength = strlen(commandParts[CMD_PART_NODE]);
 				}
 
@@ -518,7 +593,7 @@ static void handleCommandCompletion(const char *buf, linenoiseCompletions *autoC
 			}
 			if (commandDepth == 2) {
 				size_t cmdKeyLength = 0;
-				if (commandParts[CMD_PART_KEY] != NULL) {
+				if (commandParts[CMD_PART_KEY] != nullptr) {
 					cmdKeyLength = strlen(commandParts[CMD_PART_KEY]);
 				}
 
@@ -527,7 +602,7 @@ static void handleCommandCompletion(const char *buf, linenoiseCompletions *autoC
 			}
 			if (commandDepth == 3) {
 				size_t cmdTypeLength = 0;
-				if (commandParts[CMD_PART_TYPE] != NULL) {
+				if (commandParts[CMD_PART_TYPE] != nullptr) {
 					cmdTypeLength = strlen(commandParts[CMD_PART_TYPE]);
 				}
 
@@ -541,7 +616,7 @@ static void handleCommandCompletion(const char *buf, linenoiseCompletions *autoC
 		case CAER_CONFIG_PUT:
 			if (commandDepth == 1) {
 				size_t cmdNodeLength = 0;
-				if (commandParts[CMD_PART_NODE] != NULL) {
+				if (commandParts[CMD_PART_NODE] != nullptr) {
 					cmdNodeLength = strlen(commandParts[CMD_PART_NODE]);
 				}
 
@@ -549,7 +624,7 @@ static void handleCommandCompletion(const char *buf, linenoiseCompletions *autoC
 			}
 			if (commandDepth == 2) {
 				size_t cmdKeyLength = 0;
-				if (commandParts[CMD_PART_KEY] != NULL) {
+				if (commandParts[CMD_PART_KEY] != nullptr) {
 					cmdKeyLength = strlen(commandParts[CMD_PART_KEY]);
 				}
 
@@ -558,7 +633,7 @@ static void handleCommandCompletion(const char *buf, linenoiseCompletions *autoC
 			}
 			if (commandDepth == 3) {
 				size_t cmdTypeLength = 0;
-				if (commandParts[CMD_PART_TYPE] != NULL) {
+				if (commandParts[CMD_PART_TYPE] != nullptr) {
 					cmdTypeLength = strlen(commandParts[CMD_PART_TYPE]);
 				}
 
@@ -568,7 +643,7 @@ static void handleCommandCompletion(const char *buf, linenoiseCompletions *autoC
 			}
 			if (commandDepth == 4) {
 				size_t cmdValueLength = 0;
-				if (commandParts[CMD_PART_VALUE] != NULL) {
+				if (commandParts[CMD_PART_VALUE] != nullptr) {
 					cmdValueLength = strlen(commandParts[CMD_PART_VALUE]);
 				}
 
@@ -615,7 +690,7 @@ static void nodeCompletion(const char *buf, size_t bufLength, linenoiseCompletio
 
 	// Get all the children of the last fully defined node (/ or /../../).
 	char *lastNode = strrchr(partialNodeString, '/');
-	if (lastNode == NULL) {
+	if (lastNode == nullptr) {
 		// No / found, invalid, cannot auto-complete.
 		return;
 	}
