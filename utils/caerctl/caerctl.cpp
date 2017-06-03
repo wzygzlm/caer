@@ -689,7 +689,7 @@ static void nodeCompletion(const char *buf, size_t bufLength, linenoiseCompletio
 	}
 
 	// Get all the children of the last fully defined node (/ or /../../).
-	char *lastNode = strrchr(partialNodeString, '/');
+	const char *lastNode = strrchr(partialNodeString, '/');
 	if (lastNode == nullptr) {
 		// No / found, invalid, cannot auto-complete.
 		return;
