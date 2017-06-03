@@ -84,7 +84,7 @@ void caerConfigInit(int argc, char *argv[]) {
 	}
 
 	// Let's try to open the file for reading, or create it.
-	int configFileFd = open(configFile.c_str(), O_RDONLY | O_CREAT, S_IWUSR | S_IRUSR | S_IRGRP);
+	int configFileFd = open(configFile.string().c_str(), O_RDONLY | O_CREAT, S_IWUSR | S_IRUSR | S_IRGRP);
 
 	if (configFileFd >= 0) {
 		// File opened for reading (or created) successfully.
@@ -156,7 +156,7 @@ void caerConfigInit(int argc, char *argv[]) {
 void caerConfigWriteBack(void) {
 	// configFile can only be correctly initialized, absolute and canonical
 	// by the point this function may ever be called, so we use it directly.
-	int configFileFd = open(configFile.c_str(), O_WRONLY | O_TRUNC);
+	int configFileFd = open(configFile.string().c_str(), O_WRONLY | O_TRUNC);
 
 	if (configFileFd >= 0) {
 		const char *filterKeys[] = { "running" };
@@ -167,6 +167,6 @@ void caerConfigWriteBack(void) {
 	}
 	else {
 		caerLog(CAER_LOG_EMERGENCY, "Config", "Could not write to the configuration file '%s'. Error: %d.",
-			configFile.c_str(), errno);
+			configFile.string().c_str(), errno);
 	}
 }

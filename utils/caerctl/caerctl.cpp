@@ -180,7 +180,7 @@ int main(int argc, char *argv[]) {
 	}
 
 	// Load command history file.
-	linenoiseHistoryLoad(commandHistoryFilePath.c_str());
+	linenoiseHistoryLoad(commandHistoryFilePath.string().c_str());
 
 	if (scriptMode) {
 		std::vector<std::string> commandComponents = cliVarMap["script"].as<std::vector<std::string>>();
@@ -238,7 +238,7 @@ int main(int argc, char *argv[]) {
 	}
 
 	// Save command history file.
-	linenoiseHistorySave(commandHistoryFilePath.c_str());
+	linenoiseHistorySave(commandHistoryFilePath.string().c_str());
 
 	return (EXIT_SUCCESS);
 }
