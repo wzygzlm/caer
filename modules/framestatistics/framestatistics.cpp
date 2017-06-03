@@ -29,8 +29,8 @@ static const struct caer_event_stream_in FrameStatisticsInputs[] = { { .type = F
 
 static const struct caer_module_info FrameStatisticsInfo = { .version = 1, .name = "FrameStatistics", .type =
 	CAER_MODULE_OUTPUT, .memSize = sizeof(struct caer_frame_statistics_state), .functions = &FrameStatisticsFunctions,
-	.inputStreams = FrameStatisticsInputs, .inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(FrameStatisticsInputs),
-	.outputStreams = NULL, .outputStreamsSize = 0, };
+	.inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(FrameStatisticsInputs), .inputStreams = FrameStatisticsInputs,
+	.outputStreamsSize = 0, .outputStreams = NULL };
 
 caerModuleInfo caerModuleGetInfo(void) {
 	return (&FrameStatisticsInfo);
