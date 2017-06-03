@@ -8,7 +8,7 @@ REQUIREMENTS:
 Linux, MacOS X or Windows (for Windows build instructions see README.Windows)
 cmake >= 2.6
 gcc >= 5.2 or clang >= 3.6
-libcaer >= 2.1.4
+libcaer >= 2.1.5
 mini-xml (mxml) >= 2.7
 libuv >= 1.7.5
 Boost >= 1.50 (with system, filesystem, program_options)
