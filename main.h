@@ -13,6 +13,10 @@
 #include <libcaer/events/packetContainer.h>
 #include "ext/sshs/sshs.h"
 
+#ifdef __cplusplus
+#include "ext/sshs/sshs.hpp"
+#endif
+
 // Suppress unused argument warnings, if needed
 #define UNUSED_ARGUMENT(arg) (void)(arg)
 
