@@ -18,6 +18,7 @@
 #include <boost/filesystem.hpp>
 #include <boost/range/join.hpp>
 #include <boost/format.hpp>
+#include <boost/algorithm/string.hpp>
 
 // If Boost version recent enough, use their portable DLL loading support.
 // Else use dlopen() on POSIX systems.
@@ -329,18 +330,24 @@ static void updateModulesInformation() {
 	sshsNodeCreate(modulesNode, "modulesSearchPath", modulesSearchDir.string(), 2, PATH_MAX, SSHS_FLAGS_NORMAL,
 		"Directories to search loadable modules in, separated by ':'.");
 
-	// Now get actual search directory.
+	// Now get actual search directories.
 	const std::string modulesSearchPath = sshsNodeGetStdString(modulesNode, "modulesSearchPath");
+
+	// Split on ':'.
+	std::vector<std::string> searchPaths;
+	boost::algorithm::split(searchPaths, modulesSearchPath, boost::is_any_of(":"));
 
 	const std::regex moduleRegex("\\w+\\.(so|dll|dylib)");
 
-	std::for_each(boost::filesystem::recursive_directory_iterator(modulesSearchPath),
-		boost::filesystem::recursive_directory_iterator(),
-		[&moduleRegex](const boost::filesystem::directory_entry &e) {
-			if (boost::filesystem::exists(e.path()) && boost::filesystem::is_regular_file(e.path()) && std::regex_match(e.path().filename().string(), moduleRegex)) {
-				modulePaths.push_back(e.path());
-			}
-		});
+	for (const auto &sPath : searchPaths) {
+		std::for_each(boost::filesystem::recursive_directory_iterator(sPath),
+			boost::filesystem::recursive_directory_iterator(),
+			[&moduleRegex](const boost::filesystem::directory_entry &e) {
+				if (boost::filesystem::exists(e.path()) && boost::filesystem::is_regular_file(e.path()) && std::regex_match(e.path().filename().string(), moduleRegex)) {
+					modulePaths.push_back(e.path());
+				}
+			});
+	}
 
 	// Sort and unique.
 	vectorSortUnique(modulePaths);
