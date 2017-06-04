@@ -216,6 +216,7 @@ static struct {
 
 static std::vector<boost::filesystem::path> modulePaths;
 
+static void unloadLibrary(ModuleLibrary &moduleLibrary);
 static int caerMainloopRunner();
 static void printDebugInformation();
 static void caerMainloopSignalHandler(int signal);
@@ -246,6 +247,120 @@ static bool vectorDetectDuplicates(std::vector<T> &vec) {
 	}
 
 	return (false);
+}
+
+static std::pair<ModuleLibrary, caerModuleInfo> loadModule(const std::string &moduleName) {
+	// For each module, we search if a path exists to load it from.
+	// If yes, we do so. The various OS's shared library load mechanisms
+	// will keep track of reference count if same module is loaded
+	// multiple times.
+	boost::filesystem::path modulePath;
+
+	for (const auto &p : modulePaths) {
+		if (moduleName == p.stem().string()) {
+			// Found a module with same name!
+			modulePath = p;
+		}
+	}
+
+	if (modulePath.empty()) {
+		boost::format exMsg = boost::format("No module library for '%s' found.") % moduleName;
+		throw std::runtime_error(exMsg.str());
+	}
+
+#if BOOST_HAS_DLL_LOAD
+	ModuleLibrary moduleLibrary;
+	try {
+		moduleLibrary.load(modulePath.c_str(), boost::dll::load_mode::rtld_now);
+	}
+	catch (const std::exception &ex) {
+		// Failed to load shared library!
+		boost::format exMsg = boost::format("Failed to load library '%s', error: '%s'.") % modulePath.string()
+			% ex.what();
+		throw std::runtime_error(exMsg.str());
+	}
+
+	caerModuleInfo (*getInfo)(void);
+	try {
+		getInfo = moduleLibrary.get<caerModuleInfo(void)>("caerModuleGetInfo");
+	}
+	catch (const std::exception &ex) {
+		// Failed to find symbol in shared library!
+		unloadLibrary(moduleLibrary);
+		boost::format exMsg = boost::format("Failed to find symbol in library '%s', error: '%s'.") % modulePath.string()
+			% ex.what();
+		throw std::runtime_error(exMsg.str());
+	}
+#else
+	void *moduleLibrary = dlopen(modulePath.c_str(), RTLD_NOW);
+	if (moduleLibrary == nullptr) {
+		// Failed to load shared library!
+		boost::format exMsg = boost::format("Failed to load library '%s', error: '%s'.") % modulePath.string() % dlerror();
+		throw std::runtime_error(exMsg.str());
+	}
+
+	caerModuleInfo (*getInfo)(void) = (caerModuleInfo (*)(void)) dlsym(moduleLibrary, "caerModuleGetInfo");
+	if (getInfo == nullptr) {
+		// Failed to find symbol in shared library!
+		unloadLibrary(moduleLibrary);
+		boost::format exMsg = boost::format("Failed to find symbol in library '%s', error: '%s'.") % modulePath.string() % dlerror();
+		throw std::runtime_error(exMsg.str());
+	}
+#endif
+
+	caerModuleInfo info = (*getInfo)();
+	if (info == nullptr) {
+		unloadLibrary(moduleLibrary);
+		boost::format exMsg = boost::format("Failed to get info from library '%s'.") % modulePath.string();
+		throw std::runtime_error(exMsg.str());
+	}
+
+	return (std::pair<ModuleLibrary, caerModuleInfo>(moduleLibrary, info));
+}
+
+static void updateModulesInformation() {
+	// Search for available modules. Will be loaded as needed later.
+	// Initialize with default search directory.
+	sshsNode modulesNode = sshsGetNode(sshsGetGlobal(), "/caer/modules/");
+
+	boost::filesystem::path modulesSearchDir = boost::filesystem::current_path();
+	modulesSearchDir.append("modules/");
+
+	sshsNodeCreate(modulesNode, "modulesSearchPath", modulesSearchDir.string(), 2, PATH_MAX, SSHS_FLAGS_NORMAL,
+		"Directories to search loadable modules in, separated by ':'.");
+
+	// Now get actual search directory.
+	const std::string modulesSearchPath = sshsNodeGetStdString(modulesNode, "modulesSearchPath");
+
+	const std::regex moduleRegex("\\w+\\.(so|dll|dylib)");
+
+	std::for_each(boost::filesystem::recursive_directory_iterator(modulesSearchPath),
+		boost::filesystem::recursive_directory_iterator(),
+		[&moduleRegex](const boost::filesystem::directory_entry &e) {
+			if (boost::filesystem::exists(e.path()) && boost::filesystem::is_regular_file(e.path()) && std::regex_match(e.path().filename().string(), moduleRegex)) {
+				modulePaths.push_back(e.path());
+			}
+		});
+
+	// Sort and unique.
+	vectorSortUnique(modulePaths);
+
+	// No modules, cannot start!
+	if (modulePaths.empty()) {
+		boost::format logMsg = boost::format("Failed to find any modules on path '%s'.") % modulesSearchPath;
+		log(logLevel::CRITICAL, "Mainloop", logMsg.str().c_str());
+		return;
+	}
+
+	// Got all available modules, expose them as list.
+	std::string modulesList;
+	for (const auto &modulePath : modulePaths) {
+		modulesList += modulePath.stem().string() + ",";
+	}
+	modulesList.pop_back(); // Remove trailing comma.
+
+	sshsNodeCreate(modulesNode, "modulesListOptions", modulesList, 1, 10000, SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE,
+		"List of loadable modules.");
 }
 
 void caerMainloopRun(void) {
@@ -301,48 +416,8 @@ void caerMainloopRun(void) {
 	signal(SIGPIPE, SIG_IGN);
 #endif
 
-	// Search for available modules. Will be loaded as needed later.
-	// Initialize with default search directory.
-	sshsNode moduleSearchNode = sshsGetNode(sshsGetGlobal(), "/caer/modules/");
-
-	boost::filesystem::path moduleSearchDir = boost::filesystem::current_path();
-	moduleSearchDir.append("modules/");
-
-	sshsNodeCreateString(moduleSearchNode, "moduleSearchPath", moduleSearchDir.generic_string().c_str(), 2, PATH_MAX,
-		SSHS_FLAGS_NORMAL, "Directory to search in for loadable modules.");
-
-	// Now get actual search directory.
-	char *moduleSearchPathC = sshsNodeGetString(moduleSearchNode, "moduleSearchPath");
-	const std::string moduleSearchPath = moduleSearchPathC;
-	free(moduleSearchPathC);
-
-	const std::regex moduleRegex("\\w+\\.(so|dll|dylib)");
-
-	std::for_each(boost::filesystem::recursive_directory_iterator(moduleSearchPath),
-		boost::filesystem::recursive_directory_iterator(),
-		[&moduleRegex](const boost::filesystem::directory_entry &e) {
-			if (boost::filesystem::exists(e.path()) && boost::filesystem::is_regular_file(e.path()) && std::regex_match(e.path().filename().string(), moduleRegex)) {
-				modulePaths.push_back(e.path());
-			}
-		});
-
-	// Sort and unique.
-	vectorSortUnique(modulePaths);
-
-	// No modules, cannot start!
-	if (modulePaths.empty()) {
-		log(logLevel::CRITICAL, "Mainloop", "Failed to find any modules on path '%s'.", moduleSearchPath.c_str());
-		return;
-	}
-
-	// Got all available modules, expose them as list.
-	std::string modulesList;
-	for (const auto &modulePath : modulePaths) {
-		modulesList += modulePath.stem().string() + ",";
-	}
-	modulesList.pop_back(); // Remove trailing comma.
-	sshsNodeCreateString(moduleSearchNode, "modulesListOptions", modulesList.c_str(), 1, 10000,
-		SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE, "List of loadable modules.");
+	// Get information on available modules, put it into SSHS.
+	updateModulesInformation();
 
 	// No data at start-up.
 	glMainloopData.dataAvailable.store(0);
@@ -1630,101 +1705,41 @@ static int caerMainloopRunner() {
 
 	// Let's load the module libraries and get their internal info.
 	for (auto &m : glMainloopData.modules) {
-		// For each module, we search if a path exists to load it from.
-		// If yes, we do so. The various OS's shared library load mechanisms
-		// will keep track of reference count if same module is loaded
-		// multiple times.
-		boost::filesystem::path modulePath;
+		std::pair<ModuleLibrary, caerModuleInfo> mLoad;
 
-		for (const auto &p : modulePaths) {
-			if (m.second.library == p.stem().string()) {
-				// Found a module with same name!
-				modulePath = p;
-			}
-		}
-
-		if (modulePath.empty()) {
-			log(logLevel::ERROR, "Mainloop", "Module '%s': No module library '%s' found.", m.second.name.c_str(),
-				m.second.library.c_str());
-			continue;
-		}
-
-		log(logLevel::NOTICE, "Mainloop", "Module '%s': Loading module library '%s'.", m.second.name.c_str(),
-			modulePath.c_str());
-
-#if BOOST_HAS_DLL_LOAD
-		ModuleLibrary moduleLibrary;
 		try {
-			moduleLibrary.load(modulePath.c_str(), boost::dll::load_mode::rtld_now);
+			mLoad = loadModule(m.second.library);
 		}
 		catch (const std::exception &ex) {
-			// Failed to load shared library!
-			log(logLevel::ERROR, "Mainloop", "Module '%s': Failed to load library '%s', error: '%s'.",
-				m.second.name.c_str(), modulePath.c_str(), ex.what());
-			continue;
-		}
-
-		caerModuleInfo (*getInfo)(void);
-		try {
-			getInfo = moduleLibrary.get<caerModuleInfo(void)>("caerModuleGetInfo");
-		}
-		catch (const std::exception &ex) {
-			// Failed to find symbol in shared library!
-			log(logLevel::ERROR, "Mainloop", "Module '%s': Failed to find symbol in library '%s', error: '%s'.",
-				m.second.name.c_str(), modulePath.c_str(), ex.what());
-			unloadLibrary(moduleLibrary);
-			continue;
-		}
-#else
-		void *moduleLibrary = dlopen(modulePath.c_str(), RTLD_NOW);
-		if (moduleLibrary == nullptr) {
-			// Failed to load shared library!
-			log(logLevel::ERROR, "Mainloop", "Module '%s': Failed to load library '%s', error: '%s'.",
-				m.second.name.c_str(), modulePath.c_str(), dlerror());
-			continue;
-		}
-
-		caerModuleInfo (*getInfo)(void) = (caerModuleInfo (*)(void)) dlsym(moduleLibrary, "caerModuleGetInfo");
-		if (getInfo == nullptr) {
-			// Failed to find symbol in shared library!
-			log(logLevel::ERROR, "Mainloop", "Module '%s': Failed to find symbol in library '%s', error: '%s'.",
-				m.second.name.c_str(), modulePath.c_str(), dlerror());
-			unloadLibrary(moduleLibrary);
-			continue;
-		}
-#endif
-
-		caerModuleInfo info = (*getInfo)();
-		if (info == nullptr) {
-			log(logLevel::ERROR, "Mainloop", "Module '%s': Failed to get info from library '%s'.",
-				m.second.name.c_str(), modulePath.c_str());
-			unloadLibrary(moduleLibrary);
+			boost::format exMsg = boost::format("Module '%s': %s") % m.second.name % ex.what();
+			log(logLevel::ERROR, "Mainloop", exMsg.str().c_str());
 			continue;
 		}
 
 		try {
 			// Check that the modules respect the basic I/O definition requirements.
-			checkInputOutputStreamDefinitions(info);
+			checkInputOutputStreamDefinitions(mLoad.second);
 
 			// Check I/O event stream definitions for correctness.
-			if (info->inputStreams != nullptr) {
-				checkInputStreamDefinitions(info->inputStreams, info->inputStreamsSize);
+			if (mLoad.second->inputStreams != nullptr) {
+				checkInputStreamDefinitions(mLoad.second->inputStreams, mLoad.second->inputStreamsSize);
 			}
 
-			if (info->outputStreams != nullptr) {
-				checkOutputStreamDefinitions(info->outputStreams, info->outputStreamsSize);
+			if (mLoad.second->outputStreams != nullptr) {
+				checkOutputStreamDefinitions(mLoad.second->outputStreams, mLoad.second->outputStreamsSize);
 			}
 
-			checkModuleInputOutput(info, m.second.configNode);
+			checkModuleInputOutput(mLoad.second, m.second.configNode);
 		}
-		catch (const std::logic_error &ex) {
-			log(logLevel::ERROR, "Mainloop", "Module '%s': %s", m.second.name.c_str(), ex.what());
-			unloadLibrary(moduleLibrary);
+		catch (const std::exception &ex) {
+			unloadLibrary(mLoad.first);
+			boost::format exMsg = boost::format("Module '%s': %s") % m.second.name % ex.what();
+			log(logLevel::ERROR, "Mainloop", exMsg.str().c_str());
 			continue;
 		}
 
-		m.second.libraryHandle = moduleLibrary;
-		m.second.libraryInfo = info;
+		m.second.libraryHandle = mLoad.first;
+		m.second.libraryInfo = mLoad.second;
 	}
 
 	// If any modules failed to load, exit program now. We didn't do that before, so that we
