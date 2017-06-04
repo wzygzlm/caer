@@ -584,6 +584,23 @@ void sshsNodeRemoveAllAttributes(sshsNode node) {
 	mtx_unlock(&node->node_lock);
 }
 
+void sshsNodeClearSubTree(sshsNode startNode, bool clearStartNode) {
+	// Clear this node's attributes, if requested.
+	if (clearStartNode) {
+		sshsNodeRemoveAllAttributes(startNode);
+	}
+
+	// Recurse down children and remove all attributes.
+	size_t numChildren;
+	sshsNode *children = sshsNodeGetChildren(startNode, &numChildren);
+
+	for (size_t i = 0; i < numChildren; i++) {
+		sshsNodeClearSubTree(children[i], true);
+	}
+
+	free(children);
+}
+
 bool sshsNodeAttributeExists(sshsNode node, const char *key, enum sshs_node_attr_value_type type) {
 	sshsNodeAttr attr = sshsNodeFindAttribute(node, key, type);
 

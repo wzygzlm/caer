@@ -106,6 +106,7 @@ void sshsNodeCreateAttribute(sshsNode node, const char *key, enum sshs_node_attr
 	enum sshs_node_attr_flags flags, const char *description) CAER_SYMBOL_EXPORT;
 void sshsNodeRemoveAttribute(sshsNode node, const char *key, enum sshs_node_attr_value_type type) CAER_SYMBOL_EXPORT;
 void sshsNodeRemoveAllAttributes(sshsNode node) CAER_SYMBOL_EXPORT;
+void sshsNodeClearSubTree(sshsNode startNode, bool clearStartNode) CAER_SYMBOL_EXPORT;
 bool sshsNodeAttributeExists(sshsNode node, const char *key, enum sshs_node_attr_value_type type) CAER_SYMBOL_EXPORT;
 bool sshsNodePutAttribute(sshsNode node, const char *key, enum sshs_node_attr_value_type type,
 	union sshs_node_attr_value value) CAER_SYMBOL_EXPORT;

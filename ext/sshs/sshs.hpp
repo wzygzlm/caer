@@ -94,6 +94,13 @@ inline std::string sshsNodeGetStdString(sshsNode node, const char *key) {
 	return (cppStr);
 }
 
+// Additional updater for std::string.
+inline void sshsNodeUpdateReadOnlyAttribute(sshsNode node, const char *key, const std::string &value) {
+	union sshs_node_attr_value newValue;
+	newValue.string = const_cast<char *>(value.c_str());
+	sshsNodeUpdateReadOnlyAttribute(node, key, SSHS_STRING, newValue);
+}
+
 // std::string variants of node getters.
 inline bool sshsExistsNode(sshs st, const std::string &nodePath) {
 	return (sshsExistsNode(st, nodePath.c_str()));
