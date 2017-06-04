@@ -94,4 +94,21 @@ inline std::string sshsNodeGetStdString(sshsNode node, const char *key) {
 	return (cppStr);
 }
 
+// std::string variants of node getters.
+inline bool sshsExistsNode(sshs st, const std::string &nodePath) {
+	return (sshsExistsNode(st, nodePath.c_str()));
+}
+
+inline sshsNode sshsGetNode(sshs st, const std::string &nodePath) {
+	return (sshsGetNode(st, nodePath.c_str()));
+}
+
+inline bool sshsExistsRelativeNode(sshsNode node, const std::string &nodePath) {
+	return (sshsExistsRelativeNode(node, nodePath.c_str()));
+}
+
+inline sshsNode sshsGetRelativeNode(sshsNode node, const std::string &nodePath) {
+	return (sshsGetRelativeNode(node, nodePath.c_str()));
+}
+
 #endif /* SSHS_HPP_ */
