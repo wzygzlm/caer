@@ -320,15 +320,20 @@ static std::pair<ModuleLibrary, caerModuleInfo> loadModule(const std::string &mo
 }
 
 static void updateModulesInformation() {
-	// Search for available modules. Will be loaded as needed later.
-	// Initialize with default search directory.
 	sshsNode modulesNode = sshsGetNode(sshsGetGlobal(), "/caer/modules/");
 
+	// Clear out modules information.
+	sshsNodeClearSubTree(modulesNode, false);
+
+	// Search for available modules. Will be loaded as needed later.
+	// Initialize with default search directory.
 	boost::filesystem::path modulesSearchDir = boost::filesystem::current_path();
 	modulesSearchDir.append("modules/");
 
-	sshsNodeCreate(modulesNode, "modulesSearchPath", modulesSearchDir.string(), 2, PATH_MAX, SSHS_FLAGS_NORMAL,
+	sshsNodeCreate(modulesNode, "modulesSearchPath", modulesSearchDir.string(), 1, 8 * PATH_MAX, SSHS_FLAGS_NORMAL,
 		"Directories to search loadable modules in, separated by ':'.");
+	sshsNodeCreate(modulesNode, "modulesListOptions", "", 0, 10000, SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE,
+		"List of loadable modules.");
 
 	// Now get actual search directories.
 	const std::string modulesSearchPath = sshsNodeGetStdString(modulesNode, "modulesSearchPath");
@@ -365,8 +370,7 @@ static void updateModulesInformation() {
 	}
 	modulesList.pop_back(); // Remove trailing comma.
 
-	sshsNodeCreate(modulesNode, "modulesListOptions", modulesList, 1, 10000, SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE,
-		"List of loadable modules.");
+	sshsNodeUpdateReadOnlyAttribute(modulesNode, "modulesListOptions", modulesList);
 
 	// Now generate nodes for each of them, with their in/out information as attributes.
 	for (const auto &modulePath : modulePaths) {
