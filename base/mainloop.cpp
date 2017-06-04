@@ -354,9 +354,8 @@ static void updateModulesInformation() {
 
 	// No modules, cannot start!
 	if (modulePaths.empty()) {
-		boost::format logMsg = boost::format("Failed to find any modules on path '%s'.") % modulesSearchPath;
-		log(logLevel::CRITICAL, "Mainloop", logMsg.str().c_str());
-		return;
+		boost::format exMsg = boost::format("Failed to find any modules on path '%s'.") % modulesSearchPath;
+		throw std::runtime_error(exMsg.str());
 	}
 
 	// Got all available modules, expose them as list.
@@ -368,6 +367,62 @@ static void updateModulesInformation() {
 
 	sshsNodeCreate(modulesNode, "modulesListOptions", modulesList, 1, 10000, SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE,
 		"List of loadable modules.");
+
+	// Now generate nodes for each of them, with their in/out information as attributes.
+	for (const auto &modulePath : modulePaths) {
+		std::string moduleName = modulePath.stem().string();
+
+		// Load library.
+		std::pair<ModuleLibrary, caerModuleInfo> mLoad;
+
+		try {
+			mLoad = loadModule(moduleName);
+		}
+		catch (const std::exception &ex) {
+			boost::format exMsg = boost::format("Module '%s': %s") % moduleName % ex.what();
+			log(logLevel::ERROR, "Mainloop", exMsg.str().c_str());
+			continue;
+		}
+
+		// Get SSHS node under /caer/modules/.
+		sshsNode moduleNode = sshsGetRelativeNode(modulesNode, moduleName + "/");
+
+		// Parse caerModuleInfo into SSHS.
+		sshsNodeCreate(moduleNode, "version", I32T(mLoad.second->version), 0, INT32_MAX,
+			SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE, "Module version.");
+		sshsNodeCreate(moduleNode, "name", mLoad.second->name, 1, 200, SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE,
+			"Module name.");
+		sshsNodeCreate(moduleNode, "type", mLoad.second->type, 0, INT32_MAX, SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE,
+			"Module type (INPUT, OUTPUT, PROCESSOR).");
+		sshsNodeCreate(moduleNode, "inputStreamsSize", I32T(mLoad.second->inputStreamsSize), 0, INT32_MAX,
+			SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE, "Number of input stream definitions.");
+		sshsNodeCreate(moduleNode, "outputStreamsSize", I32T(mLoad.second->outputStreamsSize), 0, INT32_MAX,
+			SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE, "Number of output stream definitions.");
+
+		for (size_t i = 0; i < mLoad.second->inputStreamsSize; i++) {
+			sshsNode inputStreamNode = sshsGetRelativeNode(moduleNode, std::to_string(i) + "/");
+			caerEventStreamIn inputStream = &mLoad.second->inputStreams[i];
+
+			sshsNodeCreate(inputStreamNode, "type", inputStream->type, I16T(-1), I16T(INT16_MAX),
+				SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE, "Input event type (-1 for any type).");
+			sshsNodeCreate(inputStreamNode, "number", inputStream->number, I16T(-1), I16T(INT16_MAX),
+				SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE, "Number of inputs of this type (-1 for any number).");
+			sshsNodeCreate(inputStreamNode, "readOnly", inputStream->readOnly, SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE,
+				"Whether this input is modified or not.");
+		}
+
+		for (size_t i = 0; i < mLoad.second->outputStreamsSize; i++) {
+			sshsNode outputStreamNode = sshsGetRelativeNode(moduleNode, std::to_string(i) + "/");
+			caerEventStreamOut outputStream = &mLoad.second->outputStreams[i];
+
+			sshsNodeCreate(outputStreamNode, "type", outputStream->type, I16T(-1), I16T(INT16_MAX),
+				SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE,
+				"Output event type (-1 for undefined output determined at runtime).");
+		}
+
+		// Done, unload library.
+		unloadLibrary(mLoad.first);
+	}
 }
 
 void caerMainloopRun(void) {
@@ -424,7 +479,13 @@ void caerMainloopRun(void) {
 #endif
 
 	// Get information on available modules, put it into SSHS.
-	updateModulesInformation();
+	try {
+		updateModulesInformation();
+	}
+	catch (const std::exception &ex) {
+		log(logLevel::CRITICAL, "Mainloop", ex.what());
+		return;
+	}
 
 	// No data at start-up.
 	glMainloopData.dataAvailable.store(0);
