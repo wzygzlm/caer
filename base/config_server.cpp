@@ -720,6 +720,7 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 			std::unique_lock<std::shared_timed_mutex> lock(glConfigServerData.operationsSharedMutex);
 
 			// TODO: implement.
+			caerConfigSendError(client, "Not implemented yet.");
 
 			break;
 		}
@@ -728,6 +729,7 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 			std::unique_lock<std::shared_timed_mutex> lock(glConfigServerData.operationsSharedMutex);
 
 			// TODO: implement.
+			caerConfigSendError(client, "Not implemented yet.");
 
 			break;
 		}
