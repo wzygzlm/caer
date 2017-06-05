@@ -14,6 +14,7 @@
 #include <iostream>
 #include <chrono>
 #include <thread>
+#include <mutex>
 
 #include <boost/filesystem.hpp>
 #include <boost/range/join.hpp>
@@ -205,6 +206,7 @@ struct ActiveStreams {
 
 static struct {
 	std::vector<boost::filesystem::path> modulePaths;
+	std::recursive_mutex modulePathsMutex;
 	sshsNode configNode;
 	atomic_bool systemRunning;
 	atomic_bool running;
@@ -256,10 +258,14 @@ static std::pair<ModuleLibrary, caerModuleInfo> loadModule(const std::string &mo
 	// multiple times.
 	boost::filesystem::path modulePath;
 
-	for (const auto &p : glMainloopData.modulePaths) {
-		if (moduleName == p.stem().string()) {
-			// Found a module with same name!
-			modulePath = p;
+	{
+		std::lock_guard<std::recursive_mutex> lock(glMainloopData.modulePathsMutex);
+
+		for (const auto &p : glMainloopData.modulePaths) {
+			if (moduleName == p.stem().string()) {
+				// Found a module with same name!
+				modulePath = p;
+			}
 		}
 	}
 
@@ -319,6 +325,8 @@ static std::pair<ModuleLibrary, caerModuleInfo> loadModule(const std::string &mo
 }
 
 static void updateModulesInformation() {
+	std::lock_guard<std::recursive_mutex> lock(glMainloopData.modulePathsMutex);
+
 	sshsNode modulesNode = sshsGetNode(sshsGetGlobal(), "/caer/modules/");
 
 	// Clear out modules information.
