@@ -323,6 +323,7 @@ static void updateModulesInformation() {
 
 	// Clear out modules information.
 	sshsNodeClearSubTree(modulesNode, false);
+	glMainloopData.modulePaths.clear();
 
 	// Search for available modules. Will be loaded as needed later.
 	// Initialize with default search directory.
