@@ -9,6 +9,7 @@
 
 #include <boost/asio.hpp>
 #include <boost/format.hpp>
+#include <boost/algorithm/string.hpp>
 
 #include <libcaercpp/libcaer.hpp>
 using namespace libcaer::log;
@@ -723,6 +724,7 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 			const std::string moduleName((const char *) node);
 			const std::string moduleLibrary((const char *) key);
 
+			// Check module name.
 			if (moduleName == "caer") {
 				caerConfigSendError(client, "Name is reserved for system use.");
 				break;
@@ -733,8 +735,55 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 				break;
 			}
 
-			// TODO: implement.
-			caerConfigSendError(client, "Not implemented yet.");
+			// Check module library.
+			sshsNode modulesSysNode = sshsGetNode(configStore, "/caer/modules/");
+			const std::string modulesListOptions = sshsNodeGetStdString(modulesSysNode, "modulesListOptions");
+
+			std::vector<std::string> modulesList;
+			boost::algorithm::split(modulesList, modulesListOptions, boost::is_any_of(","));
+
+			if (!findBool(modulesList.begin(), modulesList.end(), moduleLibrary)) {
+				caerConfigSendError(client, "Library does not exist.");
+				break;
+			}
+
+			// Name and library are fine, let's determine the next free ID.
+			size_t rootNodesSize;
+			sshsNode *rootNodes = sshsNodeGetChildren(sshsGetNode(configStore, "/"), &rootNodesSize);
+
+			std::vector<int16_t> usedModuleIDs;
+
+			for (size_t i = 0; i < rootNodesSize; i++) {
+				sshsNode mNode = rootNodes[i];
+
+				if (!sshsNodeAttributeExists(mNode, "moduleId", SSHS_SHORT)) {
+					continue;
+				}
+
+				int16_t moduleID = sshsNodeGetShort(mNode, "moduleId");
+				usedModuleIDs.push_back(moduleID);
+			}
+
+			vectorSortUnique(usedModuleIDs);
+
+			size_t idx = 0;
+			int16_t nextFreeModuleID = 1;
+
+			while (idx < usedModuleIDs.size() && usedModuleIDs[idx] == nextFreeModuleID) {
+				idx++;
+				nextFreeModuleID++;
+			}
+
+			// Let's create the needed configuration for the new module.
+			sshsNode newModuleNode = sshsGetNode(configStore, "/" + moduleName + "/");
+
+			sshsNodeCreate(newModuleNode, "moduleId", nextFreeModuleID, I16T(1), I16T(INT16_MAX), SSHS_FLAGS_READ_ONLY,
+				"Module ID.");
+			sshsNodeCreate(newModuleNode, "moduleLibrary", moduleLibrary, 1, PATH_MAX, SSHS_FLAGS_READ_ONLY,
+				"Module library.");
+
+			// Send back confirmation to the client.
+			caerConfigSendBoolResponse(client, CAER_CONFIG_ADD_MODULE, true);
 
 			break;
 		}
@@ -745,6 +794,7 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 			// Node is the module name.
 			const std::string moduleName((const char *) node);
 
+			// Check module name.
 			if (moduleName == "caer") {
 				caerConfigSendError(client, "Name is reserved for system use.");
 				break;
@@ -755,8 +805,11 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 				break;
 			}
 
-			// TODO: implement.
-			caerConfigSendError(client, "Not implemented yet.");
+			// Remove all attributes of the module node and its children.
+			sshsNodeClearSubTree(sshsGetNode(configStore, "/" + moduleName + "/"), true);
+
+			// Send back confirmation to the client.
+			caerConfigSendBoolResponse(client, CAER_CONFIG_REMOVE_MODULE, true);
 
 			break;
 		}
