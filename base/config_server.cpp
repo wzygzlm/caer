@@ -719,6 +719,20 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 		case CAER_CONFIG_ADD_MODULE: {
 			std::unique_lock<std::shared_timed_mutex> lock(glConfigServerData.operationsSharedMutex);
 
+			// Node is the module name, key the library.
+			const std::string moduleName((const char *) node);
+			const std::string moduleLibrary((const char *) key);
+
+			if (moduleName == "caer") {
+				caerConfigSendError(client, "Name is reserved for system use.");
+				break;
+			}
+
+			if (sshsExistsNode(configStore, "/" + moduleName + "/")) {
+				caerConfigSendError(client, "Name is already in use.");
+				break;
+			}
+
 			// TODO: implement.
 			caerConfigSendError(client, "Not implemented yet.");
 
@@ -727,6 +741,19 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 
 		case CAER_CONFIG_REMOVE_MODULE: {
 			std::unique_lock<std::shared_timed_mutex> lock(glConfigServerData.operationsSharedMutex);
+
+			// Node is the module name.
+			const std::string moduleName((const char *) node);
+
+			if (moduleName == "caer") {
+				caerConfigSendError(client, "Name is reserved for system use.");
+				break;
+			}
+
+			if (!sshsExistsNode(configStore, "/" + moduleName + "/")) {
+				caerConfigSendError(client, "Name is not in use.");
+				break;
+			}
 
 			// TODO: implement.
 			caerConfigSendError(client, "Not implemented yet.");
