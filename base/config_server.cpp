@@ -1,11 +1,14 @@
 #include "config_server.h"
+#include "mainloop.h"
 #include "ext/threads_ext.h"
 
 #include <atomic>
 #include <thread>
+#include <mutex>
+#include <shared_mutex>
+
 #include <boost/asio.hpp>
 #include <boost/format.hpp>
-#include "ext/sshs/sshs.hpp"
 
 #include <libcaercpp/libcaer.hpp>
 using namespace libcaer::log;
@@ -185,7 +188,10 @@ private:
 	}
 };
 
-static std::unique_ptr<ConfigServer> cfg;
+static struct {
+	std::unique_ptr<ConfigServer> server;
+	std::shared_timed_mutex operationsSharedMutex;
+} glConfigServerData;
 
 void caerConfigServerStart(void) {
 	// Get the right configuration node first.
@@ -199,7 +205,7 @@ void caerConfigServerStart(void) {
 
 	// Start the thread.
 	try {
-		cfg = std::make_unique<ConfigServer>(
+		glConfigServerData.server = std::make_unique<ConfigServer>(
 			asioIP::address::from_string(sshsNodeGetStdString(serverNode, "ipAddress")),
 			sshsNodeGetInt(serverNode, "portNumber"));
 	}
@@ -215,7 +221,7 @@ void caerConfigServerStart(void) {
 
 void caerConfigServerStop(void) {
 	try {
-		cfg->stop();
+		glConfigServerData.server->stop();
 	}
 	catch (const std::system_error &ex) {
 		// Failed to join thread.
@@ -297,8 +303,6 @@ static inline bool checkAttributeExists(sshsNode wantedNode, const char *key, en
 	return (attrExists);
 }
 
-// TODO: don't allow concurrent write requests (PUT, ADD_MODULE, REMOVE_MODULE).
-// Easy to do with a RW-lock over all operations.
 static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection> client, uint8_t action, uint8_t type,
 	const uint8_t *extra, size_t extraLength, const uint8_t *node, size_t nodeLength, const uint8_t *key,
 	size_t keyLength, const uint8_t *value, size_t valueLength) {
@@ -313,6 +317,8 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 
 	switch (action) {
 		case CAER_CONFIG_NODE_EXISTS: {
+			std::shared_lock<std::shared_timed_mutex> lock(glConfigServerData.operationsSharedMutex);
+
 			// We only need the node name here. Type is not used (ignored)!
 			bool result = sshsExistsNode(configStore, (const char *) node);
 
@@ -325,6 +331,8 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 		}
 
 		case CAER_CONFIG_ATTR_EXISTS: {
+			std::shared_lock<std::shared_timed_mutex> lock(glConfigServerData.operationsSharedMutex);
+
 			if (!checkNodeExists(configStore, (const char *) node, client)) {
 				break;
 			}
@@ -345,6 +353,8 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 		}
 
 		case CAER_CONFIG_GET: {
+			std::shared_lock<std::shared_timed_mutex> lock(glConfigServerData.operationsSharedMutex);
+
 			if (!checkNodeExists(configStore, (const char *) node, client)) {
 				break;
 			}
@@ -382,6 +392,8 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 		}
 
 		case CAER_CONFIG_PUT: {
+			std::unique_lock<std::shared_timed_mutex> lock(glConfigServerData.operationsSharedMutex);
+
 			if (!checkNodeExists(configStore, (const char *) node, client)) {
 				break;
 			}
@@ -421,6 +433,8 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 		}
 
 		case CAER_CONFIG_GET_CHILDREN: {
+			std::shared_lock<std::shared_timed_mutex> lock(glConfigServerData.operationsSharedMutex);
+
 			if (!checkNodeExists(configStore, (const char *) node, client)) {
 				break;
 			}
@@ -466,6 +480,8 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 		}
 
 		case CAER_CONFIG_GET_ATTRIBUTES: {
+			std::shared_lock<std::shared_timed_mutex> lock(glConfigServerData.operationsSharedMutex);
+
 			if (!checkNodeExists(configStore, (const char *) node, client)) {
 				break;
 			}
@@ -511,6 +527,8 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 		}
 
 		case CAER_CONFIG_GET_TYPES: {
+			std::shared_lock<std::shared_timed_mutex> lock(glConfigServerData.operationsSharedMutex);
+
 			if (!checkNodeExists(configStore, (const char *) node, client)) {
 				break;
 			}
@@ -559,6 +577,8 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 		}
 
 		case CAER_CONFIG_GET_RANGE_MIN: {
+			std::shared_lock<std::shared_timed_mutex> lock(glConfigServerData.operationsSharedMutex);
+
 			if (!checkNodeExists(configStore, (const char *) node, client)) {
 				break;
 			}
@@ -596,6 +616,8 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 		}
 
 		case CAER_CONFIG_GET_RANGE_MAX: {
+			std::shared_lock<std::shared_timed_mutex> lock(glConfigServerData.operationsSharedMutex);
+
 			if (!checkNodeExists(configStore, (const char *) node, client)) {
 				break;
 			}
@@ -633,6 +655,8 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 		}
 
 		case CAER_CONFIG_GET_FLAGS: {
+			std::shared_lock<std::shared_timed_mutex> lock(glConfigServerData.operationsSharedMutex);
+
 			if (!checkNodeExists(configStore, (const char *) node, client)) {
 				break;
 			}
@@ -666,6 +690,8 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 		}
 
 		case CAER_CONFIG_GET_DESCRIPTION: {
+			std::shared_lock<std::shared_timed_mutex> lock(glConfigServerData.operationsSharedMutex);
+
 			if (!checkNodeExists(configStore, (const char *) node, client)) {
 				break;
 			}
@@ -687,12 +713,26 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 		}
 
 		case CAER_CONFIG_ADD_MODULE: {
+			std::unique_lock<std::shared_timed_mutex> lock(glConfigServerData.operationsSharedMutex);
+
 			// TODO: implement.
+
 			break;
 		}
 
 		case CAER_CONFIG_REMOVE_MODULE: {
+			std::unique_lock<std::shared_timed_mutex> lock(glConfigServerData.operationsSharedMutex);
+
 			// TODO: implement.
+
+			break;
+		}
+
+		case CAER_CONFIG_UPDATE_MODULES_INFO: {
+			std::unique_lock<std::shared_timed_mutex> lock(glConfigServerData.operationsSharedMutex);
+
+			updateModulesInformation();
+
 			break;
 		}
 

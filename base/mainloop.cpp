@@ -324,7 +324,7 @@ static std::pair<ModuleLibrary, caerModuleInfo> loadModule(const std::string &mo
 	return (std::pair<ModuleLibrary, caerModuleInfo>(moduleLibrary, info));
 }
 
-static void updateModulesInformation() {
+void updateModulesInformation(void) {
 	std::lock_guard<std::recursive_mutex> lock(glMainloopData.modulePathsMutex);
 
 	sshsNode modulesNode = sshsGetNode(sshsGetGlobal(), "/caer/modules/");
