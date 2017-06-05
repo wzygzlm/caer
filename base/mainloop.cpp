@@ -480,15 +480,6 @@ void caerMainloopRun(void) {
 	signal(SIGPIPE, SIG_IGN);
 #endif
 
-	// Get information on available modules, put it into SSHS.
-	try {
-		updateModulesInformation();
-	}
-	catch (const std::exception &ex) {
-		log(logLevel::CRITICAL, "Mainloop", ex.what());
-		return;
-	}
-
 	// No data at start-up.
 	glMainloopData.dataAvailable.store(0);
 
@@ -512,6 +503,19 @@ void caerMainloopRun(void) {
 			continue;
 		}
 
+		// Get information on available modules, put it into SSHS.
+		try {
+			updateModulesInformation();
+		}
+		catch (const std::exception &ex) {
+			sshsNodePutBool(glMainloopData.configNode, "running", false);
+
+			log(logLevel::CRITICAL, "Mainloop",
+				"Failed to find any modules (error: '%s'), please fix the configuration and try again!", ex.what());
+			continue;
+		}
+
+		// Run mainloop.
 		int result = caerMainloopRunner();
 
 		// On failure, make sure to disable mainloop, user will have to fix it.
@@ -1708,7 +1712,8 @@ static void cleanupGlobals() {
 
 	glMainloopData.copyCount = 0;
 
-	std::for_each(glMainloopData.eventPackets.begin(), glMainloopData.eventPackets.end(), [](caerEventPacketHeader p) { free(p); });
+	std::for_each(glMainloopData.eventPackets.begin(), glMainloopData.eventPackets.end(),
+		[](caerEventPacketHeader p) {free(p);});
 	glMainloopData.eventPackets.clear();
 }
 
@@ -2126,6 +2131,7 @@ static int caerMainloopRunner() {
 			sleepCount = 0;
 
 			runModules(inputContainer);
+			// TODO: handle exceptions here.
 		}
 		else {
 			sleepCount++;
