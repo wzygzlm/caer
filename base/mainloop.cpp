@@ -3,12 +3,9 @@
 #include <climits>
 #include <unistd.h>
 
-#include <string>
 #include <regex>
-#include <algorithm>
 #include <unordered_map>
 #include <unordered_set>
-#include <vector>
 #include <queue>
 #include <sstream>
 #include <iostream>
@@ -226,30 +223,6 @@ static void caerMainloopSystemRunningListener(sshsNode node, void *userData, enu
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
 static void caerMainloopRunningListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
-
-template<class T>
-static void vectorSortUnique(std::vector<T> &vec) {
-	std::sort(vec.begin(), vec.end());
-	vec.erase(std::unique(vec.begin(), vec.end()), vec.end());
-}
-
-template<class T>
-static bool vectorDetectDuplicates(std::vector<T> &vec) {
-	// Detect duplicates.
-	size_t sizeBefore = vec.size();
-
-	vectorSortUnique(vec);
-
-	size_t sizeAfter = vec.size();
-
-	// If size changed, duplicates must have been removed, so they existed
-	// in the first place!
-	if (sizeAfter != sizeBefore) {
-		return (true);
-	}
-
-	return (false);
-}
 
 static std::pair<ModuleLibrary, caerModuleInfo> loadModule(const std::string &moduleName) {
 	// For each module, we search if a path exists to load it from.
@@ -1029,9 +1002,7 @@ static void parseEventStreamOutDefinition(caerEventStreamOut eventStreams, size_
  * there is a cycle. Cycles are not allowed and will result in an exception!
  */
 static void checkForActiveStreamCycles(ActiveStreams &stream) {
-	const auto foundSourceID = std::find(stream.users.begin(), stream.users.end(), stream.sourceId);
-
-	if (foundSourceID != stream.users.end()) {
+	if (findBool(stream.users.begin(), stream.users.end(), stream.sourceId)) {
 		// SourceId found inside users vector!
 		throw std::domain_error(
 			boost::str(
@@ -1438,17 +1409,17 @@ static bool isOutputBeingUsed(int16_t sourceId, int16_t typeId, int16_t afterMod
 	// Now search in the remaining modules if any need the exact
 	// same data (sourceId, typeId, afterModuleId) that the
 	// current module does. If yes, it will have to be copied.
-	const auto nextUser = std::find_if(currUser, streamUsers->users.end(),
+	bool userFound = findIfBool(currUser, streamUsers->users.end(),
 		[sourceId, typeId, afterModuleId](const int16_t userId) {
 			const auto &nextUserInputDef = glMainloopData.modules[userId].inputDefinition[sourceId];
 
-			return (std::find_if(nextUserInputDef.begin(), nextUserInputDef.end(),
+			return (findIfBool(nextUserInputDef.begin(), nextUserInputDef.end(),
 					[typeId, afterModuleId](const OrderedInput &nextUserOrderIn) {
 						return (nextUserOrderIn.typeId ==typeId && nextUserOrderIn.afterModuleId == afterModuleId);
-					}) != nextUserInputDef.end());
+					}));
 		});
 
-	return (nextUser != streamUsers->users.end());
+	return (userFound);
 }
 
 static void buildConnectivity() {
@@ -1933,11 +1904,11 @@ static int caerMainloopRunner() {
 		for (const auto &m : inputModules) {
 			int16_t id = m.get().id;
 
-			const auto iter = std::find_if(glMainloopData.streams.begin(), glMainloopData.streams.end(),
+			bool streamFound = findIfBool(glMainloopData.streams.begin(), glMainloopData.streams.end(),
 				[id](const ActiveStreams &st) {return (st.sourceId == id);});
 
 			// No stream found for source ID corresponding to this module's ID.
-			if (iter == glMainloopData.streams.end()) {
+			if (!streamFound) {
 				boost::format exMsg = boost::format(
 					"Module '%s': INPUT module is not connected to anything and will not be used.") % m.get().name;
 				throw std::domain_error(exMsg.str());
@@ -1961,10 +1932,10 @@ static int caerMainloopRunner() {
 						// we check if we can find that ID inside of the stream's
 						// users. If yes, then that's a valid tap point and we're
 						// good; if no, this is a user configuration error.
-						const auto iter = std::find_if(st.users.begin(), st.users.end(),
+						bool afterModuleIdFound = findIfBool(st.users.begin(), st.users.end(),
 							[&order](int16_t moduleId) {return (order.afterModuleId == moduleId);});
 
-						if (iter == st.users.end()) {
+						if (!afterModuleIdFound) {
 							boost::format exMsg =
 								boost::format(
 									"Module '%s': found invalid afterModuleID declaration of '%d' for stream (%d, %d); referenced module is not part of stream.")
@@ -2227,8 +2198,7 @@ bool caerMainloopModuleIsType(int16_t id, enum caer_module_type type) {
 }
 
 bool caerMainloopStreamExists(int16_t sourceId, int16_t typeId) {
-	return (std::find(glMainloopData.streams.begin(), glMainloopData.streams.end(), ActiveStreams(sourceId, typeId))
-		!= glMainloopData.streams.end());
+	return (findBool(glMainloopData.streams.begin(), glMainloopData.streams.end(), ActiveStreams(sourceId, typeId)));
 }
 
 int16_t *caerMainloopGetModuleInputIDs(int16_t id, size_t *inputsSize) {
