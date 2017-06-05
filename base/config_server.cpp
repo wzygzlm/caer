@@ -303,6 +303,14 @@ static inline bool checkAttributeExists(sshsNode wantedNode, const char *key, en
 	return (attrExists);
 }
 
+static inline void caerConfigSendBoolResponse(std::shared_ptr<ConfigServerConnection> client, uint8_t action,
+	bool result) {
+	// Send back result to client. Format is the same as incoming data.
+	const uint8_t *sendResult = (const uint8_t *) ((result) ? ("true") : ("false"));
+	size_t sendResultLength = (result) ? (5) : (6);
+	caerConfigSendResponse(client, action, SSHS_BOOL, sendResult, sendResultLength);
+}
+
 static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection> client, uint8_t action, uint8_t type,
 	const uint8_t *extra, size_t extraLength, const uint8_t *node, size_t nodeLength, const uint8_t *key,
 	size_t keyLength, const uint8_t *value, size_t valueLength) {
@@ -323,9 +331,7 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 			bool result = sshsExistsNode(configStore, (const char *) node);
 
 			// Send back result to client. Format is the same as incoming data.
-			const uint8_t *sendResult = (const uint8_t *) ((result) ? ("true") : ("false"));
-			size_t sendResultLength = (result) ? (5) : (6);
-			caerConfigSendResponse(client, CAER_CONFIG_NODE_EXISTS, SSHS_BOOL, sendResult, sendResultLength);
+			caerConfigSendBoolResponse(client, CAER_CONFIG_NODE_EXISTS, result);
 
 			break;
 		}
@@ -345,9 +351,7 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 				(enum sshs_node_attr_value_type) type);
 
 			// Send back result to client. Format is the same as incoming data.
-			const uint8_t *sendResult = (const uint8_t *) ((result) ? ("true") : ("false"));
-			size_t sendResultLength = (result) ? (5) : (6);
-			caerConfigSendResponse(client, CAER_CONFIG_ATTR_EXISTS, SSHS_BOOL, sendResult, sendResultLength);
+			caerConfigSendBoolResponse(client, CAER_CONFIG_ATTR_EXISTS, result);
 
 			break;
 		}
@@ -427,7 +431,7 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 			}
 
 			// Send back confirmation to the client.
-			caerConfigSendResponse(client, CAER_CONFIG_PUT, SSHS_BOOL, (const uint8_t *) "true", 5);
+			caerConfigSendBoolResponse(client, CAER_CONFIG_PUT, true);
 
 			break;
 		}
@@ -731,7 +735,17 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 		case CAER_CONFIG_UPDATE_MODULES_INFO: {
 			std::unique_lock<std::shared_timed_mutex> lock(glConfigServerData.operationsSharedMutex);
 
-			updateModulesInformation();
+			// Get information on available modules, put it into SSHS.
+			try {
+				updateModulesInformation();
+			}
+			catch (const std::exception &) {
+				caerConfigSendError(client, "Failed to find any modules.");
+				break;
+			}
+
+			// Send back confirmation to the client.
+			caerConfigSendBoolResponse(client, CAER_CONFIG_UPDATE_MODULES_INFO, true);
 
 			break;
 		}
