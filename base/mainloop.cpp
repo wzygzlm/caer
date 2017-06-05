@@ -204,6 +204,7 @@ struct ActiveStreams {
 };
 
 static struct {
+	std::vector<boost::filesystem::path> modulePaths;
 	sshsNode configNode;
 	atomic_bool systemRunning;
 	atomic_bool running;
@@ -214,8 +215,6 @@ static struct {
 	std::vector<std::reference_wrapper<ModuleInfo>> globalExecution;
 	std::vector<caerEventPacketHeader> eventPackets;
 } glMainloopData;
-
-static std::vector<boost::filesystem::path> modulePaths;
 
 static void unloadLibrary(ModuleLibrary &moduleLibrary);
 static int caerMainloopRunner();
@@ -257,7 +256,7 @@ static std::pair<ModuleLibrary, caerModuleInfo> loadModule(const std::string &mo
 	// multiple times.
 	boost::filesystem::path modulePath;
 
-	for (const auto &p : modulePaths) {
+	for (const auto &p : glMainloopData.modulePaths) {
 		if (moduleName == p.stem().string()) {
 			// Found a module with same name!
 			modulePath = p;
@@ -349,23 +348,23 @@ static void updateModulesInformation() {
 			boost::filesystem::recursive_directory_iterator(),
 			[&moduleRegex](const boost::filesystem::directory_entry &e) {
 				if (boost::filesystem::exists(e.path()) && boost::filesystem::is_regular_file(e.path()) && std::regex_match(e.path().filename().string(), moduleRegex)) {
-					modulePaths.push_back(e.path());
+					glMainloopData.modulePaths.push_back(e.path());
 				}
 			});
 	}
 
 	// Sort and unique.
-	vectorSortUnique(modulePaths);
+	vectorSortUnique(glMainloopData.modulePaths);
 
 	// No modules, cannot start!
-	if (modulePaths.empty()) {
+	if (glMainloopData.modulePaths.empty()) {
 		boost::format exMsg = boost::format("Failed to find any modules on path(s) '%s'.") % modulesSearchPath;
 		throw std::runtime_error(exMsg.str());
 	}
 
 	// Got all available modules, expose them as list.
 	std::string modulesList;
-	for (const auto &modulePath : modulePaths) {
+	for (const auto &modulePath : glMainloopData.modulePaths) {
 		modulesList += modulePath.stem().string() + ",";
 	}
 	modulesList.pop_back(); // Remove trailing comma.
@@ -373,7 +372,7 @@ static void updateModulesInformation() {
 	sshsNodeUpdateReadOnlyAttribute(modulesNode, "modulesListOptions", modulesList);
 
 	// Now generate nodes for each of them, with their in/out information as attributes.
-	for (const auto &modulePath : modulePaths) {
+	for (const auto &modulePath : glMainloopData.modulePaths) {
 		std::string moduleName = modulePath.stem().string();
 
 		// Load library.
