@@ -1707,6 +1707,9 @@ static void cleanupGlobals() {
 	glMainloopData.globalExecution.clear();
 
 	glMainloopData.copyCount = 0;
+
+	std::for_each(glMainloopData.eventPackets.begin(), glMainloopData.eventPackets.end(), [](caerEventPacketHeader p) { free(p); });
+	glMainloopData.eventPackets.clear();
 }
 
 static int caerMainloopRunner() {
