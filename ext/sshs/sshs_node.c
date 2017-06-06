@@ -375,6 +375,15 @@ static bool sshsNodeCheckRange(enum sshs_node_attr_value_type type, union sshs_n
 	}
 }
 
+static inline void sshsNodeFreeAttribute(sshsNodeAttr attr) {
+	// Free attribute's string memory, then attribute itself.
+	if (attr->value_type == SSHS_STRING) {
+		free(attr->value.string);
+	}
+
+	free(attr);
+}
+
 void sshsNodeCreateAttribute(sshsNode node, const char *key, enum sshs_node_attr_value_type type,
 	union sshs_node_attr_value defaultValue, union sshs_node_attr_range minValue, union sshs_node_attr_range maxValue,
 	enum sshs_node_attr_flags flags, const char *description) {
@@ -441,34 +450,43 @@ void sshsNodeCreateAttribute(sshsNode node, const char *key, enum sshs_node_attr
 		// Then we either update the value to the default value, if the
 		// appropriate flag is set, or else we check if the current value
 		// is still fine and within range; if it's not, we replace it.
-		union sshs_node_attr_value attrValueOld = oldAttr->value;
+		bool attrValueUpdate = false;
 
 		if (flags & SSHS_FLAGS_FORCE_DEFAULT_VALUE) {
-			attrValueChanged = true;
-
-			oldAttr->value = newAttr->value;
+			attrValueUpdate = true;
 		}
 		else {
 			// If old value is out of range, replace with new default value.
 			if (!sshsNodeCheckRange(type, oldAttr->value, minValue, maxValue)) {
-				attrValueChanged = true;
+				attrValueUpdate = true;
+			}
+		}
+
+		if (attrValueUpdate) {
+			if (sshsNodeCheckAttributeValueChanged(type, oldAttr->value, newAttr->value)) {
+				// Values really changed, update. Remember to free old string
+				// memory, as well as newAttr itself (but not newAttr.value).
+				if (type == SSHS_STRING) {
+					free(oldAttr->value.string);
+				}
 
 				oldAttr->value = newAttr->value;
+
+				free(newAttr);
+
+				// Signal value change.
+				attrValueChanged = true;
 			}
 			else {
-				// Value still fine, free unused memory (string value).
-				if (type == SSHS_STRING) {
-					free(newAttr->value.string);
-				}
+				// Old and new attribute values are the same, don't update.
+				// Also delete newAttr fully.
+				sshsNodeFreeAttribute(newAttr);
 			}
 		}
-
-		if (attrValueChanged && type == SSHS_STRING) {
-			// Free old string memory.
-			free(attrValueOld.string);
+		else {
+			// Nothing to update, delete newAttr fully.
+			sshsNodeFreeAttribute(newAttr);
 		}
-
-		free(newAttr);
 	}
 
 	if (oldAttr == NULL) {
@@ -527,15 +545,6 @@ static inline void sshsNodeVerifyValidAttribute(sshsNodeAttr attr, const char *k
 		// This is a critical usage error that *must* be fixed!
 		exit(EXIT_FAILURE);
 	}
-}
-
-static inline void sshsNodeFreeAttribute(sshsNodeAttr attr) {
-	// Free attribute's string memory, then attribute itself.
-	if (attr->value_type == SSHS_STRING) {
-		free(attr->value.string);
-	}
-
-	free(attr);
 }
 
 void sshsNodeRemoveAttribute(sshsNode node, const char *key, enum sshs_node_attr_value_type type) {
