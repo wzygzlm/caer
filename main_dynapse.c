@@ -76,6 +76,10 @@
 #include "modules/fpgaspikegen/fpgaspikegen.h"
 #endif
 
+#ifdef ENABLE_POISSONSPIKEGEN
+#include "modules/poissonspikegen/poissonspikegen.h"
+#endif
+
 #ifdef ENABLE_EFFECTIVETRANSFERFUNCTION
 #include "modules/effectivetransferfunction/effectivetransferfunction.h"
 #endif
@@ -161,6 +165,10 @@ static bool mainloop_1(void) {
 
 #ifdef ENABLE_FPGASPIKEGEN
     caerFpgaSpikeGenModule(17, spike);
+#endif
+
+#ifdef ENABLE_POISSONSPIKEGEN
+    caerPoissonSpikeGenModule(18, spike);
 #endif
 
 #ifdef ENABLE_RECURRENTNET
