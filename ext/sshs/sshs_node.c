@@ -845,8 +845,8 @@ void sshsNodeCreateBool(sshsNode node, const char *key, bool defaultValue, enum 
 		(union sshs_node_attr_range ) { .i = -1 }, (union sshs_node_attr_range ) { .i = -1 }, flags, description);
 }
 
-void sshsNodePutBool(sshsNode node, const char *key, bool value) {
-	sshsNodePutAttribute(node, key, SSHS_BOOL, (union sshs_node_attr_value ) { .boolean = value });
+bool sshsNodePutBool(sshsNode node, const char *key, bool value) {
+	return (sshsNodePutAttribute(node, key, SSHS_BOOL, (union sshs_node_attr_value ) { .boolean = value }));
 }
 
 bool sshsNodeGetBool(sshsNode node, const char *key) {
@@ -860,8 +860,8 @@ void sshsNodeCreateByte(sshsNode node, const char *key, int8_t defaultValue, int
 		description);
 }
 
-void sshsNodePutByte(sshsNode node, const char *key, int8_t value) {
-	sshsNodePutAttribute(node, key, SSHS_BYTE, (union sshs_node_attr_value ) { .ibyte = value });
+bool sshsNodePutByte(sshsNode node, const char *key, int8_t value) {
+	return (sshsNodePutAttribute(node, key, SSHS_BYTE, (union sshs_node_attr_value ) { .ibyte = value }));
 }
 
 int8_t sshsNodeGetByte(sshsNode node, const char *key) {
@@ -875,8 +875,8 @@ void sshsNodeCreateShort(sshsNode node, const char *key, int16_t defaultValue, i
 		description);
 }
 
-void sshsNodePutShort(sshsNode node, const char *key, int16_t value) {
-	sshsNodePutAttribute(node, key, SSHS_SHORT, (union sshs_node_attr_value ) { .ishort = value });
+bool sshsNodePutShort(sshsNode node, const char *key, int16_t value) {
+	return (sshsNodePutAttribute(node, key, SSHS_SHORT, (union sshs_node_attr_value ) { .ishort = value }));
 }
 
 int16_t sshsNodeGetShort(sshsNode node, const char *key) {
@@ -890,8 +890,8 @@ void sshsNodeCreateInt(sshsNode node, const char *key, int32_t defaultValue, int
 		description);
 }
 
-void sshsNodePutInt(sshsNode node, const char *key, int32_t value) {
-	sshsNodePutAttribute(node, key, SSHS_INT, (union sshs_node_attr_value ) { .iint = value });
+bool sshsNodePutInt(sshsNode node, const char *key, int32_t value) {
+	return (sshsNodePutAttribute(node, key, SSHS_INT, (union sshs_node_attr_value ) { .iint = value }));
 }
 
 int32_t sshsNodeGetInt(sshsNode node, const char *key) {
@@ -905,8 +905,8 @@ void sshsNodeCreateLong(sshsNode node, const char *key, int64_t defaultValue, in
 		description);
 }
 
-void sshsNodePutLong(sshsNode node, const char *key, int64_t value) {
-	sshsNodePutAttribute(node, key, SSHS_LONG, (union sshs_node_attr_value ) { .ilong = value });
+bool sshsNodePutLong(sshsNode node, const char *key, int64_t value) {
+	return (sshsNodePutAttribute(node, key, SSHS_LONG, (union sshs_node_attr_value ) { .ilong = value }));
 }
 
 int64_t sshsNodeGetLong(sshsNode node, const char *key) {
@@ -920,8 +920,8 @@ void sshsNodeCreateFloat(sshsNode node, const char *key, float defaultValue, flo
 					(double) maxValue }, flags, description);
 }
 
-void sshsNodePutFloat(sshsNode node, const char *key, float value) {
-	sshsNodePutAttribute(node, key, SSHS_FLOAT, (union sshs_node_attr_value ) { .ffloat = value });
+bool sshsNodePutFloat(sshsNode node, const char *key, float value) {
+	return (sshsNodePutAttribute(node, key, SSHS_FLOAT, (union sshs_node_attr_value ) { .ffloat = value }));
 }
 
 float sshsNodeGetFloat(sshsNode node, const char *key) {
@@ -935,8 +935,8 @@ void sshsNodeCreateDouble(sshsNode node, const char *key, double defaultValue, d
 		description);
 }
 
-void sshsNodePutDouble(sshsNode node, const char *key, double value) {
-	sshsNodePutAttribute(node, key, SSHS_DOUBLE, (union sshs_node_attr_value ) { .ddouble = value });
+bool sshsNodePutDouble(sshsNode node, const char *key, double value) {
+	return (sshsNodePutAttribute(node, key, SSHS_DOUBLE, (union sshs_node_attr_value ) { .ddouble = value }));
 }
 
 double sshsNodeGetDouble(sshsNode node, const char *key) {
@@ -950,8 +950,8 @@ void sshsNodeCreateString(sshsNode node, const char *key, const char *defaultVal
 					(int64_t) maxLength }, flags, description);
 }
 
-void sshsNodePutString(sshsNode node, const char *key, const char *value) {
-	sshsNodePutAttribute(node, key, SSHS_STRING, (union sshs_node_attr_value ) { .string = (char *) value });
+bool sshsNodePutString(sshsNode node, const char *key, const char *value) {
+	return (sshsNodePutAttribute(node, key, SSHS_STRING, (union sshs_node_attr_value ) { .string = (char *) value }));
 }
 
 // This is a copy of the string on the heap, remember to free() when done!
