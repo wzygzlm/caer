@@ -223,6 +223,8 @@ static void caerMainloopSystemRunningListener(sshsNode node, void *userData, enu
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
 static void caerMainloopRunningListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
+static void caerModulesUpdateInformation(sshsNode node, void *userData, enum sshs_node_attribute_events event,
+	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
 
 static std::pair<ModuleLibrary, caerModuleInfo> loadModule(const std::string &moduleName) {
 	// For each module, we search if a path exists to load it from.
@@ -255,7 +257,7 @@ static std::pair<ModuleLibrary, caerModuleInfo> loadModule(const std::string &mo
 	catch (const std::exception &ex) {
 		// Failed to load shared library!
 		boost::format exMsg = boost::format("Failed to load library '%s', error: '%s'.") % modulePath.string()
-			% ex.what();
+		% ex.what();
 		throw std::runtime_error(exMsg.str());
 	}
 
@@ -267,14 +269,15 @@ static std::pair<ModuleLibrary, caerModuleInfo> loadModule(const std::string &mo
 		// Failed to find symbol in shared library!
 		unloadLibrary(moduleLibrary);
 		boost::format exMsg = boost::format("Failed to find symbol in library '%s', error: '%s'.") % modulePath.string()
-			% ex.what();
+		% ex.what();
 		throw std::runtime_error(exMsg.str());
 	}
 #else
 	void *moduleLibrary = dlopen(modulePath.c_str(), RTLD_NOW);
 	if (moduleLibrary == nullptr) {
 		// Failed to load shared library!
-		boost::format exMsg = boost::format("Failed to load library '%s', error: '%s'.") % modulePath.string() % dlerror();
+		boost::format exMsg = boost::format("Failed to load library '%s', error: '%s'.") % modulePath.string()
+			% dlerror();
 		throw std::runtime_error(exMsg.str());
 	}
 
@@ -282,7 +285,8 @@ static std::pair<ModuleLibrary, caerModuleInfo> loadModule(const std::string &mo
 	if (getInfo == nullptr) {
 		// Failed to find symbol in shared library!
 		unloadLibrary(moduleLibrary);
-		boost::format exMsg = boost::format("Failed to find symbol in library '%s', error: '%s'.") % modulePath.string() % dlerror();
+		boost::format exMsg = boost::format("Failed to find symbol in library '%s', error: '%s'.") % modulePath.string()
+			% dlerror();
 		throw std::runtime_error(exMsg.str());
 	}
 #endif
@@ -297,7 +301,7 @@ static std::pair<ModuleLibrary, caerModuleInfo> loadModule(const std::string &mo
 	return (std::pair<ModuleLibrary, caerModuleInfo>(moduleLibrary, info));
 }
 
-void updateModulesInformation(void) {
+static void updateModulesInformation() {
 	std::lock_guard<std::recursive_mutex> lock(glMainloopData.modulePathsMutex);
 
 	sshsNode modulesNode = sshsGetNode(sshsGetGlobal(), "/caer/modules/");
@@ -315,6 +319,10 @@ void updateModulesInformation(void) {
 		"Directories to search loadable modules in, separated by ':'.");
 	sshsNodeCreate(modulesNode, "modulesListOptions", "", 0, 10000, SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE,
 		"List of loadable modules.");
+
+	sshsNodeCreate(modulesNode, "updateModulesInformation", false, SSHS_FLAGS_NOTIFY_ONLY_FORCE_DEFAULT_VALUE,
+		"Update modules information.");
+	sshsNodeAddAttributeListener(modulesNode, nullptr, &caerModulesUpdateInformation);
 
 	// Now get actual search directories.
 	const std::string modulesSearchPath = sshsNodeGetStdString(modulesNode, "modulesSearchPath");
@@ -507,6 +515,10 @@ void caerMainloopRun(void) {
 				"Failed to start mainloop, please fix the configuration and try again!");
 		}
 	}
+
+	// Clear out modules information on shutdown to avoid polluting the config file.
+	sshsNode modulesNode = sshsGetNode(sshsGetGlobal(), "/caer/modules/");
+	sshsNodeClearSubTree(modulesNode, false);
 }
 
 static void checkInputOutputStreamDefinitions(caerModuleInfo info) {
@@ -2333,5 +2345,23 @@ static void caerMainloopRunningListener(sshsNode node, void *userData, enum sshs
 
 	if (event == SSHS_ATTRIBUTE_MODIFIED && changeType == SSHS_BOOL && caerStrEquals(changeKey, "running")) {
 		glMainloopData.running.store(changeValue.boolean);
+	}
+}
+
+static void caerModulesUpdateInformation(sshsNode node, void *userData, enum sshs_node_attribute_events event,
+	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue) {
+	UNUSED_ARGUMENT(node);
+	UNUSED_ARGUMENT(userData);
+	UNUSED_ARGUMENT(changeValue);
+
+	if (event == SSHS_ATTRIBUTE_MODIFIED && changeType == SSHS_BOOL
+		&& caerStrEquals(changeKey, "updateModulesInformation")) {
+		// Get information on available modules, put it into SSHS.
+		try {
+			updateModulesInformation();
+		}
+		catch (const std::exception &ex) {
+			log(logLevel::CRITICAL, "Mainloop", "Failed to find any modules (error: '%s').", ex.what());
+		}
 	}
 }

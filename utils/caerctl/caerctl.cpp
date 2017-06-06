@@ -87,7 +87,6 @@ static const struct {
 	{ "help", 4, CAER_CONFIG_GET_DESCRIPTION },
 	{ "add_module", 10, CAER_CONFIG_ADD_MODULE },
 	{ "remove_module", 13, CAER_CONFIG_REMOVE_MODULE },
-	{ "update_modules_info", 19, CAER_CONFIG_UPDATE_MODULES_INFO },
 };
 static const size_t actionsLength = sizeof(actions) / sizeof(actions[0]);
 
@@ -500,25 +499,6 @@ static void handleInputLine(const char *buf, size_t bufLength) {
 			memcpy(dataBuffer + CAER_CONFIG_SERVER_HEADER_SIZE, commandParts[CMD_PART_NODE], nodeLength);
 
 			dataBufferLength = CAER_CONFIG_SERVER_HEADER_SIZE + nodeLength;
-
-			break;
-		}
-
-		case CAER_CONFIG_UPDATE_MODULES_INFO: {
-			// Check parameters needed for operation. No parameters here.
-			if (commandParts[CMD_PART_ACTION + 1] != nullptr) {
-				std::cerr << "Error: too many parameters for command." << std::endl;
-				return;
-			}
-
-			dataBuffer[0] = actionCode;
-			dataBuffer[1] = 0; // UNUSED.
-			setExtraLen(dataBuffer, 0); // UNUSED.
-			setNodeLen(dataBuffer, 0); // UNUSED.
-			setKeyLen(dataBuffer, 0); // UNUSED.
-			setValueLen(dataBuffer, 0); // UNUSED.
-
-			dataBufferLength = CAER_CONFIG_SERVER_HEADER_SIZE;
 
 			break;
 		}

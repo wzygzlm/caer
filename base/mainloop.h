@@ -15,7 +15,6 @@
 extern "C" {
 #endif
 
-void updateModulesInformation(void);
 void caerMainloopRun(void);
 
 void caerMainloopDataNotifyIncrease(void *p) CAER_SYMBOL_EXPORT;

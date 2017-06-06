@@ -814,24 +814,6 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 			break;
 		}
 
-		case CAER_CONFIG_UPDATE_MODULES_INFO: {
-			std::unique_lock<std::shared_timed_mutex> lock(glConfigServerData.operationsSharedMutex);
-
-			// Get information on available modules, put it into SSHS.
-			try {
-				updateModulesInformation();
-			}
-			catch (const std::exception &) {
-				caerConfigSendError(client, "Failed to find any modules.");
-				break;
-			}
-
-			// Send back confirmation to the client.
-			caerConfigSendBoolResponse(client, CAER_CONFIG_UPDATE_MODULES_INFO, true);
-
-			break;
-		}
-
 		default: {
 			// Unknown action, send error back to client.
 			caerConfigSendError(client, "Unknown action.");
