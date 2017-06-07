@@ -387,7 +387,36 @@ static inline void sshsNodeFreeAttribute(sshsNodeAttr attr) {
 void sshsNodeCreateAttribute(sshsNode node, const char *key, enum sshs_node_attr_value_type type,
 	union sshs_node_attr_value defaultValue, union sshs_node_attr_range minValue, union sshs_node_attr_range maxValue,
 	enum sshs_node_attr_flags flags, const char *description) {
-	// Check that value conforms to limits.
+	// Strings are special, their length range goes from 0 to SIZE_MAX, but we
+	// have to restrict that to from 0 to INT32_MAX for languages like Java
+	// that only support integer string lengths. It's also reasonable.
+	if (type == SSHS_STRING) {
+		if (minValue.i < 0 || minValue.i > INT32_MAX) {
+			char errorMsg[1024];
+			snprintf(errorMsg, 1024,
+				"sshsNodeCreateAttribute(): attribute '%s' of type 'string' has a minimum range value of '%" PRIi64 "' outside allowed limits. "
+				"Please make sure the value is positive, between 0 and %" PRIi32 "!", key, minValue.i, INT32_MAX);
+
+			(*sshsGetGlobalErrorLogCallback())(errorMsg);
+
+			// This is a critical usage error that *must* be fixed!
+			exit(EXIT_FAILURE);
+		}
+
+		if (maxValue.i < 0 || maxValue.i > INT32_MAX) {
+			char errorMsg[1024];
+			snprintf(errorMsg, 1024,
+				"sshsNodeCreateAttribute(): attribute '%s' of type 'string' has a maximum range value of '%" PRIi64 "' outside allowed limits. "
+				"Please make sure the value is positive, between 0 and %" PRIi32 "!", key, maxValue.i, INT32_MAX);
+
+			(*sshsGetGlobalErrorLogCallback())(errorMsg);
+
+			// This is a critical usage error that *must* be fixed!
+			exit(EXIT_FAILURE);
+		}
+	}
+
+	// Check that value conforms to range limits.
 	if (!sshsNodeCheckRange(type, defaultValue, minValue, maxValue)) {
 		// Fail on wrong default value. Must be within range!
 		char errorMsg[1024];
@@ -1352,7 +1381,7 @@ bool sshsNodeStringToAttributeConverter(sshsNode node, const char *key, const ch
 				break;
 
 			case SSHS_STRING:
-				sshsNodeCreateString(node, key, value.string, 0, SIZE_MAX, SSHS_FLAGS_NORMAL, "XML loaded value.");
+				sshsNodeCreateString(node, key, value.string, 0, INT32_MAX, SSHS_FLAGS_NORMAL, "XML loaded value.");
 				break;
 
 			case SSHS_UNKNOWN:
