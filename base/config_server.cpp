@@ -600,24 +600,34 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 			union sshs_node_attr_range maxRange = sshsNodeGetAttributeMaxRange(wantedNode, (const char *) key,
 				(enum sshs_node_attr_value_type) type);
 
-			std::string rangeStr;
+			// We need to return a string with the two ranges,
+			// separated by a NUL character.
+			if (type == SSHS_FLOAT || type == SSHS_DOUBLE) {
+				size_t minLength = (size_t) snprintf(NULL, 0, "%g", minRange.d) + 1; // +1 for terminating NUL byte.
+				size_t maxLength = (size_t) snprintf(NULL, 0, "%g", maxRange.d) + 1; // +1 for terminating NUL byte.
 
-			try {
-				if (type == SSHS_FLOAT || type == SSHS_DOUBLE) {
-					rangeStr = (boost::format("%g\0%g") % minRange.d % maxRange.d).str();
-				}
-				else {
-					rangeStr = (boost::format("%" PRIi64 "\0%" PRIi64) % minRange.i % maxRange.i).str();
-				}
-			}
-			catch (const std::exception &) {
-				// Send back error message to client.
-				caerConfigSendError(client, "Failed to get ranges string.");
-				break;
-			}
+				// Allocate a buffer for the types and copy them over.
+				char rangesBuffer[minLength + maxLength];
 
-			caerConfigSendResponse(client, CAER_CONFIG_GET_RANGES, type, (const uint8_t *) rangeStr.c_str(),
-				rangeStr.length() + 1);
+				snprintf(rangesBuffer, minLength, "%g", minRange.d);
+				snprintf(rangesBuffer + minLength, maxLength, "%g", maxRange.d);
+
+				caerConfigSendResponse(client, CAER_CONFIG_GET_RANGES, type, (const uint8_t *) rangesBuffer,
+					minLength + maxLength);
+			}
+			else {
+				size_t minLength = (size_t) snprintf(NULL, 0, "%" PRIi64, minRange.i) + 1; // +1 for terminating NUL byte.
+				size_t maxLength = (size_t) snprintf(NULL, 0, "%" PRIi64, maxRange.i) + 1; // +1 for terminating NUL byte.
+
+				// Allocate a buffer for the types and copy them over.
+				char rangesBuffer[minLength + maxLength];
+
+				snprintf(rangesBuffer, minLength, "%" PRIi64, minRange.i);
+				snprintf(rangesBuffer + minLength, maxLength, "%" PRIi64, maxRange.i);
+
+				caerConfigSendResponse(client, CAER_CONFIG_GET_RANGES, type, (const uint8_t *) rangesBuffer,
+					minLength + maxLength);
+			}
 
 			break;
 		}
