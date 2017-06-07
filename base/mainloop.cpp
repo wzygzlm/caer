@@ -1742,9 +1742,7 @@ static int caerMainloopRunner() {
 
 		int16_t moduleId = sshsNodeGetShort(module, "moduleId");
 
-		char *moduleLibraryC = sshsNodeGetString(module, "moduleLibrary");
-		const std::string moduleLibrary = moduleLibraryC;
-		free(moduleLibraryC);
+		const std::string moduleLibrary = sshsNodeGetStdString(module, "moduleLibrary");
 
 		ModuleInfo info = ModuleInfo(moduleId, moduleName, module, moduleLibrary);
 
@@ -1865,9 +1863,7 @@ static int caerMainloopRunner() {
 			if (info->outputStreams != nullptr) {
 				// ANY type declaration.
 				if (info->outputStreamsSize == 1 && info->outputStreams[0].type == -1) {
-					char *moduleOutput = sshsNodeGetString(m.get().configNode, "moduleOutput");
-					const std::string outputDefinition = moduleOutput;
-					free(moduleOutput);
+					const std::string outputDefinition = sshsNodeGetStdString(m.get().configNode, "moduleOutput");
 
 					parseModuleOutput(outputDefinition, m.get().outputs, m.get().name);
 				}
@@ -1892,9 +1888,7 @@ static int caerMainloopRunner() {
 		// Then we parse all the 'moduleInput' configurations for OUTPUT and
 		// PROCESSOR modules, which we can now verify against possible streams.
 		for (const auto &m : boost::join(outputModules, processorModules)) {
-			char *moduleInput = sshsNodeGetString(m.get().configNode, "moduleInput");
-			const std::string inputDefinition = moduleInput;
-			free(moduleInput);
+			const std::string inputDefinition = sshsNodeGetStdString(m.get().configNode, "moduleInput");
 
 			parseModuleInput(inputDefinition, m.get().inputDefinition, m.get().id, m.get().name);
 
