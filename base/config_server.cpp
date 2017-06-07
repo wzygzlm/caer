@@ -581,7 +581,7 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 			break;
 		}
 
-		case CAER_CONFIG_GET_RANGE_MIN: {
+		case CAER_CONFIG_GET_RANGES: {
 			std::shared_lock<std::shared_timed_mutex> lock(glConfigServerData.operationsSharedMutex);
 
 			if (!checkNodeExists(configStore, (const char *) node, client)) {
@@ -595,65 +595,28 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 				break;
 			}
 
-			union sshs_node_attr_range range = sshsNodeGetAttributeMinRange(wantedNode, (const char *) key,
+			union sshs_node_attr_range minRange = sshsNodeGetAttributeMinRange(wantedNode, (const char *) key,
+				(enum sshs_node_attr_value_type) type);
+			union sshs_node_attr_range maxRange = sshsNodeGetAttributeMaxRange(wantedNode, (const char *) key,
 				(enum sshs_node_attr_value_type) type);
 
 			std::string rangeStr;
 
 			try {
 				if (type == SSHS_FLOAT || type == SSHS_DOUBLE) {
-					rangeStr = (boost::format("%g") % range.d).str();
+					rangeStr = (boost::format("%g\0%g") % minRange.d % maxRange.d).str();
 				}
 				else {
-					rangeStr = (boost::format("%" PRIi64) % range.i).str();
+					rangeStr = (boost::format("%" PRIi64 "\0%" PRIi64) % minRange.i % maxRange.i).str();
 				}
 			}
 			catch (const std::exception &) {
 				// Send back error message to client.
-				caerConfigSendError(client, "Failed to get minimum range string.");
+				caerConfigSendError(client, "Failed to get ranges string.");
 				break;
 			}
 
-			caerConfigSendResponse(client, CAER_CONFIG_GET_RANGE_MIN, type, (const uint8_t *) rangeStr.c_str(),
-				rangeStr.length() + 1);
-
-			break;
-		}
-
-		case CAER_CONFIG_GET_RANGE_MAX: {
-			std::shared_lock<std::shared_timed_mutex> lock(glConfigServerData.operationsSharedMutex);
-
-			if (!checkNodeExists(configStore, (const char *) node, client)) {
-				break;
-			}
-
-			// This cannot fail, since we know the node exists from above.
-			sshsNode wantedNode = sshsGetNode(configStore, (const char *) node);
-
-			if (!checkAttributeExists(wantedNode, (const char *) key, (enum sshs_node_attr_value_type) type, client)) {
-				break;
-			}
-
-			union sshs_node_attr_range range = sshsNodeGetAttributeMaxRange(wantedNode, (const char *) key,
-				(enum sshs_node_attr_value_type) type);
-
-			std::string rangeStr;
-
-			try {
-				if (type == SSHS_FLOAT || type == SSHS_DOUBLE) {
-					rangeStr = (boost::format("%g") % range.d).str();
-				}
-				else {
-					rangeStr = (boost::format("%" PRIi64) % range.i).str();
-				}
-			}
-			catch (const std::exception &) {
-				// Send back error message to client.
-				caerConfigSendError(client, "Failed to get maximum range string.");
-				break;
-			}
-
-			caerConfigSendResponse(client, CAER_CONFIG_GET_RANGE_MAX, type, (const uint8_t *) rangeStr.c_str(),
+			caerConfigSendResponse(client, CAER_CONFIG_GET_RANGES, type, (const uint8_t *) rangeStr.c_str(),
 				rangeStr.length() + 1);
 
 			break;
