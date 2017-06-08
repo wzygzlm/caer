@@ -595,35 +595,33 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 				break;
 			}
 
-			union sshs_node_attr_range minRange = sshsNodeGetAttributeMinRange(wantedNode, (const char *) key,
-				(enum sshs_node_attr_value_type) type);
-			union sshs_node_attr_range maxRange = sshsNodeGetAttributeMaxRange(wantedNode, (const char *) key,
+			struct sshs_node_attr_ranges ranges = sshsNodeGetAttributeRanges(wantedNode, (const char *) key,
 				(enum sshs_node_attr_value_type) type);
 
 			// We need to return a string with the two ranges,
 			// separated by a NUL character.
 			if (type == SSHS_FLOAT || type == SSHS_DOUBLE) {
-				size_t minLength = (size_t) snprintf(NULL, 0, "%g", minRange.d) + 1; // +1 for terminating NUL byte.
-				size_t maxLength = (size_t) snprintf(NULL, 0, "%g", maxRange.d) + 1; // +1 for terminating NUL byte.
+				size_t minLength = (size_t) snprintf(NULL, 0, "%g", ranges.min.d) + 1; // +1 for terminating NUL byte.
+				size_t maxLength = (size_t) snprintf(NULL, 0, "%g", ranges.max.d) + 1; // +1 for terminating NUL byte.
 
 				// Allocate a buffer for the types and copy them over.
 				char rangesBuffer[minLength + maxLength];
 
-				snprintf(rangesBuffer, minLength, "%g", minRange.d);
-				snprintf(rangesBuffer + minLength, maxLength, "%g", maxRange.d);
+				snprintf(rangesBuffer, minLength, "%g", ranges.min.d);
+				snprintf(rangesBuffer + minLength, maxLength, "%g", ranges.max.d);
 
 				caerConfigSendResponse(client, CAER_CONFIG_GET_RANGES, type, (const uint8_t *) rangesBuffer,
 					minLength + maxLength);
 			}
 			else {
-				size_t minLength = (size_t) snprintf(NULL, 0, "%" PRIi64, minRange.i) + 1; // +1 for terminating NUL byte.
-				size_t maxLength = (size_t) snprintf(NULL, 0, "%" PRIi64, maxRange.i) + 1; // +1 for terminating NUL byte.
+				size_t minLength = (size_t) snprintf(NULL, 0, "%" PRIi64, ranges.min.i) + 1; // +1 for terminating NUL byte.
+				size_t maxLength = (size_t) snprintf(NULL, 0, "%" PRIi64, ranges.max.i) + 1; // +1 for terminating NUL byte.
 
 				// Allocate a buffer for the types and copy them over.
 				char rangesBuffer[minLength + maxLength];
 
-				snprintf(rangesBuffer, minLength, "%" PRIi64, minRange.i);
-				snprintf(rangesBuffer + minLength, maxLength, "%" PRIi64, maxRange.i);
+				snprintf(rangesBuffer, minLength, "%" PRIi64, ranges.min.i);
+				snprintf(rangesBuffer + minLength, maxLength, "%" PRIi64, ranges.max.i);
 
 				caerConfigSendResponse(client, CAER_CONFIG_GET_RANGES, type, (const uint8_t *) rangesBuffer,
 					minLength + maxLength);
