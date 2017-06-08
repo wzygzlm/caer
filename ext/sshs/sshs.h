@@ -62,6 +62,11 @@ union sshs_node_attr_range {
 	int64_t i;
 };
 
+struct sshs_node_attr_ranges {
+	union sshs_node_attr_range min;
+	union sshs_node_attr_range max;
+};
+
 enum sshs_node_attr_flags {
 	SSHS_FLAGS_NORMAL = 0,
 	SSHS_FLAGS_READ_ONLY = 1,
@@ -102,8 +107,8 @@ void sshsNodeRemoveAttributeListener(sshsNode node, void *userData,
 			CAER_SYMBOL_EXPORT;
 void sshsNodeRemoveAllAttributeListeners(sshsNode node) CAER_SYMBOL_EXPORT;
 void sshsNodeCreateAttribute(sshsNode node, const char *key, enum sshs_node_attr_value_type type,
-	union sshs_node_attr_value defaultValue, union sshs_node_attr_range minValue, union sshs_node_attr_range maxValue,
-	enum sshs_node_attr_flags flags, const char *description) CAER_SYMBOL_EXPORT;
+	union sshs_node_attr_value defaultValue, struct sshs_node_attr_ranges range, enum sshs_node_attr_flags flags,
+	const char *description) CAER_SYMBOL_EXPORT;
 void sshsNodeRemoveAttribute(sshsNode node, const char *key, enum sshs_node_attr_value_type type) CAER_SYMBOL_EXPORT;
 void sshsNodeRemoveAllAttributes(sshsNode node) CAER_SYMBOL_EXPORT;
 void sshsNodeClearSubTree(sshsNode startNode, bool clearStartNode) CAER_SYMBOL_EXPORT;
@@ -158,9 +163,7 @@ const char **sshsNodeGetChildNames(sshsNode node, size_t *numNames) CAER_SYMBOL_
 const char **sshsNodeGetAttributeKeys(sshsNode node, size_t *numKeys) CAER_SYMBOL_EXPORT;
 enum sshs_node_attr_value_type *sshsNodeGetAttributeTypes(sshsNode node, const char *key, size_t *numTypes)
 	CAER_SYMBOL_EXPORT;
-union sshs_node_attr_range sshsNodeGetAttributeMinRange(sshsNode node, const char *key,
-	enum sshs_node_attr_value_type type) CAER_SYMBOL_EXPORT;
-union sshs_node_attr_range sshsNodeGetAttributeMaxRange(sshsNode node, const char *key,
+struct sshs_node_attr_ranges sshsNodeGetAttributeRanges(sshsNode node, const char *key,
 	enum sshs_node_attr_value_type type) CAER_SYMBOL_EXPORT;
 enum sshs_node_attr_flags sshsNodeGetAttributeFlags(sshsNode node, const char *key, enum sshs_node_attr_value_type type)
 	CAER_SYMBOL_EXPORT;
