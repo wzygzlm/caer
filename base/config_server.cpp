@@ -755,6 +755,8 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 			sshsNodeCreate(newModuleNode, "moduleLibrary", moduleLibrary, 1, PATH_MAX, SSHS_FLAGS_READ_ONLY,
 				"Module library.");
 
+			// TODO: also add moduleInput/moduleOutput as appropriate, SSHS_FLAGS_NORMAL.
+
 			// Send back confirmation to the client.
 			caerConfigSendBoolResponse(client, CAER_CONFIG_ADD_MODULE, true);
 
