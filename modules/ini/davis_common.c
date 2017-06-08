@@ -371,7 +371,7 @@ static void createDefaultConfiguration(caerModuleData moduleData, struct caer_da
 			// Slow down pixels for big 640x480 array, to avoid overwhelming the AER bus.
 			createCoarseFineBiasSetting(biasNode, "PrBp", 2, 3, true, "P", "Normal");
 			createCoarseFineBiasSetting(biasNode, "PrSFBp", 1, 1, true, "P", "Normal");
-			createCoarseFineBiasSetting(biasNode, "OnBn", 4, 150, true, "N", "Normal");
+			createCoarseFineBiasSetting(biasNode, "OnBn", 5, 155, true, "N", "Normal");
 			createCoarseFineBiasSetting(biasNode, "OffBn", 1, 4, true, "N", "Normal");
 		}
 
@@ -414,10 +414,17 @@ static void createDefaultConfiguration(caerModuleData moduleData, struct caer_da
 		createCoarseFineBiasSetting(biasNode, "IFRefrBn", 5, 255, true, "N", "Normal");
 		createCoarseFineBiasSetting(biasNode, "IFThrBn", 5, 255, true, "N", "Normal");
 
-		createCoarseFineBiasSetting(biasNode, "BiasBuffer", 7, 255, true, "N", "Normal");
+		if(IS_DAVIS640(devInfo->chipID)) {
+			createCoarseFineBiasSetting(biasNode, "BiasBuffer", 5, 180, true, "N", "Normal");
+		}else{
+			createCoarseFineBiasSetting(biasNode, "BiasBuffer", 7, 255, true, "N", "Normal");
+		}
 
 		createShiftedSourceBiasSetting(biasNode, "SSP", 1, 33, "ShiftedSource", "SplitGate");
 		createShiftedSourceBiasSetting(biasNode, "SSN", 1, 33, "ShiftedSource", "SplitGate");
+
+
+
 	}
 
 	if (IS_DAVISRGB(devInfo->chipID)) {
