@@ -17,9 +17,11 @@
 #include "modules/ini/dvs128.h"
 #endif
 #ifdef DAVISFX2
+#include <libcaer/devices/davis.h>
 #include "modules/ini/davis_fx2.h"
 #endif
 #ifdef DAVISFX3
+#include <libcaer/devices/davis.h>
 #include "modules/ini/davis_fx3.h"
 #endif
 
@@ -64,8 +66,11 @@
 #endif
 #ifdef ENABLE_IMAGEGENERATOR
 #include "modules/imagegenerator/imagegenerator.h"
-#define CLASSIFYSIZE 128 
-#define DISPLAYIMGSIZE 128 
+#define CLASSIFYSIZE 128
+#define DISPLAYIMGSIZE 128
+#endif
+#ifdef ENABLE_STEREOMATCHING
+#include "modules/stereomatching/stereomatching.h"
 #endif
 
 
@@ -167,8 +172,8 @@ static bool mainloop_twocameras(void) {
 
 	// Enable APS frame image enhancements.
 #ifdef ENABLE_FRAMEENHANCER
-	frame_0 = caerFrameEnhancer(4, frame_cam0);
-	frame_1 = caerFrameEnhancer(44, frame_cam1);
+	frame_cam0 = caerFrameEnhancer(4, frame_cam0);
+	frame_cam1 = caerFrameEnhancer(44, frame_cam1);
 #endif
 
 	// Enable synch of two data stream.
@@ -228,6 +233,10 @@ static bool mainloop_twocameras(void) {
    }
 #endif
 
+#ifdef ENABLE_STEREOMATCHING
+   caerStereoMatching(11, frame_cam0, frame_cam1);
+   //caerStereoMatching(11, imagegeneratorFrame_cam0, imagegeneratorFrame_cam1);
+#endif
 
 	// A simple visualizer exists to show what the output looks like.
 #ifdef ENABLE_VISUALIZER
@@ -238,8 +247,8 @@ static bool mainloop_twocameras(void) {
 	caerVisualizer(60, "Polarity", &caerVisualizerRendererPolarityEvents, visualizerEventHandler, (caerEventPacketHeader) polarity_cam0);
 	caerVisualizer(6600, "Polarity", &caerVisualizerRendererPolarityEvents, visualizerEventHandler, (caerEventPacketHeader) polarity_cam1);
 #if defined(ENABLE_VISUALIZER) && defined(ENABLE_IMAGEGENERATOR)
-	caerVisualizer(64, "ImageStreamerFrameCam0", &caerVisualizerRendererFrameEvents, NULL, (caerEventPacketHeader) frame_cam0);
-	caerVisualizer(6644, "ImageStreamerFrameCam0", &caerVisualizerRendererFrameEvents, NULL, (caerEventPacketHeader) frame_cam1);
+	caerVisualizer(64, "ImageStreamerFrameCam0", &caerVisualizerRendererFrameEvents, NULL, (caerEventPacketHeader) imagegeneratorFrame_cam0);
+	caerVisualizer(6644, "ImageStreamerFrameCam0", &caerVisualizerRendererFrameEvents, NULL, (caerEventPacketHeader) imagegeneratorFrame_cam1);
 #endif
 #endif
 
@@ -264,6 +273,7 @@ static bool mainloop_twocameras(void) {
         }
 	#endif
 #endif
+
 
 	return (true); // If false is returned, processing of this loop stops.
 }

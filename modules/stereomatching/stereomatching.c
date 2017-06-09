@@ -13,6 +13,8 @@ struct StereoMatchingState_struct {
 	uint32_t last_points_found;
 	size_t lastFoundPoints;
 	bool calibrationLoaded;
+	caerFrameEventPacket cam0;
+	caerFrameEventPacket cam1;
 };
 
 typedef struct StereoMatchingState_struct *StereoMatchingState;
@@ -103,6 +105,24 @@ static void caerStereoMatchingRun(caerModuleData moduleData, size_t argsNumber, 
 		state->calibrationLoaded = StereoMatching_loadCalibrationFile(state->cpp_class, &state->settings);
 	}
 
+	if (frame_0 != NULL && frame_1 == NULL) {
+		free(state->cam0);
+		state->cam0 = caerEventPacketCopy(frame_0);
+
+		if (state->cam1 != NULL) {
+			frame_1 = state->cam1;
+		}
+	}
+
+	if (frame_1 != NULL && frame_0 == NULL) {
+		free(state->cam1);
+		state->cam1 = caerEventPacketCopy(frame_1);
+
+		if (state->cam0 != NULL) {
+			frame_0 = state->cam0;
+		}
+	}
+
 	// Stereo Camera calibration is done only using frames.
 	if (state->settings.doMatching && frame_0 != NULL && frame_1 != NULL) {
 
@@ -145,6 +165,7 @@ static void caerStereoMatchingRun(caerModuleData moduleData, size_t argsNumber, 
 
 		if(have_frame_1 && have_frame_0){
 			//we got frames proceed with stereo matching
+			//caerLog(CAER_LOG_ERROR, __func__, "Doing Stereo Matching");
 			StereoMatching_stereoMatch(state->cpp_class,  &state->settings, currFrameEvent_cam0, currFrameEvent_cam1);
 		}
 

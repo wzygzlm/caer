@@ -377,7 +377,11 @@ static void createDefaultConfiguration(caerModuleData moduleData, struct caer_da
 
 		createVDACBiasSetting(biasNode, "ApsOverflowLevel", 27, 6);
 		createVDACBiasSetting(biasNode, "ApsCas", 21, 6);
-		createVDACBiasSetting(biasNode, "AdcRefHigh", 30, 7);
+		if (IS_DAVIS346(devInfo->chipID) || IS_DAVIS640(devInfo->chipID)) {
+			createVDACBiasSetting(biasNode, "AdcRefHigh", 25, 7);
+		}else{
+			createVDACBiasSetting(biasNode, "AdcRefHigh", 30, 7);
+		}
 		createVDACBiasSetting(biasNode, "AdcRefLow", 1, 7);
 
 		if (IS_DAVIS346(devInfo->chipID) || IS_DAVIS640(devInfo->chipID)) {
@@ -415,7 +419,7 @@ static void createDefaultConfiguration(caerModuleData moduleData, struct caer_da
 		createCoarseFineBiasSetting(biasNode, "IFThrBn", 5, 255, true, "N", "Normal");
 
 		if(IS_DAVIS640(devInfo->chipID)) {
-			createCoarseFineBiasSetting(biasNode, "BiasBuffer", 5, 180, true, "N", "Normal");
+			createCoarseFineBiasSetting(biasNode, "BiasBuffer", 6, 125, true, "N", "Normal");
 		}else{
 			createCoarseFineBiasSetting(biasNode, "BiasBuffer", 7, 255, true, "N", "Normal");
 		}
