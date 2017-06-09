@@ -8,7 +8,10 @@ StereoMatching::StereoMatching(StereoMatchingSettings settings){
 
 	updateSettings(this->settings);
 
-	cv::namedWindow( "Matching Debug", WINDOW_AUTOSIZE );
+	cv::namedWindow( "Matching Debug1", WINDOW_AUTOSIZE );
+	cv::namedWindow( "Matching Debug2", WINDOW_AUTOSIZE );
+
+	//updateSettings(settings);
 }
 
 bool StereoMatching::stereoMatch(StereoMatchingSettings settings, caerFrameEvent vec1, caerFrameEvent vec2) {
@@ -21,9 +24,11 @@ bool StereoMatching::stereoMatch(StereoMatchingSettings settings, caerFrameEvent
 	Size frameSize_cam1(caerFrameEventGetLengthX(vec2), caerFrameEventGetLengthY(vec2));
 	Mat Image_cam1(frameSize_cam1, CV_16UC(caerFrameEventGetChannelNumber(vec2)), caerFrameEventGetPixelArrayUnsafe(vec2));
 
-    cv::stereoRectify( M1, D1, M2, D2, frameSize_cam0, R, T, R1, R2, P1, P2, Q, CALIB_ZERO_DISPARITY, -1, frameSize_cam0);
+	/*Rect roi1, roi2;
 
-/*    Mat map11, map12, map21, map22;
+    cv::stereoRectify( M1, D1, M2, D2, frameSize_cam0, R, T, R1, R2, P1, P2, Q, CALIB_ZERO_DISPARITY, -1, frameSize_cam0, &roi1, &roi2);
+
+    Mat map11, map12, map21, map22;
     cv::initUndistortRectifyMap(M1, D1, R1, P1, frameSize_cam0, CV_16SC2, map11, map12);
     cv::initUndistortRectifyMap(M2, D2, R2, P2, frameSize_cam1, CV_16SC2, map21, map22);
 
@@ -34,15 +39,44 @@ bool StereoMatching::stereoMatch(StereoMatchingSettings settings, caerFrameEvent
 	Image_cam0 = img1r;
 	Image_cam1 = img2r;*/
 
+	// stereo disparity map
     //-- And create the image in which we will save our disparities
     Mat imgDisparity16S = Mat( Image_cam1.rows, Image_cam1.cols, CV_16S );
     Mat imgDisparity8U = Mat( Image_cam1.rows, Image_cam1.cols, CV_8UC1 );
 
     //-- 2. Call the constructor for StereoBM
-    int ndisparities = 16*2;    /**< Range of disparity */
-    int SADWindowSize = 21; 	/**< Size of the block window. Must be odd */
+    int ndisparities = 16*2;    //< Range of disparity
+    int SADWindowSize = 21; 	//< Size of the block window. Must be odd
 
-    Ptr<StereoBM> sbm = StereoBM::create( ndisparities, SADWindowSize );
+    Ptr<StereoSGBM> sbm;
+    // ndisparities, SADWindowSize
+    switch(settings->stereoMatchingAlg) {
+    		case STEREO_SGBM:
+    		{
+    		    sbm  = StereoSGBM::create(
+    		    	settings->minDisparity, settings->numDisparities, settings->blockSize,  settings->PP1,  settings->PP2,
+    				settings->disp12MaxDiff,  settings->preFilterCap, settings->uniquenessRatio, settings->speckleWindowSize,
+    				settings->speckleRange, StereoSGBM::MODE_SGBM);
+    		    break;
+    		}
+    		case STEREO_HH:
+    		{
+    		    sbm  = StereoSGBM::create(
+    		    	settings->minDisparity, settings->numDisparities, settings->blockSize,  settings->PP1,  settings->PP2,
+    				settings->disp12MaxDiff,  settings->preFilterCap, settings->uniquenessRatio, settings->speckleWindowSize,
+    				settings->speckleRange, StereoSGBM::MODE_HH);
+    		    break;
+    		}
+    		case STEREO_3WAY:
+    		{
+    		    sbm  = StereoSGBM::create(
+    		    	settings->minDisparity, settings->numDisparities, settings->blockSize,  settings->PP1,  settings->PP2,
+    				settings->disp12MaxDiff,  settings->preFilterCap, settings->uniquenessRatio, settings->speckleWindowSize,
+    				settings->speckleRange, StereoSGBM::MODE_SGBM_3WAY);
+    		    break;
+    		}
+    }
+
 
     //-- 3. Calculate the disparity image
     Mat Image_cam0_gs = Mat( Image_cam1.rows, Image_cam1.cols, CV_8UC1 );
@@ -59,24 +93,25 @@ bool StereoMatching::stereoMatch(StereoMatchingSettings settings, caerFrameEvent
 
     //-- Check its extreme values
     double minVal; double maxVal;
-
     minMaxLoc( imgDisparity16S, &minVal, &maxVal );
 
-    //printf("Min disp: %f Max value: %f \n", minVal, maxVal);
-
     //-- 4. Display it as a CV_8UC1 image
-    imgDisparity16S.convertTo( imgDisparity8U, CV_8UC1, 255/(maxVal - minVal));
+    //imgDisparity16S.convertTo( imgDisparity8U, CV_8UC1, 255/(maxVal - minVal));
 
-    //imwrite("SBM_sample.png", imgDisparity16S);
+    cv::normalize(imgDisparity16S, imgDisparity8U, 0, 255, CV_MINMAX, CV_8U);
 
-    cv::imshow("Matching Debug",imgDisparity8U);
+    cv::imshow("Matching Debug1",imgDisparity8U);
+    cv::imshow("Matching Debug2",Image_cam0_gs);
+
     cv::waitKey(1);
+
+    // update settings
+    //updateSettings(settings);
 
 }
 
 void StereoMatching::updateSettings(StereoMatchingSettings settings) {
 	this->settings = settings;
-
 }
 
 

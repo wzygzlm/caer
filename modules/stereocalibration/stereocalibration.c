@@ -201,7 +201,7 @@ static void caerStereoCalibrationRun(caerModuleData moduleData, size_t argsNumbe
 			state->lastFrameTimestamp_cam0 = currTimestamp_0;
 			foundPoint_cam0 = StereoCalibration_findNewPoints(state->cpp_class, caerFrameIteratorElement, 0);
 			if (foundPoint_cam0 != NULL) {
-				caerLog(CAER_LOG_NOTICE, moduleData->moduleSubSystemString, "Found calibration pattern cam0");
+				caerLog(CAER_LOG_ERROR, moduleData->moduleSubSystemString, "Found calibration pattern cam0");
 				frame_0_ts = currTimestamp_0;
 				frame_0_pattern = true;
 			}CAER_FRAME_ITERATOR_VALID_END
@@ -213,7 +213,7 @@ static void caerStereoCalibrationRun(caerModuleData moduleData, size_t argsNumbe
 
 			foundPoint_cam1 = StereoCalibration_findNewPoints(state->cpp_class, caerFrameIteratorElement, 1);
 			if (foundPoint_cam1 != NULL) {
-				caerLog(CAER_LOG_NOTICE, moduleData->moduleSubSystemString, "Found calibration pattern cam1");
+				caerLog(CAER_LOG_ERROR, moduleData->moduleSubSystemString, "Found calibration pattern cam1");
 				frame_1_ts = currTimestamp_1;
 				frame_1_pattern = true;
 			}CAER_FRAME_ITERATOR_VALID_END
@@ -221,12 +221,12 @@ static void caerStereoCalibrationRun(caerModuleData moduleData, size_t argsNumbe
 		if (frame_1_pattern && frame_0_pattern) {
 			//check Timestamp difference of last two found frames
 			if (!(abs(frame_1_ts - frame_0_ts) < state->settings.captureDelay)) {
-				caerLog(CAER_LOG_NOTICE, moduleData->moduleSubSystemString,
+				caerLog(CAER_LOG_ERROR, moduleData->moduleSubSystemString,
 					"Both camera have seen the calibration pattern... adding valid points");
 				//increment number of points
 				state->points_found += 1;
 				StereoCalibration_addStereoCalibVec(state->cpp_class, foundPoint_cam0, foundPoint_cam1);
-				caerLog(CAER_LOG_NOTICE, moduleData->moduleSubSystemString, "Pairs have been successfully detected");
+				caerLog(CAER_LOG_ERROR, moduleData->moduleSubSystemString, "Pairs have been successfully detected");
 
 				ALLEGRO_SAMPLE *sample = NULL;
 
@@ -243,16 +243,16 @@ static void caerStereoCalibrationRun(caerModuleData moduleData, size_t argsNumbe
 
 		if ((state->points_found >= state->settings.numPairsImagesBeforCalib)
 			&& (state->last_points_found < state->points_found)) {
-			caerLog(CAER_LOG_NOTICE, moduleData->moduleSubSystemString, "Running stereo calibration ...");
+			caerLog(CAER_LOG_ERROR, moduleData->moduleSubSystemString, "Running stereo calibration ...");
 			bool calib_done = StereoCalibration_stereoCalibrate(state->cpp_class, &state->settings);
 			state->last_points_found = state->points_found; // make sure we do not re-calibrate if we did not add new points
 			if (calib_done)
 				sshsNodePutBool(moduleData->moduleNode, "doCalibration", false); // calibration done
 			else {
-				caerLog(CAER_LOG_NOTICE, moduleData->moduleSubSystemString,
+				caerLog(CAER_LOG_ERROR, moduleData->moduleSubSystemString,
 					"Keep acquiring images, error not acceptable ...");
 				//StereoCalibration_clearImagePoints(state->cpp_class);	// do not clear points keep adding in the list
-				caerLog(CAER_LOG_NOTICE, moduleData->moduleSubSystemString,
+				caerLog(CAER_LOG_ERROR, moduleData->moduleSubSystemString,
 					"Cleared saved points, starting from zero.");
 			}
 		}
