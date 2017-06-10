@@ -7,9 +7,9 @@
 
 struct FrameEnhancer_state {
 	bool doDemosaic;
-	int demosaicType;
+	enum caer_frame_utils_demosaic_types demosaicType;
 	bool doContrast;
-	int contrastType;
+	enum caer_frame_utils_contrast_types contrastType;
 };
 
 typedef struct FrameEnhancer_state *FrameEnhancerState;
@@ -84,21 +84,9 @@ static void caerFrameEnhancerRun(caerModuleData moduleData, caerEventPacketConta
 
 	if (state->doDemosaic) {
 #if defined(LIBCAER_HAVE_OPENCV) && LIBCAER_HAVE_OPENCV == 1
-		switch (state->demosaicType) {
-			case 0:
-				enhancedFrame = caerFrameUtilsDemosaic(frame);
-				break;
-
-			case 1:
-				enhancedFrame = caerFrameUtilsOpenCVDemosaic(frame, DEMOSAIC_NORMAL);
-				break;
-
-			case 2:
-				enhancedFrame = caerFrameUtilsOpenCVDemosaic(frame, DEMOSAIC_EDGE_AWARE);
-				break;
-		}
+		enhancedFrame = caerFrameUtilsDemosaic(frame, state->demosaicType);
 #else
-		enhancedFrame = caerFrameUtilsDemosaic(frame);
+		enhancedFrame = caerFrameUtilsDemosaic(frame, DEMOSAIC_STANDARD);
 #endif
 	}
 
@@ -114,25 +102,9 @@ static void caerFrameEnhancerRun(caerModuleData moduleData, caerEventPacketConta
 		}
 
 #if defined(LIBCAER_HAVE_OPENCV) && LIBCAER_HAVE_OPENCV == 1
-		switch (state->contrastType) {
-			case 0:
-				caerFrameUtilsContrast(enhancedFrame);
-				break;
-
-			case 1:
-				caerFrameUtilsOpenCVContrast(enhancedFrame, CONTRAST_NORMALIZATION);
-				break;
-
-			case 2:
-				caerFrameUtilsOpenCVContrast(enhancedFrame, CONTRAST_HISTOGRAM_EQUALIZATION);
-				break;
-
-			case 3:
-				caerFrameUtilsOpenCVContrast(enhancedFrame, CONTRAST_CLAHE);
-				break;
-		}
+		caerFrameUtilsContrast(enhancedFrame, state->contrastType);
 #else
-		caerFrameUtilsContrast(enhancedFrame);
+		caerFrameUtilsContrast(enhancedFrame, CONTRAST_STANDARD);
 #endif
 	}
 
@@ -159,40 +131,42 @@ static void caerFrameEnhancerConfig(caerModuleData moduleData) {
 
 	state->doDemosaic = sshsNodeGetBool(moduleData->moduleNode, "doDemosaic");
 
+	state->doContrast = sshsNodeGetBool(moduleData->moduleNode, "doContrast");
+
+#if defined(LIBCAER_HAVE_OPENCV) && LIBCAER_HAVE_OPENCV == 1
 	char *demosaicType = sshsNodeGetString(moduleData->moduleNode, "demosaicType");
 
 	if (caerStrEquals(demosaicType, "opencv_normal")) {
-		state->demosaicType = 1;
+		state->demosaicType = DEMOSAIC_OPENCV_NORMAL;
 	}
 	else if (caerStrEquals(demosaicType, "opencv_edge_aware")) {
-		state->demosaicType = 2;
+		state->demosaicType = DEMOSAIC_OPENCV_EDGE_AWARE;
 	}
 	else {
 		// Standard, non-OpenCV method.
-		state->demosaicType = 0;
+		state->demosaicType = DEMOSAIC_STANDARD;
 	}
 
 	free(demosaicType);
 
-	state->doContrast = sshsNodeGetBool(moduleData->moduleNode, "doContrast");
-
 	char *contrastType = sshsNodeGetString(moduleData->moduleNode, "contrastType");
 
 	if (caerStrEquals(contrastType, "opencv_normalization")) {
-		state->contrastType = 1;
+		state->contrastType = CONTRAST_OPENCV_NORMALIZATION;
 	}
 	else if (caerStrEquals(contrastType, "opencv_histogram_equalization")) {
-		state->contrastType = 2;
+		state->contrastType = CONTRAST_OPENCV_HISTOGRAM_EQUALIZATION;
 	}
 	else if (caerStrEquals(contrastType, "opencv_clahe")) {
-		state->contrastType = 3;
+		state->contrastType = CONTRAST_OPENCV_CLAHE;
 	}
 	else {
 		// Standard, non-OpenCV method.
-		state->contrastType = 0;
+		state->contrastType = CONTRAST_STANDARD;
 	}
 
 	free(contrastType);
+#endif
 }
 
 static void caerFrameEnhancerExit(caerModuleData moduleData) {
