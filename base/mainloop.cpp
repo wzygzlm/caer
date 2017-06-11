@@ -18,6 +18,23 @@
 #include <boost/format.hpp>
 #include <boost/algorithm/string.hpp>
 
+#define INTERNAL_XSTR(a) INTERNAL_STR(a)
+#define INTERNAL_STR(a) #a
+
+#ifdef CM_SHARE_DIR
+#define CM_SHARE_DIRECTORY INTERNAL_XSTR(CM_SHARE_DIR)
+#else
+#define CM_SHARE_DIRECTORY "/usr/share/caer"
+#endif
+
+#ifdef CM_BUILD_DIR
+#define CM_BUILD_DIRECTORY INTERNAL_XSTR(CM_BUILD_DIR)
+#else
+#define CM_BUILD_DIRECTORY ""
+#endif
+
+#define MODULES_DIRECTORY "modules/"
+
 // If Boost version recent enough, use their portable DLL loading support.
 // Else use dlopen() on POSIX systems.
 #if defined(BOOST_VERSION) && (BOOST_VERSION / 100000) >= 1 && (BOOST_VERSION / 100 % 1000) >= 61
@@ -215,7 +232,10 @@ static struct {
 	std::vector<caerEventPacketHeader> eventPackets;
 } glMainloopData;
 
+static std::pair<ModuleLibrary, caerModuleInfo> loadModule(const std::string &moduleName);
 static void unloadLibrary(ModuleLibrary &moduleLibrary);
+static void updateModulesInformation();
+
 static int caerMainloopRunner();
 static void printDebugInformation();
 static void caerMainloopSignalHandler(int signal);
@@ -301,6 +321,15 @@ static std::pair<ModuleLibrary, caerModuleInfo> loadModule(const std::string &mo
 	return (std::pair<ModuleLibrary, caerModuleInfo>(moduleLibrary, info));
 }
 
+// Small helper to unload libraries on error.
+static void unloadLibrary(ModuleLibrary &moduleLibrary) {
+#if BOOST_HAS_DLL_LOAD
+	moduleLibrary.unload();
+#else
+	dlclose(moduleLibrary);
+#endif
+}
+
 static void updateModulesInformation() {
 	std::lock_guard<std::recursive_mutex> lock(glMainloopData.modulePathsMutex);
 
@@ -311,20 +340,6 @@ static void updateModulesInformation() {
 	glMainloopData.modulePaths.clear();
 
 	// Search for available modules. Will be loaded as needed later.
-	// Initialize with default search directory.
-	boost::filesystem::path modulesSearchDir = boost::filesystem::current_path();
-	modulesSearchDir.append("modules/");
-
-	sshsNodeCreate(modulesNode, "modulesSearchPath", modulesSearchDir.string(), 1, 8 * PATH_MAX, SSHS_FLAGS_NORMAL,
-		"Directories to search loadable modules in, separated by ':'.");
-	sshsNodeCreate(modulesNode, "modulesListOptions", "", 0, 10000, SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE,
-		"List of loadable modules.");
-
-	sshsNodeCreate(modulesNode, "updateModulesInformation", false, SSHS_FLAGS_NOTIFY_ONLY_FORCE_DEFAULT_VALUE,
-		"Update modules information.");
-	sshsNodeAddAttributeListener(modulesNode, nullptr, &caerModulesUpdateInformation);
-
-	// Now get actual search directories.
 	const std::string modulesSearchPath = sshsNodeGetStdString(modulesNode, "modulesSearchPath");
 
 	// Split on ':'.
@@ -334,6 +349,10 @@ static void updateModulesInformation() {
 	const std::regex moduleRegex("\\w+\\.(so|dll|dylib)");
 
 	for (const auto &sPath : searchPaths) {
+		if (!boost::filesystem::exists(sPath)) {
+			continue;
+		}
+
 		std::for_each(boost::filesystem::recursive_directory_iterator(sPath),
 			boost::filesystem::recursive_directory_iterator(),
 			[&moduleRegex](const boost::filesystem::directory_entry &e) {
@@ -469,6 +488,24 @@ void caerMainloopRun(void) {
 	signal(SIGPIPE, SIG_IGN);
 #endif
 
+	// Initialize module related configuration.
+	sshsNode modulesNode = sshsGetNode(sshsGetGlobal(), "/caer/modules/");
+
+	// Default search directories.
+	boost::filesystem::path modulesBuildDir(CM_BUILD_DIRECTORY);
+	modulesBuildDir.append(MODULES_DIRECTORY);
+	boost::filesystem::path modulesDefaultDir(CM_SHARE_DIRECTORY);
+	modulesDefaultDir.append(MODULES_DIRECTORY);
+
+	sshsNodeCreate(modulesNode, "modulesSearchPath", modulesBuildDir.string() + ":" + modulesDefaultDir.string(), 1,
+		8 * PATH_MAX, SSHS_FLAGS_NORMAL, "Directories to search loadable modules in, separated by ':'.");
+	sshsNodeCreate(modulesNode, "modulesListOptions", "", 0, 10000, SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE,
+		"List of loadable modules.");
+
+	sshsNodeCreate(modulesNode, "updateModulesInformation", false, SSHS_FLAGS_NOTIFY_ONLY_FORCE_DEFAULT_VALUE,
+		"Update modules information.");
+	sshsNodeAddAttributeListener(modulesNode, nullptr, &caerModulesUpdateInformation);
+
 	// No data at start-up.
 	glMainloopData.dataAvailable.store(0);
 
@@ -517,8 +554,12 @@ void caerMainloopRun(void) {
 	}
 
 	// Clear out modules information on shutdown to avoid polluting the config file.
-	sshsNode modulesNode = sshsGetNode(sshsGetGlobal(), "/caer/modules/");
 	sshsNodeClearSubTree(modulesNode, false);
+
+	// Remove attribute listeners for clean shutdown.
+	sshsNodeRemoveAttributeListener(glMainloopData.configNode, nullptr, &caerMainloopRunningListener);
+	sshsNodeRemoveAttributeListener(systemNode, nullptr, &caerMainloopSystemRunningListener);
+	sshsNodeRemoveAttributeListener(modulesNode, nullptr, &caerModulesUpdateInformation);
 }
 
 static void checkInputOutputStreamDefinitions(caerModuleInfo info) {
@@ -1679,15 +1720,6 @@ static void runModules(caerEventPacketContainer in) {
 			p = nullptr;
 		}
 	}
-}
-
-// Small helper to unload libraries on error.
-static void unloadLibrary(ModuleLibrary &moduleLibrary) {
-#if BOOST_HAS_DLL_LOAD
-	moduleLibrary.unload();
-#else
-	dlclose(moduleLibrary);
-#endif
 }
 
 static void cleanupGlobals() {
