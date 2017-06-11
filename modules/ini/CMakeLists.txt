@@ -2,6 +2,10 @@ IF (NOT DVS128)
 	SET(DVS128 0 CACHE BOOL "Enable support for DVS128 devices")
 ENDIF()
 
+IF (NOT EDVS)
+	SET(EDVS 0 CACHE BOOL "Enable support for eDVS4337 devices")
+ENDIF()
+
 IF (NOT DAVIS)
 	SET(DAVIS 0 CACHE BOOL "Enable support for DAVIS devices")
 ENDIF()
@@ -19,6 +23,17 @@ IF (DVS128)
 	)
 
 	TARGET_LINK_LIBRARIES(dvs128 ${CAER_C_LIBS})
+ENDIF()
+
+IF (EDVS)
+	ADD_LIBRARY(edvs SHARED edvs.c)
+
+	SET_TARGET_PROPERTIES(edvs
+		PROPERTIES
+		PREFIX "caer_"
+	)
+
+	TARGET_LINK_LIBRARIES(edvs ${CAER_C_LIBS})
 ENDIF()
 
 IF (DAVIS)

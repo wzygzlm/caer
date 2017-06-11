@@ -28,6 +28,7 @@ The following options are currently supported:
 
 The following modules can currently be selected to be built:
 -DDVS128=1 -- DVS128 device input.
+-DEDVS=1 -- eDVS4337 device input.
 -DDAVIS=1 -- DAVIS device input.
 -DDYNAPSE=1 -- Dynap-se device input (neuromorphic chip).
 -DBAFILTER=1 -- Filter background activity (uncorrelated noise).
