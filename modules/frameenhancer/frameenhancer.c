@@ -75,7 +75,6 @@ static void caerFrameEnhancerRun(caerModuleData moduleData, size_t argsNumber, v
 		switch (state->demosaicType) {
 			case 0:
 				*enhancedFrame = caerFrameUtilsDemosaic(frame, DEMOSAIC_OPENCV_NORMAL);
-				//*enhancedFrame = caerFrameUtilsDemosaic(frame);
 				break;
 
 			case 1:
@@ -99,7 +98,6 @@ static void caerFrameEnhancerRun(caerModuleData moduleData, size_t argsNumber, v
 #if defined(LIBCAER_HAVE_OPENCV) && LIBCAER_HAVE_OPENCV == 1
 		switch (state->contrastType) {
 			case 0:
-				//caerFrameUtilsContrast(*enhancedFrame);
 				caerFrameUtilsContrast(*enhancedFrame, CONTRAST_OPENCV_NORMALIZATION);
 				break;
 
