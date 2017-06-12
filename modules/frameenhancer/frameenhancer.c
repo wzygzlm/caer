@@ -74,15 +74,16 @@ static void caerFrameEnhancerRun(caerModuleData moduleData, size_t argsNumber, v
 #if defined(LIBCAER_HAVE_OPENCV) && LIBCAER_HAVE_OPENCV == 1
 		switch (state->demosaicType) {
 			case 0:
-				*enhancedFrame = caerFrameUtilsDemosaic(frame);
+				*enhancedFrame = caerFrameUtilsDemosaic(frame, DEMOSAIC_OPENCV_NORMAL);
+				//*enhancedFrame = caerFrameUtilsDemosaic(frame);
 				break;
 
 			case 1:
-				*enhancedFrame = caerFrameUtilsOpenCVDemosaic(frame, DEMOSAIC_NORMAL);
+				*enhancedFrame = caerFrameUtilsDemosaic(frame, DEMOSAIC_OPENCV_NORMAL);
 				break;
 
 			case 2:
-				*enhancedFrame = caerFrameUtilsOpenCVDemosaic(frame, DEMOSAIC_EDGE_AWARE);
+				*enhancedFrame = caerFrameUtilsDemosaic(frame, DEMOSAIC_OPENCV_EDGE_AWARE);
 				break;
 		}
 #else
@@ -98,19 +99,20 @@ static void caerFrameEnhancerRun(caerModuleData moduleData, size_t argsNumber, v
 #if defined(LIBCAER_HAVE_OPENCV) && LIBCAER_HAVE_OPENCV == 1
 		switch (state->contrastType) {
 			case 0:
-				caerFrameUtilsContrast(*enhancedFrame);
+				//caerFrameUtilsContrast(*enhancedFrame);
+				caerFrameUtilsContrast(*enhancedFrame, CONTRAST_OPENCV_NORMALIZATION);
 				break;
 
 			case 1:
-				caerFrameUtilsOpenCVContrast(*enhancedFrame, CONTRAST_NORMALIZATION);
+				caerFrameUtilsContrast(*enhancedFrame, CONTRAST_OPENCV_NORMALIZATION);
 				break;
 
 			case 2:
-				caerFrameUtilsOpenCVContrast(*enhancedFrame, CONTRAST_HISTOGRAM_EQUALIZATION);
+				caerFrameUtilsContrast(*enhancedFrame, CONTRAST_OPENCV_HISTOGRAM_EQUALIZATION);
 				break;
 
 			case 3:
-				caerFrameUtilsOpenCVContrast(*enhancedFrame, CONTRAST_CLAHE);
+				caerFrameUtilsContrast(*enhancedFrame, CONTRAST_OPENCV_CLAHE);
 				break;
 		}
 #else
