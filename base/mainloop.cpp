@@ -402,32 +402,36 @@ static void updateModulesInformation() {
 		// Parse caerModuleInfo into SSHS.
 		sshsNodeCreate(moduleNode, "version", I32T(mLoad.second->version), 0, INT32_MAX, SSHS_FLAGS_READ_ONLY,
 			"Module version.");
-		sshsNodeCreate(moduleNode, "name", mLoad.second->name, 1, 200, SSHS_FLAGS_READ_ONLY, "Module name.");
-		sshsNodeCreate(moduleNode, "type", mLoad.second->type, 0, INT32_MAX, SSHS_FLAGS_READ_ONLY,
-			"Module type (INPUT, OUTPUT, PROCESSOR).");
-		sshsNodeCreate(moduleNode, "inputStreamsSize", I32T(mLoad.second->inputStreamsSize), 0, INT32_MAX,
-			SSHS_FLAGS_READ_ONLY, "Number of input stream definitions.");
-		sshsNodeCreate(moduleNode, "outputStreamsSize", I32T(mLoad.second->outputStreamsSize), 0, INT32_MAX,
-			SSHS_FLAGS_READ_ONLY, "Number of output stream definitions.");
+		sshsNodeCreate(moduleNode, "name", mLoad.second->name, 1, 256, SSHS_FLAGS_READ_ONLY, "Module name.");
+		sshsNodeCreate(moduleNode, "type", caerModuleTypeToString(mLoad.second->type), 1, 64, SSHS_FLAGS_READ_ONLY,
+			"Module type.");
 
-		for (size_t i = 0; i < mLoad.second->inputStreamsSize; i++) {
-			sshsNode inputStreamNode = sshsGetRelativeNode(moduleNode, std::to_string(i) + "/");
-			caerEventStreamIn inputStream = &mLoad.second->inputStreams[i];
+		if (mLoad.second->inputStreamsSize > 0) {
+			sshsNode inputStreamsNode = sshsGetRelativeNode(moduleNode, "inputStreams/");
 
-			sshsNodeCreate(inputStreamNode, "type", inputStream->type, I16T(-1), I16T(INT16_MAX), SSHS_FLAGS_READ_ONLY,
-				"Input event type (-1 for any type).");
-			sshsNodeCreate(inputStreamNode, "number", inputStream->number, I16T(-1), I16T(INT16_MAX),
-				SSHS_FLAGS_READ_ONLY, "Number of inputs of this type (-1 for any number).");
-			sshsNodeCreate(inputStreamNode, "readOnly", inputStream->readOnly, SSHS_FLAGS_READ_ONLY,
-				"Whether this input is modified or not.");
+			for (size_t i = 0; i < mLoad.second->inputStreamsSize; i++) {
+				sshsNode inputStreamNode = sshsGetRelativeNode(inputStreamsNode, std::to_string(i) + "/");
+				caerEventStreamIn inputStream = &mLoad.second->inputStreams[i];
+
+				sshsNodeCreate(inputStreamNode, "type", inputStream->type, I16T(-1), I16T(INT16_MAX),
+					SSHS_FLAGS_READ_ONLY, "Input event type (-1 for any type).");
+				sshsNodeCreate(inputStreamNode, "number", inputStream->number, I16T(-1), I16T(INT16_MAX),
+					SSHS_FLAGS_READ_ONLY, "Number of inputs of this type (-1 for any number).");
+				sshsNodeCreate(inputStreamNode, "readOnly", inputStream->readOnly, SSHS_FLAGS_READ_ONLY,
+					"Whether this input is modified or not.");
+			}
 		}
 
-		for (size_t i = 0; i < mLoad.second->outputStreamsSize; i++) {
-			sshsNode outputStreamNode = sshsGetRelativeNode(moduleNode, std::to_string(i) + "/");
-			caerEventStreamOut outputStream = &mLoad.second->outputStreams[i];
+		if (mLoad.second->outputStreamsSize > 0) {
+			sshsNode outputStreamsNode = sshsGetRelativeNode(moduleNode, "outputStreams/");
 
-			sshsNodeCreate(outputStreamNode, "type", outputStream->type, I16T(-1), I16T(INT16_MAX),
-				SSHS_FLAGS_READ_ONLY, "Output event type (-1 for undefined output determined at runtime).");
+			for (size_t i = 0; i < mLoad.second->outputStreamsSize; i++) {
+				sshsNode outputStreamNode = sshsGetRelativeNode(outputStreamsNode, std::to_string(i) + "/");
+				caerEventStreamOut outputStream = &mLoad.second->outputStreams[i];
+
+				sshsNodeCreate(outputStreamNode, "type", outputStream->type, I16T(-1), I16T(INT16_MAX),
+					SSHS_FLAGS_READ_ONLY, "Output event type (-1 for undefined output determined at runtime).");
+			}
 		}
 
 		// Done, unload library.
