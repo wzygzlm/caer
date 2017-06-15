@@ -753,7 +753,31 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 			sshsNodeCreate(newModuleNode, "moduleLibrary", moduleLibrary, 1, PATH_MAX, SSHS_FLAGS_READ_ONLY,
 				"Module library.");
 
-			// TODO: also add moduleInput/moduleOutput as appropriate, SSHS_FLAGS_NORMAL.
+			// Add moduleInput/moduleOutput as appropriate.
+			sshsNode moduleSysNode = sshsGetRelativeNode(modulesSysNode, moduleLibrary + "/");
+			std::string inputType = sshsNodeGetStdString(moduleSysNode, "type");
+
+			if (inputType != "INPUT") {
+				// CAER_MODULE_OUTPUT / CAER_MODULE_PROCESSOR
+				// moduleInput must exist for OUTPUT and PROCESSOR modules.
+				sshsNodeCreate(newModuleNode, "moduleInput", "", 0, 1024, SSHS_FLAGS_NORMAL,
+					"Module dynamic input definition.");
+			}
+
+			if (inputType != "OUTPUT") {
+				// CAER_MODULE_INPUT / CAER_MODULE_PROCESSOR
+				// moduleOutput must exist for INPUT and PROCESSOR modules, only
+				// if their outputs are undefined (-1).
+				if (sshsExistsRelativeNode(moduleSysNode, "outputStreams/0/")) {
+					sshsNode outputNode0 = sshsGetRelativeNode(moduleSysNode, "outputStreams/0/");
+					int16_t outputNode0Type = sshsNodeGetShort(outputNode0, "type");
+
+					if (outputNode0Type == -1) {
+						sshsNodeCreate(newModuleNode, "moduleOutput", "", 0, 1024, SSHS_FLAGS_NORMAL,
+							"Module dynamic output definition.");
+					}
+				}
+			}
 
 			// Send back confirmation to the client.
 			caerConfigSendBoolResponse(client, CAER_CONFIG_ADD_MODULE, true);
