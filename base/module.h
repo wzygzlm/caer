@@ -62,6 +62,26 @@ enum caer_module_type {
 	CAER_MODULE_PROCESSOR = 2,
 };
 
+static inline const char *caerModuleTypeToString(enum caer_module_type type) {
+	switch (type) {
+		case CAER_MODULE_INPUT:
+			return ("INPUT");
+			break;
+
+		case CAER_MODULE_OUTPUT:
+			return ("OUTPUT");
+			break;
+
+		case CAER_MODULE_PROCESSOR:
+			return ("PROCESSOR");
+			break;
+
+		default:
+			return ("UNKNOWN");
+			break;
+	}
+}
+
 struct caer_event_stream_in {
 	int16_t type; // Use -1 for any type.
 	int16_t number; // Use -1 for any number of.
