@@ -20,7 +20,7 @@ struct sshs_node_attr {
 	UT_hash_handle hh;
 	union sshs_node_attr_range min;
 	union sshs_node_attr_range max;
-	enum sshs_node_attr_flags flags;
+	int flags;
 	const char *description;
 	union sshs_node_attr_value value;
 	enum sshs_node_attr_value_type value_type;
@@ -48,10 +48,8 @@ static bool sshsNodeCheckAttributeValueChanged(enum sshs_node_attr_value_type ty
 static int sshsNodeAttrCmp(const void *a, const void *b);
 static sshsNodeAttr *sshsNodeGetAttributes(sshsNode node, size_t *numAttributes);
 static const char *sshsNodeXMLWhitespaceCallback(mxml_node_t *node, int where);
-static void sshsNodeToXML(sshsNode node, int outFd, bool recursive, const char **filterKeys, size_t filterKeysLength,
-	const char **filterNodes, size_t filterNodesLength);
-static mxml_node_t *sshsNodeGenerateXML(sshsNode node, bool recursive, const char **filterKeys, size_t filterKeysLength,
-	const char **filterNodes, size_t filterNodesLength);
+static void sshsNodeToXML(sshsNode node, int outFd, bool recursive);
+static mxml_node_t *sshsNodeGenerateXML(sshsNode node, bool recursive);
 static mxml_node_t **sshsNodeXMLFilterChildNodes(mxml_node_t *node, const char *nodeName, size_t *numChildren);
 static bool sshsNodeFromXML(sshsNode node, int inFd, bool recursive, bool strict);
 static void sshsNodeConsumeXML(sshsNode node, mxml_node_t *content, bool recursive);
@@ -385,7 +383,7 @@ static inline void sshsNodeFreeAttribute(sshsNodeAttr attr) {
 }
 
 void sshsNodeCreateAttribute(sshsNode node, const char *key, enum sshs_node_attr_value_type type,
-	union sshs_node_attr_value defaultValue, struct sshs_node_attr_ranges range, enum sshs_node_attr_flags flags,
+	union sshs_node_attr_value defaultValue, struct sshs_node_attr_ranges range, int flags,
 	const char *description) {
 	// Parse range struct.
 	union sshs_node_attr_range minValue = range.min;
@@ -882,7 +880,7 @@ bool sshsNodeUpdateReadOnlyAttribute(sshsNode node, const char *key, enum sshs_n
 	return (true);
 }
 
-void sshsNodeCreateBool(sshsNode node, const char *key, bool defaultValue, enum sshs_node_attr_flags flags,
+void sshsNodeCreateBool(sshsNode node, const char *key, bool defaultValue, int flags,
 	const char *description) {
 	sshsNodeCreateAttribute(node, key, SSHS_BOOL, (union sshs_node_attr_value ) { .boolean = defaultValue },
 		(struct sshs_node_attr_ranges ) { .min = { .i = -1 }, .max = { .i = -1 } }, flags, description);
@@ -897,7 +895,7 @@ bool sshsNodeGetBool(sshsNode node, const char *key) {
 }
 
 void sshsNodeCreateByte(sshsNode node, const char *key, int8_t defaultValue, int8_t minValue, int8_t maxValue,
-	enum sshs_node_attr_flags flags, const char *description) {
+	int flags, const char *description) {
 	sshsNodeCreateAttribute(node, key, SSHS_BYTE, (union sshs_node_attr_value ) { .ibyte = defaultValue },
 		(struct sshs_node_attr_ranges ) { .min = { .i = minValue }, .max = { .i = maxValue } }, flags, description);
 }
@@ -911,7 +909,7 @@ int8_t sshsNodeGetByte(sshsNode node, const char *key) {
 }
 
 void sshsNodeCreateShort(sshsNode node, const char *key, int16_t defaultValue, int16_t minValue, int16_t maxValue,
-	enum sshs_node_attr_flags flags, const char *description) {
+	int flags, const char *description) {
 	sshsNodeCreateAttribute(node, key, SSHS_SHORT, (union sshs_node_attr_value ) { .ishort = defaultValue },
 		(struct sshs_node_attr_ranges ) { .min = { .i = minValue }, .max = { .i = maxValue } }, flags, description);
 }
@@ -925,7 +923,7 @@ int16_t sshsNodeGetShort(sshsNode node, const char *key) {
 }
 
 void sshsNodeCreateInt(sshsNode node, const char *key, int32_t defaultValue, int32_t minValue, int32_t maxValue,
-	enum sshs_node_attr_flags flags, const char *description) {
+	int flags, const char *description) {
 	sshsNodeCreateAttribute(node, key, SSHS_INT, (union sshs_node_attr_value ) { .iint = defaultValue },
 		(struct sshs_node_attr_ranges ) { .min = { .i = minValue }, .max = { .i = maxValue } }, flags, description);
 }
@@ -939,7 +937,7 @@ int32_t sshsNodeGetInt(sshsNode node, const char *key) {
 }
 
 void sshsNodeCreateLong(sshsNode node, const char *key, int64_t defaultValue, int64_t minValue, int64_t maxValue,
-	enum sshs_node_attr_flags flags, const char *description) {
+	int flags, const char *description) {
 	sshsNodeCreateAttribute(node, key, SSHS_LONG, (union sshs_node_attr_value ) { .ilong = defaultValue },
 		(struct sshs_node_attr_ranges ) { .min = { .i = minValue }, .max = { .i = maxValue } }, flags, description);
 }
@@ -953,7 +951,7 @@ int64_t sshsNodeGetLong(sshsNode node, const char *key) {
 }
 
 void sshsNodeCreateFloat(sshsNode node, const char *key, float defaultValue, float minValue, float maxValue,
-	enum sshs_node_attr_flags flags, const char *description) {
+	int flags, const char *description) {
 	sshsNodeCreateAttribute(node, key, SSHS_FLOAT, (union sshs_node_attr_value ) { .ffloat = defaultValue },
 		(struct sshs_node_attr_ranges ) { .min = { .d = (double) minValue }, .max = { .d = (double) maxValue } },
 		flags, description);
@@ -968,7 +966,7 @@ float sshsNodeGetFloat(sshsNode node, const char *key) {
 }
 
 void sshsNodeCreateDouble(sshsNode node, const char *key, double defaultValue, double minValue, double maxValue,
-	enum sshs_node_attr_flags flags, const char *description) {
+	int flags, const char *description) {
 	sshsNodeCreateAttribute(node, key, SSHS_DOUBLE, (union sshs_node_attr_value ) { .ddouble = defaultValue },
 		(struct sshs_node_attr_ranges ) { .min = { .d = minValue }, .max = { .d = maxValue } }, flags, description);
 }
@@ -982,7 +980,7 @@ double sshsNodeGetDouble(sshsNode node, const char *key) {
 }
 
 void sshsNodeCreateString(sshsNode node, const char *key, const char *defaultValue, size_t minLength, size_t maxLength,
-	enum sshs_node_attr_flags flags, const char *description) {
+	int flags, const char *description) {
 	sshsNodeCreateAttribute(node, key, SSHS_STRING, (union sshs_node_attr_value ) { .string = (char *) defaultValue },
 		(struct sshs_node_attr_ranges ) { .min = { .i = (int64_t) minLength }, .max = { .i = (int64_t) maxLength } },
 		flags, description);
@@ -997,13 +995,12 @@ char *sshsNodeGetString(sshsNode node, const char *key) {
 	return (sshsNodeGetAttribute(node, key, SSHS_STRING).string);
 }
 
-void sshsNodeExportNodeToXML(sshsNode node, int outFd, const char **filterKeys, size_t filterKeysLength) {
-	sshsNodeToXML(node, outFd, false, filterKeys, filterKeysLength, NULL, 0);
+void sshsNodeExportNodeToXML(sshsNode node, int outFd) {
+	sshsNodeToXML(node, outFd, false);
 }
 
-void sshsNodeExportSubTreeToXML(sshsNode node, int outFd, const char **filterKeys, size_t filterKeysLength,
-	const char **filterNodes, size_t filterNodesLength) {
-	sshsNodeToXML(node, outFd, true, filterKeys, filterKeysLength, filterNodes, filterNodesLength);
+void sshsNodeExportSubTreeToXML(sshsNode node, int outFd) {
+	sshsNodeToXML(node, outFd, true);
 }
 
 #define INDENT_MAX_LEVEL 20
@@ -1079,12 +1076,10 @@ static const char *sshsNodeXMLWhitespaceCallback(mxml_node_t *node, int where) {
 	return (NULL);
 }
 
-static void sshsNodeToXML(sshsNode node, int outFd, bool recursive, const char **filterKeys, size_t filterKeysLength,
-	const char **filterNodes, size_t filterNodesLength) {
+static void sshsNodeToXML(sshsNode node, int outFd, bool recursive) {
 	mxml_node_t *root = mxmlNewElement(MXML_NO_PARENT, "sshs");
 	mxmlElementSetAttr(root, "version", "1.0");
-	mxmlAdd(root, MXML_ADD_AFTER, MXML_ADD_TO_PARENT,
-		sshsNodeGenerateXML(node, recursive, filterKeys, filterKeysLength, filterNodes, filterNodesLength));
+	mxmlAdd(root, MXML_ADD_AFTER, MXML_ADD_TO_PARENT, sshsNodeGenerateXML(node, recursive));
 
 	// Disable wrapping
 	mxmlSetWrapMargin(0);
@@ -1095,8 +1090,7 @@ static void sshsNodeToXML(sshsNode node, int outFd, bool recursive, const char *
 	mxmlDelete(root);
 }
 
-static mxml_node_t *sshsNodeGenerateXML(sshsNode node, bool recursive, const char **filterKeys, size_t filterKeysLength,
-	const char **filterNodes, size_t filterNodesLength) {
+static mxml_node_t *sshsNodeGenerateXML(sshsNode node, bool recursive) {
 	mxml_node_t *this = mxmlNewElement(MXML_NO_PARENT, "node");
 
 	// First this node's name and full path.
@@ -1108,18 +1102,8 @@ static mxml_node_t *sshsNodeGenerateXML(sshsNode node, bool recursive, const cha
 
 	// Then it's attributes (key:value pairs).
 	for (size_t i = 0; i < numAttributes; i++) {
-		bool isFilteredOut = false;
-
-		// Verify that the key is not filtered out.
-		for (size_t fk = 0; fk < filterKeysLength; fk++) {
-			if (strcmp(attributes[i]->key, filterKeys[fk]) == 0) {
-				// Matches, don't add this attribute.
-				isFilteredOut = true;
-				break;
-			}
-		}
-
-		if (isFilteredOut) {
+		// If an attribute is marked NO_EXPORT, we skip it.
+		if ((attributes[i]->flags & SSHS_FLAGS_NO_EXPORT)) {
 			continue;
 		}
 
@@ -1145,24 +1129,7 @@ static mxml_node_t *sshsNodeGenerateXML(sshsNode node, bool recursive, const cha
 		sshsNode *children = sshsNodeGetChildren(node, &numChildren);
 
 		for (size_t i = 0; i < numChildren; i++) {
-			// First check that this child node is not filtered out.
-			bool isFilteredOut = false;
-
-			// Verify that the node is not filtered out.
-			for (size_t fn = 0; fn < filterNodesLength; fn++) {
-				if (strcmp(sshsNodeGetName(children[i]), filterNodes[fn]) == 0) {
-					// Matches, don't process this node.
-					isFilteredOut = true;
-					break;
-				}
-			}
-
-			if (isFilteredOut) {
-				continue;
-			}
-
-			mxml_node_t *child = sshsNodeGenerateXML(children[i], recursive, filterKeys, filterKeysLength, filterNodes,
-				filterNodesLength);
+			mxml_node_t *child = sshsNodeGenerateXML(children[i], recursive);
 
 			if (mxmlGetFirstChild(child) != NULL) {
 				mxmlAdd(this, MXML_ADD_AFTER, MXML_ADD_TO_PARENT, child);
@@ -1515,13 +1482,13 @@ struct sshs_node_attr_ranges sshsNodeGetAttributeRanges(sshsNode node, const cha
 	return (result);
 }
 
-enum sshs_node_attr_flags sshsNodeGetAttributeFlags(sshsNode node, const char *key, enum sshs_node_attr_value_type type) {
+int sshsNodeGetAttributeFlags(sshsNode node, const char *key, enum sshs_node_attr_value_type type) {
 	sshsNodeAttr attr = sshsNodeFindAttribute(node, key, type);
 
 	// Verify that a valid attribute exists.
 	sshsNodeVerifyValidAttribute(attr, key, type, "sshsNodeGetAttributeFlags");
 
-	enum sshs_node_attr_flags flags = attr->flags;
+	int flags = attr->flags;
 
 	mtx_unlock(&node->node_lock);
 

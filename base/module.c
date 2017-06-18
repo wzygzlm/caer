@@ -114,7 +114,7 @@ caerModuleData caerModuleInitialize(int16_t moduleID, const char *moduleName, ss
 	bool runModule = sshsNodeGetBool(moduleData->moduleNode, "runAtStartup");
 
 	atomic_store_explicit(&moduleData->running, runModule, memory_order_relaxed);
-	sshsNodeCreateBool(moduleData->moduleNode, "running", runModule, SSHS_FLAGS_NORMAL, "Module start/stop.");
+	sshsNodeCreateBool(moduleData->moduleNode, "running", runModule, SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT, "Module start/stop.");
 	sshsNodeAddAttributeListener(moduleData->moduleNode, moduleData, &caerModuleShutdownListener);
 
 	atomic_thread_fence(memory_order_release);

@@ -644,10 +644,9 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 				break;
 			}
 
-			enum sshs_node_attr_flags flags = sshsNodeGetAttributeFlags(wantedNode, (const char *) key,
-				(enum sshs_node_attr_value_type) type);
+			int flags = sshsNodeGetAttributeFlags(wantedNode, (const char *) key, (enum sshs_node_attr_value_type) type);
 
-			const char *flagsStr;
+			std::string flagsStr;
 
 			if (flags & SSHS_FLAGS_READ_ONLY) {
 				flagsStr = "READ_ONLY";
@@ -659,8 +658,12 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 				flagsStr = "NORMAL";
 			}
 
-			caerConfigSendResponse(client, CAER_CONFIG_GET_FLAGS, SSHS_STRING, (const uint8_t *) flagsStr,
-				strlen(flagsStr) + 1);
+			if (flags & SSHS_FLAGS_NO_EXPORT) {
+				flagsStr += ",NO_EXPORT";
+			}
+
+			caerConfigSendResponse(client, CAER_CONFIG_GET_FLAGS, SSHS_STRING, (const uint8_t *) flagsStr.c_str(),
+				flagsStr.length() + 1);
 
 			break;
 		}

@@ -71,6 +71,7 @@ enum sshs_node_attr_flags {
 	SSHS_FLAGS_NORMAL = 0,
 	SSHS_FLAGS_READ_ONLY = 1,
 	SSHS_FLAGS_NOTIFY_ONLY = 2,
+	SSHS_FLAGS_NO_EXPORT = 4,
 };
 
 enum sshs_node_node_events {
@@ -104,7 +105,7 @@ void sshsNodeRemoveAttributeListener(sshsNode node, void *userData,
 			CAER_SYMBOL_EXPORT;
 void sshsNodeRemoveAllAttributeListeners(sshsNode node) CAER_SYMBOL_EXPORT;
 void sshsNodeCreateAttribute(sshsNode node, const char *key, enum sshs_node_attr_value_type type,
-	union sshs_node_attr_value defaultValue, struct sshs_node_attr_ranges range, enum sshs_node_attr_flags flags,
+	union sshs_node_attr_value defaultValue, struct sshs_node_attr_ranges range, int flags,
 	const char *description) CAER_SYMBOL_EXPORT;
 void sshsNodeRemoveAttribute(sshsNode node, const char *key, enum sshs_node_attr_value_type type) CAER_SYMBOL_EXPORT;
 void sshsNodeRemoveAllAttributes(sshsNode node) CAER_SYMBOL_EXPORT;
@@ -116,42 +117,40 @@ union sshs_node_attr_value sshsNodeGetAttribute(sshsNode node, const char *key, 
 	CAER_SYMBOL_EXPORT;
 bool sshsNodeUpdateReadOnlyAttribute(sshsNode node, const char *key, enum sshs_node_attr_value_type type,
 	union sshs_node_attr_value value) CAER_SYMBOL_EXPORT;
-void sshsNodeCreateBool(sshsNode node, const char *key, bool defaultValue, enum sshs_node_attr_flags flags,
+void sshsNodeCreateBool(sshsNode node, const char *key, bool defaultValue, int flags,
 	const char *description) CAER_SYMBOL_EXPORT;
 bool sshsNodePutBool(sshsNode node, const char *key, bool value) CAER_SYMBOL_EXPORT;
 bool sshsNodeGetBool(sshsNode node, const char *key) CAER_SYMBOL_EXPORT;
 void sshsNodeCreateByte(sshsNode node, const char *key, int8_t defaultValue, int8_t minValue, int8_t maxValue,
-	enum sshs_node_attr_flags flags, const char *description) CAER_SYMBOL_EXPORT;
+	int flags, const char *description) CAER_SYMBOL_EXPORT;
 bool sshsNodePutByte(sshsNode node, const char *key, int8_t value) CAER_SYMBOL_EXPORT;
 int8_t sshsNodeGetByte(sshsNode node, const char *key) CAER_SYMBOL_EXPORT;
 void sshsNodeCreateShort(sshsNode node, const char *key, int16_t defaultValue, int16_t minValue, int16_t maxValue,
-	enum sshs_node_attr_flags flags, const char *description) CAER_SYMBOL_EXPORT;
+	int flags, const char *description) CAER_SYMBOL_EXPORT;
 bool sshsNodePutShort(sshsNode node, const char *key, int16_t value) CAER_SYMBOL_EXPORT;
 int16_t sshsNodeGetShort(sshsNode node, const char *key) CAER_SYMBOL_EXPORT;
 void sshsNodeCreateInt(sshsNode node, const char *key, int32_t defaultValue, int32_t minValue, int32_t maxValue,
-	enum sshs_node_attr_flags flags, const char *description) CAER_SYMBOL_EXPORT;
+	int flags, const char *description) CAER_SYMBOL_EXPORT;
 bool sshsNodePutInt(sshsNode node, const char *key, int32_t value) CAER_SYMBOL_EXPORT;
 int32_t sshsNodeGetInt(sshsNode node, const char *key) CAER_SYMBOL_EXPORT;
 void sshsNodeCreateLong(sshsNode node, const char *key, int64_t defaultValue, int64_t minValue, int64_t maxValue,
-	enum sshs_node_attr_flags flags, const char *description) CAER_SYMBOL_EXPORT;
+	int flags, const char *description) CAER_SYMBOL_EXPORT;
 bool sshsNodePutLong(sshsNode node, const char *key, int64_t value) CAER_SYMBOL_EXPORT;
 int64_t sshsNodeGetLong(sshsNode node, const char *key) CAER_SYMBOL_EXPORT;
 void sshsNodeCreateFloat(sshsNode node, const char *key, float defaultValue, float minValue, float maxValue,
-	enum sshs_node_attr_flags flags, const char *description) CAER_SYMBOL_EXPORT;
+	int flags, const char *description) CAER_SYMBOL_EXPORT;
 bool sshsNodePutFloat(sshsNode node, const char *key, float value) CAER_SYMBOL_EXPORT;
 float sshsNodeGetFloat(sshsNode node, const char *key) CAER_SYMBOL_EXPORT;
 void sshsNodeCreateDouble(sshsNode node, const char *key, double defaultValue, double minValue, double maxValue,
-	enum sshs_node_attr_flags flags, const char *description) CAER_SYMBOL_EXPORT;
+	int flags, const char *description) CAER_SYMBOL_EXPORT;
 bool sshsNodePutDouble(sshsNode node, const char *key, double value) CAER_SYMBOL_EXPORT;
 double sshsNodeGetDouble(sshsNode node, const char *key) CAER_SYMBOL_EXPORT;
 void sshsNodeCreateString(sshsNode node, const char *key, const char *defaultValue, size_t minLength, size_t maxLength,
-	enum sshs_node_attr_flags flags, const char *description) CAER_SYMBOL_EXPORT;
+	int flags, const char *description) CAER_SYMBOL_EXPORT;
 bool sshsNodePutString(sshsNode node, const char *key, const char *value) CAER_SYMBOL_EXPORT;
 char *sshsNodeGetString(sshsNode node, const char *key) CAER_SYMBOL_EXPORT;
-void sshsNodeExportNodeToXML(sshsNode node, int outFd, const char **filterKeys, size_t filterKeysLength)
-	CAER_SYMBOL_EXPORT;
-void sshsNodeExportSubTreeToXML(sshsNode node, int outFd, const char **filterKeys, size_t filterKeysLength,
-	const char **filterNodes, size_t filterNodesLength) CAER_SYMBOL_EXPORT;
+void sshsNodeExportNodeToXML(sshsNode node, int outFd) CAER_SYMBOL_EXPORT;
+void sshsNodeExportSubTreeToXML(sshsNode node, int outFd) CAER_SYMBOL_EXPORT;
 bool sshsNodeImportNodeFromXML(sshsNode node, int inFd, bool strict) CAER_SYMBOL_EXPORT;
 bool sshsNodeImportSubTreeFromXML(sshsNode node, int inFd, bool strict) CAER_SYMBOL_EXPORT;
 bool sshsNodeStringToAttributeConverter(sshsNode node, const char *key, const char *type, const char *value)
@@ -162,7 +161,7 @@ enum sshs_node_attr_value_type *sshsNodeGetAttributeTypes(sshsNode node, const c
 	CAER_SYMBOL_EXPORT;
 struct sshs_node_attr_ranges sshsNodeGetAttributeRanges(sshsNode node, const char *key,
 	enum sshs_node_attr_value_type type) CAER_SYMBOL_EXPORT;
-enum sshs_node_attr_flags sshsNodeGetAttributeFlags(sshsNode node, const char *key, enum sshs_node_attr_value_type type)
+int sshsNodeGetAttributeFlags(sshsNode node, const char *key, enum sshs_node_attr_value_type type)
 	CAER_SYMBOL_EXPORT;
 const char *sshsNodeGetAttributeDescription(sshsNode node, const char *key, enum sshs_node_attr_value_type type)
 	CAER_SYMBOL_EXPORT;

@@ -519,14 +519,14 @@ void caerMainloopRun(void) {
 	glMainloopData.systemRunning.store(true);
 
 	sshsNode systemNode = sshsGetNode(sshsGetGlobal(), "/caer/");
-	sshsNodeCreateBool(systemNode, "running", true, SSHS_FLAGS_NORMAL, "Global system start/stop.");
+	sshsNodeCreateBool(systemNode, "running", true, SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT, "Global system start/stop.");
 	sshsNodeAddAttributeListener(systemNode, nullptr, &caerMainloopSystemRunningListener);
 
 	// Mainloop running control.
 	glMainloopData.running.store(true);
 
 	glMainloopData.configNode = sshsGetNode(sshsGetGlobal(), "/");
-	sshsNodeCreateBool(glMainloopData.configNode, "running", true, SSHS_FLAGS_NORMAL, "Mainloop start/stop.");
+	sshsNodeCreateBool(glMainloopData.configNode, "running", true, SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT, "Mainloop start/stop.");
 	sshsNodeAddAttributeListener(glMainloopData.configNode, nullptr, &caerMainloopRunningListener);
 
 	while (glMainloopData.systemRunning.load()) {

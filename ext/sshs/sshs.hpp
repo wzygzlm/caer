@@ -5,48 +5,47 @@
 
 #include <string>
 
-inline void sshsNodeCreate(sshsNode node, const char *key, bool defaultValue, enum sshs_node_attr_flags flags,
-	const char *description) {
+inline void sshsNodeCreate(sshsNode node, const char *key, bool defaultValue, int flags, const char *description) {
 	sshsNodeCreateBool(node, key, defaultValue, flags, description);
 }
 
 inline void sshsNodeCreate(sshsNode node, const char *key, int8_t defaultValue, int8_t minValue, int8_t maxValue,
-	enum sshs_node_attr_flags flags, const char *description) {
+	int flags, const char *description) {
 	sshsNodeCreateByte(node, key, defaultValue, minValue, maxValue, flags, description);
 }
 
-inline void sshsNodeCreate(sshsNode node, const char *key, int16_t defaultValue, int16_t minValue,
-	int16_t maxValue, enum sshs_node_attr_flags flags, const char *description) {
+inline void sshsNodeCreate(sshsNode node, const char *key, int16_t defaultValue, int16_t minValue, int16_t maxValue,
+	int flags, const char *description) {
 	sshsNodeCreateShort(node, key, defaultValue, minValue, maxValue, flags, description);
 }
 
-inline void sshsNodeCreate(sshsNode node, const char *key, int32_t defaultValue, int32_t minValue,
-	int32_t maxValue, enum sshs_node_attr_flags flags, const char *description) {
+inline void sshsNodeCreate(sshsNode node, const char *key, int32_t defaultValue, int32_t minValue, int32_t maxValue,
+	int flags, const char *description) {
 	sshsNodeCreateInt(node, key, defaultValue, minValue, maxValue, flags, description);
 }
 
-inline void sshsNodeCreate(sshsNode node, const char *key, int64_t defaultValue, int64_t minValue,
-	int64_t maxValue, enum sshs_node_attr_flags flags, const char *description) {
+inline void sshsNodeCreate(sshsNode node, const char *key, int64_t defaultValue, int64_t minValue, int64_t maxValue,
+	int flags, const char *description) {
 	sshsNodeCreateLong(node, key, defaultValue, minValue, maxValue, flags, description);
 }
 
 inline void sshsNodeCreate(sshsNode node, const char *key, float defaultValue, float minValue, float maxValue,
-	enum sshs_node_attr_flags flags, const char *description) {
+	int flags, const char *description) {
 	sshsNodeCreateFloat(node, key, defaultValue, minValue, maxValue, flags, description);
 }
 
 inline void sshsNodeCreate(sshsNode node, const char *key, double defaultValue, double minValue, double maxValue,
-	enum sshs_node_attr_flags flags, const char *description) {
+	int flags, const char *description) {
 	sshsNodeCreateDouble(node, key, defaultValue, minValue, maxValue, flags, description);
 }
 
-inline void sshsNodeCreate(sshsNode node, const char *key, const char *defaultValue, size_t minLength,
-	size_t maxLength, enum sshs_node_attr_flags flags, const char *description) {
+inline void sshsNodeCreate(sshsNode node, const char *key, const char *defaultValue, size_t minLength, size_t maxLength,
+	int flags, const char *description) {
 	sshsNodeCreateString(node, key, defaultValue, minLength, maxLength, flags, description);
 }
 
 inline void sshsNodeCreate(sshsNode node, const char *key, const std::string &defaultValue, size_t minLength,
-	size_t maxLength, enum sshs_node_attr_flags flags, const std::string &description) {
+	size_t maxLength, int flags, const std::string &description) {
 	sshsNodeCreateString(node, key, defaultValue.c_str(), minLength, maxLength, flags, description.c_str());
 }
 
