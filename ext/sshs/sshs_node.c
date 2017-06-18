@@ -383,8 +383,7 @@ static inline void sshsNodeFreeAttribute(sshsNodeAttr attr) {
 }
 
 void sshsNodeCreateAttribute(sshsNode node, const char *key, enum sshs_node_attr_value_type type,
-	union sshs_node_attr_value defaultValue, struct sshs_node_attr_ranges range, int flags,
-	const char *description) {
+	union sshs_node_attr_value defaultValue, struct sshs_node_attr_ranges range, int flags, const char *description) {
 	// Parse range struct.
 	union sshs_node_attr_range minValue = range.min;
 	union sshs_node_attr_range maxValue = range.max;
@@ -759,18 +758,18 @@ union sshs_node_attr_value sshsNodeGetAttribute(sshsNode node, const char *key, 
 }
 
 static inline bool strEndsWith(const char *str, const char *suffix) {
-    if (str == NULL || suffix == NULL) {
-        return (false);
-    }
+	if (str == NULL || suffix == NULL) {
+		return (false);
+	}
 
-    size_t strLength = strlen(str);
-    size_t suffixLength = strlen(suffix);
+	size_t strLength = strlen(str);
+	size_t suffixLength = strlen(suffix);
 
-    if (suffixLength > strLength) {
-        return (false);
-    }
+	if (suffixLength > strLength) {
+		return (false);
+	}
 
-    return (strncmp(str + strLength - suffixLength, suffix, suffixLength) == 0);
+	return (strncmp(str + strLength - suffixLength, suffix, suffixLength) == 0);
 }
 
 static int sshsNodeAttrCmp(const void *a, const void *b) {
@@ -880,8 +879,7 @@ bool sshsNodeUpdateReadOnlyAttribute(sshsNode node, const char *key, enum sshs_n
 	return (true);
 }
 
-void sshsNodeCreateBool(sshsNode node, const char *key, bool defaultValue, int flags,
-	const char *description) {
+void sshsNodeCreateBool(sshsNode node, const char *key, bool defaultValue, int flags, const char *description) {
 	sshsNodeCreateAttribute(node, key, SSHS_BOOL, (union sshs_node_attr_value ) { .boolean = defaultValue },
 		(struct sshs_node_attr_ranges ) { .min = { .i = -1 }, .max = { .i = -1 } }, flags, description);
 }
@@ -950,8 +948,8 @@ int64_t sshsNodeGetLong(sshsNode node, const char *key) {
 	return (sshsNodeGetAttribute(node, key, SSHS_LONG).ilong);
 }
 
-void sshsNodeCreateFloat(sshsNode node, const char *key, float defaultValue, float minValue, float maxValue,
-	int flags, const char *description) {
+void sshsNodeCreateFloat(sshsNode node, const char *key, float defaultValue, float minValue, float maxValue, int flags,
+	const char *description) {
 	sshsNodeCreateAttribute(node, key, SSHS_FLOAT, (union sshs_node_attr_value ) { .ffloat = defaultValue },
 		(struct sshs_node_attr_ranges ) { .min = { .d = (double) minValue }, .max = { .d = (double) maxValue } },
 		flags, description);
@@ -1313,6 +1311,7 @@ bool sshsNodeStringToAttributeConverter(sshsNode node, const char *key, const ch
 
 	// IFF attribute already exists, we update it using sshsNodePut(), else
 	// we create the attribute with maximum range and a default description.
+	// These XMl-loaded attributes are also marked NO_EXPORT.
 	// This happens on XML load only. More restrictive ranges and flags can be
 	// enabled later by calling sshsNodeCreate*() again as needed.
 	bool result = false;
@@ -1326,38 +1325,43 @@ bool sshsNodeStringToAttributeConverter(sshsNode node, const char *key, const ch
 
 		switch (type) {
 			case SSHS_BOOL:
-				sshsNodeCreateBool(node, key, value.boolean, SSHS_FLAGS_NORMAL, "XML loaded value.");
+				sshsNodeCreateBool(node, key, value.boolean, SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT,
+					"XML loaded value.");
 				break;
 
 			case SSHS_BYTE:
-				sshsNodeCreateByte(node, key, value.ibyte, INT8_MIN, INT8_MAX, SSHS_FLAGS_NORMAL, "XML loaded value.");
+				sshsNodeCreateByte(node, key, value.ibyte, INT8_MIN, INT8_MAX, SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT,
+					"XML loaded value.");
 				break;
 
 			case SSHS_SHORT:
-				sshsNodeCreateShort(node, key, value.ishort, INT16_MIN, INT16_MAX, SSHS_FLAGS_NORMAL,
-					"XML loaded value.");
+				sshsNodeCreateShort(node, key, value.ishort, INT16_MIN, INT16_MAX,
+					SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT, "XML loaded value.");
 				break;
 
 			case SSHS_INT:
-				sshsNodeCreateInt(node, key, value.iint, INT32_MIN, INT32_MAX, SSHS_FLAGS_NORMAL, "XML loaded value.");
+				sshsNodeCreateInt(node, key, value.iint, INT32_MIN, INT32_MAX, SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT,
+					"XML loaded value.");
 				break;
 
 			case SSHS_LONG:
-				sshsNodeCreateLong(node, key, value.ilong, INT64_MIN, INT64_MAX, SSHS_FLAGS_NORMAL,
-					"XML loaded value.");
+				sshsNodeCreateLong(node, key, value.ilong, INT64_MIN, INT64_MAX,
+					SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT, "XML loaded value.");
 				break;
 
 			case SSHS_FLOAT:
-				sshsNodeCreateFloat(node, key, value.ffloat, -FLT_MAX, FLT_MAX, SSHS_FLAGS_NORMAL, "XML loaded value.");
+				sshsNodeCreateFloat(node, key, value.ffloat, -FLT_MAX, FLT_MAX,
+					SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT, "XML loaded value.");
 				break;
 
 			case SSHS_DOUBLE:
-				sshsNodeCreateDouble(node, key, value.ddouble, -DBL_MAX, DBL_MAX, SSHS_FLAGS_NORMAL,
-					"XML loaded value.");
+				sshsNodeCreateDouble(node, key, value.ddouble, -DBL_MAX, DBL_MAX,
+					SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT, "XML loaded value.");
 				break;
 
 			case SSHS_STRING:
-				sshsNodeCreateString(node, key, value.string, 0, INT32_MAX, SSHS_FLAGS_NORMAL, "XML loaded value.");
+				sshsNodeCreateString(node, key, value.string, 0, INT32_MAX, SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT,
+					"XML loaded value.");
 				break;
 
 			case SSHS_UNKNOWN:
