@@ -48,7 +48,7 @@ bool caerGenSpikeInit(caerModuleData moduleData) {
 
 	sshsNode spikeNode = sshsGetRelativeNode(deviceConfigNodeMain, "spikeGen/");
 
-	sshsNodeCreateBool(spikeNode, "doStim", false,  SSHS_FLAGS_FORCE_DEFAULT_VALUE, "Enable stimulation.");
+	sshsNodeCreateBool(spikeNode, "doStim", false,  SSHS_FLAGS_NORMAL, "Enable stimulation.");
 	atomic_store(&state->genSpikeState.doStim, sshsNodeGetBool(spikeNode, "doStim"));
 
 	// TODO: fix range limits.
@@ -64,7 +64,7 @@ bool caerGenSpikeInit(caerModuleData moduleData) {
 	sshsNodeCreateInt(spikeNode, "stim_duration", 10, 0, 1024, SSHS_FLAGS_NORMAL, "TODO.");
 	atomic_store(&state->genSpikeState.stim_duration, sshsNodeGetInt(spikeNode, "stim_duration"));
 
-	sshsNodeCreateBool(spikeNode, "repeat", false, SSHS_FLAGS_FORCE_DEFAULT_VALUE, "TODO.");
+	sshsNodeCreateBool(spikeNode, "repeat", false, SSHS_FLAGS_NORMAL, "TODO.");
 	atomic_store(&state->genSpikeState.repeat, sshsNodeGetBool(spikeNode, "repeat"));
 
 	sshsNodeCreateBool(spikeNode, "teaching", true, SSHS_FLAGS_NORMAL, "TODO.");
@@ -76,16 +76,16 @@ bool caerGenSpikeInit(caerModuleData moduleData) {
 	sshsNodeCreateBool(spikeNode, "sendInhibitoryStimuli", false, SSHS_FLAGS_NORMAL, "TODO.");
 	atomic_store(&state->genSpikeState.sendInhibitoryStimuli, sshsNodeGetBool(spikeNode, "sendInhibitoryStimuli"));
 
-	sshsNodeCreateBool(spikeNode, "setCam", false, SSHS_FLAGS_FORCE_DEFAULT_VALUE, "TODO.");
+	sshsNodeCreateBool(spikeNode, "setCam", false, SSHS_FLAGS_NORMAL, "TODO.");
 	atomic_store(&state->genSpikeState.setCam, sshsNodeGetBool(spikeNode, "setCam"));
 
-	sshsNodeCreateBool(spikeNode, "setCamSingle", false, SSHS_FLAGS_FORCE_DEFAULT_VALUE, "TODO.");
+	sshsNodeCreateBool(spikeNode, "setCamSingle", false, SSHS_FLAGS_NORMAL, "TODO.");
 	atomic_store(&state->genSpikeState.setCamSingle, sshsNodeGetBool(spikeNode, "setCamSingle"));
 
-	sshsNodeCreateBool(spikeNode, "clearCam", false, SSHS_FLAGS_FORCE_DEFAULT_VALUE, "TODO.");
+	sshsNodeCreateBool(spikeNode, "clearCam", false, SSHS_FLAGS_NORMAL, "TODO.");
 	atomic_store(&state->genSpikeState.clearCam, sshsNodeGetBool(spikeNode, "clearCam"));
 
-	sshsNodeCreateBool(spikeNode, "clearAllCam", false, SSHS_FLAGS_FORCE_DEFAULT_VALUE, "TODO.");
+	sshsNodeCreateBool(spikeNode, "clearAllCam", false, SSHS_FLAGS_NORMAL, "TODO.");
 	atomic_store(&state->genSpikeState.clearAllCam, sshsNodeGetBool(spikeNode, "clearAllCam"));
 
 	sshsNodeCreateBool(spikeNode, "doStimPrimitiveBias", true, SSHS_FLAGS_NORMAL, "TODO.");
@@ -110,7 +110,7 @@ bool caerGenSpikeInit(caerModuleData moduleData) {
 	state->genSpikeState.ETFstepnum = 6;	//internal
 
 	// init status
-	sshsNodeCreateBool(spikeNode, "loadDefaultBiases", false, SSHS_FLAGS_FORCE_DEFAULT_VALUE, "TODO.");
+	sshsNodeCreateBool(spikeNode, "loadDefaultBiases", false, SSHS_FLAGS_NORMAL, "TODO.");
 	atomic_store(&state->genSpikeState.loadDefaultBiases, sshsNodeGetBool(spikeNode, "loadDefaultBiases"));
 
 	// Start separate stimulation thread.

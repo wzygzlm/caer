@@ -87,13 +87,14 @@ static bool caerSpikeFeaturesInit(caerModuleData moduleData) {
 
 	// Populate own sourceInfo node.
 	sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
-	sshsNodeCreateShort(sourceInfoNode, "frameSizeX", sizeX, 1, 1024, SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE,
+	sshsNodeRemoveAllAttributes(sourceInfoNode);
+	sshsNodeCreateShort(sourceInfoNode, "frameSizeX", sizeX, 1, 1024, SSHS_FLAGS_READ_ONLY,
 		"Output frame width.");
-	sshsNodeCreateShort(sourceInfoNode, "frameSizeY", sizeY, 1, 1024, SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE,
+	sshsNodeCreateShort(sourceInfoNode, "frameSizeY", sizeY, 1, 1024, SSHS_FLAGS_READ_ONLY,
 		"Output frame height.");
-	sshsNodeCreateShort(sourceInfoNode, "dataSizeX", sizeX, 1, 1024, SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE,
+	sshsNodeCreateShort(sourceInfoNode, "dataSizeX", sizeX, 1, 1024, SSHS_FLAGS_READ_ONLY,
 		"Output data width.");
-	sshsNodeCreateShort(sourceInfoNode, "dataSizeY", sizeY, 1, 1024, SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE,
+	sshsNodeCreateShort(sourceInfoNode, "dataSizeY", sizeY, 1, 1024, SSHS_FLAGS_READ_ONLY,
 		"Output data height.");
 
 	// Add config listeners last, to avoid having them dangling if Init doesn't succeed.

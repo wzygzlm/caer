@@ -352,9 +352,10 @@ static bool caerRectangulartrackerInit(caerModuleData moduleData) {
 
 	// Create own sourceInfo node.
 	sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
-	sshsNodeCreateShort(sourceInfoNode, "dataSizeX", state->sizeX, 1, 1024, SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE,
+	sshsNodeRemoveAllAttributes(sourceInfoNode);
+	sshsNodeCreateShort(sourceInfoNode, "dataSizeX", state->sizeX, 1, 1024, SSHS_FLAGS_READ_ONLY,
 		"Data width.");
-	sshsNodeCreateShort(sourceInfoNode, "dataSizeY", state->sizeY, 1, 1024, SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE,
+	sshsNodeCreateShort(sourceInfoNode, "dataSizeY", state->sizeY, 1, 1024, SSHS_FLAGS_READ_ONLY,
 		"Data height.");
 
 	// Add config listeners last, to avoid having them dangling if Init doesn't succeed.

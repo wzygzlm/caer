@@ -277,7 +277,7 @@ static std::pair<ModuleLibrary, caerModuleInfo> loadModule(const std::string &mo
 	catch (const std::exception &ex) {
 		// Failed to load shared library!
 		boost::format exMsg = boost::format("Failed to load library '%s', error: '%s'.") % modulePath.string()
-		% ex.what();
+			% ex.what();
 		throw std::runtime_error(exMsg.str());
 	}
 
@@ -289,7 +289,7 @@ static std::pair<ModuleLibrary, caerModuleInfo> loadModule(const std::string &mo
 		// Failed to find symbol in shared library!
 		unloadLibrary(moduleLibrary);
 		boost::format exMsg = boost::format("Failed to find symbol in library '%s', error: '%s'.") % modulePath.string()
-		% ex.what();
+			% ex.what();
 		throw std::runtime_error(exMsg.str());
 	}
 #else
@@ -297,7 +297,7 @@ static std::pair<ModuleLibrary, caerModuleInfo> loadModule(const std::string &mo
 	if (moduleLibrary == nullptr) {
 		// Failed to load shared library!
 		boost::format exMsg = boost::format("Failed to load library '%s', error: '%s'.") % modulePath.string()
-			% dlerror();
+		% dlerror();
 		throw std::runtime_error(exMsg.str());
 	}
 
@@ -306,7 +306,7 @@ static std::pair<ModuleLibrary, caerModuleInfo> loadModule(const std::string &mo
 		// Failed to find symbol in shared library!
 		unloadLibrary(moduleLibrary);
 		boost::format exMsg = boost::format("Failed to find symbol in library '%s', error: '%s'.") % modulePath.string()
-			% dlerror();
+		% dlerror();
 		throw std::runtime_error(exMsg.str());
 	}
 #endif
@@ -503,10 +503,12 @@ void caerMainloopRun(void) {
 
 	sshsNodeCreate(modulesNode, "modulesSearchPath", modulesBuildDir.string() + ":" + modulesDefaultDir.string(), 1,
 		8 * PATH_MAX, SSHS_FLAGS_NORMAL, "Directories to search loadable modules in, separated by ':'.");
-	sshsNodeCreate(modulesNode, "modulesListOptions", "", 0, 10000, SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE,
-		"List of loadable modules.");
 
-	sshsNodeCreate(modulesNode, "updateModulesInformation", false, SSHS_FLAGS_NOTIFY_ONLY_FORCE_DEFAULT_VALUE,
+	sshsNodeRemoveAttribute(modulesNode, "modulesListOptions", SSHS_STRING);
+	sshsNodeCreate(modulesNode, "modulesListOptions", "", 0, 10000, SSHS_FLAGS_READ_ONLY, "List of loadable modules.");
+
+	sshsNodeRemoveAttribute(modulesNode, "updateModulesInformation", SSHS_BOOL);
+	sshsNodeCreate(modulesNode, "updateModulesInformation", false, SSHS_FLAGS_NOTIFY_ONLY,
 		"Update modules information.");
 	sshsNodeAddAttributeListener(modulesNode, nullptr, &caerModulesUpdateInformation);
 

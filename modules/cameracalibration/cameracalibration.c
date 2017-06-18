@@ -79,8 +79,9 @@ static bool caerCameraCalibrationInit(caerModuleData moduleData) {
 		"Maximum total average error allowed (in pixels).");
 	sshsNodeCreateString(moduleData->moduleNode, "calibrationPattern", "chessboard", 10, 21, SSHS_FLAGS_NORMAL,
 		"Pattern to run calibration with.");
+	sshsNodeRemoveAttribute(moduleData->moduleNode, "calibrationPatternListOptions", SSHS_STRING);
 	sshsNodeCreateString(moduleData->moduleNode, "calibrationPatternListOptions",
-		"chessboard,circlesGrid,asymmetricCirclesGrid", 0, 100, SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE,
+		"chessboard,circlesGrid,asymmetricCirclesGrid", 0, 100, SSHS_FLAGS_READ_ONLY,
 		"Available calibration patterns.");
 	sshsNodeCreateInt(moduleData->moduleNode, "boardWidth", 9, 1, 64, SSHS_FLAGS_NORMAL,
 		"The size of the board (width).");

@@ -803,12 +803,14 @@ static bool caerVisualizerModuleInit(caerModuleData moduleData) {
 
 	sshsNodeCreateString(moduleData->moduleNode, "renderer", "Polarity", 0, 100, SSHS_FLAGS_NORMAL,
 		"Renderer to use to generate content.");
+	sshsNodeRemoveAttribute(moduleData->moduleNode, "rendererListOptions", SSHS_STRING);
 	sshsNodeCreateString(moduleData->moduleNode, "rendererListOptions", caerVisualizerRendererListOptionsString, 0, 200,
-		SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE, "List of available renderers.");
+		SSHS_FLAGS_READ_ONLY, "List of available renderers.");
 	sshsNodeCreateString(moduleData->moduleNode, "eventHandler", "None", 0, 100, SSHS_FLAGS_NORMAL,
 		"Event handlers to handle mouse and keyboard events.");
+	sshsNodeRemoveAttribute(moduleData->moduleNode, "eventHandlerListOptions", SSHS_STRING);
 	sshsNodeCreateString(moduleData->moduleNode, "eventHandlerListOptions", caerVisualizerHandlerListOptionsString, 0,
-		200, SSHS_FLAGS_READ_ONLY_FORCE_DEFAULT_VALUE, "List of available event handlers.");
+		200, SSHS_FLAGS_READ_ONLY, "List of available event handlers.");
 
 	// Initialize visualizer. Needs information from a packet (the source ID)!
 	if (!caerVisualizerModuleInitSize(moduleData, inputs, inputsSize)) {
