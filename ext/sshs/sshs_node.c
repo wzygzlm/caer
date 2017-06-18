@@ -480,62 +480,10 @@ void sshsNodeCreateAttribute(sshsNode node, const char *key, enum sshs_node_attr
 	sshsNodeAttr oldAttr;
 	HASH_FIND(hh, node->attributes, &newAttr->value_type, fullKeyLength, oldAttr);
 
-	bool attrValueChanged = false;
-
 	// Add if not present. Else update value (below).
 	if (oldAttr == NULL) {
 		HASH_ADD(hh, node->attributes, value_type, fullKeyLength, newAttr);
-	}
-	else {
-		// If value was present, update its range and flags always.
-		oldAttr->min = minValue;
-		oldAttr->max = maxValue;
-		oldAttr->flags = flags;
-		oldAttr->description = description;
 
-		// Then we either update the value to the default value, if the
-		// appropriate flag is set, or else we check if the current value
-		// is still fine and within range; if it's not, we replace it.
-		bool attrValueUpdate = false;
-
-		if (flags & SSHS_FLAGS_FORCE_DEFAULT_VALUE) {
-			attrValueUpdate = true;
-		}
-		else {
-			// If old value is out of range, replace with new default value.
-			if (!sshsNodeCheckRange(type, oldAttr->value, minValue, maxValue)) {
-				attrValueUpdate = true;
-			}
-		}
-
-		if (attrValueUpdate) {
-			if (sshsNodeCheckAttributeValueChanged(type, oldAttr->value, newAttr->value)) {
-				// Values really changed, update. Remember to free old string
-				// memory, as well as newAttr itself (but not newAttr.value).
-				if (type == SSHS_STRING) {
-					free(oldAttr->value.string);
-				}
-
-				oldAttr->value = newAttr->value;
-
-				free(newAttr);
-
-				// Signal value change.
-				attrValueChanged = true;
-			}
-			else {
-				// Old and new attribute values are the same, don't update.
-				// Also delete newAttr fully.
-				sshsNodeFreeAttribute(newAttr);
-			}
-		}
-		else {
-			// Nothing to update, delete newAttr fully.
-			sshsNodeFreeAttribute(newAttr);
-		}
-	}
-
-	if (oldAttr == NULL) {
 		// Listener support. Call only on change, which is always the case here.
 		sshsNodeAttrListener l;
 		LL_FOREACH(node->attrListeners, l)
@@ -544,15 +492,35 @@ void sshsNodeCreateAttribute(sshsNode node, const char *key, enum sshs_node_attr
 		}
 	}
 	else {
-		// Let's check if anything changed with this update and call
-		// the appropriate listeners if needed.
-		if (attrValueChanged) {
+		// If value was present, update its range and flags always.
+		oldAttr->min = minValue;
+		oldAttr->max = maxValue;
+		oldAttr->flags = flags;
+		oldAttr->description = description;
+
+		// Check if the current value is still fine and within range; if it's
+		// not, we replace it with the new one.
+		if (!sshsNodeCheckRange(type, oldAttr->value, minValue, maxValue)) {
+			// Values really changed, update. Remember to free old string
+			// memory, as well as newAttr itself (but not newAttr.value).
+			if (type == SSHS_STRING) {
+				free(oldAttr->value.string);
+			}
+
+			oldAttr->value = newAttr->value;
+
+			free(newAttr);
+
 			// Listener support. Call only on change, which is always the case here.
 			sshsNodeAttrListener l;
 			LL_FOREACH(node->attrListeners, l)
 			{
 				l->attribute_changed(node, l->userData, SSHS_ATTRIBUTE_MODIFIED, key, type, defaultValue);
 			}
+		}
+		else {
+			// Nothing to update, delete newAttr fully.
+			sshsNodeFreeAttribute(newAttr);
 		}
 	}
 
