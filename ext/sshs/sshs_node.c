@@ -435,6 +435,19 @@ void sshsNodeCreateAttribute(sshsNode node, const char *key, enum sshs_node_attr
 		exit(EXIT_FAILURE);
 	}
 
+	// Restrict NOTIFY_ONLY flag to booleans only, for button-like behavior.
+	if ((flags & SSHS_FLAGS_NOTIFY_ONLY) && type != SSHS_BOOL) {
+		// Fail on wrong notify-only flag usage.
+		char errorMsg[1024];
+		snprintf(errorMsg, 1024, "Attribute '%s' of type '%s' has the NOTIFY_ONLY flag set, but is not of type BOOL. "
+			"Only booleans may have this flag set!", key, sshsHelperTypeToStringConverter(type));
+
+		(*sshsGetGlobalErrorLogCallback())(errorMsg);
+
+		// This is a critical usage error that *must* be fixed!
+		exit(EXIT_FAILURE);
+	}
+
 	size_t keyLength = strlen(key);
 	sshsNodeAttr newAttr = malloc(sizeof(*newAttr) + keyLength + 1);
 	SSHS_MALLOC_CHECK_EXIT(newAttr);
