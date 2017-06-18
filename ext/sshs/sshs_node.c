@@ -630,6 +630,7 @@ void sshsNodeClearSubTree(sshsNode startNode, bool clearStartNode) {
 	// Clear this node's attributes, if requested.
 	if (clearStartNode) {
 		sshsNodeRemoveAllAttributes(startNode);
+		sshsNodeRemoveAllAttributeListeners(startNode);
 	}
 
 	// Recurse down children and remove all attributes.
