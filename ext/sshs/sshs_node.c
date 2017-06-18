@@ -561,8 +561,12 @@ static inline void sshsNodeVerifyValidAttribute(sshsNodeAttr attr, const char *k
 void sshsNodeRemoveAttribute(sshsNode node, const char *key, enum sshs_node_attr_value_type type) {
 	sshsNodeAttr attr = sshsNodeFindAttribute(node, key, type);
 
-	// Verify that a valid attribute exists.
-	sshsNodeVerifyValidAttribute(attr, key, type, "sshsNodeDeleteAttribute");
+	// Verify that a valid attribute exists, else simply return
+	// without doing anything. Attribute was already deleted.
+	if (attr == NULL) {
+		mtx_unlock(&node->node_lock);
+		return;
+	}
 
 	// Remove attribute from node.
 	HASH_DELETE(hh, node->attributes, attr);
