@@ -760,11 +760,39 @@ union sshs_node_attr_value sshsNodeGetAttribute(sshsNode node, const char *key, 
 	return (value);
 }
 
+static inline bool strEndsWith(const char *str, const char *suffix) {
+    if (str == NULL || suffix == NULL) {
+        return (false);
+    }
+
+    size_t strLength = strlen(str);
+    size_t suffixLength = strlen(suffix);
+
+    if (suffixLength > strLength) {
+        return (false);
+    }
+
+    return (strncmp(str + strLength - suffixLength, suffix, suffixLength) == 0);
+}
+
 static int sshsNodeAttrCmp(const void *a, const void *b) {
 	const sshsNodeAttr *aa = a;
 	const sshsNodeAttr *bb = b;
 
-	return (strcmp((*aa)->key, (*bb)->key));
+	// If key ends with "ListOptions", it gets put _before_ any other key.
+	bool aaIsListOptions = strEndsWith((*aa)->key, "ListOptions");
+	bool bbIsListOptions = strEndsWith((*bb)->key, "ListOptions");
+
+	if (aaIsListOptions && !bbIsListOptions) {
+		return (-1);
+	}
+	else if (!aaIsListOptions && bbIsListOptions) {
+		return (1);
+	}
+	else {
+		// Normal compare.
+		return (strcmp((*aa)->key, (*bb)->key));
+	}
 }
 
 // Remember to 'mtx_unlock(&node->node_lock);' after this!
