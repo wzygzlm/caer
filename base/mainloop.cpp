@@ -400,11 +400,12 @@ static void updateModulesInformation() {
 		sshsNode moduleNode = sshsGetRelativeNode(modulesNode, moduleName + "/");
 
 		// Parse caerModuleInfo into SSHS.
-		sshsNodeCreate(moduleNode, "version", I32T(mLoad.second->version), 0, INT32_MAX, SSHS_FLAGS_READ_ONLY,
-			"Module version.");
-		sshsNodeCreate(moduleNode, "name", mLoad.second->name, 1, 256, SSHS_FLAGS_READ_ONLY, "Module name.");
-		sshsNodeCreate(moduleNode, "type", caerModuleTypeToString(mLoad.second->type), 1, 64, SSHS_FLAGS_READ_ONLY,
-			"Module type.");
+		sshsNodeCreate(moduleNode, "version", I32T(mLoad.second->version), 0, INT32_MAX,
+			SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Module version.");
+		sshsNodeCreate(moduleNode, "name", mLoad.second->name, 1, 256, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT,
+			"Module name.");
+		sshsNodeCreate(moduleNode, "type", caerModuleTypeToString(mLoad.second->type), 1, 64,
+			SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Module type.");
 
 		if (mLoad.second->inputStreamsSize > 0) {
 			sshsNode inputStreamsNode = sshsGetRelativeNode(moduleNode, "inputStreams/");
@@ -414,11 +415,11 @@ static void updateModulesInformation() {
 				caerEventStreamIn inputStream = &mLoad.second->inputStreams[i];
 
 				sshsNodeCreate(inputStreamNode, "type", inputStream->type, I16T(-1), I16T(INT16_MAX),
-					SSHS_FLAGS_READ_ONLY, "Input event type (-1 for any type).");
+					SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Input event type (-1 for any type).");
 				sshsNodeCreate(inputStreamNode, "number", inputStream->number, I16T(-1), I16T(INT16_MAX),
-					SSHS_FLAGS_READ_ONLY, "Number of inputs of this type (-1 for any number).");
-				sshsNodeCreate(inputStreamNode, "readOnly", inputStream->readOnly, SSHS_FLAGS_READ_ONLY,
-					"Whether this input is modified or not.");
+					SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Number of inputs of this type (-1 for any number).");
+				sshsNodeCreate(inputStreamNode, "readOnly", inputStream->readOnly,
+					SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Whether this input is modified or not.");
 			}
 		}
 
@@ -430,7 +431,8 @@ static void updateModulesInformation() {
 				caerEventStreamOut outputStream = &mLoad.second->outputStreams[i];
 
 				sshsNodeCreate(outputStreamNode, "type", outputStream->type, I16T(-1), I16T(INT16_MAX),
-					SSHS_FLAGS_READ_ONLY, "Output event type (-1 for undefined output determined at runtime).");
+					SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT,
+					"Output event type (-1 for undefined output determined at runtime).");
 			}
 		}
 
@@ -504,11 +506,10 @@ void caerMainloopRun(void) {
 	sshsNodeCreate(modulesNode, "modulesSearchPath", modulesBuildDir.string() + ":" + modulesDefaultDir.string(), 1,
 		8 * PATH_MAX, SSHS_FLAGS_NORMAL, "Directories to search loadable modules in, separated by ':'.");
 
-	sshsNodeRemoveAttribute(modulesNode, "modulesListOptions", SSHS_STRING);
-	sshsNodeCreate(modulesNode, "modulesListOptions", "", 0, 10000, SSHS_FLAGS_READ_ONLY, "List of loadable modules.");
+	sshsNodeCreate(modulesNode, "modulesListOptions", "", 0, 10000, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT,
+		"List of loadable modules.");
 
-	sshsNodeRemoveAttribute(modulesNode, "updateModulesInformation", SSHS_BOOL);
-	sshsNodeCreate(modulesNode, "updateModulesInformation", false, SSHS_FLAGS_NOTIFY_ONLY,
+	sshsNodeCreate(modulesNode, "updateModulesInformation", false, SSHS_FLAGS_NOTIFY_ONLY | SSHS_FLAGS_NO_EXPORT,
 		"Update modules information.");
 	sshsNodeAddAttributeListener(modulesNode, nullptr, &caerModulesUpdateInformation);
 
@@ -519,14 +520,16 @@ void caerMainloopRun(void) {
 	glMainloopData.systemRunning.store(true);
 
 	sshsNode systemNode = sshsGetNode(sshsGetGlobal(), "/caer/");
-	sshsNodeCreateBool(systemNode, "running", true, SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT, "Global system start/stop.");
+	sshsNodeCreateBool(systemNode, "running", true, SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT,
+		"Global system start/stop.");
 	sshsNodeAddAttributeListener(systemNode, nullptr, &caerMainloopSystemRunningListener);
 
 	// Mainloop running control.
 	glMainloopData.running.store(true);
 
 	glMainloopData.configNode = sshsGetNode(sshsGetGlobal(), "/");
-	sshsNodeCreateBool(glMainloopData.configNode, "running", true, SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT, "Mainloop start/stop.");
+	sshsNodeCreateBool(glMainloopData.configNode, "running", true, SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT,
+		"Mainloop start/stop.");
 	sshsNodeAddAttributeListener(glMainloopData.configNode, nullptr, &caerMainloopRunningListener);
 
 	while (glMainloopData.systemRunning.load()) {
@@ -556,11 +559,9 @@ void caerMainloopRun(void) {
 
 			log(logLevel::CRITICAL, "Mainloop",
 				"Failed to start mainloop, please fix the configuration and try again!");
+			continue;
 		}
 	}
-
-	// Clear out modules information on shutdown to avoid polluting the config file.
-	sshsNodeClearSubTree(modulesNode, false);
 
 	// Remove attribute listeners for clean shutdown.
 	sshsNodeRemoveAttributeListener(glMainloopData.configNode, nullptr, &caerMainloopRunningListener);
@@ -1779,8 +1780,11 @@ static int caerMainloopRunner() {
 		}
 
 		int16_t moduleId = sshsNodeGetShort(module, "moduleId");
-
 		const std::string moduleLibrary = sshsNodeGetStdString(module, "moduleLibrary");
+
+		// Ensure flags and ranges are set correctly on first-load.
+		sshsNodeCreate(module, "moduleId", moduleId, I16T(1), I16T(INT16_MAX), SSHS_FLAGS_READ_ONLY, "Module ID.");
+		sshsNodeCreate(module, "moduleLibrary", moduleLibrary, 1, PATH_MAX, SSHS_FLAGS_READ_ONLY, "Module library.");
 
 		ModuleInfo info = ModuleInfo(moduleId, moduleName, module, moduleLibrary);
 
@@ -1903,6 +1907,10 @@ static int caerMainloopRunner() {
 				if (info->outputStreamsSize == 1 && info->outputStreams[0].type == -1) {
 					const std::string outputDefinition = sshsNodeGetStdString(m.get().configNode, "moduleOutput");
 
+					// Ensure flags and ranges are set correctly on first-load.
+					sshsNodeCreate(m.get().configNode, "moduleOutput", outputDefinition, 0, 1024, SSHS_FLAGS_NORMAL,
+						"Module dynamic output definition.");
+
 					parseModuleOutput(outputDefinition, m.get().outputs, m.get().name);
 				}
 				else {
@@ -1927,6 +1935,10 @@ static int caerMainloopRunner() {
 		// PROCESSOR modules, which we can now verify against possible streams.
 		for (const auto &m : boost::join(outputModules, processorModules)) {
 			const std::string inputDefinition = sshsNodeGetStdString(m.get().configNode, "moduleInput");
+
+			// Ensure flags and ranges are set correctly on first-load.
+			sshsNodeCreate(m.get().configNode, "moduleInput", inputDefinition, 0, 1024, SSHS_FLAGS_NORMAL,
+				"Module dynamic input definition.");
 
 			parseModuleInput(inputDefinition, m.get().inputDefinition, m.get().id, m.get().name);
 
