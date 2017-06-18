@@ -1386,9 +1386,8 @@ bool caerOutputCommonInit(caerModuleData moduleData, int fileDescriptor, outputC
 
 	// If in server mode, add SSHS attribute to track connected client IPs.
 	if (state->isNetworkStream && state->networkIO->server != NULL) {
-		sshsNodeRemoveAttribute(state->parentModule->moduleNode, "connectedClients", SSHS_STRING);
 		sshsNodeCreateString(state->parentModule->moduleNode, "connectedClients", "", 0, INT32_MAX,
-			SSHS_FLAGS_READ_ONLY, "IPs of clients currently connected to output server.");
+			SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "IPs of clients currently connected to output server.");
 	}
 
 	// Initial source ID has to be -1 (invalid).

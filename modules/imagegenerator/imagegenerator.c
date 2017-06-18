@@ -88,15 +88,14 @@ static bool caerImageGeneratorInit(caerModuleData moduleData) {
 	}
 
 	sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
-	sshsNodeRemoveAllAttributes(sourceInfoNode);
 	sshsNodeCreateShort(sourceInfoNode, "frameSizeX", outputFrameSizeX, 1, 1024,
-		SSHS_FLAGS_READ_ONLY, "Output frame width.");
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Output frame width.");
 	sshsNodeCreateShort(sourceInfoNode, "frameSizeY", outputFrameSizeY, 1, 1024,
-		SSHS_FLAGS_READ_ONLY, "Output frame height.");
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Output frame height.");
 	sshsNodeCreateShort(sourceInfoNode, "dataSizeX", outputFrameSizeX, 1, 1024,
-		SSHS_FLAGS_READ_ONLY, "Output data width.");
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Output data width.");
 	sshsNodeCreateShort(sourceInfoNode, "dataSizeY", outputFrameSizeY, 1, 1024,
-		SSHS_FLAGS_READ_ONLY, "Output data height.");
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Output data height.");
 
 	// Add config listeners last, to avoid having them dangling if Init doesn't succeed.
 	sshsNodeAddAttributeListener(moduleData->moduleNode, moduleData, &caerModuleConfigDefaultListener);

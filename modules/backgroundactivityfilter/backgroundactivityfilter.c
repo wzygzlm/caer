@@ -54,9 +54,8 @@ static bool caerBackgroundActivityFilterInit(caerModuleData moduleData) {
 
 	// Always initialize to zero at init.
 	// Corresponding variable is already zero in state memory.
-	sshsNodeRemoveAttribute(moduleData->moduleNode, "invalidPointNum", SSHS_LONG);
 	sshsNodeCreateLong(moduleData->moduleNode, "invalidPointNum", 0, 0, INT64_MAX,
-		SSHS_FLAGS_READ_ONLY, "Number of events filtered out by this module.");
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Number of events filtered out by this module.");
 
 	BAFilterState state = moduleData->moduleState;
 
@@ -169,6 +168,9 @@ static void caerBackgroundActivityFilterConfig(caerModuleData moduleData) {
 static void caerBackgroundActivityFilterExit(caerModuleData moduleData) {
 	// Remove listener, which can reference invalid memory in userData.
 	sshsNodeRemoveAttributeListener(moduleData->moduleNode, moduleData, &caerModuleConfigDefaultListener);
+
+	// Remove informative attribute.
+	sshsNodeRemoveAttribute(moduleData->moduleNode, "invalidPointNum", SSHS_LONG);
 
 	BAFilterState state = moduleData->moduleState;
 

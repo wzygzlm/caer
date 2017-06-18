@@ -128,21 +128,20 @@ static bool parseNetworkHeader(inputCommonState state) {
 
 	// TODO: Network: get sourceInfo node info via config-server side-channel.
 	state->header.sourceID = networkHeader.sourceID;
-	sshsNodeRemoveAllAttributes(state->sourceInfoNode);
 
-	sshsNodeCreateShort(state->sourceInfoNode, "polaritySizeX", 240, 1, INT16_MAX, SSHS_FLAGS_READ_ONLY,
+	sshsNodeCreateShort(state->sourceInfoNode, "polaritySizeX", 240, 1, INT16_MAX, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT,
 		"Polarity events width.");
-	sshsNodeCreateShort(state->sourceInfoNode, "polaritySizeY", 180, 1, INT16_MAX, SSHS_FLAGS_READ_ONLY,
+	sshsNodeCreateShort(state->sourceInfoNode, "polaritySizeY", 180, 1, INT16_MAX, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT,
 		"Polarity events height.");
-	sshsNodeCreateShort(state->sourceInfoNode, "frameSizeX", 240, 1, INT16_MAX, SSHS_FLAGS_READ_ONLY,
+	sshsNodeCreateShort(state->sourceInfoNode, "frameSizeX", 240, 1, INT16_MAX, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT,
 		"Frame events width.");
-	sshsNodeCreateShort(state->sourceInfoNode, "frameSizeY", 180, 1, INT16_MAX, SSHS_FLAGS_READ_ONLY,
+	sshsNodeCreateShort(state->sourceInfoNode, "frameSizeY", 180, 1, INT16_MAX, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT,
 		"Frame events height.");
-	sshsNodeCreateShort(state->sourceInfoNode, "dataSizeX", 240, 1, INT16_MAX, SSHS_FLAGS_READ_ONLY, "Data width.");
-	sshsNodeCreateShort(state->sourceInfoNode, "dataSizeY", 180, 1, INT16_MAX, SSHS_FLAGS_READ_ONLY, "Data height.");
-	sshsNodeCreateShort(state->sourceInfoNode, "visualizerSizeX", 240, 1, INT16_MAX, SSHS_FLAGS_READ_ONLY,
+	sshsNodeCreateShort(state->sourceInfoNode, "dataSizeX", 240, 1, INT16_MAX, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Data width.");
+	sshsNodeCreateShort(state->sourceInfoNode, "dataSizeY", 180, 1, INT16_MAX, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Data height.");
+	sshsNodeCreateShort(state->sourceInfoNode, "visualizerSizeX", 240, 1, INT16_MAX, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT,
 		"Visualization width.");
-	sshsNodeCreateShort(state->sourceInfoNode, "visualizerSizeY", 180, 1, INT16_MAX, SSHS_FLAGS_READ_ONLY,
+	sshsNodeCreateShort(state->sourceInfoNode, "visualizerSizeY", 180, 1, INT16_MAX, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT,
 		"Visualization height.");
 
 	// TODO: Network: add sourceString.
@@ -262,20 +261,18 @@ static void parseSourceString(char *sourceString, inputCommonState state) {
 	}
 
 	// Put size information inside sourceInfo node.
-	sshsNodeRemoveAllAttributes(state->sourceInfoNode);
-
 	if (dvsSizeX != 0 && dvsSizeY != 0) {
 		sshsNodeCreateShort(state->sourceInfoNode, "polaritySizeX", dvsSizeX, 1, INT16_MAX,
-			SSHS_FLAGS_READ_ONLY, "Polarity events width.");
+			SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Polarity events width.");
 		sshsNodeCreateShort(state->sourceInfoNode, "polaritySizeY", dvsSizeY, 1, INT16_MAX,
-			SSHS_FLAGS_READ_ONLY, "Polarity events height.");
+			SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Polarity events height.");
 	}
 
 	if (apsSizeX != 0 && apsSizeY != 0) {
 		sshsNodeCreateShort(state->sourceInfoNode, "frameSizeX", apsSizeX, 1, INT16_MAX,
-			SSHS_FLAGS_READ_ONLY, "Frame events width.");
+			SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Frame events width.");
 		sshsNodeCreateShort(state->sourceInfoNode, "frameSizeY", apsSizeY, 1, INT16_MAX,
-			SSHS_FLAGS_READ_ONLY, "Frame events height.");
+			SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Frame events height.");
 	}
 
 	if (dataSizeX == 0 && dataSizeY == 0) {
@@ -287,16 +284,16 @@ static void parseSourceString(char *sourceString, inputCommonState state) {
 
 	if (dataSizeX != 0 && dataSizeY != 0) {
 		sshsNodeCreateShort(state->sourceInfoNode, "dataSizeX", dataSizeX, 1, INT16_MAX,
-			SSHS_FLAGS_READ_ONLY, "Data width.");
+			SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Data width.");
 		sshsNodeCreateShort(state->sourceInfoNode, "dataSizeY", dataSizeY, 1, INT16_MAX,
-			SSHS_FLAGS_READ_ONLY, "Data height.");
+			SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Data height.");
 	}
 
 	if (visualizerSizeX != 0 && visualizerSizeY != 0) {
 		sshsNodeCreateShort(state->sourceInfoNode, "visualizerSizeX", visualizerSizeX, 1, INT16_MAX,
-			SSHS_FLAGS_READ_ONLY, "Visualization width.");
+			SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Visualization width.");
 		sshsNodeCreateShort(state->sourceInfoNode, "visualizerSizeY", visualizerSizeY, 1, INT16_MAX,
-			SSHS_FLAGS_READ_ONLY, "Visualization height.");
+			SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Visualization height.");
 	}
 
 	// Generate source string for output modules.
@@ -315,7 +312,7 @@ static void parseSourceString(char *sourceString, inputCommonState state) {
 	sourceStringFile[sourceStringFileLength] = '\0';
 
 	sshsNodeCreateString(state->sourceInfoNode, "sourceString", sourceStringFile, 1, 2048,
-		SSHS_FLAGS_READ_ONLY, "Device source information.");
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Device source information.");
 }
 
 static bool parseFileHeader(inputCommonState state) {
@@ -1837,9 +1834,8 @@ bool isNetworkMessageBased) {
 	state->parentModule = moduleData;
 	state->sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
 
-	sshsNodeRemoveAttribute(state->sourceInfoNode, "highestTimestamp", SSHS_LONG);
 	sshsNodeCreateLong(state->sourceInfoNode, "highestTimestamp", -1, -1, INT64_MAX,
-		SSHS_FLAGS_READ_ONLY, "Highest timestamp generated by device.");
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Highest timestamp generated by device.");
 
 	// Check for invalid file descriptors.
 	if (readFd < -1) {
