@@ -1256,6 +1256,11 @@ static void sshsNodeConsumeXML(sshsNode node, mxml_node_t *content, bool recursi
 		const char *value = mxmlGetOpaque(attrChildren[i]);
 
 		if (!sshsNodeStringToAttributeConverter(node, key, type, value)) {
+			// Ignore read-only/range errors.
+			if (errno == EPERM || errno == ERANGE) {
+				continue;
+			}
+
 			char errorMsg[1024];
 			snprintf(errorMsg, 1024, "Failed to convert attribute '%s' of type '%s' with value '%s' from XML.", key,
 				type, value);
@@ -1369,6 +1374,7 @@ bool sshsNodeStringToAttributeConverter(sshsNode node, const char *key, const ch
 				break;
 
 			case SSHS_UNKNOWN:
+				errno = EINVAL;
 				result = false;
 				break;
 		}
