@@ -13,8 +13,9 @@ static const struct caer_event_stream_in OutputUnixSocketServerInputs[] = {
 	{ .type = -1, .number = -1, .readOnly = true } };
 
 static const struct caer_module_info OutputUnixSockeServertInfo = { .version = 1, .name = "UnixSocketServerOutput",
-	.type = CAER_MODULE_OUTPUT, .memSize = sizeof(struct output_common_state), .functions =
-		&OutputUnixSocketServerFunctions, .inputStreams = OutputUnixSocketServerInputs, .inputStreamsSize =
+	.description = "Send AEDAT 3 data out through a Unix Socket to connected clients (server mode).", .type =
+		CAER_MODULE_OUTPUT, .memSize = sizeof(struct output_common_state),
+	.functions = &OutputUnixSocketServerFunctions, .inputStreams = OutputUnixSocketServerInputs, .inputStreamsSize =
 		CAER_EVENT_STREAM_IN_SIZE(OutputUnixSocketServerInputs), .outputStreams = NULL, .outputStreamsSize = 0, };
 
 caerModuleInfo caerModuleGetInfo(void) {

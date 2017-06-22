@@ -25,7 +25,8 @@ static const struct caer_module_functions DAVISFunctions = { .moduleInit = &caer
 static const struct caer_event_stream_out DAVISOutputs[] = { { .type = SPECIAL_EVENT }, { .type = POLARITY_EVENT }, {
 	.type = FRAME_EVENT }, { .type = IMU6_EVENT }, { .type = SAMPLE_EVENT } };
 
-static const struct caer_module_info DAVISInfo = { .version = 1, .name = "DAVIS", .type = CAER_MODULE_INPUT,
+static const struct caer_module_info DAVISInfo = { .version = 1, .name = "DAVIS", .description =
+	"Connects to a DAVIS camera to get data.", .type = CAER_MODULE_INPUT,
 	.memSize = 0, .functions = &DAVISFunctions, .inputStreams = NULL, .inputStreamsSize = 0, .outputStreams =
 		DAVISOutputs, .outputStreamsSize = CAER_EVENT_STREAM_OUT_SIZE(DAVISOutputs), };
 

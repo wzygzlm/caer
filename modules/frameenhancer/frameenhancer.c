@@ -27,8 +27,9 @@ static const struct caer_event_stream_in FrameEnhancerInputs[] = {
 // The output frame here is a _different_ frame than the above input!
 static const struct caer_event_stream_out FrameEnhancerOutputs[] = { { .type = FRAME_EVENT } };
 
-static const struct caer_module_info FrameEnhancerInfo = { .version = 1, .name = "FrameEnhancer", .type =
-	CAER_MODULE_PROCESSOR, .memSize = sizeof(struct FrameEnhancer_state), .functions = &FrameEnhancerFunctions,
+static const struct caer_module_info FrameEnhancerInfo = { .version = 1, .name = "FrameEnhancer", .description =
+	"Applies contrast enhancement techniques to frames, or interpolates colors to get an RGB frame (demoisaicing).",
+	.type = CAER_MODULE_PROCESSOR, .memSize = sizeof(struct FrameEnhancer_state), .functions = &FrameEnhancerFunctions,
 	.inputStreams = FrameEnhancerInputs, .inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(FrameEnhancerInputs),
 	.outputStreams = FrameEnhancerOutputs, .outputStreamsSize = CAER_EVENT_STREAM_OUT_SIZE(FrameEnhancerOutputs), };
 
@@ -52,8 +53,8 @@ static bool caerFrameEnhancerInit(caerModuleData moduleData) {
 		"Contrast enhancement algorithm to apply.");
 	sshsNodeRemoveAttribute(moduleData->moduleNode, "contrastTypeListOptions", SSHS_STRING);
 	sshsNodeCreateString(moduleData->moduleNode, "contrastTypeListOptions",
-		"opencv_normalization,opencv_histogram_equalization,opencv_clahe,standard", 1, 100,
-		SSHS_FLAGS_READ_ONLY, "Available contrast enhancement algorithms.");
+		"opencv_normalization,opencv_histogram_equalization,opencv_clahe,standard", 1, 100, SSHS_FLAGS_READ_ONLY,
+		"Available contrast enhancement algorithms.");
 #else
 	// Only standard algorithms are available here, so we force those and make it read-only.
 	sshsNodeRemoveAttribute(moduleData->moduleNode, "demosaicType", SSHS_STRING);

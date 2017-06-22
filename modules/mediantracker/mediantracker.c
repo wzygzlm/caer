@@ -43,11 +43,11 @@ static const struct caer_event_stream_in caerMediantrackerInputs[] = { { .type =
 static const struct caer_event_stream_out caerMediantrackerOutputs[] = { { .type = FRAME_EVENT }, { .type =
 	POINT4D_EVENT } };
 
-static const struct caer_module_info caerMediantrackerInfo =
-	{ .version = 1, .name = "MedianTracker", .type = CAER_MODULE_PROCESSOR, .memSize = sizeof(struct MTFilter_state),
-		.functions = &caerMediantrackerFunctions, .inputStreams = caerMediantrackerInputs, .inputStreamsSize =
-			CAER_EVENT_STREAM_IN_SIZE(caerMediantrackerInputs), .outputStreams = caerMediantrackerOutputs,
-		.outputStreamsSize = CAER_EVENT_STREAM_OUT_SIZE(caerMediantrackerOutputs) };
+static const struct caer_module_info caerMediantrackerInfo = { .version = 1, .name = "MedianTracker", .description =
+	"Tracks an object by finding the median of event activity.", .type = CAER_MODULE_PROCESSOR, .memSize =
+	sizeof(struct MTFilter_state), .functions = &caerMediantrackerFunctions, .inputStreams = caerMediantrackerInputs,
+	.inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(caerMediantrackerInputs), .outputStreams = caerMediantrackerOutputs,
+	.outputStreamsSize = CAER_EVENT_STREAM_OUT_SIZE(caerMediantrackerOutputs) };
 
 caerModuleInfo caerModuleGetInfo(void) {
 	return (&caerMediantrackerInfo);
@@ -122,8 +122,7 @@ static void caerMediantrackerRun(caerModuleData moduleData, caerEventPacketConta
 	CAER_POLARITY_CONST_ITERATOR_VALID_START(polarity)
 		if (maxLastTime < caerPolarityEventGetTimestamp64(caerPolarityIteratorElement, polarity)) {
 			maxLastTime = caerPolarityEventGetTimestamp64(caerPolarityIteratorElement, polarity);
-		}
-	CAER_POLARITY_ITERATOR_VALID_END
+		}CAER_POLARITY_ITERATOR_VALID_END
 
 	state->lastts = maxLastTime;
 	state->dt = state->lastts - state->prevlastts;
@@ -220,8 +219,8 @@ static void caerMediantrackerRun(caerModuleData moduleData, caerEventPacketConta
 	// validate event
 	caerPoint4DEventValidate(evt, medianData);
 
-	caerFrameEventPacket frame = caerFrameEventPacketAllocate(1, moduleData->moduleID, I32T(state->lastts >> 31), state->sizeX,
-		state->sizeY, 3);
+	caerFrameEventPacket frame = caerFrameEventPacketAllocate(1, moduleData->moduleID, I32T(state->lastts >> 31),
+		state->sizeX, state->sizeY, 3);
 	if (frame == NULL) {
 		return; // Error.
 	}
@@ -279,8 +278,7 @@ static void caerMediantrackerRun(caerModuleData moduleData, caerEventPacketConta
 			singleplot->pixels[address] = 0; // red
 			singleplot->pixels[address + 1] = UINT16_MAX; // green
 			singleplot->pixels[address + 2] = 0; // blue
-		}
-	CAER_POLARITY_ITERATOR_VALID_END
+		}CAER_POLARITY_ITERATOR_VALID_END
 }
 
 static void caerMediantrackerConfig(caerModuleData moduleData) {

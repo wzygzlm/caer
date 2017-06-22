@@ -36,10 +36,11 @@ static const struct caer_event_stream_in moduleInputs[] = { { .type = POLARITY_E
 
 static const struct caer_event_stream_out moduleOutputs[] = { { .type = FRAME_EVENT } };
 
-static const struct caer_module_info moduleInfo = { .version = 1, .name = "SpikeFeatures",
-	.type = CAER_MODULE_PROCESSOR, .memSize = sizeof(struct SFFilter_state), .functions = &caerSpikeFeaturesFunctions,
-	.inputStreams = moduleInputs, .inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(moduleInputs), .outputStreams =
-		moduleOutputs, .outputStreamsSize = CAER_EVENT_STREAM_OUT_SIZE(moduleOutputs) };
+static const struct caer_module_info moduleInfo = { .version = 1, .name = "SpikeFeatures", .description =
+	"Extract features from spikes.", .type = CAER_MODULE_PROCESSOR, .memSize = sizeof(struct SFFilter_state),
+	.functions = &caerSpikeFeaturesFunctions, .inputStreams = moduleInputs, .inputStreamsSize =
+		CAER_EVENT_STREAM_IN_SIZE(moduleInputs), .outputStreams = moduleOutputs, .outputStreamsSize =
+		CAER_EVENT_STREAM_OUT_SIZE(moduleOutputs) };
 
 caerModuleInfo caerModuleGetInfo(void) {
 	return (&moduleInfo);

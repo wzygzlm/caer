@@ -248,10 +248,11 @@ static const struct caer_event_stream_in caerRectangularTrackerInputs[] = { { .t
 static const struct caer_event_stream_out caerRectangularTrackerOutputs[] = { { .type = FRAME_EVENT } };
 
 static const struct caer_module_info caerRectangularTrackerInfo = { .version = 1, .name = "DynamicRectangularTracker",
-	.type = CAER_MODULE_PROCESSOR, .memSize = sizeof(struct RTFilter_state), .functions =
-		&caerRectangularTrackerFunctions, .inputStreams = caerRectangularTrackerInputs, .inputStreamsSize =
-		CAER_EVENT_STREAM_IN_SIZE(caerRectangularTrackerInputs), .outputStreams = caerRectangularTrackerOutputs,
-	.outputStreamsSize = CAER_EVENT_STREAM_OUT_SIZE(caerRectangularTrackerOutputs) };
+	.description = "Tracks multiple blobs of events.", .type = CAER_MODULE_PROCESSOR, .memSize =
+		sizeof(struct RTFilter_state), .functions = &caerRectangularTrackerFunctions, .inputStreams =
+		caerRectangularTrackerInputs, .inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(caerRectangularTrackerInputs),
+	.outputStreams = caerRectangularTrackerOutputs, .outputStreamsSize = CAER_EVENT_STREAM_OUT_SIZE(
+		caerRectangularTrackerOutputs) };
 
 caerModuleInfo caerModuleGetInfo(void) {
 	return (&caerRectangularTrackerInfo);

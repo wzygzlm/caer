@@ -32,9 +32,10 @@ static const struct caer_module_functions caerRotateFunctions = { .moduleInit = 
 static const struct caer_event_stream_in caerRotateInputs[] = {
 	{ .type = POLARITY_EVENT, .number = 1, .readOnly = false } };
 
-static const struct caer_module_info moduleInfo = { .version = 1, .name = "Rotate", .type = CAER_MODULE_PROCESSOR,
-	.memSize = sizeof(struct rotate_state), .functions = &caerRotateFunctions, .inputStreams = caerRotateInputs,
-	.inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(caerRotateInputs), .outputStreams = NULL, .outputStreamsSize = 0 };
+static const struct caer_module_info moduleInfo = { .version = 1, .name = "Rotate", .description = "Rotate events.",
+	.type = CAER_MODULE_PROCESSOR, .memSize = sizeof(struct rotate_state), .functions = &caerRotateFunctions,
+	.inputStreams = caerRotateInputs, .inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(caerRotateInputs), .outputStreams =
+		NULL, .outputStreamsSize = 0 };
 
 caerModuleInfo caerModuleGetInfo(void) {
 	return (&moduleInfo);
@@ -93,7 +94,7 @@ static void caerRotateRun(caerModuleData moduleData, caerEventPacketContainer in
 
 	// Iterate over valid events.
 	CAER_POLARITY_ITERATOR_VALID_START(polarity)
-		// Get values on which to operate.
+	// Get values on which to operate.
 		uint16_t x = caerPolarityEventGetX(caerPolarityIteratorElement);
 		uint16_t y = caerPolarityEventGetY(caerPolarityIteratorElement);
 
@@ -138,8 +139,7 @@ static void caerRotateRun(caerModuleData moduleData, caerEventPacketContainer in
 
 			caerPolarityEventSetX(caerPolarityIteratorElement, newX);
 			caerPolarityEventSetY(caerPolarityIteratorElement, newY);
-		}
-	CAER_POLARITY_ITERATOR_VALID_END
+		}CAER_POLARITY_ITERATOR_VALID_END
 }
 
 static void checkBoundary(uint16_t *x, uint16_t *y, RotateState state) {

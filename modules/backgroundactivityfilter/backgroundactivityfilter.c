@@ -28,9 +28,10 @@ static const struct caer_module_functions BAFilterFunctions = { .moduleInit = &c
 static const struct caer_event_stream_in BAFilterInputs[] =
 	{ { .type = POLARITY_EVENT, .number = 1, .readOnly = false } };
 
-static const struct caer_module_info BAFilterInfo = { .version = 1, .name = "BAFilter", .type = CAER_MODULE_PROCESSOR,
-	.memSize = sizeof(struct BAFilter_state), .functions = &BAFilterFunctions, .inputStreams = BAFilterInputs,
-	.inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(BAFilterInputs), .outputStreams = NULL, .outputStreamsSize = 0, };
+static const struct caer_module_info BAFilterInfo = { .version = 1, .name = "BAFilter", .description =
+	"Filters background noise events.", .type = CAER_MODULE_PROCESSOR, .memSize = sizeof(struct BAFilter_state),
+	.functions = &BAFilterFunctions, .inputStreams = BAFilterInputs, .inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(
+		BAFilterInputs), .outputStreams = NULL, .outputStreamsSize = 0, };
 
 caerModuleInfo caerModuleGetInfo(void) {
 	return (&BAFilterInfo);
@@ -100,7 +101,7 @@ static void caerBackgroundActivityFilterRun(caerModuleData moduleData, caerEvent
 	// Iterate over events and filter out ones that are not supported by other
 	// events within a certain region in the specified timeframe.
 	CAER_POLARITY_ITERATOR_VALID_START(polarity)
-		// Get values on which to operate.
+	// Get values on which to operate.
 		int64_t ts = caerPolarityEventGetTimestamp64(caerPolarityIteratorElement, polarity);
 		uint16_t x = caerPolarityEventGetX(caerPolarityIteratorElement);
 		uint16_t y = caerPolarityEventGetY(caerPolarityIteratorElement);
@@ -148,8 +149,7 @@ static void caerBackgroundActivityFilterRun(caerModuleData moduleData, caerEvent
 		}
 		if (x < sizeMaxX && y > 0) {
 			state->timestampMap->buffer2d[x + 1][y - 1] = ts;
-		}
-	CAER_POLARITY_ITERATOR_VALID_END
+		}CAER_POLARITY_ITERATOR_VALID_END
 
 	// Only update SSHS once per packet (expensive call).
 	sshsNodeUpdateReadOnlyAttribute(moduleData->moduleNode, "invalidPointNum", SSHS_LONG,

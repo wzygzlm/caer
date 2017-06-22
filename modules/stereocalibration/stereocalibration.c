@@ -38,10 +38,11 @@ static const struct caer_module_functions StereoCalibrationFunctions = { .module
 static const struct caer_event_stream_in StereoCalibrationInputs[] = { { .type = FRAME_EVENT, .number = 2, .readOnly =
 true } };
 
-static const struct caer_module_info StereoCalibrationInfo = { .version = 1, .name = "StereoCalibration", .type =
-	CAER_MODULE_OUTPUT, .memSize = sizeof(struct StereoCalibrationState_struct), .functions =
-	&StereoCalibrationFunctions, .inputStreams = StereoCalibrationInputs, .inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(
-	StereoCalibrationInputs), .outputStreams = NULL, .outputStreamsSize = 0, };
+static const struct caer_module_info StereoCalibrationInfo = { .version = 1, .name = "StereoCalibration", .description =
+	"Run calibration of two cameras to get lens and depth parameters.", .type = CAER_MODULE_OUTPUT, .memSize =
+	sizeof(struct StereoCalibrationState_struct), .functions = &StereoCalibrationFunctions, .inputStreams =
+	StereoCalibrationInputs, .inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(StereoCalibrationInputs), .outputStreams =
+	NULL, .outputStreamsSize = 0, };
 
 caerModuleInfo caerModuleGetInfo(void) {
 	return (&StereoCalibrationInfo);
@@ -68,7 +69,8 @@ static bool caerStereoCalibrationInit(caerModuleData moduleData) {
 	sshsNodeCreateInt(moduleData->moduleNode, "captureDelay", 100000, 0, 60000000, SSHS_FLAGS_NORMAL, "TODO.");
 	sshsNodeCreateInt(moduleData->moduleNode, "numPairsImagesBeforCalib", 50, 3, 100, SSHS_FLAGS_NORMAL, "TODO.");
 	sshsNodeCreateFloat(moduleData->moduleNode, "boardSquareSize", 1.0f, 0.0f, 1000.0f, SSHS_FLAGS_NORMAL, "TODO."); // The size of a square in your defined unit (point, millimeter, etc.)
-	sshsNodeCreateFloat(moduleData->moduleNode, "acceptableAvrEpipolarErr", 200.0f, 0.0f, 2000.0f, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateFloat(moduleData->moduleNode, "acceptableAvrEpipolarErr", 200.0f, 0.0f, 2000.0f, SSHS_FLAGS_NORMAL,
+		"TODO.");
 	sshsNodeCreateFloat(moduleData->moduleNode, "acceptableRMSErr", 200.0f, 0.0f, 2000.0f, SSHS_FLAGS_NORMAL, "TODO.");
 	sshsNodeCreateBool(moduleData->moduleNode, "doDisparity", false, SSHS_FLAGS_NORMAL, "TODO."); // Do calibration using live images
 
@@ -198,7 +200,7 @@ static void caerStereoCalibrationRun(caerModuleData moduleData, caerEventPacketC
 		void * foundPoint_cam0 = NULL;
 
 		CAER_FRAME_CONST_ITERATOR_VALID_START (frame_0)
-			// Only work on new frames if enough time has passed between this and the last used one.
+		// Only work on new frames if enough time has passed between this and the last used one.
 			uint64_t currTimestamp_0 = U64T(caerFrameEventGetTSStartOfFrame64(caerFrameIteratorElement, frame_0));
 			state->lastFrameTimestamp_cam0 = currTimestamp_0;
 
@@ -207,11 +209,10 @@ static void caerStereoCalibrationRun(caerModuleData moduleData, caerEventPacketC
 				caerLog(CAER_LOG_NOTICE, moduleData->moduleSubSystemString, "Found calibration pattern cam0");
 				frame_0_ts = currTimestamp_0;
 				frame_0_pattern = true;
-			}
-		CAER_FRAME_ITERATOR_VALID_END
+			}CAER_FRAME_ITERATOR_VALID_END
 
 		CAER_FRAME_CONST_ITERATOR_VALID_START( frame_1)
-			// Only work on new frames if enough time has passed between this and the last used one.
+		// Only work on new frames if enough time has passed between this and the last used one.
 			uint64_t currTimestamp_1 = U64T(caerFrameEventGetTSStartOfFrame64(caerFrameIteratorElement, frame_1));
 			state->lastFrameTimestamp_cam1 = currTimestamp_1;
 
@@ -220,8 +221,7 @@ static void caerStereoCalibrationRun(caerModuleData moduleData, caerEventPacketC
 				caerLog(CAER_LOG_NOTICE, moduleData->moduleSubSystemString, "Found calibration pattern cam1");
 				frame_1_ts = currTimestamp_1;
 				frame_1_pattern = true;
-			}
-		CAER_FRAME_ITERATOR_VALID_END
+			}CAER_FRAME_ITERATOR_VALID_END
 
 		if (frame_1_pattern && frame_0_pattern) {
 			//check Timestamp difference of last two found frames

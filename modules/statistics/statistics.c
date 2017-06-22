@@ -12,10 +12,11 @@ static const struct caer_module_functions StatisticsFunctions = { .moduleInit = 
 
 static const struct caer_event_stream_in StatisticsInputs[] = { { .type = -1, .number = 1, .readOnly = true } };
 
-static const struct caer_module_info StatisticsInfo = { .version = 1, .name = "Statistics", .type = CAER_MODULE_OUTPUT,
-	.memSize = sizeof(struct caer_statistics_state), .functions = &StatisticsFunctions,
-	.inputStreams = StatisticsInputs, .inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(StatisticsInputs), .outputStreams =
-		NULL, .outputStreamsSize = 0, };
+static const struct caer_module_info StatisticsInfo = { .version = 1, .name = "Statistics", .description =
+	"Display statistics on number of events.", .type = CAER_MODULE_OUTPUT, .memSize =
+	sizeof(struct caer_statistics_state), .functions = &StatisticsFunctions, .inputStreams = StatisticsInputs,
+	.inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(StatisticsInputs), .outputStreams =
+	NULL, .outputStreamsSize = 0, };
 
 caerModuleInfo caerModuleGetInfo(void) {
 	return (&StatisticsInfo);

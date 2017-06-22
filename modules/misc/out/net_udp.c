@@ -11,7 +11,8 @@ static const struct caer_module_functions OutputNetUDPFunctions = { .moduleInit 
 
 static const struct caer_event_stream_in OutputNetUDPInputs[] = { { .type = -1, .number = -1, .readOnly = true } };
 
-static const struct caer_module_info OutputNetUDPInfo = { .version = 1, .name = "NetUDPOutput", .type =
+static const struct caer_module_info OutputNetUDPInfo = { .version = 1, .name = "NetUDPOutput", .description =
+	"Send AEDAT 3 data out via UDP messages.", .type =
 	CAER_MODULE_OUTPUT, .memSize = sizeof(struct output_common_state), .functions = &OutputNetUDPFunctions,
 	.inputStreams = OutputNetUDPInputs, .inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(OutputNetUDPInputs),
 	.outputStreams = NULL, .outputStreamsSize = 0, };

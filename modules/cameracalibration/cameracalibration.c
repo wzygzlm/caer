@@ -34,10 +34,11 @@ static const struct caer_module_functions CameraCalibrationFunctions = { .module
 static const struct caer_event_stream_in CameraCalibrationInputs[] = { { .type = POLARITY_EVENT, .number = 1,
 	.readOnly = false }, { .type = FRAME_EVENT, .number = 1, .readOnly = false } };
 
-static const struct caer_module_info CameraCalibrationInfo = { .version = 1, .name = "CameraCalibration", .type =
-	CAER_MODULE_PROCESSOR, .memSize = sizeof(struct CameraCalibrationState_struct), .functions =
-	&CameraCalibrationFunctions, .inputStreams = CameraCalibrationInputs, .inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(
-	CameraCalibrationInputs), .outputStreams = NULL, .outputStreamsSize = 0, };
+static const struct caer_module_info CameraCalibrationInfo = { .version = 1, .name = "CameraCalibration", .description =
+	"Lens distortion calibration, for undistortion of both events and frames.", .type = CAER_MODULE_PROCESSOR, .memSize =
+	sizeof(struct CameraCalibrationState_struct), .functions = &CameraCalibrationFunctions, .inputStreams =
+	CameraCalibrationInputs, .inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(CameraCalibrationInputs), .outputStreams =
+	NULL, .outputStreamsSize = 0, };
 
 caerModuleInfo caerModuleGetInfo(void) {
 	return (&CameraCalibrationInfo);
@@ -220,7 +221,7 @@ static void caerCameraCalibrationRun(caerModuleData moduleData, caerEventPacketC
 	// Calibration is done only using frames.
 	if (state->settings.doCalibration && !state->calibrationCompleted && frame != NULL) {
 		CAER_FRAME_ITERATOR_VALID_START(frame)
-			// Only work on new frames if enough time has passed between this and the last used one.
+		// Only work on new frames if enough time has passed between this and the last used one.
 			uint64_t currTimestamp = U64T(caerFrameEventGetTSStartOfFrame64(caerFrameIteratorElement, frame));
 
 			// If enough time has passed, try to add a new point set.
@@ -229,8 +230,7 @@ static void caerCameraCalibrationRun(caerModuleData moduleData, caerEventPacketC
 
 				bool foundPoint = calibration_findNewPoints(state->cpp_class, caerFrameIteratorElement);
 				caerModuleLog(moduleData, CAER_LOG_WARNING, "Searching for new point set, result = %d.", foundPoint);
-			}
-		CAER_FRAME_ITERATOR_VALID_END
+			}CAER_FRAME_ITERATOR_VALID_END
 
 		// If enough points have been found in this round, try doing calibration.
 		size_t foundPoints = calibration_foundPoints(state->cpp_class);

@@ -21,9 +21,10 @@ static const struct caer_module_functions OutputFileFunctions = { .moduleInit = 
 
 static const struct caer_event_stream_in OutputFileInputs[] = { { .type = -1, .number = -1, .readOnly = true } };
 
-static const struct caer_module_info OutputFileInfo = { .version = 1, .name = "FileOutput", .type = CAER_MODULE_OUTPUT,
-	.memSize = sizeof(struct output_common_state), .functions = &OutputFileFunctions, .inputStreams = OutputFileInputs,
-	.inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(OutputFileInputs), .outputStreams = NULL, .outputStreamsSize = 0, };
+static const struct caer_module_info OutputFileInfo = { .version = 1, .name = "FileOutput", .description =
+	"Write AEDAT 3 data out to a file.", .type = CAER_MODULE_OUTPUT, .memSize = sizeof(struct output_common_state),
+	.functions = &OutputFileFunctions, .inputStreams = OutputFileInputs, .inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(
+		OutputFileInputs), .outputStreams = NULL, .outputStreamsSize = 0, };
 
 caerModuleInfo caerModuleGetInfo(void) {
 	return (&OutputFileInfo);

@@ -11,10 +11,10 @@ static const struct caer_module_functions OutputNetTCPFunctions = { .moduleInit 
 
 static const struct caer_event_stream_in OutputNetTCPInputs[] = { { .type = -1, .number = -1, .readOnly = true } };
 
-static const struct caer_module_info OutputNetTCPInfo = { .version = 1, .name = "NetTCPOutput", .type =
-	CAER_MODULE_OUTPUT, .memSize = sizeof(struct output_common_state), .functions = &OutputNetTCPFunctions,
-	.inputStreams = OutputNetTCPInputs, .inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(OutputNetTCPInputs),
-	.outputStreams = NULL, .outputStreamsSize = 0, };
+static const struct caer_module_info OutputNetTCPInfo = { .version = 1, .name = "NetTCPOutput", .description =
+	"Send AEDAT 3 data out via a TCP connection (client mode).", .type = CAER_MODULE_OUTPUT, .memSize =
+	sizeof(struct output_common_state), .functions = &OutputNetTCPFunctions, .inputStreams = OutputNetTCPInputs,
+	.inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(OutputNetTCPInputs), .outputStreams = NULL, .outputStreamsSize = 0, };
 
 caerModuleInfo caerModuleGetInfo(void) {
 	return (&OutputNetTCPInfo);

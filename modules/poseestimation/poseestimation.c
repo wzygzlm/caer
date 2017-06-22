@@ -27,12 +27,13 @@ static const struct caer_module_functions PoseEstimationFunctions = { .moduleIni
 	.moduleRun = &caerPoseEstimationRun, .moduleConfig = NULL, .moduleExit = &caerPoseEstimationExit };
 
 static const struct caer_event_stream_in PoseEstimationInputs[] = { { .type = FRAME_EVENT, .number = 1, .readOnly =
-	false } };
+false } };
 
-static const struct caer_module_info PoseEstimationInfo = { .version = 1, .name = "PoseEstimation", .type =
-	CAER_MODULE_PROCESSOR, .memSize = sizeof(struct PoseEstimationState_struct), .functions = &PoseEstimationFunctions,
-	.inputStreams = PoseEstimationInputs, .inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(PoseEstimationInputs),
-	.outputStreams = NULL, .outputStreamsSize = 0, };
+static const struct caer_module_info PoseEstimationInfo = { .version = 1, .name = "PoseEstimation", .description =
+	"Run OpenCV pose-estimation algorithms (Aruco) on frames.", .type = CAER_MODULE_PROCESSOR, .memSize =
+	sizeof(struct PoseEstimationState_struct), .functions = &PoseEstimationFunctions, .inputStreams =
+	PoseEstimationInputs, .inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(PoseEstimationInputs), .outputStreams = NULL,
+	.outputStreamsSize = 0, };
 
 caerModuleInfo caerModuleGetInfo(void) {
 	return (&PoseEstimationInfo);
@@ -105,7 +106,7 @@ static void caerPoseEstimationRun(caerModuleData moduleData, caerEventPacketCont
 	// Marker pose estimation is done only using frames.
 	if (state->settings.detectMarkers && frame != NULL) {
 		CAER_FRAME_ITERATOR_VALID_START(frame)
-			// Only work on new frames if enough time has passed between this and the last used one.
+		// Only work on new frames if enough time has passed between this and the last used one.
 			uint64_t currTimestamp = U64T(caerFrameEventGetTSStartOfFrame64(caerFrameIteratorElement, frame));
 
 			// If enough time has passed, try to add a new point set.
@@ -115,8 +116,7 @@ static void caerPoseEstimationRun(caerModuleData moduleData, caerEventPacketCont
 				bool foundPoint = poseestimation_findMarkers(state->cpp_class, caerFrameIteratorElement);
 				caerLog(CAER_LOG_WARNING, moduleData->moduleSubSystemString,
 					"Searching for markers in the aruco set, result = %d.", foundPoint);
-			}
-		CAER_FRAME_ITERATOR_VALID_END
+			}CAER_FRAME_ITERATOR_VALID_END
 	}
 
 	// update settings

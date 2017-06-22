@@ -784,9 +784,10 @@ static const struct caer_module_functions VisualizerFunctions = { .moduleInit = 
 
 static const struct caer_event_stream_in VisualizerInputs[] = { { .type = -1, .number = -1, .readOnly = true } };
 
-static const struct caer_module_info VisualizerInfo = { .version = 1, .name = "Visualizer", .type = CAER_MODULE_OUTPUT,
-	.memSize = 0, .functions = &VisualizerFunctions, .inputStreams = VisualizerInputs, .inputStreamsSize =
-		CAER_EVENT_STREAM_IN_SIZE(VisualizerInputs), .outputStreams = NULL, .outputStreamsSize = 0, };
+static const struct caer_module_info VisualizerInfo = { .version = 1, .name = "Visualizer", .description =
+	"Visualize data in various forms.", .type = CAER_MODULE_OUTPUT, .memSize = 0, .functions = &VisualizerFunctions,
+	.inputStreams = VisualizerInputs, .inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(VisualizerInputs), .outputStreams =
+		NULL, .outputStreamsSize = 0, };
 
 caerModuleInfo caerModuleGetInfo(void) {
 	return (&VisualizerInfo);

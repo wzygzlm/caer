@@ -29,10 +29,11 @@ static const struct caer_module_functions FrameStatisticsFunctions = { .moduleIn
 static const struct caer_event_stream_in FrameStatisticsInputs[] = { { .type = FRAME_EVENT, .number = 1, .readOnly =
 	true } };
 
-static const struct caer_module_info FrameStatisticsInfo = { .version = 1, .name = "FrameStatistics", .type =
-	CAER_MODULE_OUTPUT, .memSize = sizeof(struct caer_frame_statistics_state), .functions = &FrameStatisticsFunctions,
-	.inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(FrameStatisticsInputs), .inputStreams = FrameStatisticsInputs,
-	.outputStreamsSize = 0, .outputStreams = NULL };
+static const struct caer_module_info FrameStatisticsInfo = { .version = 1, .name = "FrameStatistics", .description =
+	"Display statistics on frames (histogram).", .type = CAER_MODULE_OUTPUT, .memSize =
+	sizeof(struct caer_frame_statistics_state), .functions = &FrameStatisticsFunctions, .inputStreamsSize =
+	CAER_EVENT_STREAM_IN_SIZE(FrameStatisticsInputs), .inputStreams = FrameStatisticsInputs, .outputStreamsSize = 0,
+	.outputStreams = NULL };
 
 caerModuleInfo caerModuleGetInfo(void) {
 	return (&FrameStatisticsInfo);
