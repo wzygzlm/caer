@@ -127,6 +127,7 @@ typedef struct caer_module_functions const * caerModuleFunctions;
 struct caer_module_info {
 	uint32_t version;
 	const char *name;
+	const char *description;
 	enum caer_module_type type;
 	size_t memSize;
 	caerModuleFunctions functions;
