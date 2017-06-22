@@ -412,6 +412,9 @@ static void updateModulesInformation() {
 		if (mLoad.second->inputStreamsSize > 0) {
 			sshsNode inputStreamsNode = sshsGetRelativeNode(moduleNode, "inputStreams/");
 
+			sshsNodeCreate(inputStreamsNode, "size", I32T(mLoad.second->inputStreamsSize), 1, INT16_MAX,
+				SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Number of input streams.");
+
 			for (size_t i = 0; i < mLoad.second->inputStreamsSize; i++) {
 				sshsNode inputStreamNode = sshsGetRelativeNode(inputStreamsNode, std::to_string(i) + "/");
 				caerEventStreamIn inputStream = &mLoad.second->inputStreams[i];
@@ -427,6 +430,9 @@ static void updateModulesInformation() {
 
 		if (mLoad.second->outputStreamsSize > 0) {
 			sshsNode outputStreamsNode = sshsGetRelativeNode(moduleNode, "outputStreams/");
+
+			sshsNodeCreate(outputStreamsNode, "size", I32T(mLoad.second->outputStreamsSize), 1, INT16_MAX,
+				SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Number of output streams.");
 
 			for (size_t i = 0; i < mLoad.second->outputStreamsSize; i++) {
 				sshsNode outputStreamNode = sshsGetRelativeNode(outputStreamsNode, std::to_string(i) + "/");
