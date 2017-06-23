@@ -805,6 +805,14 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 				break;
 			}
 
+			// Modules can only be deleted while the mainloop is not running, to not
+			// destroy data the system is relying on.
+			bool isMainloopRunning = sshsNodeGetBool(sshsGetNode(configStore, "/"), "running");
+			if (isMainloopRunning) {
+				caerConfigSendError(client, "Mainloop is running.");
+				break;
+			}
+
 			// Remove all attributes of the module node and its children.
 			sshsNodeClearSubTree(sshsGetNode(configStore, "/" + moduleName + "/"), true);
 
