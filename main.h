@@ -13,6 +13,16 @@
 #include <libcaer/events/packetContainer.h>
 #include "ext/sshs/sshs.h"
 
+// Suppress unused argument warnings, if needed
+#define UNUSED_ARGUMENT(arg) (void)(arg)
+
+// Support symbol export on Windows GCC/Clang.
+#if (defined(_WIN32) || defined(__WIN32__) || defined(WIN32)) && (defined(__GNUC__) || defined(__clang__))
+#define CAER_SYMBOL_EXPORT __attribute__ ((__dllexport__))
+#else
+#define CAER_SYMBOL_EXPORT
+#endif
+
 #ifdef __cplusplus
 #include <libcaercpp/libcaer.hpp>
 #include "ext/sshs/sshs.hpp"
@@ -66,8 +76,5 @@ static bool vectorDetectDuplicates(std::vector<T> &vec) {
 }
 
 #endif
-
-// Suppress unused argument warnings, if needed
-#define UNUSED_ARGUMENT(arg) (void)(arg)
 
 #endif /* MAIN_H_ */

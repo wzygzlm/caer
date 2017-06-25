@@ -28,10 +28,17 @@ static const struct caer_module_functions BAFilterFunctions = { .moduleInit = &c
 static const struct caer_event_stream_in BAFilterInputs[] =
 	{ { .type = POLARITY_EVENT, .number = 1, .readOnly = false } };
 
+static const struct caer_module_config BAFilterConfig[] = { { SSHS_INT, "/", "deltaT", SSHS_VALUE_INT(30000),
+	SSHS_RANGES_LONG(1, 10000000), SSHS_FLAGS_NORMAL,
+	"Maximum time difference in µs for events to be considered correlated and not be filtered out." }, { SSHS_BYTE, "/",
+	"subSampleBy", SSHS_VALUE_BYTE(0), SSHS_RANGES_LONG(0, 20), SSHS_FLAGS_NORMAL,
+	"Sub-sample event addresses by shifting right by this amount." }, };
+
 static const struct caer_module_info BAFilterInfo = { .version = 1, .name = "BAFilter", .description =
 	"Filters background noise events.", .type = CAER_MODULE_PROCESSOR, .memSize = sizeof(struct BAFilter_state),
-	.functions = &BAFilterFunctions, .inputStreams = BAFilterInputs, .inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(
-		BAFilterInputs), .outputStreams = NULL, .outputStreamsSize = 0, };
+	.functions = &BAFilterFunctions, .configuration = BAFilterConfig, .configurationSize = CAER_MODULE_CONFIG_SIZE(
+		BAFilterConfig), .inputStreams = BAFilterInputs, .inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(BAFilterInputs),
+	.outputStreams = NULL, .outputStreamsSize = 0, };
 
 caerModuleInfo caerModuleGetInfo(void) {
 	return (&BAFilterInfo);
@@ -47,11 +54,6 @@ static bool caerBackgroundActivityFilterInit(caerModuleData moduleData) {
 
 	int16_t sourceID = inputs[0];
 	free(inputs);
-
-	sshsNodeCreateInt(moduleData->moduleNode, "deltaT", 30000, 1, 10000000, SSHS_FLAGS_NORMAL,
-		"Maximum time difference in µs for events to be considered correlated and not be filtered out.");
-	sshsNodeCreateByte(moduleData->moduleNode, "subSampleBy", 0, 0, 20, SSHS_FLAGS_NORMAL,
-		"Sub-sample event addresses by shifting right by this amount.");
 
 	// Always initialize to zero at init.
 	// Corresponding variable is already zero in state memory.

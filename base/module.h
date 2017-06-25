@@ -28,13 +28,6 @@ using atomic_int_fast16_t = std::atomic_int_fast16_t;
 extern "C" {
 #endif
 
-// Support symbol export on Windows GCC/Clang.
-#if (defined(_WIN32) || defined(__WIN32__) || defined(WIN32)) && (defined(__GNUC__) || defined(__clang__))
-#define CAER_SYMBOL_EXPORT __attribute__ ((__dllexport__))
-#else
-#define CAER_SYMBOL_EXPORT
-#endif
-
 // Module-related definitions.
 enum caer_module_status {
 	CAER_MODULE_STOPPED = 0,
@@ -124,6 +117,20 @@ struct caer_module_functions {
 
 typedef struct caer_module_functions const * caerModuleFunctions;
 
+struct caer_module_config {
+	enum sshs_node_attr_value_type type;
+	const char *path;
+	const char *key;
+	union sshs_node_attr_value value;
+	struct sshs_node_attr_ranges ranges;
+	int flags;
+	const char *description;
+};
+
+typedef struct caer_module_config const * caerModuleConfig;
+
+#define CAER_MODULE_CONFIG_SIZE(x) (sizeof(x) / sizeof(struct caer_module_config))
+
 struct caer_module_info {
 	uint32_t version;
 	const char *name;
@@ -131,6 +138,8 @@ struct caer_module_info {
 	enum caer_module_type type;
 	size_t memSize;
 	caerModuleFunctions functions;
+	size_t configurationSize;
+	caerModuleConfig configuration;
 	size_t inputStreamsSize;
 	caerEventStreamIn inputStreams;
 	size_t outputStreamsSize;
