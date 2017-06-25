@@ -893,11 +893,12 @@ void ResetBiases(void *spikeGenState) {
 	}
 
 	caerDeviceHandle usb_handle = (caerDeviceHandle) state->deviceState;
-	uint32_t chipId_t, coreId;
+	uint32_t coreId;
 	uint32_t chipId = 0;
 
-	chipId_t = atomic_load(&state->genSpikeState.chip_id);
+	chipId = atomic_load(&state->genSpikeState.chip_id);
 
+	/*
 	if (chipId_t == 0)
 		chipId = DYNAPSE_CONFIG_DYNAPSE_U0;
 	else if (chipId_t == 1)
@@ -906,6 +907,7 @@ void ResetBiases(void *spikeGenState) {
 		chipId = DYNAPSE_CONFIG_DYNAPSE_U1;
 	else if (chipId_t == 3)
 		chipId = DYNAPSE_CONFIG_DYNAPSE_U3;
+	*/
 
 	caerDeviceConfigSet(usb_handle, DYNAPSE_CONFIG_CHIP,
 	DYNAPSE_CONFIG_CHIP_ID, chipId);
