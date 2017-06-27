@@ -19,6 +19,7 @@ struct HWFilter_state {
 	bool run;
 	char *stimFile;
 	bool writeSram;
+	bool repeat;
 	// usb utils
 	caerInputDynapseState eventSourceModuleState;
 	sshsNode eventSourceConfigNode;
@@ -59,6 +60,7 @@ static bool caerFpgaSpikeGenModuleInit(caerModuleData moduleData) {
 	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "Variable ISI", false);
 	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "Write SRAM", false);
 	sshsNodePutStringIfAbsent(moduleData->moduleNode, "Stim file", "");
+	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "Repeat", false);
 
 	HWFilterState state = moduleData->moduleState;
 
@@ -71,6 +73,7 @@ static bool caerFpgaSpikeGenModuleInit(caerModuleData moduleData) {
 	state->stimFile = sshsNodeGetString(moduleData->moduleNode, "Stim file");
 	state->stimCount = (uint32_t)sshsNodeGetInt(moduleData->moduleNode, "Stim count");
 	state->writeSram = sshsNodeGetBool(moduleData->moduleNode, "Write SRAM");
+	state->repeat = sshsNodeGetBool(moduleData->moduleNode, "Repeat");
 
 	if (caerStrEquals(state->stimFile, "")) {
 		free(state->stimFile);
@@ -152,6 +155,7 @@ static void caerFpgaSpikeGenModuleConfig(caerModuleData moduleData) {
 		state->varMode = sshsNodeGetBool(moduleData->moduleNode, "Variable ISI");
 		state->baseAddr = (uint32_t)sshsNodeGetInt(moduleData->moduleNode, "Base address");
 		state->stimCount = (uint32_t)sshsNodeGetInt(moduleData->moduleNode, "Stim count");
+		state->repeat = sshsNodeGetBool(moduleData->moduleNode, "Repeat");
 
 		int retval;
 		retval = caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_SPIKEGEN, DYNAPSE_CONFIG_SPIKEGEN_ISI, state->isi);
@@ -178,6 +182,8 @@ static void caerFpgaSpikeGenModuleConfig(caerModuleData moduleData) {
 		if ( retval == 0 ) {
 			caerLog(CAER_LOG_NOTICE, __func__, "run status failed to update");
 		}
+
+		caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_SPIKEGEN, DYNAPSE_CONFIG_SPIKEGEN_REPEAT, state->repeat);
 	}
 	else if (!newRun && state->run) {
 		state->run = false;
