@@ -28,7 +28,7 @@ struct sshs_node_attr {
 };
 
 struct sshs_node_listener {
-	void (*node_changed)(sshsNode node, void *userData, enum sshs_node_node_events event, sshsNode changeNode);
+	void (*node_changed)(sshsNode node, void *userData, enum sshs_node_node_events event, const char *changeNode);
 	void *userData;
 	sshsNodeListener next;
 };
@@ -40,9 +40,13 @@ struct sshs_node_attr_listener {
 	sshsNodeAttrListener next;
 };
 
+static void sshsNodeDestroy(sshsNode node);
 static int sshsNodeCmp(const void *a, const void *b);
 static bool sshsNodeCheckRange(enum sshs_node_attr_value_type type, union sshs_node_attr_value value,
 	union sshs_node_attr_range min, union sshs_node_attr_range max);
+static void sshsNodeRemoveChild(sshsNode node, const char *childName);
+static void sshsNodeRemoveAllChildren(sshsNode node);
+static void sshsNodeRemoveSubTree(sshsNode node);
 static bool sshsNodeCheckAttributeValueChanged(enum sshs_node_attr_value_type type, union sshs_node_attr_value oldValue,
 	union sshs_node_attr_value newValue);
 static int sshsNodeAttrCmp(const void *a, const void *b);
@@ -100,10 +104,24 @@ sshsNode sshsNodeNew(const char *nodeName, sshsNode parent) {
 	}
 	else {
 		// Or the root has an empty, constant path.
-		newNode->path = "/";
+		newNode->path = malloc(2);
+		SSHS_MALLOC_CHECK_EXIT(newNode->path);
+
+		// Generate string.
+		strncpy(newNode->path, "/", 2);
 	}
 
 	return (newNode);
+}
+
+// children, attributes, and listeners must be cleaned up prior to this call.
+static void sshsNodeDestroy(sshsNode node) {
+	mtx_destroy(&node->node_lock);
+	mtx_shared_destroy(&node->traversal_lock);
+
+	free(node->path);
+	free(node->name);
+	free(node);
 }
 
 const char *sshsNodeGetName(sshsNode node) {
@@ -145,7 +163,7 @@ sshsNode sshsNodeAddChild(sshsNode node, const char *childName) {
 		sshsNodeListener l;
 		LL_FOREACH(node->nodeListeners, l)
 		{
-			l->node_changed(node, l->userData, SSHS_CHILD_NODE_ADDED, newChild);
+			l->node_changed(node, l->userData, SSHS_CHILD_NODE_ADDED, childName);
 		}
 
 		mtx_unlock(&node->node_lock);
@@ -206,7 +224,7 @@ sshsNode *sshsNodeGetChildren(sshsNode node, size_t *numChildren) {
 }
 
 void sshsNodeAddNodeListener(sshsNode node, void *userData,
-	void (*node_changed)(sshsNode node, void *userData, enum sshs_node_node_events event, sshsNode changeNode)) {
+	void (*node_changed)(sshsNode node, void *userData, enum sshs_node_node_events event, const char *changeNode)) {
 	sshsNodeListener listener = malloc(sizeof(*listener));
 	SSHS_MALLOC_CHECK_EXIT(listener);
 
@@ -237,7 +255,7 @@ void sshsNodeAddNodeListener(sshsNode node, void *userData,
 }
 
 void sshsNodeRemoveNodeListener(sshsNode node, void *userData,
-	void (*node_changed)(sshsNode node, void *userData, enum sshs_node_node_events event, sshsNode changeNode)) {
+	void (*node_changed)(sshsNode node, void *userData, enum sshs_node_node_events event, const char *changeNode)) {
 	mtx_lock(&node->node_lock);
 
 	sshsNodeListener curr, curr_tmp;
@@ -624,6 +642,103 @@ void sshsNodeClearSubTree(sshsNode startNode, bool clearStartNode) {
 	}
 
 	free(children);
+}
+
+// children, attributes, and listeners for the child to be removed
+// must be cleaned up prior to this call.
+static void sshsNodeRemoveChild(sshsNode node, const char *childName) {
+	mtx_shared_lock_exclusive(&node->traversal_lock);
+
+	sshsNode toDelete = NULL;
+	HASH_FIND_STR(node->children, childName, toDelete);
+
+	if (toDelete == NULL) {
+		mtx_shared_unlock_exclusive(&node->traversal_lock);
+		return;
+	}
+
+	// Remove attribute from node.
+	HASH_DELETE(hh, node->children, toDelete);
+
+	mtx_shared_unlock_exclusive(&node->traversal_lock);
+
+	mtx_lock(&node->node_lock);
+
+	// Listener support.
+	sshsNodeListener l;
+	LL_FOREACH(node->nodeListeners, l)
+	{
+		l->node_changed(node, l->userData, SSHS_CHILD_NODE_REMOVED, childName);
+	}
+
+	mtx_unlock(&node->node_lock);
+
+	sshsNodeDestroy(toDelete);
+}
+
+// children, attributes, and listeners for the children to be removed
+// must be cleaned up prior to this call.
+static void sshsNodeRemoveAllChildren(sshsNode node) {
+	mtx_shared_lock_exclusive(&node->traversal_lock);
+	mtx_lock(&node->node_lock);
+
+	sshsNode currChild, tmpChild;
+	HASH_ITER(hh, node->children, currChild, tmpChild)
+	{
+		// Remove child from node.
+		HASH_DELETE(hh, node->children, currChild);
+
+		// Listener support.
+		sshsNodeListener l;
+		LL_FOREACH(node->nodeListeners, l)
+		{
+			l->node_changed(node, l->userData, SSHS_CHILD_NODE_REMOVED, sshsNodeGetName(currChild));
+		}
+
+		sshsNodeDestroy(currChild);
+	}
+
+	HASH_CLEAR(hh, node->children);
+
+	mtx_unlock(&node->node_lock);
+	mtx_shared_unlock_exclusive(&node->traversal_lock);
+}
+
+static void sshsNodeRemoveSubTree(sshsNode node) {
+	// Recurse down first, we remove from the bottom up.
+	size_t numChildren;
+	sshsNode *children = sshsNodeGetChildren(node, &numChildren);
+
+	for (size_t i = 0; i < numChildren; i++) {
+		sshsNodeRemoveSubTree(children[i]);
+	}
+
+	free(children);
+
+	// Delete node listeners and children.
+	sshsNodeRemoveAllChildren(node);
+	sshsNodeRemoveAllNodeListeners(node);
+}
+
+// Eliminates this node and any children. Nobody can have a reference, or
+// be in the process of getting one, to this node or any of its children.
+// You need to make sure of this in your application!
+void sshsNodeRemoveNode(sshsNode node) {
+	// Now we can clear the subtree from all attribute related data.
+	sshsNodeClearSubTree(node, true);
+
+	// And finally remove the node related data and the node itself.
+	sshsNodeRemoveSubTree(node);
+
+	// If this is the root node (parent == NULL), it isn't fully removed.
+	if (sshsNodeGetParent(node) != NULL) {
+		// Unlink this node from the parent.
+		sshsNodeRemoveChild(sshsNodeGetParent(node), sshsNodeGetName(node));
+
+		// And finally destroy the current node memory.
+		// Any later access is illegal!
+		sshsNodeDestroy(node);
+	}
 }
 
 bool sshsNodeAttributeExists(sshsNode node, const char *key, enum sshs_node_attr_value_type type) {

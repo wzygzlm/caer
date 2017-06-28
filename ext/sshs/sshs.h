@@ -88,6 +88,7 @@ enum sshs_node_attr_flags {
 
 enum sshs_node_node_events {
 	SSHS_CHILD_NODE_ADDED = 0,
+	SSHS_CHILD_NODE_REMOVED = 1,
 };
 
 enum sshs_node_attribute_events {
@@ -101,10 +102,10 @@ const char *sshsNodeGetPath(sshsNode node) CAER_SYMBOL_EXPORT;
 sshsNode sshsNodeGetParent(sshsNode node) CAER_SYMBOL_EXPORT;
 sshsNode *sshsNodeGetChildren(sshsNode node, size_t *numChildren) CAER_SYMBOL_EXPORT; // Walk all children.
 void sshsNodeAddNodeListener(sshsNode node, void *userData,
-	void (*node_changed)(sshsNode node, void *userData, enum sshs_node_node_events event, sshsNode changeNode))
+	void (*node_changed)(sshsNode node, void *userData, enum sshs_node_node_events event, const char *changeNode))
 		CAER_SYMBOL_EXPORT;
 void sshsNodeRemoveNodeListener(sshsNode node, void *userData,
-	void (*node_changed)(sshsNode node, void *userData, enum sshs_node_node_events event, sshsNode changeNode))
+	void (*node_changed)(sshsNode node, void *userData, enum sshs_node_node_events event, const char *changeNode))
 		CAER_SYMBOL_EXPORT;
 void sshsNodeRemoveAllNodeListeners(sshsNode node) CAER_SYMBOL_EXPORT;
 void sshsNodeAddAttributeListener(sshsNode node, void *userData,
@@ -121,6 +122,7 @@ void sshsNodeCreateAttribute(sshsNode node, const char *key, enum sshs_node_attr
 	const char *description) CAER_SYMBOL_EXPORT;
 void sshsNodeRemoveAttribute(sshsNode node, const char *key, enum sshs_node_attr_value_type type) CAER_SYMBOL_EXPORT;
 void sshsNodeRemoveAllAttributes(sshsNode node) CAER_SYMBOL_EXPORT;
+void sshsNodeRemoveNode(sshsNode node) CAER_SYMBOL_EXPORT;
 void sshsNodeClearSubTree(sshsNode startNode, bool clearStartNode) CAER_SYMBOL_EXPORT;
 bool sshsNodeAttributeExists(sshsNode node, const char *key, enum sshs_node_attr_value_type type) CAER_SYMBOL_EXPORT;
 bool sshsNodePutAttribute(sshsNode node, const char *key, enum sshs_node_attr_value_type type,
