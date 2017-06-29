@@ -886,7 +886,6 @@ void ResetBiases(void *spikeGenState) {
 
 	caerLog(CAER_LOG_NOTICE, "loadDefaultBiases", "started...");
 	caerInputDynapseState state = spikeGenState;
-	//struct caer_dynapse_info dynapse_info = caerDynapseInfoGet(state->deviceState);
 
 	if (spikeGenState == NULL) {
 		return;
@@ -896,21 +895,8 @@ void ResetBiases(void *spikeGenState) {
 	uint32_t coreId;
 	uint32_t chipId = 0;
 
-	chipId = atomic_load(&state->genSpikeState.chip_id);
-
-	/*
-	if (chipId_t == 0)
-		chipId = DYNAPSE_CONFIG_DYNAPSE_U0;
-	else if (chipId_t == 1)
-		chipId = DYNAPSE_CONFIG_DYNAPSE_U2;
-	else if (chipId_t == 2)
-		chipId = DYNAPSE_CONFIG_DYNAPSE_U1;
-	else if (chipId_t == 3)
-		chipId = DYNAPSE_CONFIG_DYNAPSE_U3;
-	*/
-
-	caerDeviceConfigSet(usb_handle, DYNAPSE_CONFIG_CHIP,
-	DYNAPSE_CONFIG_CHIP_ID, chipId);
+	chipId = (uint32_t) atomic_load(&state->genSpikeState.chip_id);
+	caerDeviceConfigSet(usb_handle, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, (uint32_t)chipId);
 
 	for (coreId = 0; coreId < 4; coreId++) {
 		caerDynapseSetBias(state, chipId, coreId, "IF_AHTAU_N", 7, 35, "LowBias", "NBias");

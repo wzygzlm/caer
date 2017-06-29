@@ -64,7 +64,7 @@ const char *chipIDToName(int16_t chipID, bool withEndSlash) {
 			break;
 		}
 	}
-	printf("unknown device id exiting...\n");
+	printf("unknown device id %d exiting...\n", chipID);
 	exit(1);
 }
 
@@ -294,7 +294,7 @@ static void usbConfigListener(sshsNode node, void *userData, enum sshs_node_attr
 
 uint32_t generatesBitsCoarseFineBiasSetting(sshsNode node, const char *biasName, uint8_t coarseValue,
 	uint16_t fineValue, const char *hlbias, const char *currentLevel, const char *sex,
-	bool enabled, int chipid) {
+	bool enabled, uint32_t chipid) {
 
 	// Add trailing slash to node name (required!).
 	size_t biasNameLength = strlen(biasName);
@@ -304,6 +304,7 @@ uint32_t generatesBitsCoarseFineBiasSetting(sshsNode node, const char *biasName,
 	biasNameFull[biasNameLength + 1] = '\0';
 
 	// Device related configuration has its own sub-node.
+	//caerLog(CAER_LOG_NOTICE, __func__, "generatebiascoarsefine settings %s %d",biasNameFull, chipid);
 	sshsNode deviceConfigNodeLP = sshsGetRelativeNode(node,  chipIDToName((int16_t)chipid, true));
 
 	sshsNode biasNodeLP = sshsGetRelativeNode(deviceConfigNodeLP, "bias/");
@@ -1783,9 +1784,14 @@ void caerDynapseSetBias(caerInputDynapseState state, uint32_t chipId, uint32_t c
 		biasName[3 + i] = biasName_t[i];
 	}
 
-	generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, biasName, coarseValue, fineValue,
-		lowHigh, "Normal", npBias, true, (int) chipId);
-
+	if( chipId != DYNAPSE_CONFIG_DYNAPSE_U0 &&
+		chipId != DYNAPSE_CONFIG_DYNAPSE_U1 &&
+		chipId != DYNAPSE_CONFIG_DYNAPSE_U2 &&
+		chipId != DYNAPSE_CONFIG_DYNAPSE_U3){
+		caerLog(CAER_LOG_ERROR, __func__,  "Chip id is not valid %d", chipId);
+	}else{
+		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, biasName, coarseValue, fineValue, lowHigh, "Normal", npBias, true,  chipId);
+	}
 	//caerDeviceConfigSet(state->deviceState, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_CONTENT, bits);
 
 	return;

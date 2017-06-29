@@ -74,7 +74,7 @@ void caerDynapseSetBias(caerInputDynapseState state, uint32_t chipId, uint32_t c
 	uint8_t coarseValue, uint16_t fineValue, const char *lowHigh, const char *npBias);
 uint32_t generatesBitsCoarseFineBiasSetting(sshsNode node, const char *biasName, uint8_t coarseValue,
 	uint16_t fineValue, const char *hlbias, const char *currentLevel, const char *sex,
-	bool enabled, int chipid);
+	bool enabled, uint32_t chipid);
 bool setCamContent(caerInputDynapseState state, int16_t chipId, bool ei, bool fs, int16_t address, int8_t source_core,
 	int8_t coreId, int16_t row, int16_t column);
 bool caerGenSpikeInit(caerModuleData moduleData);
