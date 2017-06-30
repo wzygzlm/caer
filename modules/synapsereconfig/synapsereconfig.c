@@ -199,7 +199,7 @@ static void caerSynapseReconfigModuleConfig(caerModuleData moduleData) {
 		
 		// Only update the SRAM kernels if asked since it takes 5 seconds
 		if (state->updateSramKernels) {
-			state->sramKernelFilePath = sshsNodeGetString(moduleData->moduleNode, "SRAMkernelFilePath");
+			state->sramKernelFilePath = sshsNodeGetString(moduleData->moduleNode, "SRAMKernelFilePath");
 			state->sramBaseAddr = (uint32_t)sshsNodeGetInt(moduleData->moduleNode, "SRAMBaseAddress");
 			updateSramKernelData(moduleData);
 		}
