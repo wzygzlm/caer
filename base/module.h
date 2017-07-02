@@ -108,6 +108,7 @@ struct caer_module_data {
 typedef struct caer_module_data *caerModuleData;
 
 struct caer_module_functions {
+	void (* const moduleConfigInit)(sshsNode moduleNode); // Can be NULL.
 	bool (* const moduleInit)(caerModuleData moduleData); // Can be NULL.
 	void (* const moduleRun)(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out);
 	void (* const moduleConfig)(caerModuleData moduleData); // Can be NULL.
@@ -117,20 +118,6 @@ struct caer_module_functions {
 
 typedef struct caer_module_functions const * caerModuleFunctions;
 
-struct caer_module_config {
-	enum sshs_node_attr_value_type type;
-	const char *path;
-	const char *key;
-	union sshs_node_attr_value value;
-	struct sshs_node_attr_ranges ranges;
-	int flags;
-	const char *description;
-};
-
-typedef struct caer_module_config const * caerModuleConfig;
-
-#define CAER_MODULE_CONFIG_SIZE(x) (sizeof(x) / sizeof(struct caer_module_config))
-
 struct caer_module_info {
 	uint32_t version;
 	const char *name;
@@ -138,8 +125,6 @@ struct caer_module_info {
 	enum caer_module_type type;
 	size_t memSize;
 	caerModuleFunctions functions;
-	size_t configurationSize;
-	caerModuleConfig configuration;
 	size_t inputStreamsSize;
 	caerEventStreamIn inputStreams;
 	size_t outputStreamsSize;
