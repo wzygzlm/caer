@@ -2130,7 +2130,8 @@ static int caerMainloopRunner() {
 
 	// Initialize the runtime memory for all modules.
 	for (const auto &m : glMainloopData.globalExecution) {
-		caerModuleData runData = caerModuleInitialize(m.get().id, m.get().name.c_str(), m.get().configNode);
+		caerModuleData runData = caerModuleInitialize(m.get().id, m.get().name.c_str(), m.get().libraryInfo->functions,
+			m.get().configNode);
 		if (runData == nullptr) {
 			// TODO: better cleanup on failure here, ensure above memory deallocation.
 			// Cleanup modules and streams on exit.

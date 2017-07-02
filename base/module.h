@@ -146,9 +146,10 @@ void caerModuleConfigDefaultListener(sshsNode node, void *userData, enum sshs_no
 		CAER_SYMBOL_EXPORT;
 
 // Functions for mainloop:
+void caerModuleConfigInit(caerModuleFunctions moduleFunctions, sshsNode moduleNode);
 void caerModuleSM(caerModuleFunctions moduleFunctions, caerModuleData moduleData, size_t memSize,
 	caerEventPacketContainer in, caerEventPacketContainer *out);
-caerModuleData caerModuleInitialize(int16_t moduleID, const char *moduleName, sshsNode moduleNode);
+caerModuleData caerModuleInitialize(int16_t moduleID, const char *moduleName, caerModuleFunctions moduleFunctions, sshsNode moduleNode);
 void caerModuleDestroy(caerModuleData moduleData);
 
 #ifdef __cplusplus

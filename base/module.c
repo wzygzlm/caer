@@ -12,6 +12,21 @@ static void caerModuleShutdownListener(sshsNode node, void *userData, enum sshs_
 static void caerModuleLogLevelListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
 
+void caerModuleConfigInit(caerModuleFunctions moduleFunctions, sshsNode moduleNode) {
+	// Per-module log level support. Initialize with global log level value.
+	sshsNodeCreateByte(moduleNode, "logLevel", caerLogLevelGet(), CAER_LOG_EMERGENCY, CAER_LOG_DEBUG, SSHS_FLAGS_NORMAL,
+		"Module-specific log-level.");
+
+	// Initialize shutdown controls. By default modules always run.
+	sshsNodeCreateBool(moduleNode, "runAtStartup", true, SSHS_FLAGS_NORMAL,
+		"Start this module when the mainloop starts."); // Allow for users to disable a module at start.
+
+	// Call module's configInit function to create default static config.
+	if (moduleFunctions->moduleConfigInit != NULL) {
+		moduleFunctions->moduleConfigInit(moduleNode);
+	}
+}
+
 void caerModuleSM(caerModuleFunctions moduleFunctions, caerModuleData moduleData, size_t memSize,
 	caerEventPacketContainer in, caerEventPacketContainer *out) {
 	bool running = atomic_load_explicit(&moduleData->running, memory_order_relaxed);
@@ -71,7 +86,8 @@ void caerModuleSM(caerModuleFunctions moduleFunctions, caerModuleData moduleData
 	}
 }
 
-caerModuleData caerModuleInitialize(int16_t moduleID, const char *moduleName, sshsNode moduleNode) {
+caerModuleData caerModuleInitialize(int16_t moduleID, const char *moduleName, caerModuleFunctions moduleFunctions,
+	sshsNode moduleNode) {
 	// Allocate memory for the module.
 	caerModuleData moduleData = calloc(1, sizeof(struct caer_module_data));
 	if (moduleData == NULL) {
@@ -101,16 +117,15 @@ caerModuleData caerModuleInitialize(int16_t moduleID, const char *moduleName, ss
 	strncpy(moduleData->moduleSubSystemString, moduleName, nameLength);
 	moduleData->moduleSubSystemString[nameLength] = '\0';
 
-	// Per-module log level support. Initialize with global log level value.
-	sshsNodeCreateByte(moduleData->moduleNode, "logLevel", caerLogLevelGet(), CAER_LOG_EMERGENCY, CAER_LOG_DEBUG,
-		SSHS_FLAGS_NORMAL, "Module-specific log-level.");
+	// Ensure static configuration is created on each module initialization.
+	caerModuleConfigInit(moduleFunctions, moduleNode);
+
+	// Per-module log level support.
 	atomic_store_explicit(&moduleData->moduleLogLevel, U8T(sshsNodeGetByte(moduleData->moduleNode, "logLevel")),
 		memory_order_relaxed);
 	sshsNodeAddAttributeListener(moduleData->moduleNode, moduleData, &caerModuleLogLevelListener);
 
-	// Initialize shutdown controls. By default modules always run.
-	sshsNodeCreateBool(moduleData->moduleNode, "runAtStartup", true, SSHS_FLAGS_NORMAL,
-		"Start this module when the mainloop starts."); // Allow for users to disable a module at start.
+	// Initialize shutdown controls.
 	bool runModule = sshsNodeGetBool(moduleData->moduleNode, "runAtStartup");
 
 	atomic_store_explicit(&moduleData->running, runModule, memory_order_relaxed);
