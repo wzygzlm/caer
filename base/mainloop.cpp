@@ -35,22 +35,6 @@
 
 #define MODULES_DIRECTORY "modules/"
 
-// If Boost version recent enough, use their portable DLL loading support.
-// Else use dlopen() on POSIX systems.
-#if defined(BOOST_VERSION) && (BOOST_VERSION / 100000) >= 1 && (BOOST_VERSION / 100 % 1000) >= 61
-#define BOOST_HAS_DLL_LOAD 1
-#else
-#define BOOST_HAS_DLL_LOAD 0
-#endif
-
-#if BOOST_HAS_DLL_LOAD
-#include <boost/dll.hpp>
-using ModuleLibrary = boost::dll::shared_library;
-#else
-#include <dlfcn.h>
-using ModuleLibrary = void *;
-#endif
-
 #include <libcaercpp/libcaer.hpp>
 using namespace libcaer::log;
 
@@ -219,8 +203,6 @@ struct ActiveStreams {
 };
 
 static struct {
-	std::vector<boost::filesystem::path> modulePaths;
-	std::recursive_mutex modulePathsMutex;
 	sshsNode configNode;
 	atomic_bool systemRunning;
 	atomic_bool running;
@@ -232,10 +214,6 @@ static struct {
 	std::vector<caerEventPacketHeader> eventPackets;
 } glMainloopData;
 
-static std::pair<ModuleLibrary, caerModuleInfo> loadModule(const std::string &moduleName);
-static void unloadLibrary(ModuleLibrary &moduleLibrary);
-static void updateModulesInformation();
-
 static int caerMainloopRunner();
 static void printDebugInformation();
 static void caerMainloopSignalHandler(int signal);
@@ -245,209 +223,6 @@ static void caerMainloopRunningListener(sshsNode node, void *userData, enum sshs
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
 static void caerModulesUpdateInformation(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
-
-static std::pair<ModuleLibrary, caerModuleInfo> loadModule(const std::string &moduleName) {
-	// For each module, we search if a path exists to load it from.
-	// If yes, we do so. The various OS's shared library load mechanisms
-	// will keep track of reference count if same module is loaded
-	// multiple times.
-	boost::filesystem::path modulePath;
-
-	{
-		std::lock_guard<std::recursive_mutex> lock(glMainloopData.modulePathsMutex);
-
-		for (const auto &p : glMainloopData.modulePaths) {
-			if (moduleName == p.stem().string()) {
-				// Found a module with same name!
-				modulePath = p;
-			}
-		}
-	}
-
-	if (modulePath.empty()) {
-		boost::format exMsg = boost::format("No module library for '%s' found.") % moduleName;
-		throw std::runtime_error(exMsg.str());
-	}
-
-#if BOOST_HAS_DLL_LOAD
-	ModuleLibrary moduleLibrary;
-	try {
-		moduleLibrary.load(modulePath.c_str(), boost::dll::load_mode::rtld_now);
-	}
-	catch (const std::exception &ex) {
-		// Failed to load shared library!
-		boost::format exMsg = boost::format("Failed to load library '%s', error: '%s'.") % modulePath.string()
-			% ex.what();
-		throw std::runtime_error(exMsg.str());
-	}
-
-	caerModuleInfo (*getInfo)(void);
-	try {
-		getInfo = moduleLibrary.get<caerModuleInfo(void)>("caerModuleGetInfo");
-	}
-	catch (const std::exception &ex) {
-		// Failed to find symbol in shared library!
-		unloadLibrary(moduleLibrary);
-		boost::format exMsg = boost::format("Failed to find symbol in library '%s', error: '%s'.") % modulePath.string()
-			% ex.what();
-		throw std::runtime_error(exMsg.str());
-	}
-#else
-	void *moduleLibrary = dlopen(modulePath.c_str(), RTLD_NOW);
-	if (moduleLibrary == nullptr) {
-		// Failed to load shared library!
-		boost::format exMsg = boost::format("Failed to load library '%s', error: '%s'.") % modulePath.string()
-		% dlerror();
-		throw std::runtime_error(exMsg.str());
-	}
-
-	caerModuleInfo (*getInfo)(void) = (caerModuleInfo (*)(void)) dlsym(moduleLibrary, "caerModuleGetInfo");
-	if (getInfo == nullptr) {
-		// Failed to find symbol in shared library!
-		unloadLibrary(moduleLibrary);
-		boost::format exMsg = boost::format("Failed to find symbol in library '%s', error: '%s'.") % modulePath.string()
-		% dlerror();
-		throw std::runtime_error(exMsg.str());
-	}
-#endif
-
-	caerModuleInfo info = (*getInfo)();
-	if (info == nullptr) {
-		unloadLibrary(moduleLibrary);
-		boost::format exMsg = boost::format("Failed to get info from library '%s'.") % modulePath.string();
-		throw std::runtime_error(exMsg.str());
-	}
-
-	return (std::pair<ModuleLibrary, caerModuleInfo>(moduleLibrary, info));
-}
-
-// Small helper to unload libraries on error.
-static void unloadLibrary(ModuleLibrary &moduleLibrary) {
-#if BOOST_HAS_DLL_LOAD
-	moduleLibrary.unload();
-#else
-	dlclose(moduleLibrary);
-#endif
-}
-
-static void updateModulesInformation() {
-	std::lock_guard<std::recursive_mutex> lock(glMainloopData.modulePathsMutex);
-
-	sshsNode modulesNode = sshsGetNode(sshsGetGlobal(), "/caer/modules/");
-
-	// Clear out modules information.
-	sshsNodeClearSubTree(modulesNode, false);
-	glMainloopData.modulePaths.clear();
-
-	// Search for available modules. Will be loaded as needed later.
-	const std::string modulesSearchPath = sshsNodeGetStdString(modulesNode, "modulesSearchPath");
-
-	// Split on ':'.
-	std::vector<std::string> searchPaths;
-	boost::algorithm::split(searchPaths, modulesSearchPath, boost::is_any_of(":"));
-
-	const std::regex moduleRegex("\\w+\\.(so|dll|dylib)");
-
-	for (const auto &sPath : searchPaths) {
-		if (!boost::filesystem::exists(sPath)) {
-			continue;
-		}
-
-		std::for_each(boost::filesystem::recursive_directory_iterator(sPath),
-			boost::filesystem::recursive_directory_iterator(),
-			[&moduleRegex](const boost::filesystem::directory_entry &e) {
-				if (boost::filesystem::exists(e.path()) && boost::filesystem::is_regular_file(e.path()) && std::regex_match(e.path().filename().string(), moduleRegex)) {
-					glMainloopData.modulePaths.push_back(e.path());
-				}
-			});
-	}
-
-	// Sort and unique.
-	vectorSortUnique(glMainloopData.modulePaths);
-
-	// No modules, cannot start!
-	if (glMainloopData.modulePaths.empty()) {
-		boost::format exMsg = boost::format("Failed to find any modules on path(s) '%s'.") % modulesSearchPath;
-		throw std::runtime_error(exMsg.str());
-	}
-
-	// Got all available modules, expose them as list.
-	std::string modulesList;
-	for (const auto &modulePath : glMainloopData.modulePaths) {
-		modulesList += modulePath.stem().string() + ",";
-	}
-	modulesList.pop_back(); // Remove trailing comma.
-
-	sshsNodeUpdateReadOnlyAttribute(modulesNode, "modulesListOptions", modulesList);
-
-	// Now generate nodes for each of them, with their in/out information as attributes.
-	for (const auto &modulePath : glMainloopData.modulePaths) {
-		std::string moduleName = modulePath.stem().string();
-
-		// Load library.
-		std::pair<ModuleLibrary, caerModuleInfo> mLoad;
-
-		try {
-			mLoad = loadModule(moduleName);
-		}
-		catch (const std::exception &ex) {
-			boost::format exMsg = boost::format("Module '%s': %s") % moduleName % ex.what();
-			log(logLevel::ERROR, "Mainloop", exMsg.str().c_str());
-			continue;
-		}
-
-		// Get SSHS node under /caer/modules/.
-		sshsNode moduleNode = sshsGetRelativeNode(modulesNode, moduleName + "/");
-
-		// Parse caerModuleInfo into SSHS.
-		sshsNodeCreate(moduleNode, "version", I32T(mLoad.second->version), 0, INT32_MAX,
-			SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Module version.");
-		sshsNodeCreate(moduleNode, "name", mLoad.second->name, 1, 256, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT,
-			"Module name.");
-		sshsNodeCreate(moduleNode, "description", mLoad.second->description, 1, 8192,
-			SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Module description.");
-		sshsNodeCreate(moduleNode, "type", caerModuleTypeToString(mLoad.second->type), 1, 64,
-			SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Module type.");
-
-		if (mLoad.second->inputStreamsSize > 0) {
-			sshsNode inputStreamsNode = sshsGetRelativeNode(moduleNode, "inputStreams/");
-
-			sshsNodeCreate(inputStreamsNode, "size", I32T(mLoad.second->inputStreamsSize), 1, INT16_MAX,
-				SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Number of input streams.");
-
-			for (size_t i = 0; i < mLoad.second->inputStreamsSize; i++) {
-				sshsNode inputStreamNode = sshsGetRelativeNode(inputStreamsNode, std::to_string(i) + "/");
-				caerEventStreamIn inputStream = &mLoad.second->inputStreams[i];
-
-				sshsNodeCreate(inputStreamNode, "type", inputStream->type, I16T(-1), I16T(INT16_MAX),
-					SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Input event type (-1 for any type).");
-				sshsNodeCreate(inputStreamNode, "number", inputStream->number, I16T(-1), I16T(INT16_MAX),
-					SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Number of inputs of this type (-1 for any number).");
-				sshsNodeCreate(inputStreamNode, "readOnly", inputStream->readOnly,
-					SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Whether this input is modified or not.");
-			}
-		}
-
-		if (mLoad.second->outputStreamsSize > 0) {
-			sshsNode outputStreamsNode = sshsGetRelativeNode(moduleNode, "outputStreams/");
-
-			sshsNodeCreate(outputStreamsNode, "size", I32T(mLoad.second->outputStreamsSize), 1, INT16_MAX,
-				SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Number of output streams.");
-
-			for (size_t i = 0; i < mLoad.second->outputStreamsSize; i++) {
-				sshsNode outputStreamNode = sshsGetRelativeNode(outputStreamsNode, std::to_string(i) + "/");
-				caerEventStreamOut outputStream = &mLoad.second->outputStreams[i];
-
-				sshsNodeCreate(outputStreamNode, "type", outputStream->type, I16T(-1), I16T(INT16_MAX),
-					SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT,
-					"Output event type (-1 for undefined output determined at runtime).");
-			}
-		}
-
-		// Done, unload library.
-		unloadLibrary(mLoad.first);
-	}
-}
 
 void caerMainloopRun(void) {
 	// Install signal handler for global shutdown.
@@ -548,7 +323,7 @@ void caerMainloopRun(void) {
 
 		// Get information on available modules, put it into SSHS.
 		try {
-			updateModulesInformation();
+			caerUpdateModulesInformation();
 		}
 		catch (const std::exception &ex) {
 			sshsNodePutBool(glMainloopData.configNode, "running", false);
@@ -1740,7 +1515,7 @@ static void runModules(caerEventPacketContainer in) {
 static void cleanupGlobals() {
 	for (auto &m : glMainloopData.modules) {
 		if (m.second.libraryInfo != nullptr) {
-			unloadLibrary(m.second.libraryHandle);
+			caerUnloadModuleLibrary(m.second.libraryHandle);
 		}
 	}
 
@@ -1825,7 +1600,7 @@ static int caerMainloopRunner() {
 		std::pair<ModuleLibrary, caerModuleInfo> mLoad;
 
 		try {
-			mLoad = loadModule(m.second.library);
+			mLoad = caerLoadModuleLibrary(m.second.library);
 		}
 		catch (const std::exception &ex) {
 			boost::format exMsg = boost::format("Module '%s': %s") % m.second.name % ex.what();
@@ -1849,7 +1624,7 @@ static int caerMainloopRunner() {
 			checkModuleInputOutput(mLoad.second, m.second.configNode);
 		}
 		catch (const std::exception &ex) {
-			unloadLibrary(mLoad.first);
+			caerUnloadModuleLibrary(mLoad.first);
 			boost::format exMsg = boost::format("Module '%s': %s") % m.second.name % ex.what();
 			log(logLevel::ERROR, "Mainloop", exMsg.str().c_str());
 			continue;
@@ -2130,8 +1905,7 @@ static int caerMainloopRunner() {
 
 	// Initialize the runtime memory for all modules.
 	for (const auto &m : glMainloopData.globalExecution) {
-		caerModuleData runData = caerModuleInitialize(m.get().id, m.get().name.c_str(), m.get().libraryInfo->functions,
-			m.get().configNode);
+		caerModuleData runData = caerModuleInitialize(m.get().id, m.get().name.c_str(), m.get().configNode);
 		if (runData == nullptr) {
 			// TODO: better cleanup on failure here, ensure above memory deallocation.
 			// Cleanup modules and streams on exit.
@@ -2411,7 +2185,7 @@ static void caerModulesUpdateInformation(sshsNode node, void *userData, enum ssh
 		&& caerStrEquals(changeKey, "updateModulesInformation")) {
 		// Get information on available modules, put it into SSHS.
 		try {
-			updateModulesInformation();
+			caerUpdateModulesInformation();
 		}
 		catch (const std::exception &ex) {
 			log(logLevel::CRITICAL, "Mainloop", "Failed to find any modules (error: '%s').", ex.what());

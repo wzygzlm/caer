@@ -782,6 +782,10 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 				}
 			}
 
+			// Create static module configuration, so users can start
+			// changing it right away after module add.
+			caerModuleConfigInit(newModuleNode);
+
 			// Send back confirmation to the client.
 			caerConfigSendBoolResponse(client, CAER_CONFIG_ADD_MODULE, true);
 
@@ -813,8 +817,8 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 				break;
 			}
 
-			// Remove all attributes of the module node and its children.
-			sshsNodeClearSubTree(sshsGetNode(configStore, "/" + moduleName + "/"), true);
+			// Truly delete the node and all its children.
+			sshsNodeRemoveNode(sshsGetNode(configStore, "/" + moduleName + "/"));
 
 			// Send back confirmation to the client.
 			caerConfigSendBoolResponse(client, CAER_CONFIG_REMOVE_MODULE, true);
