@@ -74,7 +74,7 @@ const char *chipIDToName(int16_t chipID, bool withEndSlash);
 // TODO: biasing needs to be rethought. Should always go via SSHS or helpers to SSHS.
 // That way lots of internals can remain internal.
 uint32_t generatesBitsCoarseFineBiasSetting(sshsNode node, const char *biasName, uint8_t coarseValue,
-	uint16_t fineValue, const char *hlbias, const char *currentLevel, const char *sex, bool enabled, int chipid);
+	uint16_t fineValue, const char *hlbias, const char *currentLevel, const char *sex, bool enabled, uint32_t chipid);
 void caerDynapseSetBias(caerInputDynapseState state, uint32_t chipId, uint32_t coreId, const char *biasName_t,
 	uint8_t coarseValue, uint16_t fineValue, const char *lowHigh, const char *npBias);
 

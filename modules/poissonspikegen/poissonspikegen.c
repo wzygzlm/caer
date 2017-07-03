@@ -17,6 +17,8 @@ struct HWFilter_state {
 	bool update;
 	bool loadRatesFromFile;
 	char* rateFile;
+	int chipID;
+	bool programTestPattern;
 	// usb utils
 	caerInputDynapseState eventSourceModuleState;
 	sshsNode eventSourceConfigNode;
@@ -30,6 +32,7 @@ static void caerPoissonSpikeGenModuleConfig(caerModuleData moduleData);
 static void caerPoissonSpikeGenModuleExit(caerModuleData moduleData);
 static void caerPoissonSpikeGenModuleReset(caerModuleData moduleData, uint16_t resetCallSourceID);
 void loadRatesFromFile(caerModuleData moduleData, char* fileName);
+void loadProgramTestPattern(caerModuleData moduleData);
 
 static struct caer_module_functions caerPoissonSpikeGenModuleFunctions = { .moduleInit =
 	&caerPoissonSpikeGenModuleInit, .moduleRun = &caerPoissonSpikeGenModuleRun, .moduleConfig =
@@ -56,6 +59,8 @@ static bool caerPoissonSpikeGenModuleInit(caerModuleData moduleData) {
 	sshsNodePutStringIfAbsent(moduleData->moduleNode, "Rate file", "");
 	sshsNodePutIntIfAbsent(moduleData->moduleNode, "Target neuron address", 0);
 	sshsNodePutDoubleIfAbsent(moduleData->moduleNode, "Rate (Hz)", 0);
+	sshsNodePutIntIfAbsent(moduleData->moduleNode, "Chip ID", 0);
+	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "Program test pattern", false);
 
 	HWFilterState state = moduleData->moduleState;
 
@@ -66,6 +71,8 @@ static bool caerPoissonSpikeGenModuleInit(caerModuleData moduleData) {
 	state->update = sshsNodeGetBool(moduleData->moduleNode, "Update");
 	state->loadRatesFromFile = sshsNodeGetBool(moduleData->moduleNode, "Load rates from file");
 	state->rateFile = sshsNodeGetString(moduleData->moduleNode, "Rate file");
+	state->chipID = sshsNodeGetInt(moduleData->moduleNode, "Chip ID");
+	state->programTestPattern = sshsNodeGetBool(moduleData->moduleNode, "Program test pattern");
 
 	if (caerStrEquals(state->rateFile, "")) {
 		free(state->rateFile);
@@ -119,6 +126,7 @@ static void caerPoissonSpikeGenModuleConfig(caerModuleData moduleData) {
 	// this will update parameters, from user input
 	bool newUpdate = sshsNodeGetBool(moduleData->moduleNode, "Update");
 	bool newRun = sshsNodeGetBool(moduleData->moduleNode, "Run");
+	bool newProgramTestPattern = sshsNodeGetBool(moduleData->moduleNode, "Program test pattern");
 
 
 	// These parameters are always safe to update
@@ -129,6 +137,21 @@ static void caerPoissonSpikeGenModuleConfig(caerModuleData moduleData) {
 		state->run = true;
 		caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_POISSONSPIKEGEN, DYNAPSE_CONFIG_POISSONSPIKEGEN_RUN,
 				    1);
+		state->chipID = sshsNodeGetInt(moduleData->moduleNode, "Chip ID");
+		switch (state->chipID) {
+		case 0:
+		    caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_POISSONSPIKEGEN, DYNAPSE_CONFIG_POISSONSPIKEGEN_CHIPID, DYNAPSE_CONFIG_DYNAPSE_U0 );
+		    break;
+		case 1:
+		    caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_POISSONSPIKEGEN, DYNAPSE_CONFIG_POISSONSPIKEGEN_CHIPID, DYNAPSE_CONFIG_DYNAPSE_U1 );
+		    break;
+		case 2:
+		    caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_POISSONSPIKEGEN, DYNAPSE_CONFIG_POISSONSPIKEGEN_CHIPID, DYNAPSE_CONFIG_DYNAPSE_U2 );
+		    break;
+		case 3:
+		    caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_POISSONSPIKEGEN, DYNAPSE_CONFIG_POISSONSPIKEGEN_CHIPID, DYNAPSE_CONFIG_DYNAPSE_U3 );
+		    break;
+		}
 	}
 	else if (!newRun && state->run) {
 		state->run = false;
@@ -154,7 +177,43 @@ static void caerPoissonSpikeGenModuleConfig(caerModuleData moduleData) {
 	else if (!newUpdate && state->update) {
 		state->update = false;
 	}
+
+	if (newProgramTestPattern && !state->programTestPattern) {
+		state->programTestPattern = true;
+		loadProgramTestPattern(moduleData);
+	}
+	else if (!newProgramTestPattern && state->programTestPattern) {
+		state->programTestPattern = false;
+	}
 }
+
+// program a hard coded test pattern for easy visual verification of the poisson spike generator
+void loadProgramTestPattern(caerModuleData moduleData) {
+	HWFilterState state = moduleData->moduleState;
+	caerInputDynapseState stateSource = state->eventSourceModuleState;
+
+	state->chipID = sshsNodeGetInt(moduleData->moduleNode, "Chip ID");
+	switch (state->chipID) {
+	case 0:
+	    caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_POISSONSPIKEGEN, DYNAPSE_CONFIG_POISSONSPIKEGEN_CHIPID, DYNAPSE_CONFIG_DYNAPSE_U0 );
+	    break;
+	case 1:
+	    caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_POISSONSPIKEGEN, DYNAPSE_CONFIG_POISSONSPIKEGEN_CHIPID, DYNAPSE_CONFIG_DYNAPSE_U1 );
+	    break;
+	case 2:
+	    caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_POISSONSPIKEGEN, DYNAPSE_CONFIG_POISSONSPIKEGEN_CHIPID, DYNAPSE_CONFIG_DYNAPSE_U2 );
+	    break;
+	case 3:
+	    caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_POISSONSPIKEGEN, DYNAPSE_CONFIG_POISSONSPIKEGEN_CHIPID, DYNAPSE_CONFIG_DYNAPSE_U3 );
+	    break;
+	}
+
+	for (uint32_t i = 0; i < DYNAPSE_CONFIG_NUMNEURONS; i++) {
+		caerDynapseWriteCam(stateSource->deviceState, 0, i, 0, DYNAPSE_CONFIG_CAMTYPE_F_EXC );
+	}
+	caerDynapseWritePoissonSpikeRate(stateSource->deviceState, (uint32_t)0, (double)10.0);
+}
+
 
 void loadRatesFromFile(caerModuleData moduleData, char* fileName) {
 	HWFilterState state = moduleData->moduleState;

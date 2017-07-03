@@ -90,7 +90,8 @@ const char *chipIDToName(int16_t chipID, bool withEndSlash) {
 		}
 	}
 
-	return ((withEndSlash) ? ("Unknown/") : ("Unknown"));
+	printf("unknown device id %d exiting...\n", chipID);
+	exit(1);
 }
 
 static void moduleShutdownNotify(void *p) {
@@ -1734,7 +1735,7 @@ void caerInputDYNAPSERun(caerModuleData moduleData, caerEventPacketContainer in,
 }
 
 uint32_t generatesBitsCoarseFineBiasSetting(sshsNode node, const char *biasName, uint8_t coarseValue,
-	uint16_t fineValue, const char *hlbias, const char *currentLevel, const char *sex, bool enabled, int chipid) {
+	uint16_t fineValue, const char *hlbias, const char *currentLevel, const char *sex, bool enabled, uint32_t chipid) {
 
 	// Add trailing slash to node name (required!).
 	size_t biasNameLength = strlen(biasName);
@@ -1794,12 +1795,14 @@ void caerDynapseSetBias(caerInputDynapseState state, uint32_t chipId, uint32_t c
 		biasName[3 + i] = biasName_t[i];
 	}
 
-	generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, biasName, coarseValue, fineValue, lowHigh,
-		"Normal", npBias, true, (int) chipId);
-
-	//caerDeviceConfigSet(state->deviceState, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_CONTENT, bits);
-
-	return;
+	if (chipId != DYNAPSE_CONFIG_DYNAPSE_U0 && chipId != DYNAPSE_CONFIG_DYNAPSE_U1
+		&& chipId != DYNAPSE_CONFIG_DYNAPSE_U2 && chipId != DYNAPSE_CONFIG_DYNAPSE_U3) {
+		caerLog(CAER_LOG_ERROR, __func__, "Chip id is not valid %d", chipId);
+	}
+	else {
+		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, biasName, coarseValue, fineValue, lowHigh,
+			"Normal", npBias, true, chipId);
+	}
 }
 
 // TODO: this is not used anywhere

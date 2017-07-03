@@ -13,7 +13,8 @@ struct SynapseReconfig_state {
 	bool updateSramKernels;
 	char* globalKernelFilePath;
 	char* sramKernelFilePath;
-
+	bool doInit;
+	caerInputDynapseState eventSourceModuleState;
 };
 
 typedef struct SynapseReconfig_state *SynapseReconfigState;        // filter state contains two variables
@@ -75,25 +76,25 @@ static bool caerSynapseReconfigModuleInit(caerModuleData moduleData) {
 
 	// add parameters for the user
 
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "Run DVS", false);
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "Use SRAM kernels", false);
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "SRAM base address", 0);
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "Target chip ID", 0);
-	sshsNodePutStringIfAbsent(moduleData->moduleNode, "Global kernel file path", "");
-	sshsNodePutStringIfAbsent(moduleData->moduleNode, "SRAM kernel file path", "");
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "Update SRAM kernels", false);
+	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "runDVS", false);
+	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "useSRAMKernels", false);
+	sshsNodePutIntIfAbsent(moduleData->moduleNode, "SRAMBaseAddress", 0);
+	sshsNodePutIntIfAbsent(moduleData->moduleNode, "targetChipID", 0);
+	sshsNodePutStringIfAbsent(moduleData->moduleNode, "globalKernelFilePath", "");
+	sshsNodePutStringIfAbsent(moduleData->moduleNode, "SRAMKernelFilePath", "");
+	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "updateSRAMKernels", false);
 
 	SynapseReconfigState state = moduleData->moduleState;
 
 	// put the parameters in the state of the filter
 
-	state->runDvs = sshsNodeGetBool(moduleData->moduleNode, "Run DVS");
-	state->chipSelect = (uint32_t)sshsNodeGetInt(moduleData->moduleNode, "Target chip ID");
-	state->sramBaseAddr = (uint32_t)sshsNodeGetInt(moduleData->moduleNode, "SRAM base address");
-	state->useSramKernels = sshsNodeGetBool(moduleData->moduleNode, "Use SRAM kernels");
-	state->updateSramKernels = sshsNodeGetBool(moduleData->moduleNode, "Update SRAM kernels");
-	state->sramKernelFilePath = sshsNodeGetString(moduleData->moduleNode, "SRAM kernel file path");
-	state->globalKernelFilePath = sshsNodeGetString(moduleData->moduleNode, "Global kernel file path");
+	state->runDvs = sshsNodeGetBool(moduleData->moduleNode, "runDVS");
+	state->chipSelect = (uint32_t)sshsNodeGetInt(moduleData->moduleNode, "targetChipID");
+	state->sramBaseAddr = (uint32_t)sshsNodeGetInt(moduleData->moduleNode, "SRAMBaseAddress");
+	state->useSramKernels = sshsNodeGetBool(moduleData->moduleNode, "useSRAMKernels");
+	state->updateSramKernels = sshsNodeGetBool(moduleData->moduleNode, "updateSRAMKernels");
+	state->sramKernelFilePath = sshsNodeGetString(moduleData->moduleNode, "SRAMKernelFilePath");
+	state->globalKernelFilePath = sshsNodeGetString(moduleData->moduleNode, "globalKernelFilePath");
 
 	if ( caerStrEquals(state->sramKernelFilePath, "") ) {
 		free(state->sramKernelFilePath);
@@ -101,6 +102,9 @@ static bool caerSynapseReconfigModuleInit(caerModuleData moduleData) {
 	if ( caerStrEquals(state->globalKernelFilePath, "") ) {
 		free(state->globalKernelFilePath);
 	}
+
+	// do init false - initialiaztion clear cam and load biases -
+	state->doInit = true;
 
 	// Add config listeners last - let's the user interact with the parameter -
 
@@ -138,6 +142,25 @@ static void caerSynapseReconfigModuleRun(caerModuleData moduleData, size_t argsN
 
 	global_sourceID = caerEventPacketHeaderGetEventSource(&spike->packetHeader);
     
+	if(state->doInit){
+		// do init
+		// --- start  usb handle / from spike event source id
+		state->eventSourceModuleState = caerMainloopGetSourceState(U16T(global_sourceID));
+		if (state->eventSourceModuleState == NULL) {
+			return;
+		}
+		caerInputDynapseState stateSource = state->eventSourceModuleState;
+		if (stateSource->deviceState == NULL) {
+			return;
+		}
+		// --- end usb handle
+		// clear CAM al load default biases
+		atomic_store(&state->eventSourceModuleState->genSpikeState.clearAllCam, true);
+		atomic_store(&state->eventSourceModuleState->genSpikeState.loadDefaultBiases, true);
+		// do not do init anymore
+		state->doInit = false;
+	}
+
 }
 
 // update parameters
@@ -152,12 +175,12 @@ static void caerSynapseReconfigModuleConfig(caerModuleData moduleData) {
 
 	// We don't know what changed when this function is called so we will check and only update
 	// when run/stop or "use SRAM kernels" changes.
-	bool newRunDvs = sshsNodeGetBool(moduleData->moduleNode, "Run DVS");
-	uint8_t newChipSelect = (uint8_t)sshsNodeGetInt(moduleData->moduleNode, "Target chip ID");
+	bool newRunDvs = sshsNodeGetBool(moduleData->moduleNode, "runDVS");
+	uint8_t newChipSelect = (uint8_t)sshsNodeGetInt(moduleData->moduleNode, "targetChipID");
 
-	state->updateSramKernels = sshsNodeGetBool(moduleData->moduleNode, "Update SRAM kernels");
+	state->updateSramKernels = sshsNodeGetBool(moduleData->moduleNode, "updateSRAMKernels");
 
-	state->useSramKernels = sshsNodeGetBool(moduleData->moduleNode, "Use SRAM kernels");
+	state->useSramKernels = sshsNodeGetBool(moduleData->moduleNode, "useSRAMKernels");
 	caerDeviceConfigSet(eventSource->deviceState, DYNAPSE_CONFIG_SYNAPSERECONFIG, DYNAPSE_CONFIG_SYNAPSERECONFIG_USESRAMKERNELS, state->useSramKernels);
 
 	// Only update other values when toggling run/stop mode
@@ -171,13 +194,13 @@ static void caerSynapseReconfigModuleConfig(caerModuleData moduleData) {
 		}
 	    
 		// Update the global kernel whenever we enable the DVS
-		state->globalKernelFilePath = sshsNodeGetString(moduleData->moduleNode, "Global kernel file path");
+		state->globalKernelFilePath = sshsNodeGetString(moduleData->moduleNode, "globalKernelFilePath");
 		updateGlobalKernelData(moduleData);
 		
 		// Only update the SRAM kernels if asked since it takes 5 seconds
 		if (state->updateSramKernels) {
-			state->sramKernelFilePath = sshsNodeGetString(moduleData->moduleNode, "SRAM kernel file path");
-			state->sramBaseAddr = (uint32_t)sshsNodeGetInt(moduleData->moduleNode, "SRAM base address");
+			state->sramKernelFilePath = sshsNodeGetString(moduleData->moduleNode, "SRAMKernelFilePath");
+			state->sramBaseAddr = (uint32_t)sshsNodeGetInt(moduleData->moduleNode, "SRAMBaseAddress");
 			updateSramKernelData(moduleData);
 		}
 
@@ -235,22 +258,22 @@ void updateChipSelect(caerModuleData moduleData) {
 	caerInputDynapseState eventSource = caerMainloopGetSourceState(U16T(global_sourceID)); 
 
 	switch ( state->chipSelect ) {
-	case 0:
+	case DYNAPSE_CONFIG_DYNAPSE_U0:
 		caerLog(CAER_LOG_NOTICE, moduleData->moduleSubSystemString, "Selecting chip U0\n");
 		caerDeviceConfigSet(eventSource->deviceState, DYNAPSE_CONFIG_SYNAPSERECONFIG, DYNAPSE_CONFIG_SYNAPSERECONFIG_CHIPSELECT,
 				    DYNAPSE_CONFIG_DYNAPSE_U0);
 		break;
-	case 1:
+	case DYNAPSE_CONFIG_DYNAPSE_U1:
 		caerLog(CAER_LOG_NOTICE, moduleData->moduleSubSystemString, "Selecting chip U1\n");
 		caerDeviceConfigSet(eventSource->deviceState, DYNAPSE_CONFIG_SYNAPSERECONFIG, DYNAPSE_CONFIG_SYNAPSERECONFIG_CHIPSELECT,
 				    DYNAPSE_CONFIG_DYNAPSE_U1);
 		break;
-	case 2:
+	case DYNAPSE_CONFIG_DYNAPSE_U2:
 		caerLog(CAER_LOG_NOTICE, moduleData->moduleSubSystemString, "Selecting chip U2\n");
 		caerDeviceConfigSet(eventSource->deviceState, DYNAPSE_CONFIG_SYNAPSERECONFIG, DYNAPSE_CONFIG_SYNAPSERECONFIG_CHIPSELECT,
 				    DYNAPSE_CONFIG_DYNAPSE_U2);
 		break;
-	case 3:
+	case DYNAPSE_CONFIG_DYNAPSE_U3:
 		caerLog(CAER_LOG_NOTICE, moduleData->moduleSubSystemString, "Selecting chip U3\n");
 		caerDeviceConfigSet(eventSource->deviceState, DYNAPSE_CONFIG_SYNAPSERECONFIG, DYNAPSE_CONFIG_SYNAPSERECONFIG_CHIPSELECT,
 				    DYNAPSE_CONFIG_DYNAPSE_U3);

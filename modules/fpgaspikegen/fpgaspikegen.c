@@ -19,6 +19,7 @@ struct HWFilter_state {
 	bool run;
 	char *stimFile;
 	bool writeSram;
+	bool repeat;
 	// usb utils
 	caerInputDynapseState eventSourceModuleState;
 	sshsNode eventSourceConfigNode;
@@ -52,25 +53,28 @@ static bool caerFpgaSpikeGenModuleInit(caerModuleData moduleData) {
 	caerLog(CAER_LOG_NOTICE, __func__, "start init of fpga spikegen");
 	// create parameters
 	sshsNodePutIntIfAbsent(moduleData->moduleNode, "ISI", 10);
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "ISI base", 1);
+	sshsNodePutIntIfAbsent(moduleData->moduleNode, "ISIBase", 1);
 	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "Run", false);
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "Stim count", 0);
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "Base address", 0);
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "Variable ISI", false);
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "Write SRAM", false);
-	sshsNodePutStringIfAbsent(moduleData->moduleNode, "Stim file", "");
+	sshsNodePutIntIfAbsent(moduleData->moduleNode, "StimBount", 0);
+	sshsNodePutIntIfAbsent(moduleData->moduleNode, "BaseAddress", 0);
+	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "VariableISI", false);
+	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "WriteSRAM", false);
+	sshsNodePutStringIfAbsent(moduleData->moduleNode, "StimFile", "");
+	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "Repeat", false);
+	sshsNodePutIntIfAbsent(moduleData->moduleNode, "StimCount", 0);
 
 	HWFilterState state = moduleData->moduleState;
 
 	// update node state
 	state->isi = (uint32_t)sshsNodeGetInt(moduleData->moduleNode, "ISI");
 	state->run = sshsNodeGetBool(moduleData->moduleNode, "Run");
-	state->isiBase = (uint32_t)sshsNodeGetInt(moduleData->moduleNode, "ISI base");
-	state->varMode = sshsNodeGetBool(moduleData->moduleNode, "Variable ISI");
-	state->baseAddr = (uint32_t)sshsNodeGetInt(moduleData->moduleNode, "Base address");
-	state->stimFile = sshsNodeGetString(moduleData->moduleNode, "Stim file");
-	state->stimCount = (uint32_t)sshsNodeGetInt(moduleData->moduleNode, "Stim count");
-	state->writeSram = sshsNodeGetBool(moduleData->moduleNode, "Write SRAM");
+	state->isiBase = (uint32_t)sshsNodeGetInt(moduleData->moduleNode, "ISIBase");
+	state->varMode = sshsNodeGetBool(moduleData->moduleNode, "VariableISI");
+	state->baseAddr = (uint32_t)sshsNodeGetInt(moduleData->moduleNode, "BaseAddress");
+	state->stimFile = sshsNodeGetString(moduleData->moduleNode, "StimFile");
+	state->stimCount = (uint32_t)sshsNodeGetInt(moduleData->moduleNode, "StimCount");
+	state->writeSram = sshsNodeGetBool(moduleData->moduleNode, "WriteSRAM");
+	state->repeat = sshsNodeGetBool(moduleData->moduleNode, "Repeat");
 
 	if (caerStrEquals(state->stimFile, "")) {
 		free(state->stimFile);
@@ -123,15 +127,15 @@ static void caerFpgaSpikeGenModuleConfig(caerModuleData moduleData) {
 
 	// this will update parameters, from user input
 	bool newRun = sshsNodeGetBool(moduleData->moduleNode, "Run");
-	bool newWriteSram = sshsNodeGetBool(moduleData->moduleNode, "Write SRAM");
+	bool newWriteSram = sshsNodeGetBool(moduleData->moduleNode, "WriteSRAM");
 
 	if (newWriteSram && !state->writeSram) {
 		// To update the SRAM we need to grab the file containing our spike train, whether
 		// we are in variable ISI mode or not and what the base address of the train in memory is
 		state->writeSram = true;
-		state->stimFile = sshsNodeGetString(moduleData->moduleNode, "Stim file");
-		state->varMode = sshsNodeGetBool(moduleData->moduleNode, "Variable ISI");
-		state->baseAddr = (uint32_t)sshsNodeGetInt(moduleData->moduleNode, "Base address");
+		state->stimFile = sshsNodeGetString(moduleData->moduleNode, "StimFile");
+		state->varMode = sshsNodeGetBool(moduleData->moduleNode, "VariableISI");
+		state->baseAddr = (uint32_t)sshsNodeGetInt(moduleData->moduleNode, "BaseAddress");
 		
 		if (state->varMode) {
 			variableIsiFileToSram(moduleData, state->stimFile);
@@ -148,10 +152,11 @@ static void caerFpgaSpikeGenModuleConfig(caerModuleData moduleData) {
 	if (newRun && !state->run) {
 		state->run = true;
 		state->isi = (uint32_t)sshsNodeGetInt(moduleData->moduleNode, "ISI");
-		state->isiBase = (uint32_t)sshsNodeGetInt(moduleData->moduleNode, "ISI base");
-		state->varMode = sshsNodeGetBool(moduleData->moduleNode, "Variable ISI");
-		state->baseAddr = (uint32_t)sshsNodeGetInt(moduleData->moduleNode, "Base address");
-		state->stimCount = (uint32_t)sshsNodeGetInt(moduleData->moduleNode, "Stim count");
+		state->isiBase = (uint32_t)sshsNodeGetInt(moduleData->moduleNode, "ISIBase");
+		state->varMode = sshsNodeGetBool(moduleData->moduleNode, "VariableISI");
+		state->baseAddr = (uint32_t)sshsNodeGetInt(moduleData->moduleNode, "BaseAddress");
+		state->stimCount = (uint32_t)sshsNodeGetInt(moduleData->moduleNode, "StimCount");
+		state->repeat = sshsNodeGetBool(moduleData->moduleNode, "Repeat");
 
 		int retval;
 		retval = caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_SPIKEGEN, DYNAPSE_CONFIG_SPIKEGEN_ISI, state->isi);
@@ -178,6 +183,8 @@ static void caerFpgaSpikeGenModuleConfig(caerModuleData moduleData) {
 		if ( retval == 0 ) {
 			caerLog(CAER_LOG_NOTICE, __func__, "run status failed to update");
 		}
+
+		caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_SPIKEGEN, DYNAPSE_CONFIG_SPIKEGEN_REPEAT, state->repeat);
 	}
 	else if (!newRun && state->run) {
 		state->run = false;
