@@ -12,3 +12,7 @@ cmake_install.cmake
 *.swp
 *.swo
 core*
+*.dylib*
+*.so*
+*.dll*
+*.a

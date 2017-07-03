@@ -1,15 +1,9 @@
 #include "input_common.h"
-#include "input_visualizer_eventhandler.h"
 #include "base/mainloop.h"
 #include "ext/portable_time.h"
-#include "ext/ringbuffer/ringbuffer.h"
-#include "ext/uthash/utarray.h"
 #include "ext/uthash/utlist.h"
-#include "ext/buffers.h"
 #include "ext/nets.h"
-#ifdef HAVE_PTHREADS
-#include "ext/c11threads_posix.h"
-#endif
+
 #ifdef ENABLE_INOUT_PNG_COMPRESSION
 #include <png.h>
 #endif
@@ -24,172 +18,12 @@
 #define MAX_HEADER_LINE_SIZE 1024
 
 enum input_reader_state {
-	READER_OK = 0, EOF_REACHED = 1, ERROR_READ = -1, ERROR_HEADER = -2, ERROR_DATA = -3,
+	READER_OK = 0,
+	EOF_REACHED = 1,
+	ERROR_READ = -1,
+	ERROR_HEADER = -2,
+	ERROR_DATA = -3,
 };
-
-struct input_common_header_info {
-	/// Header has been completely read and is valid.
-	bool isValidHeader;
-	/// Format is AEDAT 3.
-	bool isAEDAT3;
-	/// Major AEDAT format version (X.y).
-	int16_t majorVersion;
-	/// Minor AEDAT format version (x.Y)
-	int8_t minorVersion;
-	/// AEDAT 3 Format ID (from Format header), used for decoding.
-	int8_t formatID;
-	/// Track source ID (cannot change!) to read data for. One source per I/O module!
-	int16_t sourceID;
-	/// Keep track of the sequence number for message-based protocols.
-	int64_t networkSequenceNumber;
-};
-
-struct input_packet_data {
-	/// Numerical ID of a packet. First packet has ID 0.
-	size_t id;
-	/// Data offset, in bytes.
-	size_t offset;
-	/// Data size, in bytes.
-	size_t size;
-	/// Is this packet compressed?
-	bool isCompressed;
-	/// Contained event type.
-	int16_t eventType;
-	/// Size of contained events, in bytes.
-	int32_t eventSize;
-	/// Contained number of events.
-	int32_t eventNumber;
-	/// Contained number of valid events.
-	int32_t eventValid;
-	/// First (lowest) timestamp.
-	int64_t startTimestamp;
-	/// Last (highest) timestamp.
-	int64_t endTimestamp;
-	/// Doubly-linked list pointers.
-	struct input_packet_data *prev, *next;
-};
-
-typedef struct input_packet_data *packetData;
-
-struct input_common_packet_data {
-	/// Current packet header, to support headers being split across buffers.
-	uint8_t currPacketHeader[CAER_EVENT_PACKET_HEADER_SIZE];
-	/// Current packet header length (determines if complete or not).
-	size_t currPacketHeaderSize;
-	/// Current packet, to get filled up with data.
-	caerEventPacketHeader currPacket;
-	/// Current packet data length.
-	size_t currPacketDataSize;
-	/// Current packet offset, index into data.
-	size_t currPacketDataOffset;
-	/// Skip over packets coming from other sources. We only support one!
-	size_t skipSize;
-	/// Current packet data for packet list book-keeping.
-	packetData currPacketData;
-	/// List of data on all parsed original packets from the input.
-	packetData packetsList;
-	/// Global packet counter.
-	size_t packetCount;
-};
-
-struct input_common_packet_container_data {
-	/// Current events, merged into packets, sorted by type.
-	UT_array *eventPackets;
-	/// The first main timestamp (the one relevant for packet ordering in streams)
-	/// of the last event packet that was handled.
-	int64_t lastPacketTimestamp;
-	/// Track tsOverflow value. On change, we must commit the current packet
-	/// container content and empty it out.
-	int32_t lastTimestampOverflow;
-	/// Size limit reached in any packet.
-	bool sizeLimitHit;
-	/// The timestamp that needs to be read up to, so that the size limit can
-	/// actually be committed, because we know no other events are around.
-	int64_t sizeLimitTimestamp;
-	/// The timestamp up to which we want to (have to!) read, so that we can
-	/// output the next packet container (in time-slice mode).
-	int64_t newContainerTimestampEnd;
-	/// The size limit that triggered the hit above.
-	int32_t newContainerSizeLimit;
-	/// Size slice (in events), for which to generate a packet container.
-	atomic_int_fast32_t sizeSlice;
-	/// Time slice (in µs), for which to generate a packet container.
-	atomic_int_fast32_t timeSlice;
-	/// Time delay (in µs) between the start of two consecutive time slices.
-	/// This is used for real-time slow-down.
-	atomic_int_fast32_t timeDelay;
-	/// Time when the last packet container was sent out, used to calculate
-	/// sleep time to reach user configured 'timeDelay'.
-	struct timespec lastCommitTime;
-};
-
-struct input_common_state {
-	/// Control flag for input handling threads.
-	atomic_bool running;
-	/// Reader thread state, to signal conditions like EOF or error to
-	/// the assembler thread.
-	atomic_int_fast32_t inputReaderThreadState;
-	/// The first input handling thread (separate as to only wake up mainloop
-	/// processing when there is new data available): takes care of data
-	/// reading and parsing, decompression from the input channel.
-	thrd_t inputReaderThread;
-	/// The first input handling thread (separate as to only wake up mainloop
-	/// processing when there is new data available): takes care of assembling
-	/// packet containers that respect the specs using the packets read by
-	/// the inputReadThread. This is separate so that delay operations don't
-	/// use up resources that could be doing read/decompression work.
-	thrd_t inputAssemblerThread;
-	/// Network-like stream or file-like stream. Matters for header format.
-	bool isNetworkStream;
-	/// For network-like inputs, we differentiate between stream and message
-	/// based protocols, like TCP and UDP. Matters for header/sequence number.
-	bool isNetworkMessageBased;
-	/// Filter out invalidated events or not.
-	atomic_bool validOnly;
-	/// Force all incoming packets to be committed to the transfer ring-buffer.
-	/// This results in no loss of data, but may deviate from the requested
-	/// real-time play-back expectations.
-	atomic_bool keepPackets;
-	/// Pause support.
-	atomic_bool pause;
-	/// Transfer packets coming from the input reading thread to the assembly
-	/// thread. Normal EventPackets are used here.
-	RingBuffer transferRingPackets;
-	/// Transfer packet containers coming from the input assembly thread to
-	/// the mainloop. We use EventPacketContainers, as that is the standard
-	/// data structure returned from an input module.
-	RingBuffer transferRingPacketContainers;
-	/// Track how many packet containers are in the ring-buffer, ready for
-	/// consumption by the user. The Mainloop's 'dataAvailable' variable already
-	/// does this at a global level, but we also need to keep track at a local
-	/// (module) level of this, to avoid confusion in the case multiple Inputs
-	/// are inside the same Mainloop, which is entirely possible and supported.
-	atomic_uint_fast32_t dataAvailableModule;
-	/// Header parsing results.
-	struct input_common_header_info header;
-	/// Packet data parsing structures.
-	struct input_common_packet_data packets;
-	/// Packet container data structure, to generate from packets.
-	struct input_common_packet_container_data packetContainer;
-	/// The file descriptor for reading.
-	int fileDescriptor;
-	/// Data buffer for reading from file descriptor (buffered I/O).
-	simpleBuffer dataBuffer;
-	/// Offset for current data buffer.
-	size_t dataBufferOffset;
-	/// Flag to signal update to buffer configuration asynchronously.
-	atomic_bool bufferUpdate;
-	/// Reference to parent module's original data.
-	caerModuleData parentModule;
-	/// Reference to module's mainloop (for data availability signaling).
-	caerMainloopData mainloopReference;
-	/// Reference to sourceInfo node (to avoid getting it each time again).
-	sshsNode sourceInfoNode;
-};
-
-typedef struct input_common_state *inputCommonState;
-
-size_t CAER_INPUT_COMMON_STATE_STRUCT_SIZE = sizeof(struct input_common_state);
 
 static bool newInputBuffer(inputCommonState state);
 static bool parseNetworkHeader(inputCommonState state);
@@ -262,8 +96,7 @@ static bool parseNetworkHeader(inputCommonState state) {
 
 	// Check header values.
 	if (networkHeader.magicNumber != AEDAT3_NETWORK_MAGIC_NUMBER) {
-		caerLog(CAER_LOG_ERROR, state->parentModule->moduleSubSystemString,
-			"AEDAT 3.X magic number not found. Invalid network stream.");
+		caerModuleLog(state->parentModule, CAER_LOG_ERROR, "AEDAT 3.X magic number not found. Invalid network stream.");
 		return (false);
 	}
 
@@ -278,15 +111,13 @@ static bool parseNetworkHeader(inputCommonState state) {
 	else {
 		// For stream based transports, this is always zero.
 		if (networkHeader.sequenceNumber != 0) {
-			caerLog(CAER_LOG_ERROR, state->parentModule->moduleSubSystemString,
-				"SequenceNumber is not zero. Invalid network stream.");
+			caerModuleLog(state->parentModule, CAER_LOG_ERROR, "SequenceNumber is not zero. Invalid network stream.");
 			return (false);
 		}
 	}
 
 	if (networkHeader.versionNumber != AEDAT3_NETWORK_VERSION) {
-		caerLog(CAER_LOG_ERROR, state->parentModule->moduleSubSystemString,
-			"Unsupported AEDAT version. Invalid network stream.");
+		caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Unsupported AEDAT version. Invalid network stream.");
 		return (false);
 	}
 
@@ -297,14 +128,21 @@ static bool parseNetworkHeader(inputCommonState state) {
 
 	// TODO: Network: get sourceInfo node info via config-server side-channel.
 	state->header.sourceID = networkHeader.sourceID;
-	sshsNodePutShort(state->sourceInfoNode, "dvsSizeX", 240);
-	sshsNodePutShort(state->sourceInfoNode, "dvsSizeY", 180);
-	sshsNodePutShort(state->sourceInfoNode, "apsSizeX", 240);
-	sshsNodePutShort(state->sourceInfoNode, "apsSizeY", 180);
-	sshsNodePutShort(state->sourceInfoNode, "dataSizeX", 240);
-	sshsNodePutShort(state->sourceInfoNode, "dataSizeY", 180);
-	sshsNodePutShort(state->sourceInfoNode, "visualizerSizeX", 240);
-	sshsNodePutShort(state->sourceInfoNode, "visualizerSizeY", 180);
+
+	sshsNodeCreateShort(state->sourceInfoNode, "polaritySizeX", 240, 1, INT16_MAX, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT,
+		"Polarity events width.");
+	sshsNodeCreateShort(state->sourceInfoNode, "polaritySizeY", 180, 1, INT16_MAX, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT,
+		"Polarity events height.");
+	sshsNodeCreateShort(state->sourceInfoNode, "frameSizeX", 240, 1, INT16_MAX, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT,
+		"Frame events width.");
+	sshsNodeCreateShort(state->sourceInfoNode, "frameSizeY", 180, 1, INT16_MAX, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT,
+		"Frame events height.");
+	sshsNodeCreateShort(state->sourceInfoNode, "dataSizeX", 240, 1, INT16_MAX, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Data width.");
+	sshsNodeCreateShort(state->sourceInfoNode, "dataSizeY", 180, 1, INT16_MAX, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Data height.");
+	sshsNodeCreateShort(state->sourceInfoNode, "visualizerSizeX", 240, 1, INT16_MAX, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT,
+		"Visualization width.");
+	sshsNodeCreateShort(state->sourceInfoNode, "visualizerSizeY", 180, 1, INT16_MAX, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT,
+		"Visualization height.");
 
 	// TODO: Network: add sourceString.
 
@@ -416,7 +254,7 @@ static void parseSourceString(char *sourceString, inputCommonState state) {
 	}
 	else {
 		// Default fall-back of 640x480 (VGA).
-		caerLog(CAER_LOG_WARNING, state->parentModule->moduleSubSystemString,
+		caerModuleLog(state->parentModule, CAER_LOG_WARNING,
 			"Impossible to determine display sizes from Source information/string. Falling back to 640x480 (VGA).");
 		dvsSizeX = apsSizeX = 640;
 		dvsSizeY = apsSizeY = 480;
@@ -424,13 +262,17 @@ static void parseSourceString(char *sourceString, inputCommonState state) {
 
 	// Put size information inside sourceInfo node.
 	if (dvsSizeX != 0 && dvsSizeY != 0) {
-		sshsNodePutShort(state->sourceInfoNode, "dvsSizeX", dvsSizeX);
-		sshsNodePutShort(state->sourceInfoNode, "dvsSizeY", dvsSizeY);
+		sshsNodeCreateShort(state->sourceInfoNode, "polaritySizeX", dvsSizeX, 1, INT16_MAX,
+			SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Polarity events width.");
+		sshsNodeCreateShort(state->sourceInfoNode, "polaritySizeY", dvsSizeY, 1, INT16_MAX,
+			SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Polarity events height.");
 	}
 
 	if (apsSizeX != 0 && apsSizeY != 0) {
-		sshsNodePutShort(state->sourceInfoNode, "apsSizeX", apsSizeX);
-		sshsNodePutShort(state->sourceInfoNode, "apsSizeY", apsSizeY);
+		sshsNodeCreateShort(state->sourceInfoNode, "frameSizeX", apsSizeX, 1, INT16_MAX,
+			SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Frame events width.");
+		sshsNodeCreateShort(state->sourceInfoNode, "frameSizeY", apsSizeY, 1, INT16_MAX,
+			SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Frame events height.");
 	}
 
 	if (dataSizeX == 0 && dataSizeY == 0) {
@@ -441,13 +283,17 @@ static void parseSourceString(char *sourceString, inputCommonState state) {
 	}
 
 	if (dataSizeX != 0 && dataSizeY != 0) {
-		sshsNodePutShort(state->sourceInfoNode, "dataSizeX", dataSizeX);
-		sshsNodePutShort(state->sourceInfoNode, "dataSizeY", dataSizeY);
+		sshsNodeCreateShort(state->sourceInfoNode, "dataSizeX", dataSizeX, 1, INT16_MAX,
+			SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Data width.");
+		sshsNodeCreateShort(state->sourceInfoNode, "dataSizeY", dataSizeY, 1, INT16_MAX,
+			SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Data height.");
 	}
 
 	if (visualizerSizeX != 0 && visualizerSizeY != 0) {
-		sshsNodePutShort(state->sourceInfoNode, "visualizerSizeX", visualizerSizeX);
-		sshsNodePutShort(state->sourceInfoNode, "visualizerSizeY", visualizerSizeY);
+		sshsNodeCreateShort(state->sourceInfoNode, "visualizerSizeX", visualizerSizeX, 1, INT16_MAX,
+			SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Visualization width.");
+		sshsNodeCreateShort(state->sourceInfoNode, "visualizerSizeY", visualizerSizeY, 1, INT16_MAX,
+			SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Visualization height.");
 	}
 
 	// Generate source string for output modules.
@@ -465,7 +311,8 @@ static void parseSourceString(char *sourceString, inputCommonState state) {
 		dataSizeY, visualizerSizeX, visualizerSizeY, state->header.sourceID, sourceString);
 	sourceStringFile[sourceStringFileLength] = '\0';
 
-	sshsNodePutString(state->sourceInfoNode, "sourceString", sourceStringFile);
+	sshsNodeCreateString(state->sourceInfoNode, "sourceString", sourceStringFile, 1, 2048,
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Device source information.");
 }
 
 static bool parseFileHeader(inputCommonState state) {
@@ -534,14 +381,13 @@ static bool parseFileHeader(inputCommonState state) {
 						break;
 				}
 
-				caerLog(CAER_LOG_DEBUG, state->parentModule->moduleSubSystemString,
-					"Found AEDAT%" PRIi16 ".%" PRIi8 " version header.", state->header.majorVersion,
-					state->header.minorVersion);
+				caerModuleLog(state->parentModule, CAER_LOG_DEBUG, "Found AEDAT%" PRIi16 ".%" PRIi8 " version header.",
+					state->header.majorVersion, state->header.minorVersion);
 			}
 			else {
 				noValidVersionHeader: free(headerLine);
 
-				caerLog(CAER_LOG_ERROR, state->parentModule->moduleSubSystemString,
+				caerModuleLog(state->parentModule, CAER_LOG_ERROR,
 					"No compliant AEDAT version header found. Invalid file.");
 				return (false);
 			}
@@ -573,21 +419,20 @@ static bool parseFileHeader(inputCommonState state) {
 						// No valid format found.
 						free(headerLine);
 
-						caerLog(CAER_LOG_ERROR, state->parentModule->moduleSubSystemString,
+						caerModuleLog(state->parentModule, CAER_LOG_ERROR,
 							"No compliant Format type found. Format '%s' is invalid.", formatString);
 
 						return (false);
 					}
 				}
 
-				caerLog(CAER_LOG_DEBUG, state->parentModule->moduleSubSystemString,
+				caerModuleLog(state->parentModule, CAER_LOG_DEBUG,
 					"Found Format header with value '%s', Format ID %" PRIi8 ".", formatString, state->header.formatID);
 			}
 			else {
 				free(headerLine);
 
-				caerLog(CAER_LOG_ERROR, state->parentModule->moduleSubSystemString,
-					"No compliant Format header found. Invalid file.");
+				caerModuleLog(state->parentModule, CAER_LOG_ERROR, "No compliant Format header found. Invalid file.");
 				return (false);
 			}
 		}
@@ -601,15 +446,14 @@ static bool parseFileHeader(inputCommonState state) {
 				// Parse source string to get needed sourceInfo parameters.
 				parseSourceString(sourceString, state);
 
-				caerLog(CAER_LOG_DEBUG, state->parentModule->moduleSubSystemString,
+				caerModuleLog(state->parentModule, CAER_LOG_DEBUG,
 					"Found Source header with value '%s', Source ID %" PRIi16 ".", sourceString,
 					state->header.sourceID);
 			}
 			else {
 				free(headerLine);
 
-				caerLog(CAER_LOG_ERROR, state->parentModule->moduleSubSystemString,
-					"No compliant Source header found. Invalid file.");
+				caerModuleLog(state->parentModule, CAER_LOG_ERROR, "No compliant Source header found. Invalid file.");
 				return (false);
 			}
 		}
@@ -620,7 +464,7 @@ static bool parseFileHeader(inputCommonState state) {
 			if (caerStrEquals(headerLine, "#!END-HEADER\r\n")) {
 				endHeader = true;
 
-				caerLog(CAER_LOG_DEBUG, state->parentModule->moduleSubSystemString, "Found END-HEADER header.");
+				caerModuleLog(state->parentModule, CAER_LOG_DEBUG, "Found END-HEADER header.");
 			}
 			else {
 				// Then other headers, like Start-Time.
@@ -628,7 +472,7 @@ static bool parseFileHeader(inputCommonState state) {
 					char startTimeString[1024 + 1];
 
 					if (sscanf(headerLine, "#Start-Time: %1024[^\r]s\n", startTimeString) == 1) {
-						caerLog(CAER_LOG_INFO, state->parentModule->moduleSubSystemString, "Recording was taken on %s.",
+						caerModuleLog(state->parentModule, CAER_LOG_INFO, "Recording was taken on %s.",
 							startTimeString);
 					}
 				}
@@ -651,14 +495,15 @@ static bool parseFileHeader(inputCommonState state) {
 						memcpy(newSourceString + currSourceStringLength, headerLine, addSourceStringLength);
 						newSourceString[currSourceStringLength + addSourceStringLength] = '\0';
 
-						sshsNodePutString(state->sourceInfoNode, "sourceString", newSourceString);
+						sshsNodeUpdateReadOnlyAttribute(state->sourceInfoNode, "sourceString", SSHS_STRING,
+							(union sshs_node_attr_value ) { .string = newSourceString });
+
 						free(newSourceString);
 					}
 				}
 				else {
 					headerLine[strlen(headerLine) - 2] = '\0'; // Shorten string to avoid printing ending \r\n.
-					caerLog(CAER_LOG_DEBUG, state->parentModule->moduleSubSystemString, "Header line: '%s'.",
-						headerLine);
+					caerModuleLog(state->parentModule, CAER_LOG_DEBUG, "Header line: '%s'.", headerLine);
 				}
 			}
 		}
@@ -711,7 +556,7 @@ static bool parseData(inputCommonState state) {
 			continue;
 		}
 
-		caerLog(CAER_LOG_DEBUG, state->parentModule->moduleSubSystemString,
+		caerModuleLog(state->parentModule, CAER_LOG_DEBUG,
 			"New packet read - ID: %zu, Offset: %zu, Size: %zu, Events: %" PRIi32 ", Type: %" PRIi16 ", StartTS: %" PRIi64 ", EndTS: %" PRIi64 ".",
 			state->packets.currPacketData->id, state->packets.currPacketData->offset,
 			state->packets.currPacketData->size, state->packets.currPacketData->eventNumber,
@@ -767,7 +612,7 @@ static int aedat2GetPacket(inputCommonState state, int16_t chipID) {
 	UNUSED_ARGUMENT(chipID);
 
 	// TODO: AEDAT 2.0 not yet supported.
-	caerLog(CAER_LOG_ERROR, state->parentModule->moduleSubSystemString, "Reading AEDAT 2.0 data not yet supported.");
+	caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Reading AEDAT 2.0 data not yet supported.");
 	return (-1);
 }
 
@@ -856,7 +701,7 @@ static int aedat3GetPacket(inputCommonState state, bool isAEDAT30) {
 
 		// First we verify that the source ID remained unique (only one source per I/O module supported!).
 		if (state->header.sourceID != eventSource) {
-			caerLog(CAER_LOG_ERROR, state->parentModule->moduleSubSystemString,
+			caerModuleLog(state->parentModule, CAER_LOG_ERROR,
 				"An input module can only handle packets from the same source! "
 					"A packet with source %" PRIi16 " was read, but this input module expects only packets from source %" PRIi16 ". "
 				"Discarding event packet.", eventSource, state->header.sourceID);
@@ -876,8 +721,7 @@ static int aedat3GetPacket(inputCommonState state, bool isAEDAT30) {
 		// Allocate space for the full packet, so we can reassemble it (and decompress it later).
 		state->packets.currPacket = malloc(CAER_EVENT_PACKET_HEADER_SIZE + (size_t) (eventNumber * eventSize));
 		if (state->packets.currPacket == NULL) {
-			caerLog(CAER_LOG_ERROR, state->parentModule->moduleSubSystemString,
-				"Failed to allocate memory for new event packet.");
+			caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Failed to allocate memory for new event packet.");
 			return (-1);
 		}
 
@@ -903,7 +747,7 @@ static int aedat3GetPacket(inputCommonState state, bool isAEDAT30) {
 			free(state->packets.currPacket);
 			state->packets.currPacket = NULL;
 
-			caerLog(CAER_LOG_ERROR, state->parentModule->moduleSubSystemString,
+			caerModuleLog(state->parentModule, CAER_LOG_ERROR,
 				"Failed to allocate memory for new event packet meta-data.");
 			return (-1);
 		}
@@ -955,18 +799,17 @@ static int aedat3GetPacket(inputCommonState state, bool isAEDAT30) {
 				free(state->packets.currPacketData);
 				state->packets.currPacketData = NULL;
 
-				caerLog(CAER_LOG_ERROR, state->parentModule->moduleSubSystemString,
-					"Failed to decompress event packet.");
+				caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Failed to decompress event packet.");
 				return (-2);
 			}
 		}
 
 		// Update timestamp information and insert packet into meta-data list.
-		void *firstEvent = caerGenericEventGetEvent(state->packets.currPacket, 0);
+		const void *firstEvent = caerGenericEventGetEvent(state->packets.currPacket, 0);
 		state->packets.currPacketData->startTimestamp = caerGenericEventGetTimestamp64(firstEvent,
 			state->packets.currPacket);
 
-		void *lastEvent = caerGenericEventGetEvent(state->packets.currPacket,
+		const void *lastEvent = caerGenericEventGetEvent(state->packets.currPacket,
 			state->packets.currPacketData->eventNumber - 1);
 		state->packets.currPacketData->endTimestamp = caerGenericEventGetTimestamp64(lastEvent,
 			state->packets.currPacket);
@@ -1177,7 +1020,7 @@ static bool decompressFramePNG(inputCommonState state, caerEventPacketHeader pac
 
 	// Check that we indeed parsed everything correctly.
 	if (currPacketOffset != packetSize) {
-		caerLog(CAER_LOG_ERROR, state->parentModule->moduleSubSystemString, "Failed to decompress frame event. "
+		caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Failed to decompress frame event. "
 			"Size after event parsing and packet size don't match.");
 		return (false);
 	}
@@ -1200,7 +1043,7 @@ static bool decompressFramePNG(inputCommonState state, caerEventPacketHeader pac
 				caerFrameEventGetLengthX(frameEvent), caerFrameEventGetLengthY(frameEvent),
 				caerFrameEventGetChannelNumber(frameEvent))) {
 				// Failed to decompress PNG.
-				caerLog(CAER_LOG_ERROR, state->parentModule->moduleSubSystemString, "Failed to decompress frame event. "
+				caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Failed to decompress frame event. "
 					"PNG decompression failure.");
 				return (false);
 			}
@@ -1235,7 +1078,7 @@ static bool decompressTimestampSerialize(inputCommonState state, caerEventPacket
 	uint8_t *events = malloc((size_t) (eventNumber * eventSize));
 	if (events == NULL) {
 		// Memory allocation failure.
-		caerLog(CAER_LOG_ERROR, state->parentModule->moduleSubSystemString, "Failed to decode serialized timestamp. "
+		caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Failed to decode serialized timestamp. "
 			"Memory allocation failure.");
 		return (false);
 	}
@@ -1307,19 +1150,19 @@ static bool decompressTimestampSerialize(inputCommonState state, caerEventPacket
 
 	// Check we really recovered all events from compression.
 	if (currPacketOffset != packetSize) {
-		caerLog(CAER_LOG_ERROR, state->parentModule->moduleSubSystemString, "Failed to decode serialized timestamp. "
+		caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Failed to decode serialized timestamp. "
 			"Length of compressed packet and read data don't match.");
 		return (false);
 	}
 
 	if ((size_t) (eventNumber * eventSize) != recoveredEventsPosition) {
-		caerLog(CAER_LOG_ERROR, state->parentModule->moduleSubSystemString, "Failed to decode serialized timestamp. "
+		caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Failed to decode serialized timestamp. "
 			"Length of uncompressed packet and uncompressed data don't match.");
 		return (false);
 	}
 
 	if ((size_t) eventNumber != recoveredEventsNumber) {
-		caerLog(CAER_LOG_ERROR, state->parentModule->moduleSubSystemString, "Failed to decode serialized timestamp. "
+		caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Failed to decode serialized timestamp. "
 			"Number of expected and recovered events don't match.");
 		return (false);
 	}
@@ -1362,7 +1205,7 @@ static int inputReaderThread(void *stateArg) {
 
 	// Set thread priority to high. This may fail depending on your OS configuration.
 	if (thrd_set_priority(-1) != thrd_success) {
-		caerLog(CAER_LOG_INFO, state->parentModule->moduleSubSystemString,
+		caerModuleLog(state->parentModule, CAER_LOG_INFO,
 			"Failed to raise thread priority for Input Reader thread. You may experience lags and delays.");
 	}
 
@@ -1372,7 +1215,7 @@ static int inputReaderThread(void *stateArg) {
 			atomic_store(&state->bufferUpdate, false);
 
 			if (!newInputBuffer(state)) {
-				caerLog(CAER_LOG_ERROR, state->parentModule->moduleSubSystemString,
+				caerModuleLog(state->parentModule, CAER_LOG_ERROR,
 					"Failed to allocate new input data buffer. Continue using old one.");
 			}
 		}
@@ -1386,12 +1229,11 @@ static int inputReaderThread(void *stateArg) {
 
 			// Distinguish EOF from errors based upon errno value.
 			if (result == 0) {
-				caerLog(CAER_LOG_INFO, state->parentModule->moduleSubSystemString, "Reached End of File.");
+				caerModuleLog(state->parentModule, CAER_LOG_INFO, "Reached End of File.");
 				atomic_store(&state->inputReaderThreadState, EOF_REACHED); // EOF
 			}
 			else {
-				caerLog(CAER_LOG_ERROR, state->parentModule->moduleSubSystemString,
-					"Error while reading data, error: %d.", errno);
+				caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Error while reading data, error: %d.", errno);
 				atomic_store(&state->inputReaderThreadState, ERROR_READ); // Error
 			}
 			break;
@@ -1401,7 +1243,7 @@ static int inputReaderThread(void *stateArg) {
 		// Parse header and setup header info structure.
 		if (!state->header.isValidHeader && !parseHeader(state)) {
 			// Header invalid, exit.
-			caerLog(CAER_LOG_ERROR, state->parentModule->moduleSubSystemString,
+			caerModuleLog(state->parentModule, CAER_LOG_ERROR,
 				"Failed to parse header. Only AEDAT 2.X and 3.x compliant files are supported.");
 			atomic_store(&state->inputReaderThreadState, ERROR_HEADER); // Error in Header
 			break;
@@ -1410,7 +1252,7 @@ static int inputReaderThread(void *stateArg) {
 		// Parse event data now.
 		if (!parseData(state)) {
 			// Packets invalid, exit.
-			caerLog(CAER_LOG_ERROR, state->parentModule->moduleSubSystemString, "Failed to parse event data.");
+			caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Failed to parse event data.");
 			atomic_store(&state->inputReaderThreadState, ERROR_DATA); // Error in Data
 			break;
 		}
@@ -1430,7 +1272,8 @@ static int inputReaderThread(void *stateArg) {
 static inline void updateSizeCommitCriteria(inputCommonState state, caerEventPacketHeader newPacket) {
 	if ((state->packetContainer.newContainerSizeLimit > 0)
 		&& (caerEventPacketHeaderGetEventNumber(newPacket) >= state->packetContainer.newContainerSizeLimit)) {
-		void *sizeLimitEvent = caerGenericEventGetEvent(newPacket, state->packetContainer.newContainerSizeLimit - 1);
+		const void *sizeLimitEvent = caerGenericEventGetEvent(newPacket,
+			state->packetContainer.newContainerSizeLimit - 1);
 		int64_t sizeLimitTimestamp = caerGenericEventGetTimestamp64(sizeLimitEvent, newPacket);
 
 		// Reject the size limit if its corresponding timestamp isn't smaller than the time limit.
@@ -1480,7 +1323,7 @@ static bool addToPacketContainer(inputCommonState state, caerEventPacketHeader n
 		// the merge operation becomes a simple append operation.
 		caerEventPacketHeader mergedPacket = caerEventPacketAppend(*packet, newPacket);
 		if (mergedPacket == NULL) {
-			caerLog(CAER_LOG_ERROR, state->parentModule->moduleSubSystemString,
+			caerModuleLog(state->parentModule, CAER_LOG_ERROR,
 				"%s: Failed to allocate memory for packet merge operation.", __func__);
 			return (false);
 		}
@@ -1535,7 +1378,7 @@ static caerEventPacketContainer generatePacketContainer(inputCommonState state, 
 			int32_t cutoffIndex = -1;
 			int32_t validEventsSeen = 0;
 
-			CAER_ITERATOR_ALL_START(*currPacket, void *)
+			CAER_ITERATOR_ALL_START(*currPacket, const void *)
 				int64_t caerIteratorElementTimestamp = caerGenericEventGetTimestamp64(caerIteratorElement, *currPacket);
 
 				if ((state->packetContainer.sizeLimitHit
@@ -1578,7 +1421,7 @@ static caerEventPacketContainer generatePacketContainer(inputCommonState state, 
 			caerEventPacketHeader nextPacket = malloc(
 			CAER_EVENT_PACKET_HEADER_SIZE + (size_t) (currPacketEventSize * nextPacketEventNumber));
 			if (nextPacket == NULL) {
-				caerLog(CAER_LOG_CRITICAL, state->parentModule->moduleSubSystemString,
+				caerModuleLog(state->parentModule, CAER_LOG_CRITICAL,
 					"Failed memory allocation for nextPacket. Discarding remaining data.");
 			}
 			else {
@@ -1598,7 +1441,7 @@ static caerEventPacketContainer generatePacketContainer(inputCommonState state, 
 			CAER_EVENT_PACKET_HEADER_SIZE + (size_t) (currPacketEventSize * cutoffIndex));
 			if (currPacketResized == NULL) {
 				// This is unlikely to happen as we always shrink here!
-				caerLog(CAER_LOG_CRITICAL, state->parentModule->moduleSubSystemString,
+				caerModuleLog(state->parentModule, CAER_LOG_CRITICAL,
 					"Failed memory allocation for currPacketResized. Discarding current data.");
 				free(*currPacket);
 			}
@@ -1709,7 +1552,7 @@ static void doTimeDelay(inputCommonState state) {
 		uint64_t diffMicroTime = diffNanoTime / 1000;
 
 		if (diffMicroTime >= timeDelay) {
-			caerLog(CAER_LOG_WARNING, state->parentModule->moduleSubSystemString,
+			caerModuleLog(state->parentModule, CAER_LOG_WARNING,
 				"Impossible to meet timeDelay timing specification with current settings.");
 
 			// Don't delay any more by requesting time again, use old one.
@@ -1745,15 +1588,15 @@ static void doPacketContainerCommit(inputCommonState state, caerEventPacketConta
 
 		caerEventPacketContainerFree(packetContainer);
 
-		caerLog(CAER_LOG_INFO, state->parentModule->moduleSubSystemString,
+		caerModuleLog(state->parentModule, CAER_LOG_NOTICE,
 			"Failed to put new packet container on transfer ring-buffer: full.");
 	}
 	else {
 		// Signal availability of new data to the mainloop on packet container commit.
 		atomic_fetch_add_explicit(&state->dataAvailableModule, 1, memory_order_release);
-		atomic_fetch_add_explicit(&state->mainloopReference->dataAvailable, 1, memory_order_release);
+		caerMainloopDataNotifyIncrease(NULL);
 
-		caerLog(CAER_LOG_DEBUG, state->parentModule->moduleSubSystemString, "Submitted packet container successfully.");
+		caerModuleLog(state->parentModule, CAER_LOG_DEBUG, "Submitted packet container successfully.");
 	}
 }
 
@@ -1765,8 +1608,7 @@ static bool handleTSReset(inputCommonState state) {
 	// Allocate packet container just for this event.
 	caerEventPacketContainer tsResetContainer = caerEventPacketContainerAllocate(1);
 	if (tsResetContainer == NULL) {
-		caerLog(CAER_LOG_CRITICAL, state->parentModule->moduleSubSystemString,
-			"Failed to allocate tsReset event packet container.");
+		caerModuleLog(state->parentModule, CAER_LOG_CRITICAL, "Failed to allocate tsReset event packet container.");
 		return (false);
 	}
 
@@ -1774,8 +1616,7 @@ static bool handleTSReset(inputCommonState state) {
 	caerSpecialEventPacket tsResetPacket = caerSpecialEventPacketAllocate(1, I16T(state->parentModule->moduleID),
 		state->packetContainer.lastTimestampOverflow);
 	if (tsResetPacket == NULL) {
-		caerLog(CAER_LOG_CRITICAL, state->parentModule->moduleSubSystemString,
-			"Failed to allocate tsReset special event packet.");
+		caerModuleLog(state->parentModule, CAER_LOG_CRITICAL, "Failed to allocate tsReset special event packet.");
 		return (false);
 	}
 
@@ -1807,10 +1648,10 @@ static void getPacketInfo(caerEventPacketHeader packet, packetData packetInfoDat
 	packetInfoData->eventValid = caerEventPacketHeaderGetEventValid(packet);
 	packetInfoData->eventNumber = caerEventPacketHeaderGetEventNumber(packet);
 
-	void *firstEvent = caerGenericEventGetEvent(packet, 0);
+	const void *firstEvent = caerGenericEventGetEvent(packet, 0);
 	packetInfoData->startTimestamp = caerGenericEventGetTimestamp64(firstEvent, packet);
 
-	void *lastEvent = caerGenericEventGetEvent(packet, packetInfoData->eventNumber - 1);
+	const void *lastEvent = caerGenericEventGetEvent(packet, packetInfoData->eventNumber - 1);
 	packetInfoData->endTimestamp = caerGenericEventGetTimestamp64(lastEvent, packet);
 }
 
@@ -1826,7 +1667,7 @@ static int inputAssemblerThread(void *stateArg) {
 
 	// Set thread priority to high. This may fail depending on your OS configuration.
 	if (thrd_set_priority(-1) != thrd_success) {
-		caerLog(CAER_LOG_INFO, state->parentModule->moduleSubSystemString,
+		caerModuleLog(state->parentModule, CAER_LOG_INFO,
 			"Failed to raise thread priority for Input Assembler thread. You may experience lags and delays.");
 	}
 
@@ -1876,9 +1717,8 @@ static int inputAssemblerThread(void *stateArg) {
 			// Discard non-compliant packets.
 			free(currPacket);
 
-			caerLog(CAER_LOG_INFO, state->parentModule->moduleSubSystemString,
-				"Dropping packet due to incorrect timestamp order. "
-					"Order-relevant timestamp is %" PRIi64 ", but expected was at least %" PRIi64 ".",
+			caerModuleLog(state->parentModule, CAER_LOG_NOTICE, "Dropping packet due to incorrect timestamp order. "
+				"Order-relevant timestamp is %" PRIi64 ", but expected was at least %" PRIi64 ".",
 				currPacketData.startTimestamp, state->packetContainer.lastPacketTimestamp);
 			continue;
 		}
@@ -1903,10 +1743,10 @@ static int inputAssemblerThread(void *stateArg) {
 		if ((currPacketData.eventType == SPECIAL_EVENT)
 			&& (caerSpecialEventPacketFindValidEventByType((caerSpecialEventPacket) currPacket, TIMESTAMP_RESET) != NULL)) {
 			tsReset = true;
-			caerLog(CAER_LOG_INFO, state->parentModule->moduleSubSystemString, "Timestamp Reset detected in stream.");
+			caerModuleLog(state->parentModule, CAER_LOG_INFO, "Timestamp Reset detected in stream.");
 
 			if (currPacketData.eventNumber != 1) {
-				caerLog(CAER_LOG_WARNING, state->parentModule->moduleSubSystemString,
+				caerModuleLog(state->parentModule, CAER_LOG_WARNING,
 					"Timpestamp Reset detected, but it is not alone in its Special Event packet. "
 						"This may lead to issues and should never happen.");
 			}
@@ -1922,8 +1762,7 @@ static int inputAssemblerThread(void *stateArg) {
 			state->packetContainer.lastTimestampOverflow = caerEventPacketHeaderGetEventTSOverflow(currPacket);
 
 			tsOverflow = true;
-			caerLog(CAER_LOG_INFO, state->parentModule->moduleSubSystemString,
-				"Timestamp Overflow detected in stream.");
+			caerModuleLog(state->parentModule, CAER_LOG_INFO, "Timestamp Overflow detected in stream.");
 		}
 
 		// Now we have all the information and must do some merge and commit operations.
@@ -1993,13 +1832,14 @@ bool isNetworkMessageBased) {
 	inputCommonState state = moduleData->moduleState;
 
 	state->parentModule = moduleData;
-	state->mainloopReference = caerMainloopGetReference();
 	state->sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
-	sshsNodePutLong(state->sourceInfoNode, "highestTimestamp", -1);
+
+	sshsNodeCreateLong(state->sourceInfoNode, "highestTimestamp", -1, -1, INT64_MAX,
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Highest timestamp generated by device.");
 
 	// Check for invalid file descriptors.
 	if (readFd < -1) {
-		caerLog(CAER_LOG_ERROR, state->parentModule->moduleSubSystemString, "Invalid file descriptor.");
+		caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Invalid file descriptor.");
 		return (false);
 	}
 
@@ -2010,39 +1850,47 @@ bool isNetworkMessageBased) {
 	state->isNetworkMessageBased = isNetworkMessageBased;
 
 	// Add auto-restart setting.
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "autoRestart", true);
+	sshsNodeCreateBool(moduleData->moduleNode, "autoRestart", true, SSHS_FLAGS_NORMAL,
+		"Automatically restart module after shutdown.");
 
 	// Handle configuration.
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "validOnly", false); // only send valid events
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "keepPackets", false); // ensure all packets are kept
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "pause", false); // support pausing a stream
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "bufferSize", 65536); // in bytes, size of data buffer
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "transferBufferSize", 128); // in packet groups
+	sshsNodeCreateBool(moduleData->moduleNode, "validOnly", false, SSHS_FLAGS_NORMAL, "Only read valid events.");
+	sshsNodeCreateBool(moduleData->moduleNode, "keepPackets", false, SSHS_FLAGS_NORMAL,
+		"Ensure all packets are kept (stall input if transfer-buffer full).");
+	sshsNodeCreateBool(moduleData->moduleNode, "pause", false, SSHS_FLAGS_NORMAL, "Pause the event stream.");
+	sshsNodeCreateInt(moduleData->moduleNode, "bufferSize", 65536, 512, 512 * 1024, SSHS_FLAGS_NORMAL,
+		"Size of read data buffer in bytes.");
+	sshsNodeCreateInt(moduleData->moduleNode, "ringBufferSize", 128, 8, 1024, SSHS_FLAGS_NORMAL,
+		"Size of EventPacketContainer and EventPacket queues, used for transfers between input threads and mainloop.");
 
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "PacketContainerMaxPacketSize", 8192); // in events, size of slice to generate
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "PacketContainerInterval", 10000); // in µs, size of time slice to generate
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "PacketContainerDelay", 10000); // in µs, delay between consecutive slices
+	sshsNodeCreateInt(moduleData->moduleNode, "PacketContainerMaxPacketSize", 8192, 1, 10 * 1024 * 1024,
+		SSHS_FLAGS_NORMAL,
+		"Maximum packet size in events, when any packet reaches this size, the EventPacketContainer is sent for processing.");
+	sshsNodeCreateInt(moduleData->moduleNode, "PacketContainerInterval", 10000, 1, 120 * 1000 * 1000, SSHS_FLAGS_NORMAL,
+		"Time interval in µs, each sent EventPacketContainer will span this interval.");
+	sshsNodeCreateInt(moduleData->moduleNode, "PacketContainerDelay", 10000, 1, 120 * 1000 * 1000, SSHS_FLAGS_NORMAL,
+		"Time delay in µs between consecutive EventPacketContainers sent for processing.");
 
 	atomic_store(&state->validOnly, sshsNodeGetBool(moduleData->moduleNode, "validOnly"));
 	atomic_store(&state->keepPackets, sshsNodeGetBool(moduleData->moduleNode, "keepPackets"));
 	atomic_store(&state->pause, sshsNodeGetBool(moduleData->moduleNode, "pause"));
+	int ringSize = sshsNodeGetInt(moduleData->moduleNode, "ringBufferSize");
 
-	atomic_store(&state->packetContainer.sizeSlice, sshsNodeGetInt(moduleData->moduleNode, "PacketContainerMaxPacketSize"));
+	atomic_store(&state->packetContainer.sizeSlice,
+		sshsNodeGetInt(moduleData->moduleNode, "PacketContainerMaxPacketSize"));
 	atomic_store(&state->packetContainer.timeSlice, sshsNodeGetInt(moduleData->moduleNode, "PacketContainerInterval"));
 	atomic_store(&state->packetContainer.timeDelay, sshsNodeGetInt(moduleData->moduleNode, "PacketContainerDelay"));
 
-	// Initialize transfer ring-buffers. transferBufferSize only changes here at init time!
-	state->transferRingPackets = ringBufferInit((size_t) sshsNodeGetInt(moduleData->moduleNode, "transferBufferSize"));
+	// Initialize transfer ring-buffers. ringBufferSize only changes here at init time!
+	state->transferRingPackets = ringBufferInit((size_t) ringSize);
 	if (state->transferRingPackets == NULL) {
-		caerLog(CAER_LOG_ERROR, state->parentModule->moduleSubSystemString,
-			"Failed to allocate packets transfer ring-buffer.");
+		caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Failed to allocate packets transfer ring-buffer.");
 		return (false);
 	}
 
-	state->transferRingPacketContainers = ringBufferInit(
-		(size_t) sshsNodeGetInt(moduleData->moduleNode, "transferBufferSize"));
+	state->transferRingPacketContainers = ringBufferInit((size_t) ringSize);
 	if (state->transferRingPacketContainers == NULL) {
-		caerLog(CAER_LOG_ERROR, state->parentModule->moduleSubSystemString,
+		caerModuleLog(state->parentModule, CAER_LOG_ERROR,
 			"Failed to allocate packet containers transfer ring-buffer.");
 		return (false);
 	}
@@ -2052,7 +1900,7 @@ bool isNetworkMessageBased) {
 		ringBufferFree(state->transferRingPackets);
 		ringBufferFree(state->transferRingPacketContainers);
 
-		caerLog(CAER_LOG_ERROR, state->parentModule->moduleSubSystemString, "Failed to allocate input data buffer.");
+		caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Failed to allocate input data buffer.");
 		return (false);
 	}
 
@@ -2072,7 +1920,7 @@ bool isNetworkMessageBased) {
 		ringBufferFree(state->transferRingPacketContainers);
 		free(state->dataBuffer);
 
-		caerLog(CAER_LOG_ERROR, state->parentModule->moduleSubSystemString, "Failed to start input assembler thread.");
+		caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Failed to start input assembler thread.");
 		return (false);
 	}
 
@@ -2086,11 +1934,11 @@ bool isNetworkMessageBased) {
 
 		if ((errno = thrd_join(state->inputAssemblerThread, NULL)) != thrd_success) {
 			// This should never happen!
-			caerLog(CAER_LOG_CRITICAL, state->parentModule->moduleSubSystemString,
-				"Failed to join input assembler thread. Error: %d.", errno);
+			caerModuleLog(state->parentModule, CAER_LOG_CRITICAL, "Failed to join input assembler thread. Error: %d.",
+			errno);
 		}
 
-		caerLog(CAER_LOG_ERROR, state->parentModule->moduleSubSystemString, "Failed to start input reader thread.");
+		caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Failed to start input reader thread.");
 		return (false);
 	}
 
@@ -2111,14 +1959,13 @@ void caerInputCommonExit(caerModuleData moduleData) {
 
 	if ((errno = thrd_join(state->inputReaderThread, NULL)) != thrd_success) {
 		// This should never happen!
-		caerLog(CAER_LOG_CRITICAL, state->parentModule->moduleSubSystemString,
-			"Failed to join input reader thread. Error: %d.", errno);
+		caerModuleLog(state->parentModule, CAER_LOG_CRITICAL, "Failed to join input reader thread. Error: %d.", errno);
 	}
 
 	if ((errno = thrd_join(state->inputAssemblerThread, NULL)) != thrd_success) {
 		// This should never happen!
-		caerLog(CAER_LOG_CRITICAL, state->parentModule->moduleSubSystemString,
-			"Failed to join input assembler thread. Error: %d.", errno);
+		caerModuleLog(state->parentModule, CAER_LOG_CRITICAL, "Failed to join input assembler thread. Error: %d.",
+		errno);
 	}
 
 	// Now clean up the transfer ring-buffers and its contents.
@@ -2127,7 +1974,7 @@ void caerInputCommonExit(caerModuleData moduleData) {
 		caerEventPacketContainerFree(packetContainer);
 
 		// If we're here, then nobody will (or even can) consume this data afterwards.
-		atomic_fetch_sub_explicit(&state->mainloopReference->dataAvailable, 1, memory_order_relaxed);
+		caerMainloopDataNotifyDecrease(NULL);
 		atomic_fetch_sub_explicit(&state->dataAvailableModule, 1, memory_order_relaxed);
 	}
 
@@ -2136,7 +1983,7 @@ void caerInputCommonExit(caerModuleData moduleData) {
 	// Check we indeed removed all data and counters match this expectation.
 	if (atomic_load(&state->dataAvailableModule) != 0) {
 		// This should never happen!
-		caerLog(CAER_LOG_CRITICAL, state->parentModule->moduleSubSystemString,
+		caerModuleLog(state->parentModule, CAER_LOG_CRITICAL,
 			"After cleanup, data is still available for consumption. Counter value: %" PRIu32 ".",
 			U32T(atomic_load(&state->dataAvailableModule)));
 	}
@@ -2176,35 +2023,33 @@ void caerInputCommonExit(caerModuleData moduleData) {
 	free(state->packets.currPacketData);
 	free(state->packets.currPacket);
 
+	// Clear sourceInfo node.
+	sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
+	sshsNodeRemoveAllAttributes(sourceInfoNode);
+
 	if (sshsNodeGetBool(moduleData->moduleNode, "autoRestart")) {
-		// Prime input module again so that it will try to restart if new devices detected.
+		// Prime input module again so that it will try to restart automatically.
 		sshsNodePutBool(moduleData->moduleNode, "running", true);
 	}
 }
 
-void caerInputCommonRun(caerModuleData moduleData, size_t argsNumber, va_list args) {
-	UNUSED_ARGUMENT(argsNumber);
+void caerInputCommonRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out) {
+	UNUSED_ARGUMENT(in);
 
 	inputCommonState state = moduleData->moduleState;
 
-	// Interpret variable arguments (same as above in main function).
-	caerEventPacketContainer *container = va_arg(args, caerEventPacketContainer *);
+	*out = ringBufferGet(state->transferRingPacketContainers);
 
-	*container = ringBufferGet(state->transferRingPacketContainers);
-
-	if (*container != NULL) {
-		// Got a container, set it up for auto-reclaim and signal it's not available anymore.
-		caerMainloopFreeAfterLoop((void (*)(void *)) &caerEventPacketContainerFree, *container);
-
+	if (*out != NULL) {
 		// No special memory order for decrease, because the acquire load to even start running
 		// through a mainloop already synchronizes with the release store above.
-		atomic_fetch_sub_explicit(&state->mainloopReference->dataAvailable, 1, memory_order_relaxed);
+		caerMainloopDataNotifyDecrease(NULL);
 		atomic_fetch_sub_explicit(&state->dataAvailableModule, 1, memory_order_relaxed);
 
-		sshsNodePutLong(state->sourceInfoNode, "highestTimestamp",
-			caerEventPacketContainerGetHighestEventTimestamp(*container));
+		sshsNodeUpdateReadOnlyAttribute(state->sourceInfoNode, "highestTimestamp", SSHS_LONG,
+			(union sshs_node_attr_value ) { .ilong = caerEventPacketContainerGetHighestEventTimestamp(*out) });
 
-		caerEventPacketHeader special = caerEventPacketContainerGetEventPacket(*container, SPECIAL_EVENT);
+		caerEventPacketHeader special = caerEventPacketContainerGetEventPacket(*out, SPECIAL_EVENT);
 
 		if ((special != NULL) && (caerEventPacketHeaderGetEventType(special) == SPECIAL_EVENT)
 			&& (caerEventPacketHeaderGetEventNumber(special) == 1)
@@ -2281,26 +2126,3 @@ static int packetsFirstTypeThenSizeCmp(const void *a, const void *b) {
 		}
 	}
 }
-
-#ifdef ENABLE_VISUALIZER
-void caerInputVisualizerEventHandler(caerVisualizerPublicState state, ALLEGRO_EVENT event) {
-	// PAUSE.
-	if (event.type == ALLEGRO_EVENT_KEY_DOWN && event.keyboard.keycode == ALLEGRO_KEY_SPACE) {
-		bool pause = sshsNodeGetBool(state->eventSourceConfigNode, "pause");
-
-		sshsNodePutBool(state->eventSourceConfigNode, "pause", !pause);
-	}
-	// SLOW DOWN.
-	else if (event.type == ALLEGRO_EVENT_KEY_DOWN && event.keyboard.keycode == ALLEGRO_KEY_S) {
-		int timeSlice = sshsNodeGetInt(state->eventSourceConfigNode, "PacketContainerInterval");
-
-		sshsNodePutInt(state->eventSourceConfigNode, "PacketContainerInterval", timeSlice / 2);
-	}
-	// SPEED UP.
-	else if (event.type == ALLEGRO_EVENT_KEY_DOWN && event.keyboard.keycode == ALLEGRO_KEY_F) {
-		int timeSlice = sshsNodeGetInt(state->eventSourceConfigNode, "PacketContainerInterval");
-
-		sshsNodePutInt(state->eventSourceConfigNode, "PacketContainerInterval", timeSlice * 2);
-	}
-}
-#endif

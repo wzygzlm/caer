@@ -1,32 +1,33 @@
-#include "net_udp.h"
+#include "main.h"
 #include "base/mainloop.h"
 #include "base/module.h"
 #include "output_common.h"
 
 static bool caerOutputNetUDPInit(caerModuleData moduleData);
 
-static struct caer_module_functions caerOutputNetUDPFunctions = { .moduleInit = &caerOutputNetUDPInit, .moduleRun =
+static const struct caer_module_functions OutputNetUDPFunctions = { .moduleInit = &caerOutputNetUDPInit, .moduleRun =
 	&caerOutputCommonRun, .moduleConfig = NULL, .moduleExit = &caerOutputCommonExit, .moduleReset =
 	&caerOutputCommonReset };
 
-void caerOutputNetUDP(uint16_t moduleID, size_t outputTypesNumber, ...) {
-	caerModuleData moduleData = caerMainloopFindModule(moduleID, "NetUDPOutput", CAER_MODULE_OUTPUT);
-	if (moduleData == NULL) {
-		return;
-	}
+static const struct caer_event_stream_in OutputNetUDPInputs[] = { { .type = -1, .number = -1, .readOnly = true } };
 
-	va_list args;
-	va_start(args, outputTypesNumber);
-	caerModuleSMv(&caerOutputNetUDPFunctions, moduleData, CAER_OUTPUT_COMMON_STATE_STRUCT_SIZE, outputTypesNumber,
-		args);
-	va_end(args);
+static const struct caer_module_info OutputNetUDPInfo = { .version = 1, .name = "NetUDPOutput", .description =
+	"Send AEDAT 3 data out via UDP messages.", .type =
+	CAER_MODULE_OUTPUT, .memSize = sizeof(struct output_common_state), .functions = &OutputNetUDPFunctions,
+	.inputStreams = OutputNetUDPInputs, .inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(OutputNetUDPInputs),
+	.outputStreams = NULL, .outputStreamsSize = 0, };
+
+caerModuleInfo caerModuleGetInfo(void) {
+	return (&OutputNetUDPInfo);
 }
 
 static bool caerOutputNetUDPInit(caerModuleData moduleData) {
 	// First, always create all needed setting nodes, set their default values
 	// and add their listeners.
-	sshsNodePutStringIfAbsent(moduleData->moduleNode, "ipAddress", "127.0.0.1");
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "portNumber", 6666);
+	sshsNodeCreateString(moduleData->moduleNode, "ipAddress", "127.0.0.1", 7, 15, SSHS_FLAGS_NORMAL,
+		"IPv4 address to connect to (client mode).");
+	sshsNodeCreateInt(moduleData->moduleNode, "portNumber", 6666, 1, UINT16_MAX, SSHS_FLAGS_NORMAL,
+		"Port number to connect to (client mode).");
 
 	int retVal;
 
@@ -42,7 +43,7 @@ static bool caerOutputNetUDPInit(caerModuleData moduleData) {
 	size_t numClients = 1;
 	outputCommonNetIO streams = malloc(sizeof(*streams) + (numClients * sizeof(uv_stream_t *)));
 	if (streams == NULL) {
-		caerLog(CAER_LOG_ERROR, moduleData->moduleSubSystemString, "Failed to allocate memory for streams structure.");
+		caerModuleLog(moduleData, CAER_LOG_ERROR, "Failed to allocate memory for streams structure.");
 		return (false);
 	}
 
@@ -50,7 +51,7 @@ static bool caerOutputNetUDPInit(caerModuleData moduleData) {
 	if (streams->address == NULL) {
 		free(streams);
 
-		caerLog(CAER_LOG_ERROR, moduleData->moduleSubSystemString, "Failed to allocate memory for network address.");
+		caerModuleLog(moduleData, CAER_LOG_ERROR, "Failed to allocate memory for network address.");
 		return (false);
 	}
 
@@ -59,7 +60,7 @@ static bool caerOutputNetUDPInit(caerModuleData moduleData) {
 		free(streams->address);
 		free(streams);
 
-		caerLog(CAER_LOG_ERROR, moduleData->moduleSubSystemString, "Failed to allocate memory for network structure.");
+		caerModuleLog(moduleData, CAER_LOG_ERROR, "Failed to allocate memory for network structure.");
 		return (false);
 	}
 

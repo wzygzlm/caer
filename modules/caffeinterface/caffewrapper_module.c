@@ -40,15 +40,17 @@ const char * caerCaffeWrapper(uint16_t moduleID, int * classifyhist, int size, c
 }
 
 static bool caerCaffeWrapperInit(caerModuleData moduleData) {
-
 	caffewrapperState state = moduleData->moduleState;
-	sshsNodePutDoubleIfAbsent(moduleData->moduleNode, "detThreshold", 0.96);
+
+	sshsNodeCreateDouble(moduleData->moduleNode, "detThreshold", 0.96, 0.1, 1.0, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateBool(moduleData->moduleNode, "doPrintOutputs", false, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateBool(moduleData->moduleNode, "doShowActivations", false, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateBool(moduleData->moduleNode, "doNormInputImages", true, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateInt(moduleData->moduleNode, "sizeDisplay", 1024, 128, 10240, SSHS_FLAGS_NORMAL);
+
 	state->detThreshold = sshsNodeGetDouble(moduleData->moduleNode, "detThreshold");
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "doPrintOutputs", false);
 	state->doPrintOutputs = sshsNodeGetBool(moduleData->moduleNode, "doPrintOutputs");
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "doShowActivations", false);
 	state->doShowActivations = sshsNodeGetBool(moduleData->moduleNode, "doShowActivations");
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "doNormInputImages", true);
 	state->doNormInputImages = sshsNodeGetBool(moduleData->moduleNode, "doNormInputImages");
 
 	//Initializing caffe network..
@@ -71,7 +73,6 @@ static void caerCaffeWrapperRun(caerModuleData moduleData, size_t argsNumber, va
 	char * classificationResults = va_arg(args, char*);
 	int * classificationResultsId = va_arg(args, int*);
 	caerFrameEventPacket *networkActivity = va_arg(args, caerFrameEventPacket*);
-	int sizeDisplay = va_arg(args, int);
 
 	caffewrapperState state = moduleData->moduleState;
 
@@ -82,6 +83,7 @@ static void caerCaffeWrapperRun(caerModuleData moduleData, size_t argsNumber, va
 	state->doNormInputImages = sshsNodeGetBool(moduleData->moduleNode, "doNormInputImages");
 
 	//allocate single frame
+	int sizeDisplay = sshsNodeGetInt(moduleData->moduleNode, "sizeDisplay");
 	int frame_x = sizeDisplay;
 	int frame_y = sizeDisplay;
 

@@ -12,9 +12,9 @@ ENDIF()
 
 # Project name and version
 PROJECT(cAER C CXX)
-SET(PROJECT_VERSION_MAJOR 0)
-SET(PROJECT_VERSION_MINOR 9)
-SET(PROJECT_VERSION_PATCH 13)
+SET(PROJECT_VERSION_MAJOR 1)
+SET(PROJECT_VERSION_MINOR 0)
+SET(PROJECT_VERSION_PATCH 1)
 SET(PROJECT_VERSION_NOREV ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH})
 IF (NOT PROJECT_REVISION)
 	# EXECUTE_PROCESS(COMMAND svnversion OUTPUT_VARIABLE PROJECT_REVISION OUTPUT_STRIP_TRAILING_WHITESPACE)
@@ -91,7 +91,7 @@ CHECK_TYPE_SIZE("size_t" SIZEOF_SIZE_T)
 CHECK_TYPE_SIZE("void *" SIZEOF_VOID_PTR)
 
 IF (NOT "${SIZEOF_VOID_PTR}" STREQUAL "${SIZEOF_SIZE_T}")
-	MESSAGE(SEND_ERROR "Size of void * and size_t must be the same!")
+	MESSAGE(FATAL_ERROR "Size of void * and size_t must be the same!")
 ENDIF()
 
 # Check threads support (almost nobody implements C11 threads yet!)
@@ -144,33 +144,42 @@ ENDIF()
 
 # Enable all warnings for GCC / Clang
 IF (CC_GCC OR CC_CLANG)
-	SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -pedantic -Wall -Wextra")
-	SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pedantic -Wall -Wextra")
+	SET(WARN_COMMON_FLAGS "-pedantic -Wall -Wextra")
+	SET(WARN_C_FLAGS "")
+	SET(WARN_CXX_FLAGS "")
 
 	IF (CC_GCC)
-		# Enable all useful warnings manually in GCC.
-		SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wunused -Wundef -Wformat=2 -Winit-self -Wuninitialized")
-		SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wpointer-arith -Wcast-qual -Wcast-align -Wwrite-strings")
-		SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wstrict-prototypes -Wmissing-prototypes -Wredundant-decls")
-		SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wmissing-declarations -Wnested-externs -Wstack-protector")
-		SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wshadow -Wbad-function-cast")
-		SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wconversion -Wstrict-overflow=2")
-		SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wjump-misses-init -Wunsuffixed-float-constants -Wdouble-promotion")
+		# Enable all useful warnings in GCC one-by-one.
+		SET(WARN_COMMON_FLAGS "${WARN_COMMON_FLAGS} -Wunused -Wundef -Wformat=2 -Winit-self -Wuninitialized")
+		SET(WARN_COMMON_FLAGS "${WARN_COMMON_FLAGS} -Wpointer-arith -Wcast-qual -Wcast-align -Wwrite-strings")
+		SET(WARN_COMMON_FLAGS "${WARN_COMMON_FLAGS} -Wredundant-decls -Wmissing-declarations -Wstack-protector")
+		SET(WARN_COMMON_FLAGS "${WARN_COMMON_FLAGS} -Wshadow -Wfloat-equal -Wconversion -Wstrict-overflow=5")
+		SET(WARN_COMMON_FLAGS "${WARN_COMMON_FLAGS} -Wdouble-promotion")
+
+		SET(WARN_C_FLAGS "${WARN_C_FLAGS} -Wstrict-prototypes -Wmissing-prototypes -Wnested-externs")
+		SET(WARN_C_FLAGS "${WARN_C_FLAGS} -Wbad-function-cast -Wjump-misses-init -Wunsuffixed-float-constants")
 	ENDIF()
 
 	IF (CC_CLANG)
-		# Enable all warnings in Clang easily.
-		SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Weverything -Wno-packed -Wno-padded -Wno-unreachable-code-break")
-		SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-disabled-macro-expansion -Wno-reserved-id-macro -Wno-vla")
-		SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-parentheses-equality -Wno-covered-switch-default")
-		SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-used-but-marked-unused -Wno-cast-align -Wno-float-equal")
+		# Enable all warnings in Clang, then turn off useless ones.
+		SET(WARN_COMMON_FLAGS "${WARN_COMMON_FLAGS} -Weverything -Wno-packed -Wno-padded -Wno-unreachable-code-break")
+		SET(WARN_COMMON_FLAGS "${WARN_COMMON_FLAGS} -Wno-disabled-macro-expansion -Wno-reserved-id-macro -Wno-vla")
+		SET(WARN_COMMON_FLAGS "${WARN_COMMON_FLAGS} -Wno-parentheses-equality -Wno-covered-switch-default")
+		SET(WARN_COMMON_FLAGS "${WARN_COMMON_FLAGS} -Wno-used-but-marked-unused -Wno-cast-align")
+
+		SET(WARN_CXX_FLAGS "${WARN_CXX_FLAGS} -Wno-c++98-compat -Wno-c++98-compat-pedantic -Wno-old-style-cast")
 	ENDIF()
+
+	# Apply all flags.
+	SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${WARN_COMMON_FLAGS} ${WARN_C_FLAGS}")
+	SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${WARN_COMMON_FLAGS} ${WARN_CXX_FLAGS}")
 ENDIF()
 
 # Search for external libraries with pkg-config.
 INCLUDE(FindPkgConfig)
+
 # Basic device support, XML configuration, networking and I/O.
-PKG_CHECK_MODULES(LIBCAER REQUIRED libcaer>=2.0.1)
+PKG_CHECK_MODULES(LIBCAER REQUIRED libcaer>=2.2.0)
 PKG_CHECK_MODULES(MXML REQUIRED mxml>=2.7)
 PKG_CHECK_MODULES(LIBUV REQUIRED libuv>=1.7.5)
 
@@ -184,20 +193,20 @@ SET(CAER_C_SRC_FILES "")
 SET(CAER_CXX_LIBS "")
 SET(CAER_CXX_SRC_FILES "")
 
-SET(CAER_COMPILE_DEFINITIONS "")
+# Threads support
+SET(CAER_C_LIBS ${CAER_C_LIBS} ${CMAKE_THREAD_LIBS_INIT})
 
-# Add all files and libraries needed, all modules etc.
-ADD_SUBDIRECTORY(base)
-ADD_SUBDIRECTORY(ext)
-ADD_SUBDIRECTORY(modules)
+# Boost support for C++
+FIND_PACKAGE(Boost 1.50 REQUIRED COMPONENTS system filesystem program_options)
 
-# Add local directory to include and library paths
-SET(CAER_INCDIRS ${CAER_INCDIRS} ${CMAKE_SOURCE_DIR}/)
-SET(CAER_LIBDIRS ${CAER_LIBDIRS} ${CMAKE_SOURCE_DIR}/)
+SET(CAER_INCDIRS ${CAER_INCDIRS} ${Boost_INCLUDE_DIRS})
+SET(CAER_LIBDIRS ${CAER_LIBDIRS} ${Boost_LIBRARY_DIRS})
+SET(CAER_CXX_LIBS ${CAER_CXX_LIBS} ${Boost_LIBRARIES})
 
-INCLUDE_DIRECTORIES(${CAER_INCDIRS})
-LINK_DIRECTORIES(${CAER_LIBDIRS})
-ADD_DEFINITIONS(${CAER_COMPILE_DEFINITIONS})
+# Windows boost.ASIO needs extra libraries
+IF (OS_WINDOWS)
+	SET(CAER_CXX_LIBS ${CAER_CXX_LIBS} wsock32 ws2_32)
+ENDIF()
 
 # Set full RPATH
 SET(CMAKE_INSTALL_RPATH ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR})
@@ -209,6 +218,9 @@ ENDIF()
 IF (OS_UNIX AND NOT OS_MACOSX)
 	# Add --as-needed to linker flags for executables.
 	SET(CMAKE_EXE_LINKER_FLAGS "-Wl,--as-needed")
+
+	# Add --as-needed to linker flags for libraries.
+	SET(CMAKE_SHARED_LINKER_FLAGS "-Wl,--as-needed")
 ENDIF()
 
 # Add math support
@@ -229,11 +241,42 @@ IF (USE_TCMALLOC)
 	SET(CAER_C_LIBS ${CAER_C_LIBS} ${LIBTCMALLOC_LIBRARIES})
 ENDIF()
 
-ADD_EXECUTABLE(caer-bin ${CAER_C_SRC_FILES} ${CAER_CXX_SRC_FILES} main.c)
-TARGET_LINK_LIBRARIES(caer-bin ${CMAKE_THREAD_LIBS_INIT} ${CAER_C_LIBS} ${CAER_CXX_LIBS})
+# Add local directory to include and library paths
+SET(CAER_INCDIRS ${CAER_INCDIRS} ${CMAKE_SOURCE_DIR}/)
+SET(CAER_LIBDIRS ${CAER_LIBDIRS} ${CMAKE_SOURCE_DIR}/)
+
+INCLUDE_DIRECTORIES(${CAER_INCDIRS})
+LINK_DIRECTORIES(${CAER_LIBDIRS})
+
+# Windows needs extra linker information for DLL plugins to work.
+# Part 1: tell linker to generate special import library when compiling caer-bin.exe.
+IF (OS_WINDOWS)
+	SET(CMAKE_EXE_LINKER_FLAGS "-Wl,--out-implib,libcaerbinsupport.a")
+ENDIF()
+
+# Add all source files and libraries.
+ADD_SUBDIRECTORY(base)
+ADD_SUBDIRECTORY(ext)
+
+# Compile main caer executable.
+ADD_EXECUTABLE(caer-bin ${CAER_C_SRC_FILES} ${CAER_CXX_SRC_FILES} main.cpp)
+TARGET_LINK_LIBRARIES(caer-bin ${CAER_C_LIBS} ${CAER_CXX_LIBS})
 INSTALL(TARGETS caer-bin DESTINATION ${CMAKE_INSTALL_BINDIR})
 
-# Compile extra utitilies
+# Windows needs extra linker information for DLL plugins to work.
+# Part 2: tell DLL plugins to use this special import library.
+IF (OS_WINDOWS)
+	SET(CAER_C_LIBS ${CAER_C_LIBS} caerbinsupport)
+ENDIF()
+
+# Mac OS X's linker also needs to be told that undefined
+# references in the plugins are fine.
+IF (OS_MACOSX)
+	SET(CMAKE_SHARED_LINKER_FLAGS "-Wl,-undefined,dynamic_lookup")
+ENDIF()
+
+# Compile extra modules and utilities.
+ADD_SUBDIRECTORY(modules)
 ADD_SUBDIRECTORY(utils)
 
 # Print info summary for debug purposes

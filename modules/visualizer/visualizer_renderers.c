@@ -1,6 +1,5 @@
-#include "visualizer.h"
+#include "visualizer_renderers.h"
 #include "base/mainloop.h"
-#include "modules/ini/dynapse_common.h"
 
 #include <math.h>
 #include <allegro5/allegro_primitives.h>
@@ -12,6 +11,7 @@
 #include <libcaer/events/point2d.h>
 #include <libcaer/events/point4d.h>
 #include <libcaer/events/spike.h>
+#include <libcaer/devices/dynapse.h>
 
 bool caerVisualizerRendererPolarityEvents(caerVisualizerPublicState state, caerEventPacketContainer container,
 bool doClear) {
@@ -371,9 +371,6 @@ bool doClear) {
 
 		// draw pixels (neurons might be merged due to aliasing..)
 		al_put_pixel( (int) new_x, (int) new_y, al_map_rgb(coreId * 0, 255, 0 * coreId));
-
-		//caerLog(CAER_LOG_NOTICE, __func__, "chipId %d, new_x %d, new_y %d, indexLin %d\n", chipId, new_x, new_y, indexLin);
-
 	CAER_SPIKE_ITERATOR_ALL_END
 
 	return (true);
@@ -474,11 +471,11 @@ bool doClear) {
 			checked = (int32_t) range_check;
 		}
 
-		uint8_t coreId;
-		if(corex == 0 && corey == 0){ coreId = 0;}
-		if(corex == 0 && corey == 1){ coreId = 1;}
-		if(corex == 1 && corey == 0){ coreId = 2;}
-		if(corex == 1 && corey == 1){ coreId = 3;}
+		uint8_t coreId = 0;
+		if(corex == 0.0f && corey == 0.0f){ coreId = 0;}
+		if(corex == 0.0f && corey == 1.0f){ coreId = 1;}
+		if(corex == 1.0f && corey == 0.0f){ coreId = 2;}
+		if(corex == 1.0f && corey == 1.0f){ coreId = 3;}
 
 		if (coreId == 0) {
 			al_put_pixel((int32_t) sizeX - checked, (int32_t) new_y,al_map_rgb(0, 255, 0));

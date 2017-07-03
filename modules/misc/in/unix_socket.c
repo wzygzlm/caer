@@ -1,37 +1,38 @@
-#include "unix_socket.h"
+#include "main.h"
 #include "base/mainloop.h"
 #include "base/module.h"
 #include "input_common.h"
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <limits.h>
 
 static bool caerInputUnixSocketInit(caerModuleData moduleData);
 
-static struct caer_module_functions caerInputUnixSocketFunctions = { .moduleInit = &caerInputUnixSocketInit,
+static const struct caer_module_functions InputUnixSocketFunctions = { .moduleInit = &caerInputUnixSocketInit,
 	.moduleRun = &caerInputCommonRun, .moduleConfig = NULL, .moduleExit = &caerInputCommonExit };
 
-caerEventPacketContainer caerInputUnixSocket(uint16_t moduleID) {
-	caerModuleData moduleData = caerMainloopFindModule(moduleID, "UnixSocketInput", CAER_MODULE_INPUT);
-	if (moduleData == NULL) {
-		return (NULL);
-	}
+static const struct caer_event_stream_out InputUnixSocketOutputs[] = { { .type = -1 } };
 
-	caerEventPacketContainer result = NULL;
+static const struct caer_module_info InputUnixSocketInfo =
+	{ .version = 1, .name = "UnixSocketInput", .description = "Read AEDAT data from an existing Unix Socket.", .type =
+		CAER_MODULE_INPUT, .memSize = sizeof(struct input_common_state), .functions = &InputUnixSocketFunctions,
+		.inputStreams = NULL, .inputStreamsSize = 0, .outputStreams = InputUnixSocketOutputs, .outputStreamsSize =
+			CAER_EVENT_STREAM_OUT_SIZE(InputUnixSocketOutputs), };
 
-	caerModuleSM(&caerInputUnixSocketFunctions, moduleData, CAER_INPUT_COMMON_STATE_STRUCT_SIZE, 1, &result);
-
-	return (result);
+caerModuleInfo caerModuleGetInfo(void) {
+	return (&InputUnixSocketInfo);
 }
 
 static bool caerInputUnixSocketInit(caerModuleData moduleData) {
 	// First, always create all needed setting nodes, set their default values
 	// and add their listeners.
-	sshsNodePutStringIfAbsent(moduleData->moduleNode, "socketPath", "/tmp/caer.sock");
+	sshsNodeCreateString(moduleData->moduleNode, "socketPath", "/tmp/caer.sock", 2, PATH_MAX, SSHS_FLAGS_NORMAL,
+		"Unix Socket path for reading input data.");
 
 	// Open an existing Unix local socket at a known path, where we'll write to.
 	int sockFd = socket(AF_UNIX, SOCK_STREAM, 0);
 	if (sockFd < 0) {
-		caerLog(CAER_LOG_CRITICAL, moduleData->moduleSubSystemString, "Could not create local Unix socket. Error: %d.",
+		caerModuleLog(moduleData, CAER_LOG_CRITICAL, "Could not create local Unix socket. Error: %d.",
 		errno);
 		return (false);
 	}
@@ -50,8 +51,7 @@ static bool caerInputUnixSocketInit(caerModuleData moduleData) {
 	if (connect(sockFd, (struct sockaddr *) &unixSocketAddr, sizeof(struct sockaddr_un)) < 0) {
 		close(sockFd);
 
-		caerLog(CAER_LOG_CRITICAL, moduleData->moduleSubSystemString,
-			"Could not connect to local Unix socket. Error: %d.", errno);
+		caerModuleLog(moduleData, CAER_LOG_CRITICAL, "Could not connect to local Unix socket. Error: %d.", errno);
 		return (false);
 	}
 
@@ -60,8 +60,7 @@ static bool caerInputUnixSocketInit(caerModuleData moduleData) {
 		return (false);
 	}
 
-	caerLog(CAER_LOG_INFO, moduleData->moduleSubSystemString, "Local Unix socket ready at '%s'.",
-		unixSocketAddr.sun_path);
+	caerModuleLog(moduleData, CAER_LOG_INFO, "Local Unix socket ready at '%s'.", unixSocketAddr.sun_path);
 
 	return (true);
 }

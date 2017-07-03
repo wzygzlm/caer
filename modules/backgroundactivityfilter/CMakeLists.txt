@@ -1,11 +1,14 @@
-IF (NOT ENABLE_BAFILTER)
-	SET(ENABLE_BAFILTER 0 CACHE BOOL "Enable the background activity filtering module")
+IF (NOT BAFILTER)
+	SET(BAFILTER 0 CACHE BOOL "Enable the background activity filtering module")
 ENDIF()
 
-IF (ENABLE_BAFILTER)
-	SET(CAER_COMPILE_DEFINITIONS ${CAER_COMPILE_DEFINITIONS} -DENABLE_BAFILTER=1 PARENT_SCOPE)
+IF (BAFILTER)
+	ADD_LIBRARY(bafilter SHARED backgroundactivityfilter.c)
 
-	SET(CAER_BA_FILES modules/backgroundactivityfilter/backgroundactivityfilter.c)
+	SET_TARGET_PROPERTIES(bafilter
+		PROPERTIES
+		PREFIX "caer_"
+	)
 
-	SET(CAER_C_SRC_FILES ${CAER_C_SRC_FILES} ${CAER_BA_FILES} PARENT_SCOPE)
+	TARGET_LINK_LIBRARIES(bafilter ${CAER_C_LIBS})
 ENDIF()

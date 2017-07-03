@@ -10,42 +10,31 @@
 
 #include "main.h"
 #include "module.h"
-#include "ext/uthash/utarray.h"
 
-#ifdef HAVE_PTHREADS
-	#include "ext/c11threads_posix.h"
+#ifdef __cplusplus
+extern "C" {
 #endif
 
-struct caer_mainloop_data {
-	thrd_t mainloop;
-	uint16_t mainloopID;
-	bool (*mainloopFunction)(void);
-	sshsNode mainloopNode;
-	atomic_bool running;
-	atomic_uint_fast32_t dataAvailable;
-	caerModuleData modules;
-	UT_array *memoryToFree;
-	UT_array *inputModules;
-	UT_array *outputModules;
-	UT_array *processorModules;
-};
+void caerMainloopRun(void);
 
-typedef struct caer_mainloop_data *caerMainloopData;
+void caerMainloopDataNotifyIncrease(void *p) CAER_SYMBOL_EXPORT;
+void caerMainloopDataNotifyDecrease(void *p) CAER_SYMBOL_EXPORT;
+bool caerMainloopModuleExists(int16_t id) CAER_SYMBOL_EXPORT;
+bool caerMainloopModuleIsType(int16_t id, enum caer_module_type type) CAER_SYMBOL_EXPORT;
+bool caerMainloopStreamExists(int16_t sourceId, int16_t typeId) CAER_SYMBOL_EXPORT;
 
-struct caer_mainloop_definition {
-	uint16_t mlID;
-	bool (*mlFunction)(void);
-};
+int16_t *caerMainloopGetModuleInputIDs(int16_t id, size_t *inputsSize) CAER_SYMBOL_EXPORT;
 
-void caerMainloopRun(struct caer_mainloop_definition (*mainLoops)[], size_t numLoops);
-caerModuleData caerMainloopFindModule(uint16_t moduleID, const char *moduleShortName, enum caer_module_type type);
-void caerMainloopFreeAfterLoop(void (*func)(void *mem), void *memPtr);
-caerMainloopData caerMainloopGetReference(void);
-sshsNode caerMainloopGetSourceNode(uint16_t sourceID);
-sshsNode caerMainloopGetSourceInfo(uint16_t sourceID);
-void *caerMainloopGetSourceState(uint16_t sourceID);
-void caerMainloopResetInputs(uint16_t sourceID);
-void caerMainloopResetOutputs(uint16_t sourceID);
-void caerMainloopResetProcessors(uint16_t sourceID);
+sshsNode caerMainloopGetSourceNode(int16_t sourceID) CAER_SYMBOL_EXPORT;
+sshsNode caerMainloopGetSourceInfo(int16_t sourceID) CAER_SYMBOL_EXPORT;
+void *caerMainloopGetSourceState(int16_t sourceID) CAER_SYMBOL_EXPORT;
+
+void caerMainloopResetInputs(int16_t sourceID) CAER_SYMBOL_EXPORT;
+void caerMainloopResetOutputs(int16_t sourceID) CAER_SYMBOL_EXPORT;
+void caerMainloopResetProcessors(int16_t sourceID) CAER_SYMBOL_EXPORT;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* MAINLOOP_H_ */

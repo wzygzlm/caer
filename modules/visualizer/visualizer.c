@@ -1,4 +1,6 @@
 #include "visualizer.h"
+#include "visualizer_renderers.h"
+#include "visualizer_handlers.h"
 #include "base/mainloop.h"
 #include "ext/ringbuffer/ringbuffer.h"
 #include "modules/statistics/statistics.h"
@@ -11,14 +13,38 @@
 #include <allegro5/allegro_primitives.h>
 #include <allegro5/allegro_ttf.h>
 
+static once_flag visualizerSystemIsInitialized = ONCE_FLAG_INIT;
+
+struct caer_visualizer_renderers {
+	const char *name;
+	caerVisualizerRenderer renderer;
+};
+
+static const char *caerVisualizerRendererListOptionsString =
+	"Polarity,Frame,IMU_6-axes,2D_Points,Spikes,Spikes_Raster_Plot,ETF4D,Polarity_and_Frames";
+
+static struct caer_visualizer_renderers caerVisualizerRendererList[] = { { "Polarity",
+	&caerVisualizerRendererPolarityEvents }, { "Frame", &caerVisualizerRendererFrameEvents }, { "IMU_6-axes",
+	&caerVisualizerRendererIMU6Events }, { "2D_Points", &caerVisualizerRendererPoint2DEvents }, { "Spikes",
+	&caerVisualizerRendererSpikeEvents }, { "Spikes_Raster_Plot", &caerVisualizerRendererSpikeEventsRaster }, { "ETF4D",
+	&caerVisualizerRendererETF4D }, { "Polarity_and_Frames", &caerVisualizerMultiRendererPolarityAndFrameEvents }, };
+
+struct caer_visualizer_handlers {
+	const char *name;
+	caerVisualizerEventHandler handler;
+};
+
+static const char *caerVisualizerHandlerListOptionsString = "None,Spikes,Input";
+
+static struct caer_visualizer_handlers caerVisualizerHandlerList[] = { { "None", NULL }, { "Spikes",
+	&caerVisualizerEventHandlerSpikeEvents }, { "Input", &caerInputVisualizerEventHandler } };
+
 struct caer_visualizer_state {
 	void *eventSourceModuleState;
 	sshsNode eventSourceConfigNode;
 	sshsNode visualizerConfigNode;
 	int32_t bitmapRendererSizeX;
 	int32_t bitmapRendererSizeY;
-	int32_t windowPositionX;
-	int32_t windowPositionY;
 	ALLEGRO_FONT *displayFont;
 	atomic_bool running;
 	atomic_bool displayWindowResize;
@@ -181,50 +207,41 @@ void caerVisualizerSystemInit(void) {
 
 caerVisualizerState caerVisualizerInit(caerVisualizerRenderer renderer, caerVisualizerEventHandler eventHandler,
 	int32_t bitmapSizeX, int32_t bitmapSizeY, float defaultZoomFactor, bool defaultShowStatistics,
-	caerModuleData parentModule, int16_t eventSourceID, int32_t userSizeX, int32_t userSizeY) {
+	caerModuleData parentModule, int16_t eventSourceID) {
+	// Initialize visualizer framework (load fonts etc.). Do only once per startup!
+	call_once(&visualizerSystemIsInitialized, &caerVisualizerSystemInit);
+
 	// Allocate memory for visualizer state.
 	caerVisualizerState state = calloc(1, sizeof(struct caer_visualizer_state));
 	if (state == NULL) {
-		caerLog(CAER_LOG_ERROR, parentModule->moduleSubSystemString, "Visualizer: Failed to allocate state memory.");
+		caerModuleLog(parentModule, CAER_LOG_ERROR, "Visualizer: Failed to allocate state memory.");
 		return (NULL);
 	}
 
 	state->parentModule = parentModule;
 	state->visualizerConfigNode = parentModule->moduleNode;
 	if (eventSourceID >= 0) {
-		state->eventSourceModuleState = caerMainloopGetSourceState(U16T(eventSourceID));
-		state->eventSourceConfigNode = caerMainloopGetSourceNode(U16T(eventSourceID));
+		state->eventSourceModuleState = caerMainloopGetSourceState(eventSourceID);
+		state->eventSourceConfigNode = caerMainloopGetSourceNode(eventSourceID);
 	}
 
 	// Configuration.
-	sshsNodePutIntIfAbsent(parentModule->moduleNode, "subsampleRendering", 1);
-	sshsNodePutBoolIfAbsent(parentModule->moduleNode, "showStatistics", defaultShowStatistics);
-	sshsNodePutFloatIfAbsent(parentModule->moduleNode, "zoomFactor", defaultZoomFactor);
-	sshsNodePutIntIfAbsent(parentModule->moduleNode, "windowPositionX", VISUALIZER_DEFAULT_POSITION_X);
-	sshsNodePutIntIfAbsent(parentModule->moduleNode, "windowPositionY", VISUALIZER_DEFAULT_POSITION_Y);
+	sshsNodeCreateInt(parentModule->moduleNode, "subsampleRendering", 1, 1, 1024 * 1024, SSHS_FLAGS_NORMAL,
+		"Speed-up rendering by only taking every Nth EventPacketContainer to render.");
+	sshsNodeCreateBool(parentModule->moduleNode, "showStatistics", defaultShowStatistics, SSHS_FLAGS_NORMAL,
+		"Show event statistics above content (top of window).");
+	sshsNodeCreateFloat(parentModule->moduleNode, "zoomFactor", defaultZoomFactor, 0.5f, 50.0f, SSHS_FLAGS_NORMAL,
+		"Content zoom factor.");
+	sshsNodeCreateInt(parentModule->moduleNode, "windowPositionX", VISUALIZER_DEFAULT_POSITION_X, 0, INT32_MAX,
+		SSHS_FLAGS_NORMAL, "Position of window on screen (X coordinate).");
+	sshsNodeCreateInt(parentModule->moduleNode, "windowPositionY", VISUALIZER_DEFAULT_POSITION_Y, 0, INT32_MAX,
+		SSHS_FLAGS_NORMAL, "Position of window on screen (Y coordinate).");
 
 	atomic_store(&state->packetSubsampleRendering, sshsNodeGetInt(parentModule->moduleNode, "subsampleRendering"));
 
 	// Remember sizes.
 	state->bitmapRendererSizeX = bitmapSizeX;
 	state->bitmapRendererSizeY = bitmapSizeY;
-	state->windowPositionX = sshsNodeGetInt(parentModule->moduleNode, "windowPositionX");
-	state->windowPositionY = sshsNodeGetInt(parentModule->moduleNode, "windowPositionY");
-
-	// If parentModuleName is "UserSize" create bitmap of dimensions [userSizeX, userSizeY]
-	// If userSizeX/userSizeY is not specified in the device_common file, use default 64x64
-	const char *curr = sshsNodeGetName(state->parentModule->moduleNode);
-	char *next;
-
-	while ((next = strchr(curr, '-')) != NULL) {
-		curr = next + 1;
-	}
-
-	if (caerStrEquals(curr, "VisualizerUserSize")) {
-		caerLog(CAER_LOG_NOTICE, parentModule->moduleSubSystemString, "Initializing size from user defined size.");
-		state->bitmapRendererSizeX = userSizeX;
-		state->bitmapRendererSizeY = userSizeY;
-	}
 
 	updateDisplaySize(state, false);
 
@@ -236,8 +253,7 @@ caerVisualizerState caerVisualizerInit(caerVisualizerRenderer renderer, caerVisu
 	if (!caerStatisticsStringInit(&state->packetStatistics)) {
 		free(state);
 
-		caerLog(CAER_LOG_ERROR, parentModule->moduleSubSystemString,
-			"Visualizer: Failed to initialize statistics string.");
+		caerModuleLog(parentModule, CAER_LOG_ERROR, "Visualizer: Failed to initialize statistics string.");
 		return (NULL);
 	}
 
@@ -247,7 +263,7 @@ caerVisualizerState caerVisualizerInit(caerVisualizerRenderer renderer, caerVisu
 		caerStatisticsStringExit(&state->packetStatistics);
 		free(state);
 
-		caerLog(CAER_LOG_ERROR, parentModule->moduleSubSystemString, "Visualizer: Failed to initialize ring-buffer.");
+		caerModuleLog(parentModule, CAER_LOG_ERROR, "Visualizer: Failed to initialize ring-buffer.");
 		return (NULL);
 	}
 
@@ -260,48 +276,31 @@ caerVisualizerState caerVisualizerInit(caerVisualizerRenderer renderer, caerVisu
 		caerStatisticsStringExit(&state->packetStatistics);
 		free(state);
 
-		caerLog(CAER_LOG_ERROR, parentModule->moduleSubSystemString, "Visualizer: Failed to start rendering thread.");
+		caerModuleLog(parentModule, CAER_LOG_ERROR, "Visualizer: Failed to start rendering thread.");
 		return (NULL);
 	}
 
 	// Add config listeners last, to avoid having them dangling if Init doesn't succeed.
 	sshsNodeAddAttributeListener(parentModule->moduleNode, state, &caerVisualizerConfigListener);
 
-	caerLog(CAER_LOG_DEBUG, parentModule->moduleSubSystemString, "Visualizer: Initialized successfully.");
+	caerModuleLog(parentModule, CAER_LOG_DEBUG, "Visualizer: Initialized successfully.");
 
 	return (state);
 }
 
 static void updateDisplayLocation(caerVisualizerState state) {
-
-	//caerLog(CAER_LOG_NOTICE, state->parentModule->moduleSubSystemString, "Visualizer: Update Display Location");
-
-	int32_t windowPositionX = state->windowPositionX;
-	int32_t windowPositionY = state->windowPositionY;
-
-	al_set_window_position(state->displayWindow, windowPositionX, windowPositionY);
-
+	al_set_window_position(state->displayWindow, sshsNodeGetInt(state->parentModule->moduleNode, "windowPositionX"),
+		sshsNodeGetInt(state->parentModule->moduleNode, "windowPositionY"));
 }
 
 static void saveDisplayLocation(caerVisualizerState state) {
+	int xWinPos = 0, yWinPos = 0;
 
-	//caerLog(CAER_LOG_DEBUG, state->parentModule->moduleSubSystemString,
-	//	"Visualizer: saving display location");
-
-	int xWin[0];
-	int yWin[0];
-
-	al_get_window_position(state->displayWindow, &xWin, &yWin);
-
-	state->windowPositionX = xWin[0];
-	state->windowPositionY = yWin[0];
+	al_get_window_position(state->displayWindow, &xWinPos, &yWinPos);
 
 	// update parent module value
-	sshsNodePutInt(state->parentModule->moduleNode, "windowPositionX", xWin[0]);
-	sshsNodePutInt(state->parentModule->moduleNode, "windowPositionY", yWin[0]);
-
-	//caerLog(CAER_LOG_DEBUG, state->parentModule->moduleSubSystemString,
-	//	"Visualizer: saving display location X:%d Y:%d", state->windowPositionX, state->windowPositionY);
+	sshsNodePutInt(state->parentModule->moduleNode, "windowPositionX", xWinPos);
+	sshsNodePutInt(state->parentModule->moduleNode, "windowPositionY", yWinPos);
 }
 
 static void updateDisplaySize(caerVisualizerState state, bool updateTransform) {
@@ -381,7 +380,7 @@ void caerVisualizerUpdate(caerVisualizerState state, caerEventPacketContainer co
 
 	caerEventPacketContainer containerCopy = caerEventPacketContainerCopyAllEvents(container);
 	if (containerCopy == NULL) {
-		caerLog(CAER_LOG_ERROR, state->parentModule->moduleSubSystemString,
+		caerModuleLog(state->parentModule, CAER_LOG_ERROR,
 			"Visualizer: Failed to copy event packet container for rendering.");
 
 		return;
@@ -390,7 +389,7 @@ void caerVisualizerUpdate(caerVisualizerState state, caerEventPacketContainer co
 	if (!ringBufferPut(state->dataTransfer, containerCopy)) {
 		caerEventPacketContainerFree(containerCopy);
 
-		caerLog(CAER_LOG_INFO, state->parentModule->moduleSubSystemString,
+		caerModuleLog(state->parentModule, CAER_LOG_INFO,
 			"Visualizer: Failed to move event packet container copy to ring-buffer (full).");
 		return;
 	}
@@ -412,8 +411,8 @@ void caerVisualizerExit(caerVisualizerState state) {
 
 	if ((errno = thrd_join(state->renderingThread, NULL)) != thrd_success) {
 		// This should never happen!
-		caerLog(CAER_LOG_CRITICAL, state->parentModule->moduleSubSystemString,
-			"Visualizer: Failed to join rendering thread. Error: %d.", errno);
+		caerModuleLog(state->parentModule, CAER_LOG_CRITICAL, "Visualizer: Failed to join rendering thread. Error: %d.",
+		errno);
 	}
 
 	// Now clean up the ring-buffer and its contents.
@@ -427,7 +426,7 @@ void caerVisualizerExit(caerVisualizerState state) {
 	// Then the statistics string.
 	caerStatisticsStringExit(&state->packetStatistics);
 
-	caerLog(CAER_LOG_DEBUG, state->parentModule->moduleSubSystemString, "Visualizer: Exited successfully.");
+	caerModuleLog(state->parentModule, CAER_LOG_DEBUG, "Visualizer: Exited successfully.");
 
 	// And finally the state memory.
 	free(state);
@@ -447,7 +446,7 @@ static bool caerVisualizerInitGraphics(caerVisualizerState state) {
 	// Create display window.
 	state->displayWindow = al_create_display(state->displayWindowSizeX, state->displayWindowSizeY);
 	if (state->displayWindow == NULL) {
-		caerLog(CAER_LOG_ERROR, state->parentModule->moduleSubSystemString,
+		caerModuleLog(state->parentModule, CAER_LOG_ERROR,
 			"Visualizer: Failed to create display window with sizeX=%d, sizeY=%d.", state->displayWindowSizeX,
 			state->displayWindowSizeY);
 		return (false);
@@ -464,7 +463,7 @@ static bool caerVisualizerInitGraphics(caerVisualizerState state) {
 	// Set scale transform for display window, update sizes.
 	updateDisplaySize(state, true);
 
-	// Set window position
+	// Set window position.
 	updateDisplayLocation(state);
 
 	// Create memory bitmap for drawing into.
@@ -475,7 +474,7 @@ static bool caerVisualizerInitGraphics(caerVisualizerState state) {
 		// Clean up all memory that may have been used.
 		caerVisualizerExitGraphics(state);
 
-		caerLog(CAER_LOG_ERROR, state->parentModule->moduleSubSystemString,
+		caerModuleLog(state->parentModule, CAER_LOG_ERROR,
 			"Visualizer: Failed to create bitmap element with sizeX=%d, sizeY=%d.", state->bitmapRendererSizeX,
 			state->bitmapRendererSizeY);
 		return (false);
@@ -491,8 +490,7 @@ static bool caerVisualizerInitGraphics(caerVisualizerState state) {
 		// Clean up all memory that may have been used.
 		caerVisualizerExitGraphics(state);
 
-		caerLog(CAER_LOG_ERROR, state->parentModule->moduleSubSystemString,
-			"Visualizer: Failed to create event queue.");
+		caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Visualizer: Failed to create event queue.");
 		return (false);
 	}
 
@@ -501,7 +499,7 @@ static bool caerVisualizerInitGraphics(caerVisualizerState state) {
 		// Clean up all memory that may have been used.
 		caerVisualizerExitGraphics(state);
 
-		caerLog(CAER_LOG_ERROR, state->parentModule->moduleSubSystemString, "Visualizer: Failed to create timer.");
+		caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Visualizer: Failed to create timer.");
 		return (false);
 	}
 
@@ -514,7 +512,7 @@ static bool caerVisualizerInitGraphics(caerVisualizerState state) {
 	// A display must have been created and used as target for this to work.
 	state->displayFont = al_load_font(globalFontPath, GLOBAL_FONT_SIZE, 0);
 	if (state->displayFont == NULL) {
-		caerLog(CAER_LOG_WARNING, state->parentModule->moduleSubSystemString,
+		caerModuleLog(state->parentModule, CAER_LOG_WARNING,
 			"Visualizer: Failed to load display font '%s'. Text rendering will not be possible.", globalFontPath);
 	}
 
@@ -772,113 +770,128 @@ static int caerVisualizerRenderThread(void *visualizerState) {
 	return (thrd_success);
 }
 
-// Init is deferred and called from Run, because we need actual packets.
-static bool caerVisualizerModuleInit(caerModuleData moduleData, caerVisualizerRenderer renderer,
-	caerVisualizerEventHandler eventHandler, caerEventPacketContainer container);
-static void caerVisualizerModuleRun(caerModuleData moduleData, size_t argsNumber, va_list args);
+// InitSize is deferred and called from Run, because we need actual packets.
+static bool caerVisualizerModuleInit(caerModuleData moduleData);
+static bool caerVisualizerModuleInitSize(caerModuleData moduleData, int16_t *inputs, size_t inputsSize);
+static void caerVisualizerModuleRun(caerModuleData moduleData, caerEventPacketContainer in,
+	caerEventPacketContainer *out);
 static void caerVisualizerModuleExit(caerModuleData moduleData);
-static void caerVisualizerModuleReset(caerModuleData moduleData, uint16_t resetCallSourceID);
+static void caerVisualizerModuleReset(caerModuleData moduleData, int16_t resetCallSourceID);
 
-static struct caer_module_functions caerVisualizerFunctions = { .moduleInit = NULL, .moduleRun =
+static const struct caer_module_functions VisualizerFunctions = { .moduleInit = &caerVisualizerModuleInit, .moduleRun =
 	&caerVisualizerModuleRun, .moduleConfig = NULL, .moduleExit = &caerVisualizerModuleExit, .moduleReset =
 	&caerVisualizerModuleReset };
 
-void caerVisualizer(uint16_t moduleID, const char *name, caerVisualizerRenderer renderer,
-	caerVisualizerEventHandler eventHandler, caerEventPacketHeader packetHeader) {
-	// Generate packet container with just this one packet.
-	caerEventPacketContainer container = caerEventPacketContainerAllocate(1);
-	caerEventPacketContainerSetEventPacket(container, 0, packetHeader);
+static const struct caer_event_stream_in VisualizerInputs[] = { { .type = -1, .number = -1, .readOnly = true } };
 
-	caerVisualizerMulti(moduleID, name, renderer, eventHandler, container);
+static const struct caer_module_info VisualizerInfo = { .version = 1, .name = "Visualizer", .description =
+	"Visualize data in various forms.", .type = CAER_MODULE_OUTPUT, .memSize = 0, .functions = &VisualizerFunctions,
+	.inputStreams = VisualizerInputs, .inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(VisualizerInputs), .outputStreams =
+		NULL, .outputStreamsSize = 0, };
 
-	// Destroy packet container (but not the original packet!).
-	caerEventPacketContainerSetEventPacket(container, 0, NULL);
-	caerEventPacketContainerFree(container);
+caerModuleInfo caerModuleGetInfo(void) {
+	return (&VisualizerInfo);
 }
 
-void caerVisualizerMulti(uint16_t moduleID, const char *name, caerVisualizerRenderer renderer,
-	caerVisualizerEventHandler eventHandler, caerEventPacketContainer container) {
-	// Concatenate name and 'Visualizer' prefix.
-	size_t nameLength = (name != NULL) ? (strlen(name)) : (0);
-	char visualizerName[10 + nameLength + 1]; // +1 for NUL termination.
-
-	memcpy(visualizerName, "Visualizer", 10);
-	if (name != NULL) {
-		memcpy(visualizerName + 10, name, nameLength);
-	}
-	visualizerName[10 + nameLength] = '\0';
-
-	caerModuleData moduleData = caerMainloopFindModule(moduleID, visualizerName, CAER_MODULE_PROCESSOR);
-	if (moduleData == NULL) {
-		return;
+static bool caerVisualizerModuleInit(caerModuleData moduleData) {
+	// Wait for input to be ready. All inputs, once they are up and running, will
+	// have a valid sourceInfo node to query, especially if dealing with data.
+	size_t inputsSize;
+	int16_t *inputs = caerMainloopGetModuleInputIDs(moduleData->moduleID, &inputsSize);
+	if (inputs == NULL) {
+		return (false);
 	}
 
-	caerModuleSM(&caerVisualizerFunctions, moduleData, 0, 3, renderer, eventHandler, container);
+	sshsNodeCreateString(moduleData->moduleNode, "renderer", "Polarity", 0, 100, SSHS_FLAGS_NORMAL,
+		"Renderer to use to generate content.");
+	sshsNodeRemoveAttribute(moduleData->moduleNode, "rendererListOptions", SSHS_STRING);
+	sshsNodeCreateString(moduleData->moduleNode, "rendererListOptions", caerVisualizerRendererListOptionsString, 0, 200,
+		SSHS_FLAGS_READ_ONLY, "List of available renderers.");
+	sshsNodeCreateString(moduleData->moduleNode, "eventHandler", "None", 0, 100, SSHS_FLAGS_NORMAL,
+		"Event handlers to handle mouse and keyboard events.");
+	sshsNodeRemoveAttribute(moduleData->moduleNode, "eventHandlerListOptions", SSHS_STRING);
+	sshsNodeCreateString(moduleData->moduleNode, "eventHandlerListOptions", caerVisualizerHandlerListOptionsString, 0,
+		200, SSHS_FLAGS_READ_ONLY, "List of available event handlers.");
+
+	// Initialize visualizer. Needs information from a packet (the source ID)!
+	if (!caerVisualizerModuleInitSize(moduleData, inputs, inputsSize)) {
+		return (false);
+	}
+
+	return (true);
 }
 
-static bool caerVisualizerModuleInit(caerModuleData moduleData, caerVisualizerRenderer renderer,
-	caerVisualizerEventHandler eventHandler, caerEventPacketContainer container) {
+static bool caerVisualizerModuleInitSize(caerModuleData moduleData, int16_t *inputs, size_t inputsSize) {
 	// Default sizes if nothing else is specified in sourceInfo node.
 	int16_t sizeX = 20;
 	int16_t sizeY = 20;
-	int32_t userSizeX = 64;
-	int32_t userSizeY = 64;
 	int16_t sourceID = -1;
 
 	// Search for biggest sizes amongst all event packets.
-	CAER_EVENT_PACKET_CONTAINER_ITERATOR_START(container)
-	// Get size information from source.
-			sourceID = caerEventPacketHeaderGetEventSource(caerEventPacketContainerIteratorElement);
+	for (size_t i = 0; i < inputsSize; i++) {
+		// Get size information from source.
+		sourceID = inputs[i];
 
-			sshsNode sourceInfoNode = caerMainloopGetSourceInfo(U16T(sourceID));
-			if (sourceInfoNode == NULL) {
-				// This should never happen, but we handle it gracefully.
-				caerLog(CAER_LOG_ERROR, moduleData->moduleSubSystemString,
-					"Failed to get source info to setup visualizer resolution.");
-				return (false);
-			}
+		sshsNode sourceInfoNode = caerMainloopGetSourceInfo(sourceID);
+		if (sourceInfoNode == NULL) {
+			return (false);
+		}
 
-			// Default sizes if nothing else is specified in sourceInfo node.
-			int16_t packetSizeX = 0;
-			int16_t packetSizeY = 0;
+		// Default sizes if nothing else is specified in sourceInfo node.
+		int16_t packetSizeX = 0;
+		int16_t packetSizeY = 0;
 
-			// Get sizes from sourceInfo node. visualizer prefix takes precedence,
-			// for APS and DVS images, alternative prefixes are provided, as well
-			// as for generic data visualization.
-			if (sshsNodeAttributeExists(sourceInfoNode, "visualizerSizeX", SSHS_SHORT)) {
-				packetSizeX = sshsNodeGetShort(sourceInfoNode, "visualizerSizeX");
-				packetSizeY = sshsNodeGetShort(sourceInfoNode, "visualizerSizeY");
-			}
-			else if (sshsNodeAttributeExists(sourceInfoNode, "dvsSizeX", SSHS_SHORT)
-				&& caerEventPacketHeaderGetEventType(caerEventPacketContainerIteratorElement) == POLARITY_EVENT) {
-				packetSizeX = sshsNodeGetShort(sourceInfoNode, "dvsSizeX");
-				packetSizeY = sshsNodeGetShort(sourceInfoNode, "dvsSizeY");
-			}
-			else if (sshsNodeAttributeExists(sourceInfoNode, "apsSizeX", SSHS_SHORT)
-				&& caerEventPacketHeaderGetEventType(caerEventPacketContainerIteratorElement) == FRAME_EVENT) {
-				packetSizeX = sshsNodeGetShort(sourceInfoNode, "apsSizeX");
-				packetSizeY = sshsNodeGetShort(sourceInfoNode, "apsSizeY");
-			}
-			else if (sshsNodeAttributeExists(sourceInfoNode, "dataSizeX", SSHS_SHORT)) {
-				packetSizeX = sshsNodeGetShort(sourceInfoNode, "dataSizeX");
-				packetSizeY = sshsNodeGetShort(sourceInfoNode, "dataSizeY");
-			}
-			// Get Size for Custom Plotting
-			if (sshsNodeAttributeExists(sourceInfoNode, "userSizeX", SSHS_INT)) {
-				userSizeX = sshsNodeGetInt(sourceInfoNode, "userSizeX");
-				userSizeY = sshsNodeGetInt(sourceInfoNode, "userSizeY");
-			}
+		// Get sizes from sourceInfo node. visualizer prefix takes precedence,
+		// for APS and DVS images, alternative prefixes are provided, as well
+		// as for generic data visualization.
+		if (sshsNodeAttributeExists(sourceInfoNode, "visualizerSizeX", SSHS_SHORT)) {
+			packetSizeX = sshsNodeGetShort(sourceInfoNode, "visualizerSizeX");
+			packetSizeY = sshsNodeGetShort(sourceInfoNode, "visualizerSizeY");
+		}
+		else if (sshsNodeAttributeExists(sourceInfoNode, "dataSizeX", SSHS_SHORT)) {
+			packetSizeX = sshsNodeGetShort(sourceInfoNode, "dataSizeX");
+			packetSizeY = sshsNodeGetShort(sourceInfoNode, "dataSizeY");
+		}
 
-			if (packetSizeX > sizeX) {
-				sizeX = packetSizeX;
-			}
+		if (packetSizeX > sizeX) {
+			sizeX = packetSizeX;
+		}
 
-			if (packetSizeY > sizeY) {
-				sizeY = packetSizeY;
-			}CAER_EVENT_PACKET_CONTAINER_ITERATOR_END
+		if (packetSizeY > sizeY) {
+			sizeY = packetSizeY;
+		}
+	}
+
+	// Search for renderer in list.
+	caerVisualizerRenderer renderer = NULL;
+
+	char *rendererChoice = sshsNodeGetString(moduleData->moduleNode, "renderer");
+
+	for (size_t i = 0; i < (sizeof(caerVisualizerRendererList) / sizeof(struct caer_visualizer_renderers)); i++) {
+		if (strcmp(rendererChoice, caerVisualizerRendererList[i].name) == 0) {
+			renderer = caerVisualizerRendererList[i].renderer;
+			break;
+		}
+	}
+
+	free(rendererChoice);
+
+	// Search for event handler in list.
+	caerVisualizerEventHandler eventHandler = NULL;
+
+	char *eventHandlerChoice = sshsNodeGetString(moduleData->moduleNode, "eventHandler");
+
+	for (size_t i = 0; i < (sizeof(caerVisualizerHandlerList) / sizeof(struct caer_visualizer_handlers)); i++) {
+		if (strcmp(eventHandlerChoice, caerVisualizerHandlerList[i].name) == 0) {
+			eventHandler = caerVisualizerHandlerList[i].handler;
+			break;
+		}
+	}
+
+	free(eventHandlerChoice);
 
 	moduleData->moduleState = caerVisualizerInit(renderer, eventHandler, sizeX, sizeY, VISUALIZER_DEFAULT_ZOOM, true,
-		moduleData, sourceID, userSizeX, userSizeY);
+		moduleData, sourceID);
 	if (moduleData->moduleState == NULL) {
 		return (false);
 	}
@@ -892,32 +905,22 @@ static void caerVisualizerModuleExit(caerModuleData moduleData) {
 	moduleData->moduleState = NULL;
 }
 
-static void caerVisualizerModuleReset(caerModuleData moduleData, uint16_t resetCallSourceID) {
+static void caerVisualizerModuleReset(caerModuleData moduleData, int16_t resetCallSourceID) {
 	UNUSED_ARGUMENT(resetCallSourceID);
 
 	// Reset counters for statistics on reset.
 	caerVisualizerReset(moduleData->moduleState);
 }
 
-static void caerVisualizerModuleRun(caerModuleData moduleData, size_t argsNumber, va_list args) {
-	UNUSED_ARGUMENT(argsNumber);
-
-	caerVisualizerRenderer renderer = va_arg(args, caerVisualizerRenderer);
-	caerVisualizerEventHandler eventHandler = va_arg(args, caerVisualizerEventHandler);
-	caerEventPacketContainer container = va_arg(args, caerEventPacketContainer);
+static void caerVisualizerModuleRun(caerModuleData moduleData, caerEventPacketContainer in,
+	caerEventPacketContainer *out) {
+	UNUSED_ARGUMENT(out);
 
 	// Without a packet container with events, we cannot initialize or render anything.
-	if (container == NULL || caerEventPacketContainerGetEventsNumber(container) == 0) {
+	if (in == NULL || caerEventPacketContainerGetEventsNumber(in) == 0) {
 		return;
 	}
 
-	// Initialize visualizer. Needs information from a packet (the source ID)!
-	if (moduleData->moduleState == NULL) {
-		if (!caerVisualizerModuleInit(moduleData, renderer, eventHandler, container)) {
-			return;
-		}
-	}
-
 	// Render given packet container.
-	caerVisualizerUpdate(moduleData->moduleState, container);
+	caerVisualizerUpdate(moduleData->moduleState, in);
 }

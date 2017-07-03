@@ -1,57 +1,76 @@
-/*
- * rotatefilter.c
- *
- *  Created on: Feb 2017
- *      Author: Tianyu
- */
-
-#include "rotatefilter.h"
 #include "base/mainloop.h"
 #include "base/module.h"
-#include "ext/buffers.h"
-#include "math.h"
 
-struct RFilter_state {
+#include <math.h>
+#ifndef M_PI
+#define M_PI 3.14159265358979323846f
+#endif
+
+#include <libcaer/events/polarity.h>
+
+struct rotate_state {
 	bool swapXY;
 	bool rotate90deg;
 	bool invertX;
 	bool invertY;
 	float angleDeg;
+	uint16_t sizeX;
+	uint16_t sizeY;
 };
 
-typedef struct RFilter_state *RFilterState;
+typedef struct rotate_state *RotateState;
 
-static bool caerRotatefilterInit(caerModuleData moduleData);
-static void caerRotatefilterRun(caerModuleData moduleData, size_t argsNumber, va_list args);
-static void caerRotatefilterConfig(caerModuleData moduleData);
-static void caerRotatefilterExit(caerModuleData moduleData);
-static void caerRotatefilterReset(caerModuleData moduleData, uint16_t resetCallSourceID);
-static void checkBoundary(int* x, int* y, int sizeX, int sizeY);
+static bool caerRotateInit(caerModuleData moduleData);
+static void caerRotateRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out);
+static void caerRotateConfig(caerModuleData moduleData);
+static void caerRotateExit(caerModuleData moduleData);
+static void checkBoundary(uint16_t *x, uint16_t *y, RotateState state);
 
-static struct caer_module_functions caerRotatefilterFunctions = { .moduleInit = &caerRotatefilterInit, .moduleRun = &caerRotatefilterRun, .moduleConfig = &caerRotatefilterConfig, .moduleExit = &caerRotatefilterExit, .moduleReset = &caerRotatefilterReset };
+static const struct caer_module_functions caerRotateFunctions = { .moduleInit = &caerRotateInit, .moduleRun =
+	&caerRotateRun, .moduleConfig = &caerRotateConfig, .moduleExit = &caerRotateExit };
 
-void caerRotateFilter(uint16_t moduleID, caerPolarityEventPacket polarity) {
-	caerModuleData moduleData = caerMainloopFindModule(moduleID, "RFilter", CAER_MODULE_PROCESSOR);
-	if (moduleData == NULL) {
-		return;
-	}
-	caerModuleSM(&caerRotatefilterFunctions, moduleData, sizeof(struct RFilter_state), 2, polarity);
+static const struct caer_event_stream_in caerRotateInputs[] = {
+	{ .type = POLARITY_EVENT, .number = 1, .readOnly = false } };
+
+static const struct caer_module_info moduleInfo = { .version = 1, .name = "Rotate", .description = "Rotate events.",
+	.type = CAER_MODULE_PROCESSOR, .memSize = sizeof(struct rotate_state), .functions = &caerRotateFunctions,
+	.inputStreams = caerRotateInputs, .inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(caerRotateInputs), .outputStreams =
+		NULL, .outputStreamsSize = 0 };
+
+caerModuleInfo caerModuleGetInfo(void) {
+	return (&moduleInfo);
 }
 
-static bool caerRotatefilterInit(caerModuleData moduleData) {
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "swapXY", false);
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "rotate90deg", false);
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "invertX", false);
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "invertY", false);
-	sshsNodePutFloatIfAbsent(moduleData->moduleNode, "angleDeg", 0.0f);
+static bool caerRotateInit(caerModuleData moduleData) {
+	// Wait for input to be ready. All inputs, once they are up and running, will
+	// have a valid sourceInfo node to query, especially if dealing with data.
+	int16_t *inputs = caerMainloopGetModuleInputIDs(moduleData->moduleID, NULL);
+	if (inputs == NULL) {
+		return (false);
+	}
 
-	RFilterState state = moduleData->moduleState;
+	int16_t sourceID = inputs[0];
+	free(inputs);
 
-	state->swapXY= sshsNodeGetBool(moduleData->moduleNode, "swapXY");
-	state->rotate90deg = sshsNodeGetBool(moduleData->moduleNode, "rotate90deg");
-	state->invertX = sshsNodeGetBool(moduleData->moduleNode, "invertX");
-	state->invertY = sshsNodeGetBool(moduleData->moduleNode, "invertY");
-	state->angleDeg = sshsNodeGetFloat(moduleData->moduleNode, "angleDeg");
+	sshsNodeCreateBool(moduleData->moduleNode, "swapXY", false, SSHS_FLAGS_NORMAL, "Swap X and Y axes.");
+	sshsNodeCreateBool(moduleData->moduleNode, "rotate90deg", false, SSHS_FLAGS_NORMAL, "Rotate by 90 degrees.");
+	sshsNodeCreateBool(moduleData->moduleNode, "invertX", false, SSHS_FLAGS_NORMAL, "Invert X axis.");
+	sshsNodeCreateBool(moduleData->moduleNode, "invertY", false, SSHS_FLAGS_NORMAL, "Invert Y axis.");
+	sshsNodeCreateFloat(moduleData->moduleNode, "angleDeg", 0.0f, 0.0f, 360.0f, SSHS_FLAGS_NORMAL,
+		"Rotate by arbitrary angle.");
+
+	RotateState state = moduleData->moduleState;
+
+	// Update all settings.
+	sshsNode sourceInfo = caerMainloopGetSourceInfo(sourceID);
+	if (sourceInfo == NULL) {
+		return (false);
+	}
+
+	state->sizeX = U16T(sshsNodeGetShort(sourceInfo, "polaritySizeX"));
+	state->sizeY = U16T(sshsNodeGetShort(sourceInfo, "polaritySizeY"));
+
+	caerRotateConfig(moduleData);
 
 	// Add config listeners last, to avoid having them dangling if Init doesn't succeed.
 	sshsNodeAddAttributeListener(moduleData->moduleNode, moduleData, &caerModuleConfigDefaultListener);
@@ -59,115 +78,98 @@ static bool caerRotatefilterInit(caerModuleData moduleData) {
 	// Nothing that can fail here.
 	return (true);
 }
-static void caerRotatefilterRun(caerModuleData moduleData, size_t argsNumber, va_list args) {
-	UNUSED_ARGUMENT(argsNumber);
 
-	caerPolarityEventPacket polarity = va_arg(args, caerPolarityEventPacket);
+static void caerRotateRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out) {
+	UNUSED_ARGUMENT(out);
 
-	//Only process packets with content.
+	caerPolarityEventPacket polarity = (caerPolarityEventPacket) caerEventPacketContainerFindEventPacketByType(in,
+		POLARITY_EVENT);
+
+	// Only process packets with content.
 	if (polarity == NULL) {
 		return;
 	}
 
-	RFilterState state = moduleData->moduleState;
+	RotateState state = moduleData->moduleState;
 
-	int16_t sourceID = caerEventPacketHeaderGetEventSource(&polarity->packetHeader);
-	sshsNode sourceInfoNodeCA = caerMainloopGetSourceInfo((uint16_t)sourceID);
-	sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
-	if (!sshsNodeAttributeExists(sourceInfoNode, "dataSizeX", SSHS_SHORT)) {
-		sshsNodePutShort(sourceInfoNode, "dataSizeX", sshsNodeGetShort(sourceInfoNodeCA, "dvsSizeX"));
-		sshsNodePutShort(sourceInfoNode, "dataSizeY", sshsNodeGetShort(sourceInfoNodeCA, "dvsSizeY"));
-	}
-	int16_t sizeX = sshsNodeGetShort(sourceInfoNode, "dataSizeX");
-	int16_t sizeY = sshsNodeGetShort(sourceInfoNode, "dataSizeY");
-
-	//Iterate over events
+	// Iterate over valid events.
 	CAER_POLARITY_ITERATOR_VALID_START(polarity)
-
 	// Get values on which to operate.
-	int64_t ts = caerPolarityEventGetTimestamp64(caerPolarityIteratorElement, polarity);
-	uint16_t x = caerPolarityEventGetX(caerPolarityIteratorElement);
-	uint16_t y = caerPolarityEventGetY(caerPolarityIteratorElement);
+		uint16_t x = caerPolarityEventGetX(caerPolarityIteratorElement);
+		uint16_t y = caerPolarityEventGetY(caerPolarityIteratorElement);
 
-	if ((caerPolarityIteratorElement == NULL)){
-		continue;
-	}
-	if ((x >= sizeX) || (y >= sizeY)) {
-		continue;
-	}
+		if (state->swapXY) {
+			uint16_t newX = y;
+			uint16_t newY = x;
+			checkBoundary(&newX, &newY, state);
 
-	// do rotate
-	if (state->swapXY){
-		int newX = y;
-		int newY = x;
-		checkBoundary(&newX, &newY, sizeX, sizeY);
-		caerPolarityEventSetX(caerPolarityIteratorElement, newX);
-		caerPolarityEventSetY(caerPolarityIteratorElement, newY);
+			caerPolarityEventSetX(caerPolarityIteratorElement, newX);
+			caerPolarityEventSetY(caerPolarityIteratorElement, newY);
+		}
 
-	}
-	if (state->rotate90deg) {
-		int newX = (sizeY - y - 1);
-		int newY = x;
-		checkBoundary(&newX, &newY, sizeX, sizeY);
-		caerPolarityEventSetX(caerPolarityIteratorElement, newX);
-		caerPolarityEventSetY(caerPolarityIteratorElement, newY);
-	}
-	if (state->invertX) {
-		caerPolarityEventSetX(caerPolarityIteratorElement, (sizeX - x - 1));
-	}
-	if (state->invertY) {
-		caerPolarityEventSetY(caerPolarityIteratorElement, (sizeY - y - 1));
-	}
-	if (state->angleDeg != 0.0f) {
-		float cosAng = cos(state->angleDeg * M_PI / 180.0f);
-		float sinAng = sin(state->angleDeg * M_PI / 180.0f);
-		int x2 = x - sizeX / 2;
-		int y2 = y - sizeY / 2;
-		int x3 = (int)(round(+cosAng * x2 - sinAng * y2));
-		int y3 = (int)(round(+sinAng * x2 + cosAng * y2));
-		int newX = x3 + sizeX / 2;
-		int newY = y3 + sizeY / 2;
-		checkBoundary(&newX, &newY, sizeX, sizeY);
-		caerPolarityEventSetX(caerPolarityIteratorElement, newX);
-		caerPolarityEventSetY(caerPolarityIteratorElement, newY);
-	}
+		if (state->rotate90deg) {
+			uint16_t newX = (state->sizeY - 1 - y);
+			uint16_t newY = x;
+			checkBoundary(&newX, &newY, state);
 
-	CAER_POLARITY_ITERATOR_VALID_END
+			caerPolarityEventSetX(caerPolarityIteratorElement, newX);
+			caerPolarityEventSetY(caerPolarityIteratorElement, newY);
+		}
 
+		if (state->invertX) {
+			caerPolarityEventSetX(caerPolarityIteratorElement, (state->sizeX - 1 - x));
+		}
+
+		if (state->invertY) {
+			caerPolarityEventSetY(caerPolarityIteratorElement, (state->sizeY - 1 - y));
+		}
+
+		if (state->angleDeg != 0.0f) {
+			float cosAng = cosf(state->angleDeg * M_PI / 180.0f);
+			float sinAng = sinf(state->angleDeg * M_PI / 180.0f);
+
+			int x2 = x - (state->sizeX / 2);
+			int y2 = y - (state->sizeY / 2);
+			int x3 = (int) (roundf(+cosAng * x2 - sinAng * y2));
+			int y3 = (int) (roundf(+sinAng * x2 + cosAng * y2));
+
+			uint16_t newX = U16T(x3 + (state->sizeX / 2));
+			uint16_t newY = U16T(y3 + (state->sizeY / 2));
+			checkBoundary(&newX, &newY, state);
+
+			caerPolarityEventSetX(caerPolarityIteratorElement, newX);
+			caerPolarityEventSetY(caerPolarityIteratorElement, newY);
+		}CAER_POLARITY_ITERATOR_VALID_END
 }
 
-static void checkBoundary(int* x, int* y, int sizeX, int sizeY){
-	if (*x >= sizeX) {
-		*x = sizeX-1;
+static void checkBoundary(uint16_t *x, uint16_t *y, RotateState state) {
+	if (*x >= state->sizeX) {
+		*x = state->sizeX - 1;
 	}
-	if (*x < 0){
+	if (*x < 0) {
 		*x = 0;
 	}
-	if (*y >= sizeY) {
-		*y = sizeY-1;
+	if (*y >= state->sizeY) {
+		*y = state->sizeY - 1;
 	}
-	if (*y < 0){
+	if (*y < 0) {
 		*y = 0;
 	}
 }
 
-static void caerRotatefilterConfig(caerModuleData moduleData) {
+static void caerRotateConfig(caerModuleData moduleData) {
 	caerModuleConfigUpdateReset(moduleData);
 
-	RFilterState state = moduleData->moduleState;
-	state->swapXY= sshsNodeGetBool(moduleData->moduleNode, "swapXY");
+	RotateState state = moduleData->moduleState;
+
+	state->swapXY = sshsNodeGetBool(moduleData->moduleNode, "swapXY");
 	state->rotate90deg = sshsNodeGetBool(moduleData->moduleNode, "rotate90deg");
 	state->invertX = sshsNodeGetBool(moduleData->moduleNode, "invertX");
 	state->invertY = sshsNodeGetBool(moduleData->moduleNode, "invertY");
 	state->angleDeg = sshsNodeGetFloat(moduleData->moduleNode, "angleDeg");
 }
 
-static void caerRotatefilterExit(caerModuleData moduleData) {
+static void caerRotateExit(caerModuleData moduleData) {
 	// Remove listener, which can reference invalid memory in userData.
 	sshsNodeRemoveAttributeListener(moduleData->moduleNode, moduleData, &caerModuleConfigDefaultListener);
-
-}
-
-static void caerRotatefilterReset(caerModuleData moduleData, uint16_t resetCallSourceID) {
-	UNUSED_ARGUMENT(resetCallSourceID);
 }

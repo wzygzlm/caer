@@ -1,8 +1,13 @@
-#include "cameracalibration.h"
-#include "calibration_settings.h"
-#include "calibration_wrapper.h"
+#include "main.h"
 #include "base/mainloop.h"
 #include "base/module.h"
+#include <limits.h>
+
+#include "calibration_settings.h"
+#include "calibration_wrapper.h"
+
+#include <libcaer/events/polarity.h>
+#include <libcaer/events/frame.h>
 
 struct CameraCalibrationState_struct {
 	struct CameraCalibrationSettings_struct settings; // Struct containing all settings (shared)
@@ -16,48 +21,100 @@ struct CameraCalibrationState_struct {
 typedef struct CameraCalibrationState_struct *CameraCalibrationState;
 
 static bool caerCameraCalibrationInit(caerModuleData moduleData);
-static void caerCameraCalibrationRun(caerModuleData moduleData, size_t argsNumber, va_list args);
+static void caerCameraCalibrationRun(caerModuleData moduleData, caerEventPacketContainer in,
+	caerEventPacketContainer *out);
 static void caerCameraCalibrationConfig(caerModuleData moduleData);
 static void caerCameraCalibrationExit(caerModuleData moduleData);
 static void updateSettings(caerModuleData moduleData);
 
-static struct caer_module_functions caerCameraCalibrationFunctions = { .moduleInit = &caerCameraCalibrationInit,
+static const struct caer_module_functions CameraCalibrationFunctions = { .moduleInit = &caerCameraCalibrationInit,
 	.moduleRun = &caerCameraCalibrationRun, .moduleConfig = &caerCameraCalibrationConfig, .moduleExit =
 		&caerCameraCalibrationExit };
 
-void caerCameraCalibration(uint16_t moduleID, caerPolarityEventPacket polarity, caerFrameEventPacket frame) {
-	caerModuleData moduleData = caerMainloopFindModule(moduleID, "CameraCalibration", CAER_MODULE_PROCESSOR);
-	if (moduleData == NULL) {
-		return;
-	}
+static const struct caer_event_stream_in CameraCalibrationInputs[] = { { .type = POLARITY_EVENT, .number = 1,
+	.readOnly = false }, { .type = FRAME_EVENT, .number = 1, .readOnly = false } };
 
-	caerModuleSM(&caerCameraCalibrationFunctions, moduleData, sizeof(struct CameraCalibrationState_struct), 2, polarity,
-		frame);
+static const struct caer_module_info CameraCalibrationInfo = { .version = 1, .name = "CameraCalibration", .description =
+	"Lens distortion calibration, for undistortion of both events and frames.", .type = CAER_MODULE_PROCESSOR, .memSize =
+	sizeof(struct CameraCalibrationState_struct), .functions = &CameraCalibrationFunctions, .inputStreams =
+	CameraCalibrationInputs, .inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(CameraCalibrationInputs), .outputStreams =
+	NULL, .outputStreamsSize = 0, };
+
+caerModuleInfo caerModuleGetInfo(void) {
+	return (&CameraCalibrationInfo);
 }
 
 static bool caerCameraCalibrationInit(caerModuleData moduleData) {
+	// Wait for input to be ready. All inputs, once they are up and running, will
+	// have a valid sourceInfo node to query, especially if dealing with data.
+	size_t inputsSize;
+	int16_t *inputs = caerMainloopGetModuleInputIDs(moduleData->moduleID, &inputsSize);
+	if (inputs == NULL) {
+		return (false);
+	}
+
+	int16_t sourceID = inputs[0];
+	free(inputs);
+
+	// Both input packets (polarity and frame) must be from the same source, which
+	// means inputSize should be 1 here (one module from which both come). If it isn't,
+	// it means we connected the module wrongly.
+	if (inputsSize != 1) {
+		caerModuleLog(moduleData, CAER_LOG_ERROR,
+			"Polarity and Frame inputs come from two different sources. Both must be from the same source!");
+		return (false);
+	}
+
 	CameraCalibrationState state = moduleData->moduleState;
 
 	// Create config settings.
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "doCalibration", false); // Do calibration using live images
-	sshsNodePutStringIfAbsent(moduleData->moduleNode, "saveFileName", "camera_calib.xml"); // The name of the file where to write the calculated calibration settings
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "captureDelay", 500000); // Only use a frame for calibration if at least this much time has passed
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "minNumberOfPoints", 20); // Minimum number of points to start calibration with.
-	sshsNodePutFloatIfAbsent(moduleData->moduleNode, "maxTotalError", 0.30f); // Maximum total average error allowed (in pixels).
-	sshsNodePutStringIfAbsent(moduleData->moduleNode, "calibrationPattern", "chessboard"); // One of the Chessboard, circles, or asymmetric circle pattern
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "boardWidth", 9); // The size of the board (width)
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "boardHeigth", 5); // The size of the board (heigth)
-	sshsNodePutFloatIfAbsent(moduleData->moduleNode, "boardSquareSize", 1.0f); // The size of a square in your defined unit (point, millimeter, etc.)
-	sshsNodePutFloatIfAbsent(moduleData->moduleNode, "aspectRatio", 0); // The aspect ratio
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "assumeZeroTangentialDistortion", false); // Assume zero tangential distortion
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "fixPrincipalPointAtCenter", false); // Fix the principal point at the center
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "useFisheyeModel", false); // Use Fisheye camera model for calibration
+	sshsNodeCreateBool(moduleData->moduleNode, "doCalibration", false, SSHS_FLAGS_NORMAL,
+		"Do calibration using live images.");
+	sshsNodeCreateString(moduleData->moduleNode, "saveFileName", "camera_calib.xml", 2, PATH_MAX, SSHS_FLAGS_NORMAL,
+		"The name of the file where to write the calculated calibration settings.");
+	sshsNodeCreateInt(moduleData->moduleNode, "captureDelay", 500000, 0, 60000000, SSHS_FLAGS_NORMAL,
+		"Only use a frame for calibration if at least this much time has passed.");
+	sshsNodeCreateInt(moduleData->moduleNode, "minNumberOfPoints", 20, 3, 100, SSHS_FLAGS_NORMAL,
+		"Minimum number of points to start calibration with.");
+	sshsNodeCreateFloat(moduleData->moduleNode, "maxTotalError", 0.30f, 0.0f, 1.0f, SSHS_FLAGS_NORMAL,
+		"Maximum total average error allowed (in pixels).");
+	sshsNodeCreateString(moduleData->moduleNode, "calibrationPattern", "chessboard", 10, 21, SSHS_FLAGS_NORMAL,
+		"Pattern to run calibration with.");
+	sshsNodeRemoveAttribute(moduleData->moduleNode, "calibrationPatternListOptions", SSHS_STRING);
+	sshsNodeCreateString(moduleData->moduleNode, "calibrationPatternListOptions",
+		"chessboard,circlesGrid,asymmetricCirclesGrid", 0, 100, SSHS_FLAGS_READ_ONLY,
+		"Available calibration patterns.");
+	sshsNodeCreateInt(moduleData->moduleNode, "boardWidth", 9, 1, 64, SSHS_FLAGS_NORMAL,
+		"The size of the board (width).");
+	sshsNodeCreateInt(moduleData->moduleNode, "boardHeigth", 5, 1, 64, SSHS_FLAGS_NORMAL,
+		"The size of the board (heigth).");
+	sshsNodeCreateFloat(moduleData->moduleNode, "boardSquareSize", 1.0f, 0.0f, 1000.0f, SSHS_FLAGS_NORMAL,
+		"The size of a square in your defined unit (point, millimeter, etc.).");
+	sshsNodeCreateFloat(moduleData->moduleNode, "aspectRatio", 0.0f, 0.0f, 1.0f, SSHS_FLAGS_NORMAL,
+		"The aspect ratio.");
+	sshsNodeCreateBool(moduleData->moduleNode, "assumeZeroTangentialDistortion", false, SSHS_FLAGS_NORMAL,
+		"Assume zero tangential distortion.");
+	sshsNodeCreateBool(moduleData->moduleNode, "fixPrincipalPointAtCenter", false, SSHS_FLAGS_NORMAL,
+		"Fix the principal point at the center.");
+	sshsNodeCreateBool(moduleData->moduleNode, "useFisheyeModel", false, SSHS_FLAGS_NORMAL,
+		"Use fisheye camera model for calibration.");
 
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "doUndistortion", false); // Do undistortion of incoming images using calibration loaded from file
-	sshsNodePutStringIfAbsent(moduleData->moduleNode, "loadFileName", "camera_calib.xml"); // The name of the file from which to load the calibration settings for undistortion
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "fitAllPixels", false); // Whether to fit all the input pixels (black borders) or maximize the image, at the cost of loosing some pixels.
+	sshsNodeCreateBool(moduleData->moduleNode, "doUndistortion", false, SSHS_FLAGS_NORMAL,
+		"Do undistortion of incoming images using calibration loaded from file.");
+	sshsNodeCreateString(moduleData->moduleNode, "loadFileName", "camera_calib.xml", 2, PATH_MAX, SSHS_FLAGS_NORMAL,
+		"The name of the file from which to load the calibration settings for undistortion.");
+	sshsNodeCreateBool(moduleData->moduleNode, "fitAllPixels", false, SSHS_FLAGS_NORMAL,
+		"Whether to fit all the input pixels (black borders) or maximize the image, at the cost of loosing some pixels.");
 
 	// Update all settings.
+	sshsNode sourceInfo = caerMainloopGetSourceInfo(sourceID);
+	if (sourceInfo == NULL) {
+		return (false);
+	}
+
+	state->settings.imageWidth = U32T(sshsNodeGetShort(sourceInfo, "frameSizeX"));
+	state->settings.imageHeigth = U32T(sshsNodeGetShort(sourceInfo, "frameSizeY"));
+
 	updateSettings(moduleData);
 
 	// Initialize C++ class for OpenCV integration.
@@ -104,7 +161,7 @@ static void updateSettings(caerModuleData moduleData) {
 		state->settings.calibrationPattern = CAMCALIB_ASYMMETRIC_CIRCLES_GRID;
 	}
 	else {
-		caerLog(CAER_LOG_ERROR, moduleData->moduleSubSystemString,
+		caerModuleLog(moduleData, CAER_LOG_ERROR,
 			"Invalid calibration pattern defined. Select one of: chessboard, circlesGrid or asymmetricCirclesGrid. Defaulting to chessboard.");
 
 		state->settings.calibrationPattern = CAMCALIB_CHESSBOARD;
@@ -151,45 +208,20 @@ static void caerCameraCalibrationExit(caerModuleData moduleData) {
 	free(state->settings.loadFileName);
 }
 
-static void caerCameraCalibrationRun(caerModuleData moduleData, size_t argsNumber, va_list args) {
-	UNUSED_ARGUMENT(argsNumber);
+static void caerCameraCalibrationRun(caerModuleData moduleData, caerEventPacketContainer in,
+	caerEventPacketContainer *out) {
+	UNUSED_ARGUMENT(out);
 
-	// Interpret variable arguments (same as above in main function).
-	caerPolarityEventPacket polarity = va_arg(args, caerPolarityEventPacket);
-	caerFrameEventPacket frame = va_arg(args, caerFrameEventPacket);
+	caerPolarityEventPacket polarity = (caerPolarityEventPacket) caerEventPacketContainerFindEventPacketByType(in,
+		POLARITY_EVENT);
+	caerFrameEventPacket frame = (caerFrameEventPacket) caerEventPacketContainerFindEventPacketByType(in, FRAME_EVENT);
 
 	CameraCalibrationState state = moduleData->moduleState;
-
-	// As soon as we have a packet, we can get the source ID and initialize the image size.
-	if (polarity != NULL || frame != NULL) {
-		int16_t sourceID = -1;
-
-		if (polarity != NULL) {
-			sourceID = caerEventPacketHeaderGetEventSource(&polarity->packetHeader);
-		}
-
-		if (frame != NULL) {
-			sourceID = caerEventPacketHeaderGetEventSource(&frame->packetHeader);
-		}
-
-		// At this point we must have a valid source ID.
-		// Get size information from source.
-		sshsNode sourceInfoNode = caerMainloopGetSourceInfo(U16T(sourceID));
-		if (sourceInfoNode == NULL) {
-			// This should never happen, but we handle it gracefully.
-			caerLog(CAER_LOG_ERROR, moduleData->moduleSubSystemString,
-				"Failed to get source info to setup calibration settings.");
-			return;
-		}
-
-		state->settings.imageWidth = U32T(sshsNodeGetShort(sourceInfoNode, "apsSizeX"));
-		state->settings.imageHeigth = U32T(sshsNodeGetShort(sourceInfoNode, "apsSizeY"));
-	}
 
 	// Calibration is done only using frames.
 	if (state->settings.doCalibration && !state->calibrationCompleted && frame != NULL) {
 		CAER_FRAME_ITERATOR_VALID_START(frame)
-			// Only work on new frames if enough time has passed between this and the last used one.
+		// Only work on new frames if enough time has passed between this and the last used one.
 			uint64_t currTimestamp = U64T(caerFrameEventGetTSStartOfFrame64(caerFrameIteratorElement, frame));
 
 			// If enough time has passed, try to add a new point set.
@@ -197,10 +229,8 @@ static void caerCameraCalibrationRun(caerModuleData moduleData, size_t argsNumbe
 				state->lastFrameTimestamp = currTimestamp;
 
 				bool foundPoint = calibration_findNewPoints(state->cpp_class, caerFrameIteratorElement);
-				caerLog(CAER_LOG_WARNING, moduleData->moduleSubSystemString,
-					"Searching for new point set, result = %d.", foundPoint);
-			}
-		CAER_FRAME_ITERATOR_VALID_END
+				caerModuleLog(moduleData, CAER_LOG_WARNING, "Searching for new point set, result = %d.", foundPoint);
+			}CAER_FRAME_ITERATOR_VALID_END
 
 		// If enough points have been found in this round, try doing calibration.
 		size_t foundPoints = calibration_foundPoints(state->cpp_class);
@@ -210,8 +240,8 @@ static void caerCameraCalibrationRun(caerModuleData moduleData, size_t argsNumbe
 
 			double totalAvgError;
 			state->calibrationCompleted = calibration_runCalibrationAndSave(state->cpp_class, &totalAvgError);
-			caerLog(CAER_LOG_WARNING, moduleData->moduleSubSystemString,
-				"Executing calibration, result = %d, error = %f.", state->calibrationCompleted, totalAvgError);
+			caerModuleLog(moduleData, CAER_LOG_WARNING, "Executing calibration, result = %d, error = %f.",
+				state->calibrationCompleted, totalAvgError);
 		}
 	}
 

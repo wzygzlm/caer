@@ -1,6 +1,4 @@
 #include "calibration.hpp"
-#include <fstream>
-#include <iostream>
 
 StereoCalibration::StereoCalibration(StereoCalibrationSettings settings) {
 	this->settings = settings;
@@ -179,14 +177,14 @@ void StereoCalibration::addStereoCalib(vector<Point2f>*vec1, vector<Point2f>*vec
 	return;
 }
 
-void * StereoCalibration::findNewPoints(caerFrameEvent frame, int camid) {
+void * StereoCalibration::findNewPoints(caerFrameEventConst frame, int camid) {
 	if (frame == NULL || !caerFrameEventIsValid(frame)) {
 		return(NULL);
 	}
 
 	// Initialize OpenCV Mat based on caerFrameEvent data directly (no image copy).
-	Size frameSize(caerFrameEventGetLengthX(frame), caerFrameEventGetLengthY(frame));
-	Mat orig(frameSize, CV_16UC(caerFrameEventGetChannelNumber(frame)), caerFrameEventGetPixelArrayUnsafe(frame));
+	const Size frameSize(caerFrameEventGetLengthX(frame), caerFrameEventGetLengthY(frame));
+	const Mat orig(frameSize, CV_16UC(caerFrameEventGetChannelNumber(frame)), (void *) caerFrameEventGetPixelArrayUnsafeConst(frame));
 
 	imageSize.width = caerFrameEventGetLengthX(frame);
 	imageSize.height = caerFrameEventGetLengthY(frame);
@@ -267,6 +265,8 @@ size_t StereoCalibration::foundPoints(int camid) {
 		return (imagePoints_cam0.size());
 	if (camid == 1)
 		return (imagePoints_cam1.size());
+
+	return (0);
 }
 
 /*bool StereoCalibration::loadStereoCalibration(StereoCalibrationSettings settings) {

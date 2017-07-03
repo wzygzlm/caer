@@ -2,15 +2,15 @@
 
 #if defined(__GNUC__) || defined(__clang__)
 	#if defined(__USE_MINGW_ANSI_STDIO)
-		#define ATTRIBUTE_FORMAT __attribute__ ((format (gnu_printf, 2, 3)))
+		#define ATTRIBUTE_FORMAT(N) __attribute__ ((format (gnu_printf, N, (N+1))))
 	#else
-		#define ATTRIBUTE_FORMAT __attribute__ ((format (printf, 2, 3)))
+		#define ATTRIBUTE_FORMAT(N) __attribute__ ((format (printf, N, (N+1))))
 	#endif
 #else
-	#define ATTRIBUTE_FORMAT
+	#define ATTRIBUTE_FORMAT(N)
 #endif
 
-static void sshsHelperAllocSprintf(char **strp, const char *format, ...) ATTRIBUTE_FORMAT;
+static void sshsHelperAllocSprintf(char **strp, const char *format, ...) ATTRIBUTE_FORMAT(2);
 
 // Put NULL in *strp on failure (memory allocation failure).
 static void sshsHelperAllocSprintf(char **strp, const char *format, ...) {

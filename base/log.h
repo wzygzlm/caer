@@ -10,9 +10,16 @@
 
 #include "main.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 extern int CAER_LOG_FILE_FD;
 
 void caerLogInit(void);
-void caerLogDisableConsole(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* LOG_H_ */

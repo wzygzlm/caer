@@ -7,13 +7,15 @@ extern "C" {
 
 #include "calibration_settings.h"
 
+#include <libcaer/events/frame.h>
+
 typedef struct StereoCalibration StereoCalibration;
 
 StereoCalibration *StereoCalibration_init(StereoCalibrationSettings settings);
 void StereoCalibration_destroy(StereoCalibration *calibClass);
 void StereoCalibration_updateSettings(StereoCalibration *calibClass);
 void * StereoCalibration_findNewPoints(StereoCalibration *calibClass,
-		caerFrameEvent frame, int camid);
+		caerFrameEventConst frame, int camid);
 void StereoCalibration_freeStereoVec(void * vec1, void * vec2);
 bool StereoCalibration_stereoCalibrate(StereoCalibration *calibClass,
 		StereoCalibrationSettings settings);

@@ -1,42 +1,34 @@
-/*
- * dvs128.c
- *
- *  Created on: Nov 26, 2013
- *      Author: chtekk
- */
-
-#include "dvs128.h"
+#include "main.h"
 #include "base/mainloop.h"
 #include "base/module.h"
 
+#include <libcaer/events/packetContainer.h>
+#include <libcaer/events/special.h>
+#include <libcaer/events/polarity.h>
 #include <libcaer/devices/dvs128.h>
 
 static bool caerInputDVS128Init(caerModuleData moduleData);
-static void caerInputDVS128Run(caerModuleData moduleData, size_t argsNumber, va_list args);
+static void caerInputDVS128Run(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out);
 // CONFIG: Nothing to do here in the main thread!
 // All configuration is asynchronous through SSHS listeners.
 static void caerInputDVS128Exit(caerModuleData moduleData);
 
-static struct caer_module_functions caerInputDVS128Functions = { .moduleInit = &caerInputDVS128Init, .moduleRun =
+static const struct caer_module_functions DVS128Functions = { .moduleInit = &caerInputDVS128Init, .moduleRun =
 	&caerInputDVS128Run, .moduleConfig = NULL, .moduleExit = &caerInputDVS128Exit };
 
-caerEventPacketContainer caerInputDVS128(uint16_t moduleID) {
-	caerModuleData moduleData = caerMainloopFindModule(moduleID, "DVS128", CAER_MODULE_INPUT);
-	if (moduleData == NULL) {
-		return (NULL);
-	}
+static const struct caer_event_stream_out DVS128Outputs[] = { { .type = SPECIAL_EVENT }, { .type = POLARITY_EVENT } };
 
-	caerEventPacketContainer result = NULL;
+static const struct caer_module_info DVS128Info = { .version = 1, .name = "DVS128", .description =
+	"Connects to a DVS128 camera to get data.", .type = CAER_MODULE_INPUT, .memSize = 0, .functions = &DVS128Functions,
+	.inputStreams = NULL, .inputStreamsSize = 0, .outputStreams = DVS128Outputs, .outputStreamsSize =
+		CAER_EVENT_STREAM_OUT_SIZE(DVS128Outputs), };
 
-	caerModuleSM(&caerInputDVS128Functions, moduleData, 0, 1, &result);
-
-	return (result);
+caerModuleInfo caerModuleGetInfo(void) {
+	return (&DVS128Info);
 }
 
 static void createDefaultConfiguration(caerModuleData moduleData);
 static void sendDefaultConfiguration(caerModuleData moduleData);
-static void mainloopDataNotifyIncrease(void *p);
-static void mainloopDataNotifyDecrease(void *p);
 static void moduleShutdownNotify(void *p);
 static void biasConfigSend(sshsNode node, caerModuleData moduleData);
 static void biasConfigListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
@@ -50,23 +42,29 @@ static void usbConfigListener(sshsNode node, void *userData, enum sshs_node_attr
 static void systemConfigSend(sshsNode node, caerModuleData moduleData);
 static void systemConfigListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
+static void logLevelListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
+	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
 
 static bool caerInputDVS128Init(caerModuleData moduleData) {
-	caerLog(CAER_LOG_DEBUG, moduleData->moduleSubSystemString, "Initializing module ...");
+	caerModuleLog(moduleData, CAER_LOG_DEBUG, "Initializing module ...");
 
 	// USB port/bus/SN settings/restrictions.
 	// These can be used to force connection to one specific device at startup.
-	sshsNodePutShortIfAbsent(moduleData->moduleNode, "busNumber", 0);
-	sshsNodePutShortIfAbsent(moduleData->moduleNode, "devAddress", 0);
-	sshsNodePutStringIfAbsent(moduleData->moduleNode, "serialNumber", "");
+	sshsNodeCreateShort(moduleData->moduleNode, "busNumber", 0, 0, INT16_MAX, SSHS_FLAGS_NORMAL,
+		"USB bus number restriction.");
+	sshsNodeCreateShort(moduleData->moduleNode, "devAddress", 0, 0, INT16_MAX, SSHS_FLAGS_NORMAL,
+		"USB device address restriction.");
+	sshsNodeCreateString(moduleData->moduleNode, "serialNumber", "", 0, 8, SSHS_FLAGS_NORMAL,
+		"USB serial number restriction.");
 
 	// Add auto-restart setting.
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "autoRestart", true);
+	sshsNodeCreateBool(moduleData->moduleNode, "autoRestart", true, SSHS_FLAGS_NORMAL,
+		"Automatically restart module after shutdown.");
 
 	// Start data acquisition, and correctly notify mainloop of new data and module of exceptional
 	// shutdown cases (device pulled, ...).
 	char *serialNumber = sshsNodeGetString(moduleData->moduleNode, "serialNumber");
-	moduleData->moduleState = caerDeviceOpen(moduleData->moduleID, CAER_DEVICE_DVS128,
+	moduleData->moduleState = caerDeviceOpen(U16T(moduleData->moduleID), CAER_DEVICE_DVS128,
 		U8T(sshsNodeGetShort(moduleData->moduleNode, "busNumber")),
 		U8T(sshsNodeGetShort(moduleData->moduleNode, "devAddress")), serialNumber);
 	free(serialNumber);
@@ -76,22 +74,33 @@ static bool caerInputDVS128Init(caerModuleData moduleData) {
 		return (false);
 	}
 
+	// Initialize per-device log-level to module log-level.
+	caerDeviceConfigSet(moduleData->moduleState, CAER_HOST_CONFIG_LOG, CAER_HOST_CONFIG_LOG_LEVEL,
+		atomic_load(&moduleData->moduleLogLevel));
+
 	// Put global source information into SSHS.
 	struct caer_dvs128_info devInfo = caerDVS128InfoGet(moduleData->moduleState);
 
 	sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
 
-	sshsNodePutLong(sourceInfoNode, "highestTimestamp", -1);
+	sshsNodeCreateLong(sourceInfoNode, "highestTimestamp", -1, -1, INT64_MAX,
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Highest timestamp generated by device.");
 
-	sshsNodePutShort(sourceInfoNode, "logicVersion", devInfo.logicVersion);
-	sshsNodePutBool(sourceInfoNode, "deviceIsMaster", devInfo.deviceIsMaster);
+	sshsNodeCreateShort(sourceInfoNode, "logicVersion", devInfo.logicVersion, devInfo.logicVersion,
+		devInfo.logicVersion, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Device FPGA logic version.");
+	sshsNodeCreateBool(sourceInfoNode, "deviceIsMaster", devInfo.deviceIsMaster,
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Timestamp synchronization support: device master status.");
 
-	sshsNodePutShort(sourceInfoNode, "dvsSizeX", devInfo.dvsSizeX);
-	sshsNodePutShort(sourceInfoNode, "dvsSizeY", devInfo.dvsSizeY);
+	sshsNodeCreateShort(sourceInfoNode, "polaritySizeX", devInfo.dvsSizeX, devInfo.dvsSizeX, devInfo.dvsSizeX,
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Polarity events width.");
+	sshsNodeCreateShort(sourceInfoNode, "polaritySizeY", devInfo.dvsSizeY, devInfo.dvsSizeY, devInfo.dvsSizeY,
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Polarity events height.");
 
 	// Put source information for generic visualization, to be used to display and debug filter information.
-	sshsNodePutShort(sourceInfoNode, "dataSizeX", devInfo.dvsSizeX);
-	sshsNodePutShort(sourceInfoNode, "dataSizeY", devInfo.dvsSizeY);
+	sshsNodeCreateShort(sourceInfoNode, "dataSizeX", devInfo.dvsSizeX, devInfo.dvsSizeX, devInfo.dvsSizeX,
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Data width.");
+	sshsNodeCreateShort(sourceInfoNode, "dataSizeY", devInfo.dvsSizeY, devInfo.dvsSizeY, devInfo.dvsSizeY,
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Data height.");
 
 	// Generate source string for output modules.
 	size_t sourceStringLength = (size_t) snprintf(NULL, 0, "#Source %" PRIu16 ": DVS128\r\n", moduleData->moduleID);
@@ -100,7 +109,8 @@ static bool caerInputDVS128Init(caerModuleData moduleData) {
 	snprintf(sourceString, sourceStringLength + 1, "#Source %" PRIu16 ": DVS128\r\n", moduleData->moduleID);
 	sourceString[sourceStringLength] = '\0';
 
-	sshsNodePutString(sourceInfoNode, "sourceString", sourceString);
+	sshsNodeCreateString(sourceInfoNode, "sourceString", sourceString, sourceStringLength, sourceStringLength,
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Device source information.");
 
 	// Generate sub-system string for module.
 	size_t subSystemStringLength = (size_t) snprintf(NULL, 0, "%s[SN %s, %" PRIu8 ":%" PRIu8 "]",
@@ -130,8 +140,9 @@ static bool caerInputDVS128Init(caerModuleData moduleData) {
 	sendDefaultConfiguration(moduleData);
 
 	// Start data acquisition.
-	bool ret = caerDeviceDataStart(moduleData->moduleState, &mainloopDataNotifyIncrease, &mainloopDataNotifyDecrease,
-		caerMainloopGetReference(), &moduleShutdownNotify, moduleData->moduleNode);
+	bool ret = caerDeviceDataStart(moduleData->moduleState, &caerMainloopDataNotifyIncrease,
+		&caerMainloopDataNotifyDecrease,
+		NULL, &moduleShutdownNotify, moduleData->moduleNode);
 
 	if (!ret) {
 		// Failed to start data acquisition, close device and exit.
@@ -153,11 +164,15 @@ static bool caerInputDVS128Init(caerModuleData moduleData) {
 	sshsNode sysNode = sshsGetRelativeNode(moduleData->moduleNode, "system/");
 	sshsNodeAddAttributeListener(sysNode, moduleData, &systemConfigListener);
 
+	sshsNodeAddAttributeListener(moduleData->moduleNode, moduleData, &logLevelListener);
+
 	return (true);
 }
 
 static void caerInputDVS128Exit(caerModuleData moduleData) {
 	// Remove listener, which can reference invalid memory in userData.
+	sshsNodeRemoveAttributeListener(moduleData->moduleNode, moduleData, &logLevelListener);
+
 	sshsNode biasNode = sshsGetRelativeNode(moduleData->moduleNode, "bias/");
 	sshsNodeRemoveAttributeListener(biasNode, moduleData, &biasConfigListener);
 
@@ -174,29 +189,28 @@ static void caerInputDVS128Exit(caerModuleData moduleData) {
 
 	caerDeviceClose((caerDeviceHandle *) &moduleData->moduleState);
 
+	// Clear sourceInfo node.
+	sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
+	sshsNodeRemoveAllAttributes(sourceInfoNode);
+
 	if (sshsNodeGetBool(moduleData->moduleNode, "autoRestart")) {
 		// Prime input module again so that it will try to restart if new devices detected.
 		sshsNodePutBool(moduleData->moduleNode, "running", true);
 	}
 }
 
-static void caerInputDVS128Run(caerModuleData moduleData, size_t argsNumber, va_list args) {
-	UNUSED_ARGUMENT(argsNumber);
+static void caerInputDVS128Run(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out) {
+	UNUSED_ARGUMENT(in);
 
-	// Interpret variable arguments (same as above in main function).
-	caerEventPacketContainer *container = va_arg(args, caerEventPacketContainer *);
+	*out = caerDeviceDataGet(moduleData->moduleState);
 
-	*container = caerDeviceDataGet(moduleData->moduleState);
-
-	if (*container != NULL) {
-		caerMainloopFreeAfterLoop((void (*)(void *)) &caerEventPacketContainerFree, *container);
-
+	if (*out != NULL) {
 		sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
-		sshsNodePutLong(sourceInfoNode, "highestTimestamp",
-			caerEventPacketContainerGetHighestEventTimestamp(*container));
+		sshsNodeUpdateReadOnlyAttribute(sourceInfoNode, "highestTimestamp", SSHS_LONG, (union sshs_node_attr_value ) {
+				.ilong = caerEventPacketContainerGetHighestEventTimestamp(*out) });
 
 		// Detect timestamp reset and call all reset functions for processors and outputs.
-		caerEventPacketHeader special = caerEventPacketContainerGetEventPacket(*container, SPECIAL_EVENT);
+		caerEventPacketHeader special = caerEventPacketContainerGetEventPacket(*out, SPECIAL_EVENT);
 
 		if ((special != NULL) && (caerEventPacketHeaderGetEventNumber(special) == 1)
 			&& (caerSpecialEventPacketFindEventByType((caerSpecialEventPacket) special, TIMESTAMP_RESET) != NULL)) {
@@ -205,7 +219,8 @@ static void caerInputDVS128Run(caerModuleData moduleData, size_t argsNumber, va_
 
 			// Update master/slave information.
 			struct caer_dvs128_info devInfo = caerDVS128InfoGet(moduleData->moduleState);
-			sshsNodePutBool(sourceInfoNode, "deviceIsMaster", devInfo.deviceIsMaster);
+			sshsNodeUpdateReadOnlyAttribute(sourceInfoNode, "deviceIsMaster", SSHS_BOOL, (union sshs_node_attr_value ) {
+					.boolean = devInfo.deviceIsMaster });
 		}
 	}
 }
@@ -216,38 +231,48 @@ static void createDefaultConfiguration(caerModuleData moduleData) {
 
 	// Set default biases, from DVS128Fast.xml settings.
 	sshsNode biasNode = sshsGetRelativeNode(moduleData->moduleNode, "bias/");
-	sshsNodePutIntIfAbsent(biasNode, "cas", 1992);
-	sshsNodePutIntIfAbsent(biasNode, "injGnd", 1108364);
-	sshsNodePutIntIfAbsent(biasNode, "reqPd", 16777215);
-	sshsNodePutIntIfAbsent(biasNode, "puX", 8159221);
-	sshsNodePutIntIfAbsent(biasNode, "diffOff", 132);
-	sshsNodePutIntIfAbsent(biasNode, "req", 309590);
-	sshsNodePutIntIfAbsent(biasNode, "refr", 969);
-	sshsNodePutIntIfAbsent(biasNode, "puY", 16777215);
-	sshsNodePutIntIfAbsent(biasNode, "diffOn", 209996);
-	sshsNodePutIntIfAbsent(biasNode, "diff", 13125);
-	sshsNodePutIntIfAbsent(biasNode, "foll", 271);
-	sshsNodePutIntIfAbsent(biasNode, "pr", 217);
+	sshsNodeCreateInt(biasNode, "cas", 1992, 0, (0x01 << 24) - 1, SSHS_FLAGS_NORMAL, "Photoreceptor cascode.");
+	sshsNodeCreateInt(biasNode, "injGnd", 1108364, 0, (0x01 << 24) - 1, SSHS_FLAGS_NORMAL,
+		"Differentiator switch level.");
+	sshsNodeCreateInt(biasNode, "reqPd", 16777215, 0, (0x01 << 24) - 1, SSHS_FLAGS_NORMAL, "AER request pull-down.");
+	sshsNodeCreateInt(biasNode, "puX", 8159221, 0, (0x01 << 24) - 1, SSHS_FLAGS_NORMAL,
+		"2nd dimension AER static pull-up.");
+	sshsNodeCreateInt(biasNode, "diffOff", 132, 0, (0x01 << 24) - 1, SSHS_FLAGS_NORMAL,
+		"OFF threshold - lower to raise threshold.");
+	sshsNodeCreateInt(biasNode, "req", 309590, 0, (0x01 << 24) - 1, SSHS_FLAGS_NORMAL, "OFF request inverter bias.");
+	sshsNodeCreateInt(biasNode, "refr", 969, 0, (0x01 << 24) - 1, SSHS_FLAGS_NORMAL, "Refractory period.");
+	sshsNodeCreateInt(biasNode, "puY", 16777215, 0, (0x01 << 24) - 1, SSHS_FLAGS_NORMAL,
+		"1st dimension AER static pull-up.");
+	sshsNodeCreateInt(biasNode, "diffOn", 209996, 0, (0x01 << 24) - 1, SSHS_FLAGS_NORMAL,
+		"ON threshold - higher to raise threshold.");
+	sshsNodeCreateInt(biasNode, "diff", 13125, 0, (0x01 << 24) - 1, SSHS_FLAGS_NORMAL, "Differentiator.");
+	sshsNodeCreateInt(biasNode, "foll", 271, 0, (0x01 << 24) - 1, SSHS_FLAGS_NORMAL,
+		"Source follower buffer between photoreceptor and differentiator.");
+	sshsNodeCreateInt(biasNode, "pr", 217, 0, (0x01 << 24) - 1, SSHS_FLAGS_NORMAL, "Photoreceptor.");
 
 	// DVS settings.
 	sshsNode dvsNode = sshsGetRelativeNode(moduleData->moduleNode, "dvs/");
-	sshsNodePutBoolIfAbsent(dvsNode, "Run", true);
-	sshsNodePutBoolIfAbsent(dvsNode, "TimestampReset", false);
-	sshsNodePutBoolIfAbsent(dvsNode, "ArrayReset", false);
+	sshsNodeCreateBool(dvsNode, "Run", true, SSHS_FLAGS_NORMAL, "Run DVS to get polarity events.");
+	sshsNodeCreateBool(dvsNode, "TimestampReset", false, SSHS_FLAGS_NOTIFY_ONLY, "Reset timestamps to zero.");
+	sshsNodeCreateBool(dvsNode, "ArrayReset", false, SSHS_FLAGS_NOTIFY_ONLY, "Reset DVS pixel array.");
 
 	// USB buffer settings.
 	sshsNode usbNode = sshsGetRelativeNode(moduleData->moduleNode, "usb/");
-	sshsNodePutIntIfAbsent(usbNode, "BufferNumber", 8);
-	sshsNodePutIntIfAbsent(usbNode, "BufferSize", 4096);
+	sshsNodeCreateInt(usbNode, "BufferNumber", 8, 2, 128, SSHS_FLAGS_NORMAL, "Number of USB transfers.");
+	sshsNodeCreateInt(usbNode, "BufferSize", 4096, 512, 32768, SSHS_FLAGS_NORMAL,
+		"Size in bytes of data buffers for USB transfers.");
 
 	sshsNode sysNode = sshsGetRelativeNode(moduleData->moduleNode, "system/");
 
 	// Packet settings (size (in events) and time interval (in µs)).
-	sshsNodePutIntIfAbsent(sysNode, "PacketContainerMaxPacketSize", 4096);
-	sshsNodePutIntIfAbsent(sysNode, "PacketContainerInterval", 10000);
+	sshsNodeCreateInt(sysNode, "PacketContainerMaxPacketSize", 4096, 1, 10 * 1024 * 1024, SSHS_FLAGS_NORMAL,
+		"Maximum packet size in events, when any packet reaches this size, the EventPacketContainer is sent for processing.");
+	sshsNodeCreateInt(sysNode, "PacketContainerInterval", 10000, 1, 120 * 1000 * 1000, SSHS_FLAGS_NORMAL,
+		"Time interval in µs, each sent EventPacketContainer will span this interval.");
 
 	// Ring-buffer setting (only changes value on module init/shutdown cycles).
-	sshsNodePutIntIfAbsent(sysNode, "DataExchangeBufferSize", 64);
+	sshsNodeCreateInt(sysNode, "DataExchangeBufferSize", 64, 8, 1024, SSHS_FLAGS_NORMAL,
+		"Size of EventPacketContainer queue, used for transfers between data acquisition thread and mainloop.");
 }
 
 static void sendDefaultConfiguration(caerModuleData moduleData) {
@@ -256,20 +281,6 @@ static void sendDefaultConfiguration(caerModuleData moduleData) {
 	systemConfigSend(sshsGetRelativeNode(moduleData->moduleNode, "system/"), moduleData);
 	usbConfigSend(sshsGetRelativeNode(moduleData->moduleNode, "usb/"), moduleData);
 	dvsConfigSend(sshsGetRelativeNode(moduleData->moduleNode, "dvs/"), moduleData);
-}
-
-static void mainloopDataNotifyIncrease(void *p) {
-	caerMainloopData mainloopData = p;
-
-	atomic_fetch_add_explicit(&mainloopData->dataAvailable, 1, memory_order_release);
-}
-
-static void mainloopDataNotifyDecrease(void *p) {
-	caerMainloopData mainloopData = p;
-
-	// No special memory order for decrease, because the acquire load to even start running
-	// through a mainloop already synchronizes with the release store above.
-	atomic_fetch_sub_explicit(&mainloopData->dataAvailable, 1, memory_order_relaxed);
 }
 
 static void moduleShutdownNotify(void *p) {
@@ -445,5 +456,17 @@ static void systemConfigListener(sshsNode node, void *userData, enum sshs_node_a
 			caerDeviceConfigSet(moduleData->moduleState, CAER_HOST_CONFIG_PACKETS,
 			CAER_HOST_CONFIG_PACKETS_MAX_CONTAINER_INTERVAL, U32T(changeValue.iint));
 		}
+	}
+}
+
+static void logLevelListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
+	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue) {
+	UNUSED_ARGUMENT(node);
+
+	caerModuleData moduleData = userData;
+
+	if (event == SSHS_ATTRIBUTE_MODIFIED && changeType == SSHS_BYTE && caerStrEquals(changeKey, "logLevel")) {
+		caerDeviceConfigSet(moduleData->moduleState, CAER_HOST_CONFIG_LOG, CAER_HOST_CONFIG_LOG_LEVEL,
+			U32T(changeValue.ibyte));
 	}
 }

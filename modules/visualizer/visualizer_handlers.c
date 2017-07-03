@@ -1,6 +1,5 @@
-#include "visualizer.h"
+#include "visualizer_handlers.h"
 #include "base/mainloop.h"
-#include "modules/ini/dynapse_common.h"
 
 #include <math.h>
 #include <allegro5/allegro_primitives.h>
@@ -23,14 +22,13 @@ void caerVisualizerEventHandlerSpikeEvents(caerVisualizerPublicState state, ALLE
 		// adjust coordinates according to zoom
 		double currentZoomFactor = (double) sshsNodeGetFloat(state->visualizerConfigNode, "zoomFactor");
 		if (currentZoomFactor > 1) {
-			posx = (double)floor((double) posx / currentZoomFactor);
-			posy = (double)floor((double) posy / currentZoomFactor);
+			posx = (double) floor((double) posx / currentZoomFactor);
+			posy = (double) floor((double) posy / currentZoomFactor);
 		}
 		else if (currentZoomFactor < 1) {
-			posx = (double)floor((double) posx * currentZoomFactor);
-			posy = (double)floor((double) posy * currentZoomFactor);
+			posx = (double) floor((double) posx * currentZoomFactor);
+			posy = (double) floor((double) posy * currentZoomFactor);
 		}
-		//caerLog(CAER_LOG_NOTICE, "Visualizer", "pos x %d, pos y %d Zoom %f \n", posx, posy, currentZoomFactor);
 
 		// select chip
 		uint16_t chipId = 0;
@@ -93,7 +91,7 @@ void caerVisualizerEventHandlerSpikeEvents(caerVisualizerPublicState state, ALLE
 			indexLin = 255;
 		}
 
-		caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_CHIP,DYNAPSE_CONFIG_CHIP_ID, (uint32_t) chipId);
+		caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, (uint32_t) chipId);
 		caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_MONITOR_NEU, coreid, indexLin);
 
 		if (chipId == 0) {
@@ -112,5 +110,26 @@ void caerVisualizerEventHandlerSpikeEvents(caerVisualizerPublicState state, ALLE
 			caerLog(CAER_LOG_NOTICE, "Visualizer",
 				"Monitoring neuron from DYNAPSE_U3 id %d, neuron number %d of core %d\n", chipId, indexLin, coreid);
 		}
+	}
+}
+
+void caerInputVisualizerEventHandler(caerVisualizerPublicState state, ALLEGRO_EVENT event) {
+	// PAUSE.
+	if (event.type == ALLEGRO_EVENT_KEY_DOWN && event.keyboard.keycode == ALLEGRO_KEY_SPACE) {
+		bool pause = sshsNodeGetBool(state->eventSourceConfigNode, "pause");
+
+		sshsNodePutBool(state->eventSourceConfigNode, "pause", !pause);
+	}
+	// SLOW DOWN.
+	else if (event.type == ALLEGRO_EVENT_KEY_DOWN && event.keyboard.keycode == ALLEGRO_KEY_S) {
+		int timeSlice = sshsNodeGetInt(state->eventSourceConfigNode, "PacketContainerInterval");
+
+		sshsNodePutInt(state->eventSourceConfigNode, "PacketContainerInterval", timeSlice / 2);
+	}
+	// SPEED UP.
+	else if (event.type == ALLEGRO_EVENT_KEY_DOWN && event.keyboard.keycode == ALLEGRO_KEY_F) {
+		int timeSlice = sshsNodeGetInt(state->eventSourceConfigNode, "PacketContainerInterval");
+
+		sshsNodePutInt(state->eventSourceConfigNode, "PacketContainerInterval", timeSlice * 2);
 	}
 }

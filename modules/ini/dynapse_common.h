@@ -5,7 +5,10 @@
 #include "base/mainloop.h"
 #include "base/module.h"
 
-#include <limits.h>
+#include <libcaer/events/packetContainer.h>
+#include <libcaer/events/special.h>
+#include <libcaer/events/spike.h>
+#include <libcaer/devices/dynapse.h>
 
 #ifdef HAVE_PTHREADS
 #include "ext/c11threads_posix.h"
@@ -14,7 +17,6 @@
 #include <math.h>
 #include <stdatomic.h>
 #include <sys/types.h>
-#include <libcaer/devices/dynapse.h>
 
 struct gen_spike_state {
 	atomic_bool doStim;
@@ -57,6 +59,7 @@ struct gen_spike_state {
 	int ETFstepnum;
 };
 
+// TODO: this should be private. gen_spikes.c should be in the main C file.
 struct caer_input_dynapse_state {
 	caerDeviceHandle deviceState;
 	sshsNode eventSourceConfigNode;
@@ -65,21 +68,17 @@ struct caer_input_dynapse_state {
 
 typedef struct caer_input_dynapse_state *caerInputDynapseState;
 
-bool caerInputDYNAPSEInit(caerModuleData moduleData);
-void caerInputDYNAPSEExit(caerModuleData moduleData);
-void caerInputDYNAPSERun(caerModuleData moduleData, size_t argsNumber, va_list args);
+// TODO: why does this have to be exposed?
 const char *chipIDToName(int16_t chipID, bool withEndSlash);
 
+// TODO: biasing needs to be rethought. Should always go via SSHS or helpers to SSHS.
+// That way lots of internals can remain internal.
+uint32_t generatesBitsCoarseFineBiasSetting(sshsNode node, const char *biasName, uint8_t coarseValue,
+	uint16_t fineValue, const char *hlbias, const char *currentLevel, const char *sex, bool enabled, uint32_t chipid);
 void caerDynapseSetBias(caerInputDynapseState state, uint32_t chipId, uint32_t coreId, const char *biasName_t,
 	uint8_t coarseValue, uint16_t fineValue, const char *lowHigh, const char *npBias);
-uint32_t generatesBitsCoarseFineBiasSetting(sshsNode node, const char *biasName, uint8_t coarseValue,
-	uint16_t fineValue, const char *hlbias, const char *currentLevel, const char *sex,
-	bool enabled, uint32_t chipid);
-bool setCamContent(caerInputDynapseState state, int16_t chipId, bool ei, bool fs, int16_t address, int8_t source_core,
-	int8_t coreId, int16_t row, int16_t column);
+
 bool caerGenSpikeInit(caerModuleData moduleData);
 void caerGenSpikeExit(caerModuleData moduleData);
-void caerDynapseSetBias(caerInputDynapseState state, uint32_t chipId, uint32_t coreId, const char *biasName_t,
-	uint8_t coarseValue, uint16_t fineValue, const char *lowHigh, const char *npBias);
 
 #endif /* DYNAPSE_COMMON_H_ */

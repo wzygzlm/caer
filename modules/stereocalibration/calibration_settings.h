@@ -16,7 +16,6 @@ struct StereoCalibrationSettings_struct {
 	uint32_t numPairsImagesBeforCalib;
 	uint32_t boardWidth;
 	uint32_t boardHeigth;
-	int verbose;
 	enum CameraCalibrationPattern calibrationPattern;
 	float aspectRatio;
 	bool assumeZeroTangentialDistortion;

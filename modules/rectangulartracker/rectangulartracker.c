@@ -1,17 +1,15 @@
-/*
- * rectangulartracker.c
- *
- *  Created on: Jan 2017
- *      Author: Tianyu
- */
-
-#include "rectangulartracker.h"
+#include "main.h"
 #include "base/mainloop.h"
 #include "base/module.h"
-#include "ext/buffers.h"
-#include "math.h"
 #include "ext/colorjet/colorjet.h"
-#include "wrapper.h"
+
+#include <math.h>
+#ifndef M_PI
+#define M_PI 3.14159265358979323846f
+#endif
+
+#include <libcaer/events/polarity.h>
+#include <libcaer/events/frame.h>
 
 typedef struct path {
 	float location_x;
@@ -21,7 +19,7 @@ typedef struct path {
 	int64_t timestamp;
 	int nEvents;
 	struct path * next;
-}Path;
+} Path;
 
 typedef struct cluster {
 	float location_x;
@@ -98,7 +96,8 @@ struct RTFilter_state {
 	bool useOnePolarityOnlyEnabled;
 	bool useOffPolarityOnlyEnabled;
 	bool showAllClusters;
-	struct OpenCV* cpp_class;
+	int16_t sizeX;
+	int16_t sizeY;
 };
 
 // constants
@@ -111,7 +110,6 @@ static const float ASPECT_RATIO_MAX_DYNAMIC_ANGLE_ENABLED = 1.0f;
 static const float ASPECT_RATIO_MIN_DYNAMIC_ANGLE_ENABLED = 0.5f;
 static const float AVERAGE_VELOCITY_MIXING_FACTOR = 0.001f;
 static const float FULL_BRIGHTNESS_LIFETIME = 100000.0f;
-
 
 static int clusterMassDecayTauUs = 10000;
 static float mixingFactor = 0.005f;
@@ -145,7 +143,6 @@ static float velocityTauMs = 100.0f;
 //static float frictionTauMs = 0.0 / 0.0; // Float.NaN in java;
 static bool dontMergeEver = false;
 
-
 static float initialAngle = 0.0f;
 static int clusterCounter = 0;
 static float averageVelocityPPT_x = 0.0f;
@@ -156,15 +153,13 @@ static int nOut = 0;
 static bool inBotZone[10];
 static bool inTopZone[10];
 
-
-
 typedef struct RTFilter_state *RTFilterState;
 
 static bool caerRectangulartrackerInit(caerModuleData moduleData);
-static void caerRectangulartrackerRun(caerModuleData moduleData, size_t argsNumber, va_list args);
+static void caerRectangulartrackerRun(caerModuleData moduleData, caerEventPacketContainer in,
+	caerEventPacketContainer *out);
 static void caerRectangulartrackerConfig(caerModuleData moduleData);
 static void caerRectangulartrackerExit(caerModuleData moduleData);
-static void caerRectangulartrackerReset(caerModuleData moduleData, uint16_t resetCallSourceID);
 static int getNearestCluster(caerModuleData moduleData, uint16_t x, uint16_t y, int64_t ts);
 static int getFirstContainingCluster(caerModuleData moduleData, uint16_t x, uint16_t y, int64_t ts);
 static void updateClusterList(caerModuleData moduleData, int64_t ts, int16_t sizeX, int16_t sizeY);
@@ -209,46 +204,75 @@ static void updateColor(Cluster *c);
 static void checkCountingArea(caerModuleData moduleData, int16_t sizeX, int16_t sizeY);
 static void countPeople(caerFrameEvent singleplot, caerModuleData moduleData, int16_t sizeX, int16_t sizeY);
 
-static struct caer_module_functions caerRectangulartrackerFunctions = { .moduleInit = &caerRectangulartrackerInit, .moduleRun = &caerRectangulartrackerRun, .moduleConfig = &caerRectangulartrackerConfig, .moduleExit = &caerRectangulartrackerExit, .moduleReset = &caerRectangulartrackerReset };
+static const struct caer_module_functions caerRectangularTrackerFunctions = { .moduleInit = &caerRectangulartrackerInit,
+	.moduleRun = &caerRectangulartrackerRun, .moduleConfig = &caerRectangulartrackerConfig, .moduleExit =
+		&caerRectangulartrackerExit };
 
-void caerRectangulartrackerFilter(uint16_t moduleID, caerPolarityEventPacket polarity, caerFrameEventPacket frame) {
-	caerModuleData moduleData = caerMainloopFindModule(moduleID, "RTFilter", CAER_MODULE_PROCESSOR);
-	if (moduleData == NULL) {
-		return;
-	}
-	caerModuleSM(&caerRectangulartrackerFunctions, moduleData,
-	sizeof(struct RTFilter_state), 2, polarity, frame);
+static const struct caer_event_stream_in caerRectangularTrackerInputs[] = { { .type = POLARITY_EVENT, .number = 1,
+	.readOnly = true } };
+
+static const struct caer_event_stream_out caerRectangularTrackerOutputs[] = { { .type = FRAME_EVENT } };
+
+static const struct caer_module_info caerRectangularTrackerInfo = { .version = 1, .name = "RectangularTracker",
+	.description = "Tracks multiple blobs of events.", .type = CAER_MODULE_PROCESSOR, .memSize =
+		sizeof(struct RTFilter_state), .functions = &caerRectangularTrackerFunctions, .inputStreams =
+		caerRectangularTrackerInputs, .inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(caerRectangularTrackerInputs),
+	.outputStreams = caerRectangularTrackerOutputs, .outputStreamsSize = CAER_EVENT_STREAM_OUT_SIZE(
+		caerRectangularTrackerOutputs) };
+
+caerModuleInfo caerModuleGetInfo(void) {
+	return (&caerRectangularTrackerInfo);
 }
 
 static bool caerRectangulartrackerInit(caerModuleData moduleData) {
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "dynamicSizeEnabled", false);
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "dynamicAspectRatioEnabled", false);
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "dynamicAngleEnabled", false);
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "pathsEnabled", false);
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "showPaths", false);
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "maxClusterNum", 10);
-	sshsNodePutFloatIfAbsent(moduleData->moduleNode, "thresholdMassForVisibleCluster", 30.0f);
-	sshsNodePutFloatIfAbsent(moduleData->moduleNode, "defaultClusterRadius", 25.0f);
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "forceBoundary", false);
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "smoothMove", false);
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "useVelocity", false);
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "initializeVelocityToAverage", false);
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "growMergedSizeEnabled", false);
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "angleFollowsVelocity", false);
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "useNearestCluster", false);
-	sshsNodePutFloatIfAbsent(moduleData->moduleNode, "aspectRatio", 1.0f);
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "peopleCounting", false);
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "resetCountingNum", false);
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "totalPeopleNum", 0);
-	sshsNodePutFloatIfAbsent(moduleData->moduleNode, "botLine", 0.5f);
-	sshsNodePutFloatIfAbsent(moduleData->moduleNode, "topLine", 0.6f);
-	sshsNodePutFloatIfAbsent(moduleData->moduleNode, "leftLine", 0.01f);
-	sshsNodePutFloatIfAbsent(moduleData->moduleNode, "rightLine", 0.99f);
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "useOnePolarityOnlyEnabled", false);
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "useOffPolarityOnlyEnabled", false);
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "showAllClusters", false);
+	// Wait for input to be ready. All inputs, once they are up and running, will
+	// have a valid sourceInfo node to query, especially if dealing with data.
+	int16_t *inputs = caerMainloopGetModuleInputIDs(moduleData->moduleID, NULL);
+	if (inputs == NULL) {
+		return (false);
+	}
+
+	int16_t sourceID = inputs[0];
+	free(inputs);
+
+	sshsNodeCreateBool(moduleData->moduleNode, "dynamicSizeEnabled", false, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateBool(moduleData->moduleNode, "dynamicAspectRatioEnabled", false, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateBool(moduleData->moduleNode, "dynamicAngleEnabled", false, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateBool(moduleData->moduleNode, "pathsEnabled", false, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateBool(moduleData->moduleNode, "showPaths", false, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateInt(moduleData->moduleNode, "maxClusterNum", 10, 1, 100, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateFloat(moduleData->moduleNode, "thresholdMassForVisibleCluster", 30.0f, 1.0f, 100.0f,
+		SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateFloat(moduleData->moduleNode, "defaultClusterRadius", 25.0f, 1.0f, 100.0f, SSHS_FLAGS_NORMAL,
+		"TODO.");
+	sshsNodeCreateBool(moduleData->moduleNode, "forceBoundary", false, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateBool(moduleData->moduleNode, "smoothMove", false, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateBool(moduleData->moduleNode, "useVelocity", false, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateBool(moduleData->moduleNode, "initializeVelocityToAverage", false, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateBool(moduleData->moduleNode, "growMergedSizeEnabled", false, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateBool(moduleData->moduleNode, "angleFollowsVelocity", false, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateBool(moduleData->moduleNode, "useNearestCluster", false, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateFloat(moduleData->moduleNode, "aspectRatio", 1.0f, 0.5f, 4.0f, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateBool(moduleData->moduleNode, "peopleCounting", false, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateBool(moduleData->moduleNode, "resetCountingNum", false, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateInt(moduleData->moduleNode, "totalPeopleNum", 0, 0, 1000, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateFloat(moduleData->moduleNode, "botLine", 0.5f, 0.0f, 1.0f, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateFloat(moduleData->moduleNode, "topLine", 0.6f, 0.0f, 1.0f, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateFloat(moduleData->moduleNode, "leftLine", 0.01f, 0.0f, 1.0f, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateFloat(moduleData->moduleNode, "rightLine", 0.99f, 0.0f, 1.0f, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateBool(moduleData->moduleNode, "useOnePolarityOnlyEnabled", false, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateBool(moduleData->moduleNode, "useOffPolarityOnlyEnabled", false, SSHS_FLAGS_NORMAL, "TODO.");
+	sshsNodeCreateBool(moduleData->moduleNode, "showAllClusters", false, SSHS_FLAGS_NORMAL, "TODO.");
 
 	RTFilterState state = moduleData->moduleState;
+
+	sshsNode sourceInfo = caerMainloopGetSourceInfo(sourceID);
+	if (sourceInfo == NULL) {
+		return (false);
+	}
+
+	state->sizeX = sshsNodeGetShort(sourceInfo, "polaritySizeX");
+	state->sizeY = sshsNodeGetShort(sourceInfo, "polaritySizeY");
 
 	state->dynamicSizeEnabled = sshsNodeGetBool(moduleData->moduleNode, "dynamicSizeEnabled");
 	state->dynamicAspectRatioEnabled = sshsNodeGetBool(moduleData->moduleNode, "dynamicAspectRatioEnabled");
@@ -277,9 +301,7 @@ static bool caerRectangulartrackerInit(caerModuleData moduleData) {
 	state->useOffPolarityOnlyEnabled = sshsNodeGetBool(moduleData->moduleNode, "useOffPolarityOnlyEnabled");
 	state->showAllClusters = sshsNodeGetBool(moduleData->moduleNode, "showAllClusters");
 
-
 	state->currentClusterNum = 0;
-	state->cpp_class = newOpenCV();
 
 	// initialize all cluster as empty
 	for (int i = 0; i < 10; i++) {
@@ -313,7 +335,7 @@ static bool caerRectangulartrackerInit(caerModuleData moduleData) {
 		state->clusterList[i].radius = state->defaultClusterRadius;
 		state->clusterList[i].aspectRatio = state->aspectRatio;
 		state->clusterList[i].radius_x = state->defaultClusterRadius / state->aspectRatio;
-		state->clusterList[i].radius_y= state->defaultClusterRadius * state->aspectRatio;
+		state->clusterList[i].radius_y = state->defaultClusterRadius * state->aspectRatio;
 		state->clusterList[i].avgISI = 0.0f;
 		state->clusterList[i].velocityValid = false;
 		state->clusterList[i].visibilityFlag = false;
@@ -329,18 +351,26 @@ static bool caerRectangulartrackerInit(caerModuleData moduleData) {
 		inTopZone[i] = false;
 	}
 
+	// Create own sourceInfo node.
+	sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
+
+	sshsNodeCreateShort(sourceInfoNode, "dataSizeX", state->sizeX, 1, 1024, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT,
+		"Data width.");
+	sshsNodeCreateShort(sourceInfoNode, "dataSizeY", state->sizeY, 1, 1024, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT,
+		"Data height.");
+
 	// Add config listeners last, to avoid having them dangling if Init doesn't succeed.
 	sshsNodeAddAttributeListener(moduleData->moduleNode, moduleData, &caerModuleConfigDefaultListener);
 
 	// Nothing that can fail here.
 	return (true);
 }
-static void caerRectangulartrackerRun(caerModuleData moduleData, size_t argsNumber, va_list args) {
-	UNUSED_ARGUMENT(argsNumber);
+static void caerRectangulartrackerRun(caerModuleData moduleData, caerEventPacketContainer in,
+	caerEventPacketContainer *out) {
 
 	// Interpret variable arguments (same as above in main function).
-	caerPolarityEventPacket polarity = va_arg(args, caerPolarityEventPacket);
-	caerFrameEventPacket *frame = va_arg(args, caerFrameEventPacket*);
+	caerPolarityEventPacketConst polarity =
+		(caerPolarityEventPacketConst) caerEventPacketContainerFindEventPacketByTypeConst(in, POLARITY_EVENT);
 
 	//Only process packets with content.
 	if (polarity == NULL) {
@@ -349,131 +379,132 @@ static void caerRectangulartrackerRun(caerModuleData moduleData, size_t argsNumb
 
 	RTFilterState state = moduleData->moduleState;
 
-	int16_t sourceID = caerEventPacketHeaderGetEventSource(&polarity->packetHeader);
-	sshsNode sourceInfoNodeCA = caerMainloopGetSourceInfo((uint16_t)sourceID);
-	sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
-	if (!sshsNodeAttributeExists(sourceInfoNode, "dataSizeX", SSHS_SHORT)) {
-		sshsNodePutShort(sourceInfoNode, "dataSizeX", sshsNodeGetShort(sourceInfoNodeCA, "dvsSizeX"));
-		sshsNodePutShort(sourceInfoNode, "dataSizeY", sshsNodeGetShort(sourceInfoNodeCA, "dvsSizeY"));
-	}
-
-	int16_t sizeX = sshsNodeGetShort(sourceInfoNode, "dataSizeX");
-	int16_t sizeY = sshsNodeGetShort(sourceInfoNode, "dataSizeY");
-
-	for (int i = 1; i < state->maxClusterNum; i++){
+	for (int i = 1; i < state->maxClusterNum; i++) {
 		state->clusterList[i].lastPacketLocation_x = state->clusterList[i].location_x;
 		state->clusterList[i].lastPacketLocation_y = state->clusterList[i].location_y;
 	}
 
 	//Iterate over events
-	CAER_POLARITY_ITERATOR_VALID_START(polarity)
+	CAER_POLARITY_CONST_ITERATOR_VALID_START(polarity)
 
 	// Get values on which to operate.
-	int64_t ts = caerPolarityEventGetTimestamp64(caerPolarityIteratorElement, polarity);
-	uint16_t x = caerPolarityEventGetX(caerPolarityIteratorElement);
-	uint16_t y = caerPolarityEventGetY(caerPolarityIteratorElement);
-	bool eventType = caerPolarityEventGetPolarity(caerPolarityIteratorElement);
+		int64_t ts = caerPolarityEventGetTimestamp64(caerPolarityIteratorElement, polarity);
+		uint16_t x = caerPolarityEventGetX(caerPolarityIteratorElement);
+		uint16_t y = caerPolarityEventGetY(caerPolarityIteratorElement);
+		bool eventType = caerPolarityEventGetPolarity(caerPolarityIteratorElement);
 
-	if ((caerPolarityIteratorElement == NULL)){
-		continue;
-	}
-	if (!caerPolarityEventIsValid(caerPolarityIteratorElement)){
-		continue;
-	}
-	if ((x >= sizeX) || (y >= sizeY)) {
-		continue;
-	}
+		if ((caerPolarityIteratorElement == NULL)) {
+			continue;
+		}
+		if (!caerPolarityEventIsValid(caerPolarityIteratorElement)) {
+			continue;
+		}
+		if ((x >= state->sizeX) || (y >= state->sizeY)) {
+			continue;
+		}
 
-	if (state->useOnePolarityOnlyEnabled) {
-		if (state->useOffPolarityOnlyEnabled) {
-			if (eventType == 1) {
-				continue;
+		if (state->useOnePolarityOnlyEnabled) {
+			if (state->useOffPolarityOnlyEnabled) {
+				if (eventType == 1) {
+					continue;
+				}
 			}
+			else {
+				if (eventType == 0) {
+					continue;
+				}
+			}
+		}
+
+		updateCurrentClusterNum(moduleData);
+
+		// check nearestCluster exist?
+		int chosenClusterIndex;
+		if (state->useNearestCluster) {
+			chosenClusterIndex = getNearestCluster(moduleData, x, y, ts);
 		}
 		else {
-			if (eventType == 0) {
-				continue;
+			chosenClusterIndex = getFirstContainingCluster(moduleData, x, y, ts);
+		}
+
+		// if exist, update it
+		if (chosenClusterIndex != -1) {
+			addEvent(moduleData, &(state->clusterList[chosenClusterIndex]), x, y, ts);
+		}
+
+		// if not, create new cluster
+		else if (state->currentClusterNum < state->maxClusterNum) {
+			Cluster clusterNew = newCluster(moduleData, x, y, ts);
+			int i;
+			for (i = 0; i < state->maxClusterNum; i++) {
+				if (state->clusterList[i].isEmpty == true) {
+					state->clusterList[i] = clusterNew;
+				}
 			}
 		}
-	}
 
-	updateCurrentClusterNum(moduleData);
-
-	// check nearestCluster exist?
-	int chosenClusterIndex;
-	if (state->useNearestCluster){
-		chosenClusterIndex = getNearestCluster(moduleData, x, y, ts);
-	}
-	else {
-		chosenClusterIndex = getFirstContainingCluster(moduleData, x, y, ts);
-	}
-
-	// if exist, update it
-	if (chosenClusterIndex != -1){
-		addEvent(moduleData, &(state->clusterList[chosenClusterIndex]), x, y, ts);
-	}
-
-	// if not, create new cluster
-	else if (state->currentClusterNum < state->maxClusterNum) {
-		Cluster clusterNew = newCluster(moduleData, x, y, ts);
-		int i;
-		for (i=0; i<state->maxClusterNum; i++){
-			if (state->clusterList[i].isEmpty == true){
-				state->clusterList[i] = clusterNew;
-			}
+		if (!updateTimeInitialized) {
+			nextUpdateTimeUs = ts + updateIntervalUs;
+			updateTimeInitialized = true;
 		}
-	}
-
-	if (!updateTimeInitialized) {
-		nextUpdateTimeUs = ts + updateIntervalUs;
-		updateTimeInitialized = true;
-	}
-	if (ts > nextUpdateTimeUs) {
-		nextUpdateTimeUs = ts + updateIntervalUs;
-		updateClusterList(moduleData, ts, sizeX, sizeY);
-	}
+		if (ts > nextUpdateTimeUs) {
+			nextUpdateTimeUs = ts + updateIntervalUs;
+			updateClusterList(moduleData, ts, state->sizeX, state->sizeY);
+		}
 
 	CAER_POLARITY_ITERATOR_VALID_END
 
 	//plot events
-	*frame = caerFrameEventPacketAllocate(1, I16T(moduleData->moduleID), 0, sizeX, sizeY, 3);
-	caerMainloopFreeAfterLoop(&free, *frame);
-	if (*frame != NULL) {
-		caerFrameEvent singleplot = caerFrameEventPacketGetEvent(*frame, 0);
-		CAER_POLARITY_ITERATOR_VALID_START(polarity)
-			int xxx = caerPolarityEventGetX(caerPolarityIteratorElement);
-			int yyy = caerPolarityEventGetY(caerPolarityIteratorElement);
-			int pol = caerPolarityEventGetPolarity(caerPolarityIteratorElement);
-			int address = 3 * (yyy * sizeX + xxx);
-			if (pol == 0) {
-				singleplot->pixels[address] = 65000; // red
-				singleplot->pixels[address + 1] = 1; // green
-				singleplot->pixels[address + 2] = 1; // blue
-			}
-			else {
-				singleplot->pixels[address] = 1; // red
-				singleplot->pixels[address + 1] = 65000; // green
-				singleplot->pixels[address + 2] = 1; // blue
-			}
-		CAER_POLARITY_ITERATOR_VALID_END
-
-		//add info to the frame
-		caerFrameEventSetLengthXLengthYChannelNumber(singleplot, sizeX, sizeY, 3, *frame);
-		//validate frame
-		caerFrameEventValidate(singleplot, *frame);
+	// Allocate packet container for result packet.
+	*out = caerEventPacketContainerAllocate(1);
+	if (*out == NULL) {
+		return; // Error.
 	}
 
+	caerFrameEventPacket frame = caerFrameEventPacketAllocate(1, moduleData->moduleID, 0, state->sizeX, state->sizeY,
+		3);
+	if (frame == NULL) {
+		return; // Error.
+	}
+	else {
+		// Add output packet to packet container.
+		caerEventPacketContainerSetEventPacket(*out, 0, (caerEventPacketHeader) frame);
+	}
+
+	caerFrameEvent singleplot = caerFrameEventPacketGetEvent(frame, 0);
+	CAER_POLARITY_CONST_ITERATOR_VALID_START(polarity)
+		int xxx = caerPolarityEventGetX(caerPolarityIteratorElement);
+		int yyy = caerPolarityEventGetY(caerPolarityIteratorElement);
+		int pol = caerPolarityEventGetPolarity(caerPolarityIteratorElement);
+		int address = 3 * (yyy * state->sizeX + xxx);
+		if (pol == 0) {
+			singleplot->pixels[address] = UINT16_MAX; // red
+			singleplot->pixels[address + 1] = 0; // green
+			singleplot->pixels[address + 2] = 0; // blue
+		}
+		else {
+			singleplot->pixels[address] = 0; // red
+			singleplot->pixels[address + 1] = UINT16_MAX; // green
+			singleplot->pixels[address + 2] = 0; // blue
+		}CAER_POLARITY_ITERATOR_VALID_END
+
+	//add info to the frame
+	caerFrameEventSetLengthXLengthYChannelNumber(singleplot, state->sizeX, state->sizeY, 3, frame);
+	//validate frame
+	caerFrameEventValidate(singleplot, frame);
+
 	// plot clusters
-	for (int i=0; i<state->maxClusterNum; i++){
-		if ((*frame != NULL ) && (!state->clusterList[i].isEmpty) && (state->clusterList[i].visibilityFlag || state->showAllClusters)) {
+	for (int i = 0; i < state->maxClusterNum; i++) {
+		if (!state->clusterList[i].isEmpty && (state->clusterList[i].visibilityFlag || state->showAllClusters)) {
 			updateColor(&state->clusterList[i]);
-			drawCluster(caerFrameEventPacketGetEvent(*frame, 0), &state->clusterList[i], sizeX, sizeY, state->showPaths, state->forceBoundary);
+			drawCluster(caerFrameEventPacketGetEvent(frame, 0), &state->clusterList[i], state->sizeX, state->sizeY,
+				state->showPaths, state->forceBoundary);
 		}
 	}
 
 	// people counting
-	if(state->peopleCounting) {
-		countPeople(caerFrameEventPacketGetEvent(*frame, 0), moduleData, sizeX, sizeY);
+	if (state->peopleCounting) {
+		countPeople(caerFrameEventPacketGetEvent(frame, 0), moduleData, state->sizeX, state->sizeY);
 	}
 }
 
@@ -553,14 +584,14 @@ static Cluster newCluster(caerModuleData moduleData, uint16_t x, uint16_t y, int
 	RTFilterState state = moduleData->moduleState;
 
 	Cluster clusterNew;
-	clusterNew.location_x = (float)x;
-	clusterNew.location_y = (float)y;
+	clusterNew.location_x = (float) x;
+	clusterNew.location_y = (float) y;
 	clusterNew.velocity_x = 0.0f;
 	clusterNew.velocity_y = 0.0f;
-	clusterNew.birthLocation_x = (float)x;
-	clusterNew.birthLocation_y = (float)y;
-	clusterNew.lastPacketLocation_x = (float)x;
-	clusterNew.lastPacketLocation_y = (float)y;
+	clusterNew.birthLocation_x = (float) x;
+	clusterNew.birthLocation_y = (float) y;
+	clusterNew.lastPacketLocation_x = (float) x;
+	clusterNew.lastPacketLocation_y = (float) y;
 
 	clusterNew.velocityPPT_x = 0.0f;
 	clusterNew.velocityPPT_y = 0.0f;
@@ -608,7 +639,7 @@ static void pruneClusters(caerModuleData moduleData, int64_t ts, int16_t sizeX, 
 	RTFilterState state = moduleData->moduleState;
 
 	for (int i = 0; i < state->maxClusterNum; i++) {
-		if (!state->clusterList[i].isEmpty){
+		if (!state->clusterList[i].isEmpty) {
 			int64_t t0 = state->clusterList[i].lastEventTimestamp;
 			int64_t timeSinceSupport = ts - t0;
 			if (timeSinceSupport == 0) {
@@ -620,7 +651,8 @@ static void pruneClusters(caerModuleData moduleData, int64_t ts, int16_t sizeX, 
 				lifetime = ts - state->clusterList[i].firstEventTimestamp;
 			}
 			float massThreshold = state->thresholdMassForVisibleCluster;
-			if (((lifetime == 0) || (lifetime >= clusterMassDecayTauUs)) && (getMassNow(&state->clusterList[i], ts) < massThreshold)) {
+			if (((lifetime == 0) || (lifetime >= clusterMassDecayTauUs))
+				&& (getMassNow(&state->clusterList[i], ts) < massThreshold)) {
 				massTooSmall = true;
 			}
 			bool hitEdge = hasHitEdge(&state->clusterList[i], sizeX, sizeY);
@@ -640,7 +672,7 @@ static void mergeClusters(caerModuleData moduleData) {
 	}
 
 	bool mergePending;
-	int i, j;
+	int i = 0, j = 0;
 	do {
 		mergePending = false;
 		for (i = 0; i < state->maxClusterNum; i++) {
@@ -649,12 +681,11 @@ static void mergeClusters(caerModuleData moduleData) {
 					if (!state->clusterList[i].isEmpty && !state->clusterList[j].isEmpty) {
 						bool overlapping = isOverlapping(&state->clusterList[i], &state->clusterList[j]);
 						bool velSimilar = true;
-						if (overlapping && (velAngDiffDegToNotMerge > 0)
-								&& state->clusterList[i].visibilityFlag
-								&& state->clusterList[j].visibilityFlag
-								&& state->clusterList[i].velocityValid
-								&& state->clusterList[j].velocityValid
-								&& velocityAngleToRad(&state->clusterList[i], &state->clusterList[j]) > ((velAngDiffDegToNotMerge * (float)M_PI) / 180)) {
+						if (overlapping && (velAngDiffDegToNotMerge > 0) && state->clusterList[i].visibilityFlag
+							&& state->clusterList[j].visibilityFlag && state->clusterList[i].velocityValid
+							&& state->clusterList[j].velocityValid
+							&& velocityAngleToRad(&state->clusterList[i], &state->clusterList[j])
+								> ((velAngDiffDegToNotMerge * (float) M_PI) / 180)) {
 							velSimilar = false;
 						}
 						if (overlapping && velSimilar) {
@@ -665,11 +696,11 @@ static void mergeClusters(caerModuleData moduleData) {
 				}
 			}
 		}
-		stopLoop:
-		if (mergePending && (!state->clusterList[i].isEmpty) && (!state->clusterList[j].isEmpty)) {
+		stopLoop: if (mergePending && (!state->clusterList[i].isEmpty) && (!state->clusterList[j].isEmpty)) {
 			mergeC1C2(moduleData, i, j);
 		}
-	} while (mergePending);
+	}
+	while (mergePending);
 }
 
 static void mergeC1C2(caerModuleData moduleData, int i, int j) {
@@ -682,17 +713,26 @@ static void mergeC1C2(caerModuleData moduleData, int i, int j) {
 	state->clusterList[stronger].numEvents = state->clusterList[i].numEvents + state->clusterList[j].numEvents;
 	state->clusterList[stronger].velocity_x = 0.0f;
 	state->clusterList[stronger].velocity_y = 0.0f;
-	state->clusterList[stronger].averageEventDistance = ((state->clusterList[stronger].averageEventDistance * state->clusterList[stronger].mass) + (state->clusterList[weaker].averageEventDistance * state->clusterList[weaker].mass)) / mass;
-	state->clusterList[stronger].averageEventXDistance = ((state->clusterList[stronger].averageEventXDistance * state->clusterList[stronger].mass) + (state->clusterList[weaker].averageEventXDistance * state->clusterList[weaker].mass)) / mass;
-	state->clusterList[stronger].averageEventYDistance = ((state->clusterList[stronger].averageEventYDistance * state->clusterList[stronger].mass) + (state->clusterList[weaker].averageEventYDistance * state->clusterList[weaker].mass)) / mass;
+	state->clusterList[stronger].averageEventDistance = ((state->clusterList[stronger].averageEventDistance
+		* state->clusterList[stronger].mass)
+		+ (state->clusterList[weaker].averageEventDistance * state->clusterList[weaker].mass)) / mass;
+	state->clusterList[stronger].averageEventXDistance = ((state->clusterList[stronger].averageEventXDistance
+		* state->clusterList[stronger].mass)
+		+ (state->clusterList[weaker].averageEventXDistance * state->clusterList[weaker].mass)) / mass;
+	state->clusterList[stronger].averageEventYDistance = ((state->clusterList[stronger].averageEventYDistance
+		* state->clusterList[stronger].mass)
+		+ (state->clusterList[weaker].averageEventYDistance * state->clusterList[weaker].mass)) / mass;
 
-	state->clusterList[stronger].lastEventTimestamp = state->clusterList[stronger].lastEventTimestamp > state->clusterList[weaker].lastEventTimestamp ? state->clusterList[stronger].lastEventTimestamp : state->clusterList[weaker].lastEventTimestamp;
+	state->clusterList[stronger].lastEventTimestamp =
+		state->clusterList[stronger].lastEventTimestamp > state->clusterList[weaker].lastEventTimestamp ?
+			state->clusterList[stronger].lastEventTimestamp : state->clusterList[weaker].lastEventTimestamp;
 	state->clusterList[stronger].lastUpdateTime = state->clusterList[stronger].lastEventTimestamp;
 	state->clusterList[stronger].mass = mass;
 
 	if (state->growMergedSizeEnabled) {
 		//float R = (state->clusterList[i].radius + state->clusterList[j].radius);
-		setRadius(&state->clusterList[stronger], state->clusterList[stronger].radius + (mixingFactor * state->clusterList[weaker].radius));
+		setRadius(&state->clusterList[stronger],
+			state->clusterList[stronger].radius + (mixingFactor * state->clusterList[weaker].radius));
 	}
 
 	state->clusterList[weaker].isEmpty = true;
@@ -706,7 +746,7 @@ int64_t getLifetime(Cluster *c) {
 float getMassNow(Cluster *c, int64_t ts) {
 	float m;
 	if ((c->lastEventTimestamp - ts) < 0) {
-		m = c->mass * (float) exp(((float) (c->lastEventTimestamp - ts)) / (float)clusterMassDecayTauUs);
+		m = c->mass * (float) exp(((float) (c->lastEventTimestamp - ts)) / (float) clusterMassDecayTauUs);
 	}
 	else {
 		m = c->mass;
@@ -717,14 +757,18 @@ float getMassNow(Cluster *c, int64_t ts) {
 float distanceToX(Cluster *c, uint16_t x, uint16_t y, int64_t ts) {
 	int64_t dt = ts - c->lastUpdateTime;
 	dt = (dt < 0) ? 0 : dt;
-	float distance = fabsf(((((float)x - c->location_x) + (c->velocityPPT_x * (float)dt)) * c->cosAngle) + ((((float)y - c->location_y) + (c->velocityPPT_y * (float)dt)) * c->sinAngle));
+	float distance = fabsf(
+		((((float) x - c->location_x) + (c->velocityPPT_x * (float) dt)) * c->cosAngle)
+			+ ((((float) y - c->location_y) + (c->velocityPPT_y * (float) dt)) * c->sinAngle));
 	return (distance);
 }
 
 float distanceToY(Cluster *c, uint16_t x, uint16_t y, int64_t ts) {
 	int64_t dt = ts - c->lastUpdateTime;
 	dt = (dt < 0) ? 0 : dt;
-	float distance = fabsf((((y - c->location_y) + (c->velocityPPT_y * (float)dt)) * c->cosAngle) - (((x - c->location_x) + (c->velocityPPT_x * (float)dt)) * c->sinAngle));
+	float distance = fabsf(
+		(((y - c->location_y) + (c->velocityPPT_y * (float) dt)) * c->cosAngle)
+			- (((x - c->location_x) + (c->velocityPPT_x * (float) dt)) * c->sinAngle));
 	return (distance);
 }
 
@@ -735,8 +779,8 @@ static float distanceC1C2(Cluster *c1, Cluster *c2) {
 }
 
 static float distanceToEvent(Cluster *c, uint16_t x, uint16_t y) {
-	float dx = (float)x - c->location_x;
-	float dy = (float)y - c->location_y;
+	float dx = (float) x - c->location_x;
+	float dy = (float) y - c->location_y;
 
 	return (fabsf(dx) + fabsf(dy));
 }
@@ -745,13 +789,17 @@ static void checkAndSetClusterVisibilityFlag(caerModuleData moduleData) {
 	RTFilterState state = moduleData->moduleState;
 
 	for (int i = 0; i < state->maxClusterNum; i++) {
-		if (!state->clusterList[i].isEmpty){
+		if (!state->clusterList[i].isEmpty) {
 			bool ret = true;
-			if ((state->clusterList[i].numEvents < state->thresholdMassForVisibleCluster) || ((state->clusterList[i].numEvents > state->thresholdMassForVisibleCluster) && (state->clusterList[i].mass < state->thresholdMassForVisibleCluster))) {
+			if ((state->clusterList[i].numEvents < state->thresholdMassForVisibleCluster)
+				|| ((state->clusterList[i].numEvents > state->thresholdMassForVisibleCluster)
+					&& (state->clusterList[i].mass < state->thresholdMassForVisibleCluster))) {
 				ret = false;
 			}
 			if (state->useVelocity) {
-				float speed = (sqrt((state->clusterList[i].velocityPPT_x * state->clusterList[i].velocityPPT_x) + (state->clusterList[i].velocityPPT_y * state->clusterList[i].velocityPPT_y)) * 1e6f); // speed is in pixels/sec
+				float speed = (sqrt(
+					(state->clusterList[i].velocityPPT_x * state->clusterList[i].velocityPPT_x)
+						+ (state->clusterList[i].velocityPPT_y * state->clusterList[i].velocityPPT_y)) * 1e6f); // speed is in pixels/sec
 				if (speed < thresholdVelocityForVisibleCluster) {
 					ret = false;
 				}
@@ -779,12 +827,16 @@ static void updateClusterLocations(caerModuleData moduleData, int64_t ts) {
 			if (dt <= 0) {
 				continue; // bogus timestamp or doesn't need update
 			}
-			state->clusterList[i].location_x += state->clusterList[i].velocityPPT_x * (float)dt * predictiveVelocityFactor;
-			state->clusterList[i].location_y += state->clusterList[i].velocityPPT_y * (float)dt * predictiveVelocityFactor;
+			state->clusterList[i].location_x += state->clusterList[i].velocityPPT_x * (float) dt
+				* predictiveVelocityFactor;
+			state->clusterList[i].location_y += state->clusterList[i].velocityPPT_y * (float) dt
+				* predictiveVelocityFactor;
 			if (state->initializeVelocityToAverage) {
 				// update average velocity metric for construction of new Clusters
-				averageVelocityPPT_x = ((1.0f - AVERAGE_VELOCITY_MIXING_FACTOR) * averageVelocityPPT_x) + (AVERAGE_VELOCITY_MIXING_FACTOR * state->clusterList[i].velocityPPT_x);
-				averageVelocityPPT_y = ((1.0f - AVERAGE_VELOCITY_MIXING_FACTOR) * averageVelocityPPT_y) + (AVERAGE_VELOCITY_MIXING_FACTOR * state->clusterList[i].velocityPPT_y);
+				averageVelocityPPT_x = ((1.0f - AVERAGE_VELOCITY_MIXING_FACTOR) * averageVelocityPPT_x)
+					+ (AVERAGE_VELOCITY_MIXING_FACTOR * state->clusterList[i].velocityPPT_x);
+				averageVelocityPPT_y = ((1.0f - AVERAGE_VELOCITY_MIXING_FACTOR) * averageVelocityPPT_y)
+					+ (AVERAGE_VELOCITY_MIXING_FACTOR * state->clusterList[i].velocityPPT_y);
 			}
 			state->clusterList[i].lastUpdateTime = ts;
 		}
@@ -797,14 +849,15 @@ static void updateClusterPaths(caerModuleData moduleData, int64_t ts) {
 	if (!state->pathsEnabled && !state->useVelocity) {
 		return;
 	}
-	for (int i = 0; i < state->maxClusterNum; i++){
-		if (!state->clusterList[i].isEmpty){
+	for (int i = 0; i < state->maxClusterNum; i++) {
+		if (!state->clusterList[i].isEmpty) {
 			if (state->clusterList[i].numEvents == state->clusterList[i].previousNumEvents) {
 				continue; // don't add point unless we had events that caused change in path (aside from prediction from velocityPPT)
 			}
-			addPath(&state->clusterList[i].path, state->clusterList[i].location_x, state->clusterList[i].location_y, ts, state->clusterList[i].numEvents - state->clusterList[i].previousNumEvents);
+			addPath(&state->clusterList[i].path, state->clusterList[i].location_x, state->clusterList[i].location_y, ts,
+				state->clusterList[i].numEvents - state->clusterList[i].previousNumEvents);
 			state->clusterList[i].previousNumEvents = state->clusterList[i].numEvents;
-			if (state->useVelocity){
+			if (state->useVelocity) {
 				updateVelocity(&state->clusterList[i], state->thresholdMassForVisibleCluster);
 			}
 			int count = getPathSize(state->clusterList[i].path);
@@ -835,7 +888,7 @@ static void addPath(Path ** head, float x, float y, int64_t t, int events) {
 	*head = new;
 }
 
-static void removeLastPath(Path * head){
+static void removeLastPath(Path * head) {
 	// if there is only one item in the list, remove it
 	if (head->next == NULL) {
 		free(head);
@@ -843,7 +896,7 @@ static void removeLastPath(Path * head){
 	}
 	else {
 		Path * current = head;
-		while (current->next->next != NULL){
+		while (current->next->next != NULL) {
 			current = current->next;
 		}
 		free(current->next);
@@ -851,10 +904,10 @@ static void removeLastPath(Path * head){
 	}
 }
 
-static void removeAllPath(Path * head){
+static void removeAllPath(Path * head) {
 	Path * current = head;
 	Path * delete = current;
-	while (current != NULL){
+	while (current != NULL) {
 		delete = current;
 		current = current->next;
 		free(delete);
@@ -885,16 +938,16 @@ static void updateVelocity(Cluster *c, float thresholdMassForVisibleCluster) {
 	}
 
 	int64_t dt = plast->timestamp - pfirst->timestamp;
-	float vx = (plast->location_x - pfirst->location_x) / (float)dt;
-	float vy = (plast->location_y - pfirst->location_y) / (float)dt;
+	float vx = (plast->location_x - pfirst->location_x) / (float) dt;
+	float vy = (plast->location_y - pfirst->location_y) / (float) dt;
 
 	int64_t dtFilterTime = c->lastEventTimestamp - c->vFilterTime;
-	if (dtFilterTime < 0){
+	if (dtFilterTime < 0) {
 		dtFilterTime = 0;
 	}
 	c->vFilterTime = c->lastEventTimestamp;
-	float fac = (float)dtFilterTime / (float)velocityTauMs / (float)TICK_PER_MS;
-	if (fac > 1){
+	float fac = (float) dtFilterTime / (float) velocityTauMs / (float) TICK_PER_MS;
+	if (fac > 1) {
 		fac = 1;
 	}
 	c->velocityPPT_x = c->velocityPPT_x + (vx - c->velocityPPT_x) * fac;
@@ -935,8 +988,8 @@ static void addEvent(caerModuleData moduleData, Cluster *c, uint16_t x, uint16_t
 static void updatePosition(Cluster *c, uint16_t x, uint16_t y, bool smoothMove) {
 	float m = mixingFactor;
 	float m1 = 1 - m;
-	float newX = (float)x;
-	float newY = (float)y;
+	float newX = (float) x;
+	float newY = (float) y;
 	if (!smoothMove) {
 		c->location_x = ((m1 * c->location_x) + (m * newX));
 		c->location_y = ((m1 * c->location_y) + (m * newY));
@@ -959,7 +1012,7 @@ static void updateEventRate(Cluster *c, int64_t ts) {
 	int64_t prevLastTimestamp = c->lastEventTimestamp;
 	c->lastEventTimestamp = ts;
 	c->numEvents++;
-	c->instantaneousISI = (float)(c->lastEventTimestamp - prevLastTimestamp);
+	c->instantaneousISI = (float) (c->lastEventTimestamp - prevLastTimestamp);
 	if (c->instantaneousISI <= 0) {
 		c->instantaneousISI = 1;
 	}
@@ -979,8 +1032,8 @@ static void updateAverageEventDistance(Cluster *c) {
 
 static void updateMass(Cluster *c, int64_t ts) {
 	int64_t dt = c->lastEventTimestamp - ts;
-	if (dt < 0){
-		c->mass = 1 + (c->mass * (float) exp((float)dt / (float)clusterMassDecayTauUs));
+	if (dt < 0) {
+		c->mass = 1 + (c->mass * (float) exp((float) dt / (float) clusterMassDecayTauUs));
 		c->mass = (c->mass > 100000) ? 100000 : c->mass;
 	}
 }
@@ -989,7 +1042,7 @@ static void updateClusterMasses(caerModuleData moduleData, int64_t ts) {
 	RTFilterState state = moduleData->moduleState;
 
 	for (int i = 0; i < state->maxClusterNum; i++) {
-		if (!state->clusterList[i].isEmpty){
+		if (!state->clusterList[i].isEmpty) {
 			updateMass(&state->clusterList[i], ts);
 		}
 	}
@@ -1036,8 +1089,8 @@ static void updateSize(Cluster *c, uint16_t x, uint16_t y, float defaultClusterR
 static void updateAspectRatio(Cluster *c, uint16_t x, uint16_t y, bool dynamicAngleEnabled) {
 	float m = mixingFactor;
 	float m1 = 1 - m;
-	float dx = (float)x - c->location_x;
-	float dy = (float)y - c->location_y;
+	float dx = (float) x - c->location_x;
+	float dy = (float) y - c->location_y;
 	float dw = (dx * c->cosAngle) + (dy * c->sinAngle); // dot dx,dy with unit vector of instantaneousAngle of cluster
 	float dh = (-dx * c->sinAngle) + (dy * c->cosAngle); // and with normal to unit vector
 	float oldAspectRatio = c->aspectRatio;
@@ -1063,17 +1116,17 @@ static void updateAspectRatio(Cluster *c, uint16_t x, uint16_t y, bool dynamicAn
 }
 
 static void updateAngle(Cluster *c, uint16_t x, uint16_t y) {
-	float dx = c->location_x - (float)x;
-	float dy = c->location_y - (float)y;
+	float dx = c->location_x - (float) x;
+	float dy = c->location_y - (float) y;
 	float newAngle = (float) atan2(dy, dx);
 	if (newAngle < 0) {
 		newAngle += (float) M_PI;
 	}
 	float diff = newAngle - c->angle;
-	if ((diff) > ((float)M_PI / 2.0f)) {
+	if ((diff) > ((float) M_PI / 2.0f)) {
 		newAngle = newAngle - (float) M_PI;
 	}
-	else if (diff < (-(float)M_PI / 2.0f)) {
+	else if (diff < (-(float) M_PI / 2.0f)) {
 		newAngle = -(float) M_PI + newAngle;
 	}
 	float angleDistance = newAngle - c->angle;
@@ -1087,7 +1140,7 @@ static void setAngle(Cluster *c, float angle) {
 		c->angle = angle;
 		c->cosAngle = (float) cos(angle);
 		c->sinAngle = (float) sin(angle);
-		initialAngle = ( m1 * initialAngle) + (m * angle);
+		initialAngle = (m1 * initialAngle) + (m * angle);
 	}
 }
 
@@ -1097,9 +1150,9 @@ static bool hasHitEdge(Cluster *c, int16_t sizeX, int16_t sizeY) {
 	}
 
 	int lx = (int) c->location_x;
-	int	ly = (int) c->location_y;
+	int ly = (int) c->location_y;
 	int sx = sizeX;
-	int	sy = sizeY;
+	int sy = sizeY;
 
 	return ((lx <= 0) || (lx >= sx) || (ly <= 0) || (ly >= sy));
 }
@@ -1122,35 +1175,35 @@ static float velocityAngleToRad(Cluster *c1, Cluster *c2) {
 }
 
 static void drawCluster(caerFrameEvent singleplot, Cluster *c, int sizeX, int sizeY, bool showPaths, bool forceBoundary) {
-	if (c->angle != 0){
+	if (c->angle != 0) {
 		float A = c->angle;
 		float rx = c->radius_x;
 		float ry = c->radius_y;
-		float UL_x = c->location_x + rx * (float)cos(A) - ry * (float)sin(A);
-		float UL_y = c->location_y + ry * (float)cos(A) + rx * (float)sin(A);
-		float UR_x = c->location_x - rx * (float)cos(A) - ry * (float)sin(A);
-		float UR_y = c->location_y + ry * (float)cos(A) - rx * (float)sin(A);
-		float BL_x = c->location_x + rx * (float)cos(A) + ry * (float)sin(A);
-		float BL_y = c->location_y - ry * (float)cos(A) + rx * (float)sin(A);
-		float BR_x = c->location_x - rx * (float)cos(A) + ry * (float)sin(A);
-		float BR_y = c->location_y - ry * (float)cos(A) - rx * (float)sin(A);
+		float UL_x = c->location_x + rx * (float) cos(A) - ry * (float) sin(A);
+		float UL_y = c->location_y + ry * (float) cos(A) + rx * (float) sin(A);
+		float UR_x = c->location_x - rx * (float) cos(A) - ry * (float) sin(A);
+		float UR_y = c->location_y + ry * (float) cos(A) - rx * (float) sin(A);
+		float BL_x = c->location_x + rx * (float) cos(A) + ry * (float) sin(A);
+		float BL_y = c->location_y - ry * (float) cos(A) + rx * (float) sin(A);
+		float BR_x = c->location_x - rx * (float) cos(A) + ry * (float) sin(A);
+		float BR_y = c->location_y - ry * (float) cos(A) - rx * (float) sin(A);
 
-		if (forceBoundary){
-			UL_x = (UL_x > (float)sizeX) ? (float)sizeX : UL_x;
+		if (forceBoundary) {
+			UL_x = (UL_x > (float) sizeX) ? (float) sizeX : UL_x;
 			UL_x = (UL_x < 0) ? 0 : UL_x;
-			UL_y = (UL_y > (float)sizeY) ? (float)sizeY : UL_y;
+			UL_y = (UL_y > (float) sizeY) ? (float) sizeY : UL_y;
 			UL_y = (UL_y < 0) ? 0 : UL_y;
-			UR_x = (UR_x > (float)sizeX) ? (float)sizeX : UR_x;
+			UR_x = (UR_x > (float) sizeX) ? (float) sizeX : UR_x;
 			UR_x = (UR_x < 0) ? 0 : UR_x;
-			UR_y = (UR_y > (float)sizeY) ? (float)sizeY : UR_y;
+			UR_y = (UR_y > (float) sizeY) ? (float) sizeY : UR_y;
 			UR_y = (UR_y < 0) ? 0 : UR_y;
-			BL_x = (BL_x > (float)sizeX) ? (float)sizeX : BL_x;
+			BL_x = (BL_x > (float) sizeX) ? (float) sizeX : BL_x;
 			BL_x = (BL_x < 0) ? 0 : BL_x;
-			BL_y = (BL_y > (float)sizeY) ? (float)sizeY : BL_y;
+			BL_y = (BL_y > (float) sizeY) ? (float) sizeY : BL_y;
 			BL_y = (BL_y < 0) ? 0 : BL_y;
-			BR_x = (BR_x > (float)sizeX) ? (float)sizeX : BR_x;
+			BR_x = (BR_x > (float) sizeX) ? (float) sizeX : BR_x;
 			BR_x = (BR_x < 0) ? 0 : BR_x;
-			BR_y = (BR_y > (float)sizeY) ? (float)sizeY : BR_y;
+			BR_y = (BR_y > (float) sizeY) ? (float) sizeY : BR_y;
 			BR_y = (BR_y < 0) ? 0 : BR_y;
 		}
 
@@ -1164,25 +1217,21 @@ static void drawCluster(caerFrameEvent singleplot, Cluster *c, int sizeX, int si
 		int cx, cy, rx, lx, uy, dy;
 		for (size_t y = 0; y < sizeY; y++) {
 			for (size_t x = 0; x < sizeX; x++) {
-				cx = (int)c->location_x;
-				cy = (int)c->location_y;
-				rx = (int)(c->location_x + c->radius_x);
-				lx = (int)(c->location_x - c->radius_x);
-				uy = (int)(c->location_y + c->radius_y);
-				dy = (int)(c->location_y - c->radius_y);
+				cx = (int) c->location_x;
+				cy = (int) c->location_y;
+				rx = (int) (c->location_x + c->radius_x);
+				lx = (int) (c->location_x - c->radius_x);
+				uy = (int) (c->location_y + c->radius_y);
+				dy = (int) (c->location_y - c->radius_y);
 
 				rx = (rx > sizeX) ? sizeX : rx;
 				lx = (lx < 0) ? 0 : lx;
 				uy = (uy > sizeY) ? sizeY : uy;
 				dy = (dy < 0) ? 0 : dy;
 
-				if ((x == cx && y == cy)||
-					(x == rx && y <= uy && y >= dy) ||
-					(x == lx && y <= uy && y >= dy) ||
-					(y == uy && x <= rx && x >= lx) ||
-					(y == dy && x <= rx && x >= lx) )
-				{
-					singleplot->pixels[counter] =  c->color.r;		// red
+				if ((x == cx && y == cy) || (x == rx && y <= uy && y >= dy) || (x == lx && y <= uy && y >= dy)
+					|| (y == uy && x <= rx && x >= lx) || (y == dy && x <= rx && x >= lx)) {
+					singleplot->pixels[counter] = c->color.r;		// red
 					singleplot->pixels[counter + 1] = c->color.g;		// green
 					singleplot->pixels[counter + 2] = c->color.b;	// blue
 				}
@@ -1195,163 +1244,163 @@ static void drawCluster(caerFrameEvent singleplot, Cluster *c, int sizeX, int si
 	}
 }
 
-static void drawline(caerFrameEvent singleplot, float x1, float y1, float x2, float y2, int sizeX, int sizeY){
+static void drawline(caerFrameEvent singleplot, float x1, float y1, float x2, float y2, int sizeX, int sizeY) {
 	int x, y, xs, xl, ys, yl, dx, dy, p;
-	if (x1 < x2){
+	if (x1 < x2) {
 		xs = round(x1);
 		xl = round(x2);
 	}
-	else{
+	else {
 		xs = round(x2);
 		xl = round(x1);
 	}
-	if (y1 < y2){
+	if (y1 < y2) {
 		ys = round(y1);
 		yl = round(y2);
 	}
-	else{
+	else {
 		ys = round(y2);
 		yl = round(y1);
 	}
 
-	if (xs == xl){
-		for(y = ys; y <= yl; y++) {
+	if (xs == xl) {
+		for (y = ys; y <= yl; y++) {
 			x = xs;
-			if ((x >= sizeX) || (x < 0) || (y >= sizeY) || (y < 0)){
+			if ((x >= sizeX) || (x < 0) || (y >= sizeY) || (y < 0)) {
 				continue;
 			}
-			p = 3*(y*sizeX + x);
-			if ((p < 0) || (p >= 3 * sizeX * sizeY)){
+			p = 3 * (y * sizeX + x);
+			if ((p < 0) || (p >= 3 * sizeX * sizeY)) {
 				continue;
 			}
-			singleplot->pixels[p] = (uint16_t) ( (int) 65000);			// red
-			singleplot->pixels[p + 1] = (uint16_t) ( (int) 65000);		// green
-			singleplot->pixels[p + 2] = (uint16_t) ( (int) 65000);	// blue
+			singleplot->pixels[p] = UINT16_MAX;			// red
+			singleplot->pixels[p + 1] = UINT16_MAX;		// green
+			singleplot->pixels[p + 2] = UINT16_MAX;	// blue
 		}
 	}
-	else if (ys == yl){
-		for(x = xs; x <= xl; x++) {
+	else if (ys == yl) {
+		for (x = xs; x <= xl; x++) {
 			y = ys;
-			if ((x >= sizeX) || (x < 0) || (y >= sizeY) || (y < 0)){
+			if ((x >= sizeX) || (x < 0) || (y >= sizeY) || (y < 0)) {
 				continue;
 			}
-			p = 3*(y*sizeX + x);
-			if ((p < 0) || (p >= 3 * sizeX * sizeY)){
+			p = 3 * (y * sizeX + x);
+			if ((p < 0) || (p >= 3 * sizeX * sizeY)) {
 				continue;
 			}
-			singleplot->pixels[p] = (uint16_t) ( (int) 65000);			// red
-			singleplot->pixels[p + 1] = (uint16_t) ( (int) 65000);		// green
-			singleplot->pixels[p + 2] = (uint16_t) ( (int) 65000);	// blue
+			singleplot->pixels[p] = UINT16_MAX;			// red
+			singleplot->pixels[p + 1] = UINT16_MAX;		// green
+			singleplot->pixels[p + 2] = UINT16_MAX;	// blue
 		}
 	}
 	else {
 		dx = xl - xs;
 		dy = yl - ys;
-		if (dx > dy){
-			for(x = xs; x <= xl; x++) {
-				y = (round)(y2 - ((y2-y1)/(x2-x1)) * (x2-(float)x));
-				if ((x >= sizeX) || (x < 0) || (y >= sizeY) || (y < 0)){
+		if (dx > dy) {
+			for (x = xs; x <= xl; x++) {
+				y = (round)(y2 - ((y2 - y1) / (x2 - x1)) * (x2 - (float) x));
+				if ((x >= sizeX) || (x < 0) || (y >= sizeY) || (y < 0)) {
 					continue;
 				}
-				p = 3*(y*sizeX + x);
-				if ((p < 0) || (p >= 3 * sizeX * sizeY)){
+				p = 3 * (y * sizeX + x);
+				if ((p < 0) || (p >= 3 * sizeX * sizeY)) {
 					continue;
 				}
-				singleplot->pixels[p] = (uint16_t) ( (int) 65000);			// red
-				singleplot->pixels[p + 1] = (uint16_t) ( (int) 65000);		// green
-				singleplot->pixels[p + 2] = (uint16_t) ( (int) 65000);	// blue
+				singleplot->pixels[p] = UINT16_MAX;			// red
+				singleplot->pixels[p + 1] = UINT16_MAX;		// green
+				singleplot->pixels[p + 2] = UINT16_MAX;	// blue
 			}
 		}
 		else {
-			for(y = ys; y <= yl; y++) {
-				x = (round)(x2 - ((x2-x1)/(y2-y1)) * (y2-(float)y));
-				if ((x >= sizeX) || (x < 0) || (y >= sizeY) || (y < 0)){
+			for (y = ys; y <= yl; y++) {
+				x = (round)(x2 - ((x2 - x1) / (y2 - y1)) * (y2 - (float) y));
+				if ((x >= sizeX) || (x < 0) || (y >= sizeY) || (y < 0)) {
 					continue;
 				}
-				p = 3*(y*sizeX + x);
-				if ((p < 0) || (p >= 3 * sizeX * sizeY)){
+				p = 3 * (y * sizeX + x);
+				if ((p < 0) || (p >= 3 * sizeX * sizeY)) {
 					continue;
 				}
-				singleplot->pixels[p] = (uint16_t) ( (int) 65000);			// red
-				singleplot->pixels[p + 1] = (uint16_t) ( (int) 65000);		// green
-				singleplot->pixels[p + 2] = (uint16_t) ( (int) 65000);	// blue
+				singleplot->pixels[p] = UINT16_MAX;			// red
+				singleplot->pixels[p + 1] = UINT16_MAX;		// green
+				singleplot->pixels[p + 2] = UINT16_MAX;	// blue
 			}
 		}
 	}
 }
 
-static void drawpath(caerFrameEvent singleplot, Path *path, int sizeX){
+static void drawpath(caerFrameEvent singleplot, Path *path, int sizeX) {
 	Path *current = path;
-	while (current != NULL){
-		int x = (int)current->location_x;
-		int y = (int)current->location_y;
-		int p = 3*(y*sizeX + x);
+	while (current != NULL) {
+		int x = (int) current->location_x;
+		int y = (int) current->location_y;
+		int p = 3 * (y * sizeX + x);
 
-		singleplot->pixels[p] = (uint16_t) ( (int) 65000);			// red
-		singleplot->pixels[p + 1] = (uint16_t) ( (int) 1);		// green
-		singleplot->pixels[p + 2] = (uint16_t) ( (int) 65000);	// blue
+		singleplot->pixels[p] = UINT16_MAX;			// red
+		singleplot->pixels[p + 1] = 0;		// green
+		singleplot->pixels[p + 2] = UINT16_MAX;	// blue
 
 		current = current->next;
 	}
 }
 
-static void updateCurrentClusterNum(caerModuleData moduleData){
+static void updateCurrentClusterNum(caerModuleData moduleData) {
 	RTFilterState state = moduleData->moduleState;
 
 	state->currentClusterNum = 0;
-	for(int i = 0; i < state->maxClusterNum; i++){
-		if (!state->clusterList[i].isEmpty){
+	for (int i = 0; i < state->maxClusterNum; i++) {
+		if (!state->clusterList[i].isEmpty) {
 			state->currentClusterNum++;
 		}
 	}
 }
 
-static void updateColor(Cluster *c){
-	float brightness = fmax(0.0f, fmin(1.0f, (float)getLifetime(c) / FULL_BRIGHTNESS_LIFETIME));
-	c->color.r = (uint16_t)(65535.0f * brightness);
-	c->color.g = (uint16_t)(65535.0f * brightness);
-	c->color.b = (uint16_t)(65535.0f * brightness);
+static void updateColor(Cluster *c) {
+	float brightness = fmax(0.0f, fmin(1.0f, (float) getLifetime(c) / FULL_BRIGHTNESS_LIFETIME));
+	c->color.r = (uint16_t) ((float) UINT16_MAX * brightness);
+	c->color.g = (uint16_t) ((float) UINT16_MAX * brightness);
+	c->color.b = (uint16_t) ((float) UINT16_MAX * brightness);
 }
 
-static void checkCountingArea(caerModuleData moduleData, int16_t sizeX, int16_t sizeY){
+static void checkCountingArea(caerModuleData moduleData, int16_t sizeX, int16_t sizeY) {
 	RTFilterState state = moduleData->moduleState;
 
-	if(state->botLine < 0.0f){
+	if (state->botLine < 0.0f) {
 		state->botLine = 0.0f;
 	}
-	if(state->botLine > sizeY){
+	if (state->botLine > sizeY) {
 		state->botLine = sizeY;
 	}
-	if(state->topLine < 0.0f){
+	if (state->topLine < 0.0f) {
 		state->topLine = 0.0f;
 	}
-	if(state->topLine > sizeY){
+	if (state->topLine > sizeY) {
 		state->topLine = sizeY;
 	}
-	if(state->botLine > state->topLine){
+	if (state->botLine > state->topLine) {
 		state->botLine = state->topLine;
 	}
-	if(state->leftLine < 0.0f){
+	if (state->leftLine < 0.0f) {
 		state->leftLine = 0.0f;
 	}
-	if(state->leftLine > sizeX){
+	if (state->leftLine > sizeX) {
 		state->leftLine = sizeX;
 	}
-	if(state->rightLine < 0.0f){
+	if (state->rightLine < 0.0f) {
 		state->rightLine = 0.0f;
 	}
-	if(state->rightLine > sizeX){
+	if (state->rightLine > sizeX) {
 		state->rightLine = sizeX;
 	}
-	if(state->leftLine > state->rightLine){
+	if (state->leftLine > state->rightLine) {
 		state->leftLine = state->rightLine;
 	}
 }
 
-static void countPeople(caerFrameEvent singleplot, caerModuleData moduleData, int16_t sizeX, int16_t sizeY){
+static void countPeople(caerFrameEvent singleplot, caerModuleData moduleData, int16_t sizeX, int16_t sizeY) {
 	RTFilterState state = moduleData->moduleState;
 
-	if (state->resetCountingNum){
+	if (state->resetCountingNum) {
 		nIn = 0;
 		nOut = 0;
 		state->resetCountingNum = false;
@@ -1366,50 +1415,44 @@ static void countPeople(caerFrameEvent singleplot, caerModuleData moduleData, in
 	uint32_t counter = 0;
 	for (size_t y = 0; y < sizeY; y++) {
 		for (size_t x = 0; x < sizeX; x++) {
-			if ((x == (int)rx && y <= ty && y >= by) ||
-					(x == (int)lx && y <= ty && y >= by) ||
-					(y == (int)ty && x <= rx && x >= lx) ||
-					(y == (int)by && x <= rx && x >= lx))
-			{
-				singleplot->pixels[counter] = (uint16_t) ( (int) 65000);			// red
-				singleplot->pixels[counter + 1] = (uint16_t) ( (int) 65000);		// green
-				singleplot->pixels[counter + 2] = (uint16_t) ( (int) 65000);	// blue
+			if ((x == (int) rx && y <= ty && y >= by) || (x == (int) lx && y <= ty && y >= by)
+				|| (y == (int) ty && x <= rx && x >= lx) || (y == (int) by && x <= rx && x >= lx)) {
+				singleplot->pixels[counter] = UINT16_MAX;			// red
+				singleplot->pixels[counter + 1] = UINT16_MAX;		// green
+				singleplot->pixels[counter + 2] = UINT16_MAX;	// blue
 			}
 			counter += 3;
 		}
 	}
 
 	//TODO make algorithm for x dimension.
-	for (int i=0; i<state->maxClusterNum; i++){
-		if(state->clusterList[i].isEmpty && inBotZone[i]){
+	for (int i = 0; i < state->maxClusterNum; i++) {
+		if (state->clusterList[i].isEmpty && inBotZone[i]) {
 			inBotZone[i] = false;
 		}
-		if(state->clusterList[i].isEmpty && inTopZone[i]){
+		if (state->clusterList[i].isEmpty && inTopZone[i]) {
 			inTopZone[i] = false;
 		}
-		if(state->clusterList[i].isEmpty || !state->clusterList[i].visibilityFlag){
+		if (state->clusterList[i].isEmpty || !state->clusterList[i].visibilityFlag) {
 			continue;
 		}
-		if((state->clusterList[i].location_y < by) && !inBotZone[i]){
+		if ((state->clusterList[i].location_y < by) && !inBotZone[i]) {
 			inBotZone[i] = true;
 		}
-		if((state->clusterList[i].location_y > ty) && !inTopZone[i]){
+		if ((state->clusterList[i].location_y > ty) && !inTopZone[i]) {
 			inTopZone[i] = true;
 		}
-		if((state->clusterList[i].location_y < by) && inTopZone[i]){
+		if ((state->clusterList[i].location_y < by) && inTopZone[i]) {
 			inTopZone[i] = false;
 			nIn++;
 		}
-		if((state->clusterList[i].location_y > ty) && inBotZone[i]){
+		if ((state->clusterList[i].location_y > ty) && inBotZone[i]) {
 			inBotZone[i] = false;
 			nOut++;
 		}
 	}
-	state->totalPeopleNum = (nIn - nOut) > 0 ? (nIn-nOut) : 0;
+	state->totalPeopleNum = (nIn - nOut) > 0 ? (nIn - nOut) : 0;
 	sshsNodePutInt(moduleData->moduleNode, "totalPeopleNum", state->totalPeopleNum);
-
-	//add OpenCV info to the frame
-	OpenCV_generate(state->cpp_class, nIn, nOut, &singleplot, sizeX, sizeY);
 }
 
 static void caerRectangulartrackerConfig(caerModuleData moduleData) {
@@ -1447,10 +1490,7 @@ static void caerRectangulartrackerExit(caerModuleData moduleData) {
 	// Remove listener, which can reference invalid memory in userData.
 	sshsNodeRemoveAttributeListener(moduleData->moduleNode, moduleData, &caerModuleConfigDefaultListener);
 
-	RTFilterState state = moduleData->moduleState;
-	deleteOpenCV(state->cpp_class);
-}
-
-static void caerRectangulartrackerReset(caerModuleData moduleData, uint16_t resetCallSourceID) {
-	UNUSED_ARGUMENT(resetCallSourceID);
+	// Clear sourceInfo node.
+	sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
+	sshsNodeRemoveAllAttributes(sourceInfoNode);
 }

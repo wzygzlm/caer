@@ -3,6 +3,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <limits.h>
 #include "ext/portable_misc.h"
 
 int CAER_LOG_FILE_FD = -1;
@@ -13,7 +14,7 @@ static void caerLogLevelListener(sshsNode node, void *userData, enum sshs_node_a
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
 
 void caerLogInit(void) {
-	sshsNode logNode = sshsGetNode(sshsGetGlobal(), "/logger/");
+	sshsNode logNode = sshsGetNode(sshsGetGlobal(), "/caer/logger/");
 
 	// Ensure default log file and value are present.
 	// The default path is a file named caer.log inside the program's CWD.
@@ -26,13 +27,15 @@ void caerLogInit(void) {
 	strcpy(logFilePath, logFileDirClean);
 	strcat(logFilePath, logFileName);
 
-	sshsNodePutStringIfAbsent(logNode, "logFile", logFilePath);
+	sshsNodeCreateString(logNode, "logFile", logFilePath, 2, PATH_MAX, SSHS_FLAGS_NORMAL,
+		"Path to the file where all log messages are written to.");
 
 	free(logFilePath);
 	free(logFileDirClean);
 	free(logFileDir);
 
-	sshsNodePutByteIfAbsent(logNode, "logLevel", CAER_LOG_NOTICE);
+	sshsNodeCreateByte(logNode, "logLevel", CAER_LOG_NOTICE, CAER_LOG_EMERGENCY, CAER_LOG_DEBUG, SSHS_FLAGS_NORMAL,
+		"Global log-level.");
 
 	// Try to open the specified file and error out if not possible.
 	char *logFile = sshsNodeGetString(logNode, "logFile");

@@ -1,64 +1,85 @@
-/*
- * backgroundactivityfilter.c
- *
- *  Created on: Jan 20, 2014
- *      Author: chtekk
- */
-
-#include "backgroundactivityfilter.h"
+#include "main.h"
 #include "base/mainloop.h"
 #include "base/module.h"
 #include "ext/buffers.h"
+
+#include <libcaer/events/polarity.h>
 
 struct BAFilter_state {
 	simple2DBufferLong timestampMap;
 	int32_t deltaT;
 	int8_t subSampleBy;
 	int64_t invalidPointNum;
-	int peopleNum;
-	int activityLevel;
-	bool testingMode;
 };
 
 typedef struct BAFilter_state *BAFilterState;
 
+static void caerBackgroundActivityFilterConfigInit(sshsNode moduleNode);
 static bool caerBackgroundActivityFilterInit(caerModuleData moduleData);
-static void caerBackgroundActivityFilterRun(caerModuleData moduleData, size_t argsNumber, va_list args);
+static void caerBackgroundActivityFilterRun(caerModuleData moduleData, caerEventPacketContainer in,
+	caerEventPacketContainer *out);
 static void caerBackgroundActivityFilterConfig(caerModuleData moduleData);
 static void caerBackgroundActivityFilterExit(caerModuleData moduleData);
-static void caerBackgroundActivityFilterReset(caerModuleData moduleData, uint16_t resetCallSourceID);
-static bool allocateTimestampMap(BAFilterState state, int16_t sourceID);
+static void caerBackgroundActivityFilterReset(caerModuleData moduleData, int16_t resetCallSourceID);
 
-static struct caer_module_functions caerBackgroundActivityFilterFunctions = { .moduleInit =
-	&caerBackgroundActivityFilterInit, .moduleRun = &caerBackgroundActivityFilterRun, .moduleConfig =
-	&caerBackgroundActivityFilterConfig, .moduleExit = &caerBackgroundActivityFilterExit, .moduleReset =
-	&caerBackgroundActivityFilterReset };
+static const struct caer_module_functions BAFilterFunctions = { .moduleConfigInit =
+	&caerBackgroundActivityFilterConfigInit, .moduleInit = &caerBackgroundActivityFilterInit, .moduleRun =
+	&caerBackgroundActivityFilterRun, .moduleConfig = &caerBackgroundActivityFilterConfig, .moduleExit =
+	&caerBackgroundActivityFilterExit, .moduleReset = &caerBackgroundActivityFilterReset };
 
-void caerBackgroundActivityFilter(uint16_t moduleID, caerPolarityEventPacket polarity) {
-	caerModuleData moduleData = caerMainloopFindModule(moduleID, "BAFilter", CAER_MODULE_PROCESSOR);
-	if (moduleData == NULL) {
-		return;
-	}
+static const struct caer_event_stream_in BAFilterInputs[] =
+	{ { .type = POLARITY_EVENT, .number = 1, .readOnly = false } };
 
-	caerModuleSM(&caerBackgroundActivityFilterFunctions, moduleData, sizeof(struct BAFilter_state), 1, polarity);
+static const struct caer_module_info BAFilterInfo = { .version = 1, .name = "BAFilter", .description =
+	"Filters background noise events.", .type = CAER_MODULE_PROCESSOR, .memSize = sizeof(struct BAFilter_state),
+	.functions = &BAFilterFunctions, .inputStreams = BAFilterInputs, .inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(
+		BAFilterInputs), .outputStreams = NULL, .outputStreamsSize = 0, };
+
+caerModuleInfo caerModuleGetInfo(void) {
+	return (&BAFilterInfo);
+}
+
+static void caerBackgroundActivityFilterConfigInit(sshsNode moduleNode) {
+	sshsNodeCreateInt(moduleNode, "deltaT", 30000, 1, 10000000, SSHS_FLAGS_NORMAL,
+		"Maximum time difference in µs for events to be considered correlated and not be filtered out.");
+	sshsNodeCreateByte(moduleNode, "subSampleBy", 0, 0, 20, SSHS_FLAGS_NORMAL,
+		"Sub-sample event addresses by shifting right by this amount.");
 }
 
 static bool caerBackgroundActivityFilterInit(caerModuleData moduleData) {
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "deltaT", 30000);
-	sshsNodePutByteIfAbsent(moduleData->moduleNode, "subSampleBy", 0);
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "testingMode", false);
+	// Wait for input to be ready. All inputs, once they are up and running, will
+	// have a valid sourceInfo node to query, especially if dealing with data.
+	int16_t *inputs = caerMainloopGetModuleInputIDs(moduleData->moduleID, NULL);
+	if (inputs == NULL) {
+		return (false);
+	}
+
+	int16_t sourceID = inputs[0];
+	free(inputs);
 
 	// Always initialize to zero at init.
 	// Corresponding variable is already zero in state memory.
-	sshsNodePutLong(moduleData->moduleNode, "invalidPointNum", 0);
-	sshsNodePutInt(moduleData->moduleNode, "peopleNum", 0);
-	sshsNodePutInt(moduleData->moduleNode, "activityLevel", 0);
+	sshsNodeCreateLong(moduleData->moduleNode, "invalidPointNum", 0, 0, INT64_MAX,
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Number of events filtered out by this module.");
 
 	BAFilterState state = moduleData->moduleState;
 
-	state->deltaT = sshsNodeGetInt(moduleData->moduleNode, "deltaT");
-	state->subSampleBy = sshsNodeGetByte(moduleData->moduleNode, "subSampleBy");
-	state->testingMode = sshsNodeGetBool(moduleData->moduleNode, "testingMode");
+	// Allocate map using info from sourceInfo.
+	sshsNode sourceInfo = caerMainloopGetSourceInfo(sourceID);
+	if (sourceInfo == NULL) {
+		return (false);
+	}
+
+	int16_t sizeX = sshsNodeGetShort(sourceInfo, "polaritySizeX");
+	int16_t sizeY = sshsNodeGetShort(sourceInfo, "polaritySizeY");
+
+	state->timestampMap = simple2DBufferInitLong((size_t) sizeX, (size_t) sizeY);
+	if (state->timestampMap == NULL) {
+		caerModuleLog(moduleData, CAER_LOG_ERROR, "Failed to allocate memory for timestampMap.");
+		return (false);
+	}
+
+	caerBackgroundActivityFilterConfig(moduleData);
 
 	// Add config listeners last, to avoid having them dangling if Init doesn't succeed.
 	sshsNodeAddAttributeListener(moduleData->moduleNode, moduleData, &caerModuleConfigDefaultListener);
@@ -67,11 +88,12 @@ static bool caerBackgroundActivityFilterInit(caerModuleData moduleData) {
 	return (true);
 }
 
-static void caerBackgroundActivityFilterRun(caerModuleData moduleData, size_t argsNumber, va_list args) {
-	UNUSED_ARGUMENT(argsNumber);
+static void caerBackgroundActivityFilterRun(caerModuleData moduleData, caerEventPacketContainer in,
+	caerEventPacketContainer *out) {
+	UNUSED_ARGUMENT(out);
 
-	// Interpret variable arguments (same as above in main function).
-	caerPolarityEventPacket polarity = va_arg(args, caerPolarityEventPacket);
+	caerPolarityEventPacket polarity = (caerPolarityEventPacket) caerEventPacketContainerFindEventPacketByType(in,
+		POLARITY_EVENT);
 
 	// Only process packets with content.
 	if (polarity == NULL) {
@@ -80,19 +102,10 @@ static void caerBackgroundActivityFilterRun(caerModuleData moduleData, size_t ar
 
 	BAFilterState state = moduleData->moduleState;
 
-	// If the map is not allocated yet, do it.
-	if (state->timestampMap == NULL) {
-		if (!allocateTimestampMap(state, caerEventPacketHeaderGetEventSource(&polarity->packetHeader))) {
-			// Failed to allocate memory, nothing to do.
-			caerLog(CAER_LOG_ERROR, moduleData->moduleSubSystemString, "Failed to allocate memory for timestampMap.");
-			return;
-		}
-	}
-
 	// Iterate over events and filter out ones that are not supported by other
 	// events within a certain region in the specified timeframe.
 	CAER_POLARITY_ITERATOR_VALID_START(polarity)
-		// Get values on which to operate.
+	// Get values on which to operate.
 		int64_t ts = caerPolarityEventGetTimestamp64(caerPolarityIteratorElement, polarity);
 		uint16_t x = caerPolarityEventGetX(caerPolarityIteratorElement);
 		uint16_t y = caerPolarityEventGetY(caerPolarityIteratorElement);
@@ -140,17 +153,11 @@ static void caerBackgroundActivityFilterRun(caerModuleData moduleData, size_t ar
 		}
 		if (x < sizeMaxX && y > 0) {
 			state->timestampMap->buffer2d[x + 1][y - 1] = ts;
-		}
-	CAER_POLARITY_ITERATOR_VALID_END
+		}CAER_POLARITY_ITERATOR_VALID_END
 
 	// Only update SSHS once per packet (expensive call).
-	if (state->testingMode){
-		state->peopleNum = rand() % 20;
-		state->activityLevel = rand() % 4;
-		sshsNodePutLong(moduleData->moduleNode, "invalidPointNum", state->invalidPointNum);
-		sshsNodePutInt(moduleData->moduleNode, "peopleNum", state->peopleNum);
-		sshsNodePutInt(moduleData->moduleNode, "activityLevel", state->activityLevel);
-	}
+	sshsNodeUpdateReadOnlyAttribute(moduleData->moduleNode, "invalidPointNum", SSHS_LONG,
+		(union sshs_node_attr_value ) { .ilong = state->invalidPointNum });
 }
 
 static void caerBackgroundActivityFilterConfig(caerModuleData moduleData) {
@@ -160,12 +167,14 @@ static void caerBackgroundActivityFilterConfig(caerModuleData moduleData) {
 
 	state->deltaT = sshsNodeGetInt(moduleData->moduleNode, "deltaT");
 	state->subSampleBy = sshsNodeGetByte(moduleData->moduleNode, "subSampleBy");
-	state->testingMode = sshsNodeGetBool(moduleData->moduleNode, "testingMode");
 }
 
 static void caerBackgroundActivityFilterExit(caerModuleData moduleData) {
 	// Remove listener, which can reference invalid memory in userData.
 	sshsNodeRemoveAttributeListener(moduleData->moduleNode, moduleData, &caerModuleConfigDefaultListener);
+
+	// Remove informative attribute.
+	sshsNodeRemoveAttribute(moduleData->moduleNode, "invalidPointNum", SSHS_LONG);
 
 	BAFilterState state = moduleData->moduleState;
 
@@ -173,32 +182,16 @@ static void caerBackgroundActivityFilterExit(caerModuleData moduleData) {
 	simple2DBufferFreeLong(state->timestampMap);
 }
 
-static void caerBackgroundActivityFilterReset(caerModuleData moduleData, uint16_t resetCallSourceID) {
+static void caerBackgroundActivityFilterReset(caerModuleData moduleData, int16_t resetCallSourceID) {
 	UNUSED_ARGUMENT(resetCallSourceID);
 
 	BAFilterState state = moduleData->moduleState;
 
 	// Reset timestamp map to all zeros (startup state).
 	simple2DBufferResetLong(state->timestampMap);
-}
 
-static bool allocateTimestampMap(BAFilterState state, int16_t sourceID) {
-	// Get size information from source.
-	sshsNode sourceInfoNode = caerMainloopGetSourceInfo(U16T(sourceID));
-	if (sourceInfoNode == NULL) {
-		// This should never happen, but we handle it gracefully.
-		caerLog(CAER_LOG_ERROR, __func__, "Failed to get source info to allocate timestamp map.");
-		return (false);
-	}
-
-	int16_t sizeX = sshsNodeGetShort(sourceInfoNode, "dvsSizeX");
-	int16_t sizeY = sshsNodeGetShort(sourceInfoNode, "dvsSizeY");
-
-	state->timestampMap = simple2DBufferInitLong((size_t) sizeX, (size_t) sizeY);
-	if (state->timestampMap == NULL) {
-		return (false);
-	}
-
-	// TODO: size the map differently if subSampleBy is set!
-	return (true);
+	// Reset invalid points counters to zero (startup state).
+	state->invalidPointNum = 0;
+	sshsNodeUpdateReadOnlyAttribute(moduleData->moduleNode, "invalidPointNum", SSHS_LONG,
+		(union sshs_node_attr_value ) { .ilong = 0 });
 }

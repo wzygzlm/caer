@@ -1,4 +1,4 @@
-#include "file.h"
+#include "main.h"
 #include "base/mainloop.h"
 #include "base/module.h"
 #include "output_common.h"
@@ -6,51 +6,55 @@
 #include <fcntl.h>
 #include <time.h>
 
-#if __APPLE__
+#if defined(__APPLE__)
 #include <sys/syslimits.h>
 #endif
 
+#define DEFAULT_PREFIX "caerOut"
+#define MAX_PREFIX_LENGTH 128
 
 static bool caerOutputFileInit(caerModuleData moduleData);
 
-static struct caer_module_functions caerOutputFileFunctions = { .moduleInit = &caerOutputFileInit, .moduleRun =
+static const struct caer_module_functions OutputFileFunctions = { .moduleInit = &caerOutputFileInit, .moduleRun =
 	&caerOutputCommonRun, .moduleConfig = NULL, .moduleExit = &caerOutputCommonExit, .moduleReset =
 	&caerOutputCommonReset };
 
-void caerOutputFile(uint16_t moduleID, size_t outputTypesNumber, ...) {
-	caerModuleData moduleData = caerMainloopFindModule(moduleID, "FileOutput", CAER_MODULE_OUTPUT);
-	if (moduleData == NULL) {
-		return;
-	}
+static const struct caer_event_stream_in OutputFileInputs[] = { { .type = -1, .number = -1, .readOnly = true } };
 
-	va_list args;
-	va_start(args, outputTypesNumber);
-	caerModuleSMv(&caerOutputFileFunctions, moduleData, CAER_OUTPUT_COMMON_STATE_STRUCT_SIZE, outputTypesNumber, args);
-	va_end(args);
+static const struct caer_module_info OutputFileInfo = { .version = 1, .name = "FileOutput", .description =
+	"Write AEDAT 3 data out to a file.", .type = CAER_MODULE_OUTPUT, .memSize = sizeof(struct output_common_state),
+	.functions = &OutputFileFunctions, .inputStreams = OutputFileInputs, .inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(
+		OutputFileInputs), .outputStreams = NULL, .outputStreamsSize = 0, };
+
+caerModuleInfo caerModuleGetInfo(void) {
+	return (&OutputFileInfo);
 }
 
-static char *getUserHomeDirectory(const char *subSystemString);
-static char *getFullFilePath(const char *subSystemString, const char *directory, const char *prefix);
+static char *getUserHomeDirectory(caerModuleData moduleData);
+static char *getFullFilePath(caerModuleData moduleData, const char *directory, const char *prefix);
 
 // Remember to free strings returned by this.
-static char *getUserHomeDirectory(const char *subSystemString) {
+static char *getUserHomeDirectory(caerModuleData moduleData) {
 	size_t homeDirLength = PATH_MAX;
 
 	// Allocate memory for home directory path.
 	char *homeDir = malloc(homeDirLength);
 	if (homeDir == NULL) {
-		caerLog(CAER_LOG_ERROR, subSystemString, "Failed to allocate memory for home directory string.");
+		caerModuleLog(moduleData, CAER_LOG_ERROR, "Failed to allocate memory for home directory string.");
 		return (NULL);
 	}
 
 	// Discover home directory path, use libuv for cross-platform support.
 	int retVal = uv_os_homedir(homeDir, &homeDirLength);
-	UV_RET_CHECK(retVal, subSystemString, "uv_os_homedir", return (NULL));
+	if (retVal < 0) {
+		caerModuleLog(moduleData, CAER_LOG_ERROR, "uv_os_homedir failed, error %d (%s).", retVal, uv_err_name(retVal));
+		return (NULL);
+	}
 
 	return (homeDir);
 }
 
-static char *getFullFilePath(const char *subSystemString, const char *directory, const char *prefix) {
+static char *getFullFilePath(caerModuleData moduleData, const char *directory, const char *prefix) {
 	// First get time suffix string.
 	time_t currentTimeEpoch = time(NULL);
 
@@ -88,7 +92,7 @@ static char *getFullFilePath(const char *subSystemString, const char *directory,
 
 	char *filePath = malloc(filePathLength);
 	if (filePath == NULL) {
-		caerLog(CAER_LOG_CRITICAL, subSystemString, "Unable to allocate memory for full file path.");
+		caerModuleLog(moduleData, CAER_LOG_CRITICAL, "Unable to allocate memory for full file path.");
 		return (NULL);
 	}
 
@@ -100,41 +104,42 @@ static char *getFullFilePath(const char *subSystemString, const char *directory,
 static bool caerOutputFileInit(caerModuleData moduleData) {
 	// First, always create all needed setting nodes, set their default values
 	// and add their listeners.
-	char *userHomeDir = getUserHomeDirectory(moduleData->moduleSubSystemString);
+	char *userHomeDir = getUserHomeDirectory(moduleData);
 	if (userHomeDir == NULL) {
-		// caerLog() called inside getUserHomeDirectory().
+		// caerModuleLog() called inside getUserHomeDirectory().
 		return (false);
 	}
 
-	sshsNodePutStringIfAbsent(moduleData->moduleNode, "directory", userHomeDir);
+	sshsNodeCreateString(moduleData->moduleNode, "directory", userHomeDir, 1, (PATH_MAX - MAX_PREFIX_LENGTH),
+		SSHS_FLAGS_NORMAL, "Directory to write output data files in.");
 	free(userHomeDir);
 
-	sshsNodePutStringIfAbsent(moduleData->moduleNode, "prefix", DEFAULT_PREFIX);
+	sshsNodeCreateString(moduleData->moduleNode, "prefix", DEFAULT_PREFIX, 1, MAX_PREFIX_LENGTH, SSHS_FLAGS_NORMAL,
+		"Output data files name prefix.");
 
 	// Generate current file name and open it.
 	char *directory = sshsNodeGetString(moduleData->moduleNode, "directory");
 	char *prefix = sshsNodeGetString(moduleData->moduleNode, "prefix");
 
-	char *filePath = getFullFilePath(moduleData->moduleSubSystemString, directory, prefix);
+	char *filePath = getFullFilePath(moduleData, directory, prefix);
 	free(directory);
 	free(prefix);
 
 	if (filePath == NULL) {
-		// caerLog() called inside getFullFilePath().
+		// caerModuleLog() called inside getFullFilePath().
 		return (false);
 	}
 
 	int fileFd = open(filePath, O_WRONLY | O_CREAT, S_IWUSR | S_IRUSR | S_IRGRP);
 	if (fileFd < 0) {
-		caerLog(CAER_LOG_CRITICAL, moduleData->moduleSubSystemString,
+		caerModuleLog(moduleData, CAER_LOG_CRITICAL,
 			"Could not create or open output file '%s' for writing. Error: %d.", filePath, errno);
 		free(filePath);
 
 		return (false);
 	}
 
-	caerLog(CAER_LOG_INFO, moduleData->moduleSubSystemString, "Opened output file '%s' successfully for writing.",
-		filePath);
+	caerModuleLog(moduleData, CAER_LOG_INFO, "Opened output file '%s' successfully for writing.", filePath);
 	free(filePath);
 
 	if (!caerOutputCommonInit(moduleData, fileFd, NULL)) {

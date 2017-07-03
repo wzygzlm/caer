@@ -19,8 +19,6 @@ struct caer_visualizer_public_state {
 	sshsNode visualizerConfigNode;
 	int32_t bitmapRendererSizeX;
 	int32_t bitmapRendererSizeY;
-	int32_t windowPositionX;
-	int32_t windowPositionY;
 	ALLEGRO_FONT *displayFont;
 };
 
@@ -34,42 +32,10 @@ typedef void (*caerVisualizerEventHandler)(caerVisualizerPublicState state, ALLE
 // For reuse inside other modules.
 caerVisualizerState caerVisualizerInit(caerVisualizerRenderer renderer, caerVisualizerEventHandler eventHandler,
 	int32_t bitmapSizeX, int32_t bitmapSizeY, float defaultZoomFactor, bool defaultShowStatistics,
-	caerModuleData parentModule, int16_t eventSourceID, int32_t bitmapRasterSizeX, int32_t bitmapRasterSizeY);
+	caerModuleData parentModule, int16_t eventSourceID);
 void caerVisualizerUpdate(caerVisualizerState state, caerEventPacketContainer container);
 void caerVisualizerExit(caerVisualizerState state);
 void caerVisualizerReset(caerVisualizerState state);
-
-// Event packet visualizer.
-void caerVisualizer(uint16_t moduleID, const char *name, caerVisualizerRenderer renderer,
-	caerVisualizerEventHandler eventHandler, caerEventPacketHeader packetHeader);
-
-// Default renderers.
-bool caerVisualizerRendererPolarityEvents(caerVisualizerPublicState state, caerEventPacketContainer container,
-	bool doClear);
-bool caerVisualizerRendererFrameEvents(caerVisualizerPublicState state, caerEventPacketContainer container,
-	bool doClear);
-bool caerVisualizerRendererIMU6Events(caerVisualizerPublicState state, caerEventPacketContainer container, bool doClear);
-bool caerVisualizerRendererPoint2DEvents(caerVisualizerPublicState state, caerEventPacketContainer container,
-	bool doClear);
-bool caerVisualizerRendererSpikeEvents(caerVisualizerPublicState state, caerEventPacketContainer container,
-	bool doClear);
-bool caerVisualizerRendererSpikeEventsRaster(caerVisualizerPublicState state, caerEventPacketContainer container,
-bool doClear);
-bool caerVisualizerRendererETF4D(caerVisualizerPublicState state, caerEventPacketContainer container,
-bool doClear);
-
-// Default event handlers.
-void caerVisualizerEventHandlerSpikeEvents(caerVisualizerPublicState state, ALLEGRO_EVENT event);
-void caerVisualizerEventHandlerFrameEvents(caerVisualizerPublicState state, ALLEGRO_EVENT event);
-
-// Event packet container visualizer (multiple packets).
-void caerVisualizerMulti(uint16_t moduleID, const char *name, caerVisualizerRenderer renderer,
-	caerVisualizerEventHandler eventHandler, caerEventPacketContainer container);
-
-// Default multi renderers.
-bool caerVisualizerMultiRendererPolarityAndFrameEvents(caerVisualizerPublicState state,
-	caerEventPacketContainer container,
-	bool doClear);
 
 void caerVisualizerSystemInit(void);
 

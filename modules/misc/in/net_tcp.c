@@ -1,4 +1,4 @@
-#include "net_tcp.h"
+#include "main.h"
 #include "base/mainloop.h"
 #include "base/module.h"
 #include "input_common.h"
@@ -8,32 +8,32 @@
 
 static bool caerInputNetTCPInit(caerModuleData moduleData);
 
-static struct caer_module_functions caerInputNetTCPFunctions = { .moduleInit = &caerInputNetTCPInit, .moduleRun =
+static const struct caer_module_functions InputNetTCPFunctions = { .moduleInit = &caerInputNetTCPInit, .moduleRun =
 	&caerInputCommonRun, .moduleConfig = NULL, .moduleExit = &caerInputCommonExit };
 
-caerEventPacketContainer caerInputNetTCP(uint16_t moduleID) {
-	caerModuleData moduleData = caerMainloopFindModule(moduleID, "NetTCPInput", CAER_MODULE_INPUT);
-	if (moduleData == NULL) {
-		return (NULL);
-	}
+static const struct caer_event_stream_out InputNetTCPOutputs[] = { { .type = -1 } };
 
-	caerEventPacketContainer result = NULL;
+static const struct caer_module_info InputNetTCPInfo = { .version = 1, .name = "NetTCPInput", .description =
+	"Read AEDAT data from a TCP server.", .type = CAER_MODULE_INPUT, .memSize = sizeof(struct input_common_state),
+	.functions = &InputNetTCPFunctions, .inputStreams = NULL, .inputStreamsSize = 0,
+	.outputStreams = InputNetTCPOutputs, .outputStreamsSize = CAER_EVENT_STREAM_OUT_SIZE(InputNetTCPOutputs), };
 
-	caerModuleSM(&caerInputNetTCPFunctions, moduleData, CAER_INPUT_COMMON_STATE_STRUCT_SIZE, 1, &result);
-
-	return (result);
+caerModuleInfo caerModuleGetInfo(void) {
+	return (&InputNetTCPInfo);
 }
 
 static bool caerInputNetTCPInit(caerModuleData moduleData) {
 	// First, always create all needed setting nodes, set their default values
 	// and add their listeners.
-	sshsNodePutStringIfAbsent(moduleData->moduleNode, "ipAddress", "127.0.0.1");
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "portNumber", 7777);
+	sshsNodeCreateString(moduleData->moduleNode, "ipAddress", "127.0.0.1", 7, 15, SSHS_FLAGS_NORMAL,
+		"IPv4 address to connect to.");
+	sshsNodeCreateInt(moduleData->moduleNode, "portNumber", 7777, 1, UINT16_MAX, SSHS_FLAGS_NORMAL,
+		"Port number to connect to.");
 
 	// Open a TCP socket to the remote client, to which we'll send data packets.
 	int sockFd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (sockFd < 0) {
-		caerLog(CAER_LOG_CRITICAL, moduleData->moduleSubSystemString, "Could not create TCP socket. Error: %d.", errno);
+		caerModuleLog(moduleData, CAER_LOG_CRITICAL, "Could not create TCP socket. Error: %d.", errno);
 		return (false);
 	}
 
@@ -47,8 +47,7 @@ static bool caerInputNetTCPInit(caerModuleData moduleData) {
 	if (inet_pton(AF_INET, ipAddress, &tcpClient.sin_addr) == 0) {
 		close(sockFd);
 
-		caerLog(CAER_LOG_CRITICAL, moduleData->moduleSubSystemString, "No valid IP address found. '%s' is invalid!",
-			ipAddress);
+		caerModuleLog(moduleData, CAER_LOG_CRITICAL, "No valid IP address found. '%s' is invalid!", ipAddress);
 
 		free(ipAddress);
 		return (false);
@@ -58,7 +57,7 @@ static bool caerInputNetTCPInit(caerModuleData moduleData) {
 	if (connect(sockFd, (struct sockaddr *) &tcpClient, sizeof(struct sockaddr_in)) != 0) {
 		close(sockFd);
 
-		caerLog(CAER_LOG_CRITICAL, moduleData->moduleSubSystemString,
+		caerModuleLog(moduleData, CAER_LOG_CRITICAL,
 			"Could not connect to remote TCP server %s:%" PRIu16 ". Error: %d.",
 			inet_ntop(AF_INET, &tcpClient.sin_addr, (char[INET_ADDRSTRLEN] ) { 0x00 }, INET_ADDRSTRLEN),
 			ntohs(tcpClient.sin_port), errno);
@@ -70,7 +69,7 @@ static bool caerInputNetTCPInit(caerModuleData moduleData) {
 		return (false);
 	}
 
-	caerLog(CAER_LOG_INFO, moduleData->moduleSubSystemString, "TCP socket connected to %s:%" PRIu16 ".",
+	caerModuleLog(moduleData, CAER_LOG_INFO, "TCP socket connected to %s:%" PRIu16 ".",
 		inet_ntop(AF_INET, &tcpClient.sin_addr, (char[INET_ADDRSTRLEN] ) { 0x00 }, INET_ADDRSTRLEN),
 		ntohs(tcpClient.sin_port));
 

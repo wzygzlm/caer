@@ -1,30 +1,40 @@
-IF (NOT ENABLE_FILE_INPUT)
-	SET(ENABLE_FILE_INPUT 0 CACHE BOOL "Enable the file input module")
+IF (NOT INPUT_FILE)
+	SET(INPUT_FILE 0 CACHE BOOL "Enable the file input module")
 ENDIF()
 
-IF (NOT ENABLE_NETWORK_INPUT)
-	SET(ENABLE_NETWORK_INPUT 0 CACHE BOOL "Enable the network input modules (TCP, UnixSockets)")
+IF (NOT INPUT_NETWORK)
+	SET(INPUT_NETWORK 0 CACHE BOOL "Enable the network input modules (TCP, UnixSockets)")
 ENDIF()
 
-IF (ENABLE_FILE_INPUT)
-	SET(CAER_COMPILE_DEFINITIONS ${CAER_COMPILE_DEFINITIONS} -DENABLE_FILE_INPUT=1)
+IF (INPUT_FILE)
+	ADD_LIBRARY(input_file SHARED input_common.c file.c)
 
-	SET(CAER_FILE_INPUT_FILES modules/misc/in/input_common.c modules/misc/in/file.c)
+	SET_TARGET_PROPERTIES(input_file
+		PROPERTIES
+		PREFIX "caer_"
+	)
 
-	SET(CAER_C_SRC_FILES ${CAER_C_SRC_FILES} ${CAER_FILE_INPUT_FILES})
+	TARGET_LINK_LIBRARIES(input_file ${CAER_C_LIBS})
 ENDIF()
 
-IF (ENABLE_NETWORK_INPUT)
-	SET(CAER_COMPILE_DEFINITIONS ${CAER_COMPILE_DEFINITIONS} -DENABLE_NETWORK_INPUT=1)
+IF (INPUT_NETWORK)
+	# NET_TCP_CLIENT
+	ADD_LIBRARY(input_net_tcp_client SHARED input_common.c net_tcp.c)
 
-	SET(CAER_NETWORK_INPUT_FILES
-		modules/misc/in/input_common.c
-		modules/misc/in/net_tcp.c
-		modules/misc/in/unix_socket.c)
+	SET_TARGET_PROPERTIES(input_net_tcp_client
+		PROPERTIES
+		PREFIX "caer_"
+	)
 
-	SET(CAER_C_SRC_FILES ${CAER_C_SRC_FILES} ${CAER_NETWORK_INPUT_FILES})
+	TARGET_LINK_LIBRARIES(input_net_tcp_client ${CAER_C_LIBS})
+	
+	# NET_SOCKET_CLIENT
+	ADD_LIBRARY(input_net_socket_client SHARED input_common.c unix_socket.c)
+
+	SET_TARGET_PROPERTIES(input_net_socket_client
+		PROPERTIES
+		PREFIX "caer_"
+	)
+
+	TARGET_LINK_LIBRARIES(input_net_socket_client ${CAER_C_LIBS})
 ENDIF()
-
-# Propagate change to parent scope only once.
-SET(CAER_C_SRC_FILES ${CAER_C_SRC_FILES} PARENT_SCOPE)
-SET(CAER_COMPILE_DEFINITIONS ${CAER_COMPILE_DEFINITIONS} PARENT_SCOPE)

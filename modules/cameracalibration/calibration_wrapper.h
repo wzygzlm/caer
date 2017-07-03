@@ -7,6 +7,9 @@ extern "C" {
 
 #include "calibration_settings.h"
 
+#include <libcaer/events/polarity.h>
+#include <libcaer/events/frame.h>
+
 typedef struct Calibration Calibration;
 
 Calibration *calibration_init(CameraCalibrationSettings settings);
