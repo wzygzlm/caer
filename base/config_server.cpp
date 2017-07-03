@@ -113,11 +113,12 @@ private:
 
 					// Now we have everything. The header fields are already
 					// fully decoded: handle request (and send back data eventually).
-					caerConfigServerHandleRequest(self, action, type, data + CAER_CONFIG_SERVER_HEADER_SIZE,
-						extraLength, data + CAER_CONFIG_SERVER_HEADER_SIZE + extraLength, nodeLength,
-						data + CAER_CONFIG_SERVER_HEADER_SIZE + extraLength + nodeLength, keyLength,
-						data + CAER_CONFIG_SERVER_HEADER_SIZE + extraLength + nodeLength + keyLength,
-						valueLength);
+					const uint8_t *extra = (extraLength == 0) ? (nullptr) : (data + CAER_CONFIG_SERVER_HEADER_SIZE);
+					const uint8_t *node = (nodeLength == 0) ? (nullptr) : (data + CAER_CONFIG_SERVER_HEADER_SIZE + extraLength);
+					const uint8_t *key = (keyLength == 0) ? (nullptr) : (data + CAER_CONFIG_SERVER_HEADER_SIZE + extraLength + nodeLength);
+					const uint8_t *value = (valueLength == 0) ? (nullptr) : (data + CAER_CONFIG_SERVER_HEADER_SIZE + extraLength + nodeLength + keyLength);
+
+					caerConfigServerHandleRequest(self, action, type, extra, extraLength, node, nodeLength, key, keyLength, value, valueLength);
 				}
 			});
 	}
@@ -644,7 +645,8 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 				break;
 			}
 
-			int flags = sshsNodeGetAttributeFlags(wantedNode, (const char *) key, (enum sshs_node_attr_value_type) type);
+			int flags = sshsNodeGetAttributeFlags(wantedNode, (const char *) key,
+				(enum sshs_node_attr_value_type) type);
 
 			std::string flagsStr;
 
