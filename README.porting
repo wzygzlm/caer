@@ -54,6 +54,7 @@ the caerModuleGetInfo() function mentioned before:
 static const struct caer_module_info moduleInfo = {
     .version = 1,
     .name = "MODULE",
+    .description = "DESCRIPTION",
     .type = CAER_MODULE_PROCESSOR,
     .memSize = sizeof(struct ModuleState),
     .functions = &moduleFunctions,
@@ -131,6 +132,7 @@ reset function code, you just have to adjust a few casts.
 7) The SSHS configuration system also got a big overhaul, it now supports specifying
 ranges for configuration parameters (min/max), as well as several flags to get for
 example read-only or button-like (notify-only) behavior from configuration parameters.
+There is also a new description parameter to explain what the parameter is actually for.
 To implement this, there is a new set of sshsNodeCreate*() functions with the appropriate
 extra arguments. Those should always be used inside the moduleInit() function to create
 the configuration parameter, so that later on sshsNodePut*() and sshsNodeGet*() calls
@@ -144,7 +146,7 @@ sshsNodePutIntIfAbsent(moduleData->moduleNode, "param", 1234);
 
 And now instead is (with 0 minimum, 2000 maximum values):
 
-sshsNodeCreateInt(moduleData->moduleNode, "param", 1234, 0, 2000, SSHS_FLAGS_NORMAL);
+sshsNodeCreateInt(moduleData->moduleNode, "param", 1234, 0, 2000, SSHS_FLAGS_NORMAL, "Describe me.");
 
 8) There also is a new module-specific logging call available;
 
