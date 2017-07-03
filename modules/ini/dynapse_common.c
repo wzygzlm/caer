@@ -357,8 +357,8 @@ static void createCoarseFineBiasSetting(sshsNode biasNode, const char *biasName,
 	sshsNodeCreateShort(biasConfigNode, "fineValue", I16T(fineValue), 0, 255, SSHS_FLAGS_NORMAL,
 		"Fine current value (small adjustments).");
 	sshsNodeCreateBool(biasConfigNode, "enabled", enabled, SSHS_FLAGS_NORMAL, "Bias enabled.");
-	sshsNodeCreateString(biasConfigNode, "sex", sex, 1, 1, SSHS_FLAGS_NORMAL, "Bias sex.");
-	sshsNodeCreateString(biasConfigNode, "currentLevel", currentLevel, 3, 6, SSHS_FLAGS_NORMAL, "Bias current level.");
+	sshsNodeCreateString(biasConfigNode, "sex", sex, 5, 5, SSHS_FLAGS_NORMAL, "Bias sex.");
+	sshsNodeCreateString(biasConfigNode, "currentLevel", currentLevel, 3, 7, SSHS_FLAGS_NORMAL, "Bias current level.");
 	sshsNodeCreateString(biasConfigNode, "BiasLowHi", hlbias, 0, 100, SSHS_FLAGS_NORMAL, "Bias low or high TODO."); // TODO: specify correct length range.
 	sshsNodeCreateBool(biasConfigNode, "special", false, SSHS_FLAGS_NORMAL, "Bias special type TODO.");
 }
@@ -1239,7 +1239,7 @@ static void sendDefaultConfiguration(caerModuleData moduleData, struct caer_dyna
 	sshsNode deviceConfigNode = sshsGetRelativeNode(moduleData->moduleNode, chipIDToName(devInfo->chipID, true));
 
 	// Send cAER configuration to libcaer and device.
-	usbConfigSend(sshsGetRelativeNode(deviceConfigNode, "usb/"), moduleData);
+	usbConfigSend(sshsGetRelativeNode(moduleData->moduleNode, "usb/"), moduleData);
 }
 
 bool caerInputDYNAPSEInit(caerModuleData moduleData) {
@@ -1264,7 +1264,7 @@ bool caerInputDYNAPSEInit(caerModuleData moduleData) {
 
 	caerInputDynapseState state = moduleData->moduleState;
 
-	state->deviceState = caerDeviceOpen(1, CAER_DEVICE_DYNAPSE, 0, 0, NULL);
+	state->deviceState = caerDeviceOpen(moduleData->moduleID, CAER_DEVICE_DYNAPSE, 0, 0, NULL);
 	state->eventSourceConfigNode = moduleData->moduleNode;
 
 	free(serialNumber);
@@ -1342,9 +1342,14 @@ bool caerInputDYNAPSEInit(caerModuleData moduleData) {
 
 	// create default configuration FX2 USB Configuration and USB buffer settings.
 	sshsNode usbNode = sshsGetRelativeNode(moduleData->moduleNode, "usb/");
+	sshsNodeCreateBool(usbNode, "Run", true, SSHS_FLAGS_NORMAL,
+		"Enable the USB state machine (FPGA to USB data exchange).");
 	sshsNodeCreateInt(usbNode, "BufferNumber", 8, 2, 128, SSHS_FLAGS_NORMAL, "Number of USB transfers.");
 	sshsNodeCreateInt(usbNode, "BufferSize", 4096, 512, 32768, SSHS_FLAGS_NORMAL,
 		"Size in bytes of data buffers for USB transfers.");
+	sshsNodeCreateShort(usbNode, "EarlyPacketDelay", 8, 1, 8000, SSHS_FLAGS_NORMAL,
+		"Send early USB packets if this timeout is reached (in 125µs time-slices).");
+
 
 	sshsNode sysNode = sshsGetRelativeNode(moduleData->moduleNode, "system/");
 

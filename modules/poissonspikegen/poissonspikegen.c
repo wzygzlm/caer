@@ -5,9 +5,11 @@
  *      Author: Carsten
  */
 
-#include "poissonspikegen.h"
 #include "base/mainloop.h"
 #include "base/module.h"
+#include <libcaer/events/spike.h>
+#include <libcaer/devices/dynapse.h>
+#include "modules/ini/dynapse_common.h"
 
 struct HWFilter_state {
 	// user settings
@@ -27,10 +29,11 @@ struct HWFilter_state {
 typedef struct HWFilter_state *HWFilterState;
 
 static bool caerPoissonSpikeGenModuleInit(caerModuleData moduleData);
-static void caerPoissonSpikeGenModuleRun(caerModuleData moduleData, size_t argsNumber, va_list args);
+static void caerPoissonSpikeGenModuleRun(caerModuleData moduleData, caerEventPacketContainer in,
+    caerEventPacketContainer *out);
 static void caerPoissonSpikeGenModuleConfig(caerModuleData moduleData);
 static void caerPoissonSpikeGenModuleExit(caerModuleData moduleData);
-static void caerPoissonSpikeGenModuleReset(caerModuleData moduleData, uint16_t resetCallSourceID);
+static void caerPoissonSpikeGenModuleReset(caerModuleData moduleData, int16_t resetCallSourceID);
 void loadRatesFromFile(caerModuleData moduleData, char* fileName);
 void loadProgramTestPattern(caerModuleData moduleData);
 
@@ -39,40 +42,72 @@ static struct caer_module_functions caerPoissonSpikeGenModuleFunctions = { .modu
 	&caerPoissonSpikeGenModuleConfig, .moduleExit = &caerPoissonSpikeGenModuleExit, .moduleReset =
 	&caerPoissonSpikeGenModuleReset };
 
-void caerPoissonSpikeGenModule(uint16_t moduleID, caerSpikeEventPacket spike) {
-	caerModuleData moduleData = caerMainloopFindModule(moduleID, "Poisson-SpikeGen", CAER_MODULE_PROCESSOR);
-	if (moduleData == NULL) {
-		return;
-	}
+static const struct caer_event_stream_in moduleInputs[] = {
+    { .type = SPIKE_EVENT, .number = 1, .readOnly = true }
+};
 
-	caerModuleSM(&caerPoissonSpikeGenModuleFunctions, moduleData, sizeof(struct HWFilter_state), 1, spike);
+static const struct caer_module_info moduleInfo = {
+    .version = 1,
+    .name = "Poisson-SpikeGen",
+	.description = "Poisson FPGA spike stimulator, to be used with the Dynap-se board",
+    .type = CAER_MODULE_PROCESSOR,
+    .memSize = sizeof(struct HWFilter_state),
+    .functions = &caerPoissonSpikeGenModuleFunctions,
+    .inputStreams = moduleInputs,
+    .inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(moduleInputs),
+    .outputStreams = NULL,
+    .outputStreamsSize = 0
+};
+
+caerModuleInfo caerModuleGetInfo(void) {
+    return (&moduleInfo);
 }
 
+
 static bool caerPoissonSpikeGenModuleInit(caerModuleData moduleData) {
+
+	// Wait for input to be ready. All inputs, once they are up and running, will
+	// have a valid sourceInfo node to query, especially if dealing with data.
+	size_t inputsSize;
+	int16_t *inputs = caerMainloopGetModuleInputIDs(moduleData->moduleID, &inputsSize);
+	if (inputs == NULL) {
+		return (false);
+	}
+
+	int16_t sourceID = inputs[0];
+	free(inputs);
+
+	// Filter State
+	HWFilterState state = moduleData->moduleState;
+
+	// Update all settings.
+	state->eventSourceConfigNode = caerMainloopGetSourceNode(sourceID);
+	if (state->eventSourceConfigNode == NULL) {
+		return (false);
+	}
+
 	// create parameters
 	//sshsNodePutBoolIfAbsent(moduleData->moduleNode, "loadBiases", false);
 	//sshsNodePutBoolIfAbsent(moduleData->moduleNode, "setSram", false);
 	//sshsNodePutBoolIfAbsent(moduleData->moduleNode, "setCam", false);
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "Run", false);
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "Update", false);
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "Load rates from file", false);
-	sshsNodePutStringIfAbsent(moduleData->moduleNode, "Rate file", "");
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "Target neuron address", 0);
-	sshsNodePutDoubleIfAbsent(moduleData->moduleNode, "Rate (Hz)", 0);
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "Chip ID", 0);
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "Program test pattern", false);
-
-	HWFilterState state = moduleData->moduleState;
+	sshsNodeCreateBool(moduleData->moduleNode, "Run", false, SSHS_FLAGS_NORMAL, "start stop fpga output");
+	sshsNodeCreateBool(moduleData->moduleNode, "Update", false, SSHS_FLAGS_NORMAL, "send parameter update to fpga");
+	sshsNodeCreateBool(moduleData->moduleNode, "Load_rates_from_file", false, SSHS_FLAGS_NORMAL, "use file to load mean rates");
+	sshsNodeCreateString(moduleData->moduleNode, "Rate_file", "", 0, 1024, SSHS_FLAGS_NORMAL, "input file name");
+	sshsNodeCreateInt(moduleData->moduleNode, "Target_neuron_address", 0, 0,255, SSHS_FLAGS_NORMAL, "target neuron id");
+	sshsNodeCreateDouble(moduleData->moduleNode, "Rate_Hz", 0, 0, 1000, SSHS_FLAGS_NORMAL, "mean rate of stimulation");
+	sshsNodeCreateInt(moduleData->moduleNode, "Chip_ID", 0, 0, 12, SSHS_FLAGS_NORMAL, "destination chip id [0,4,8,12]");
+	sshsNodeCreateBool(moduleData->moduleNode, "Program_test_pattern", false, SSHS_FLAGS_NORMAL, "test pattern");
 
 	// update node state
-	state->neuronAddr = (uint32_t)sshsNodeGetInt(moduleData->moduleNode, "Target neuron address");
-	state->rateHz = sshsNodeGetDouble(moduleData->moduleNode, "Rate (Hz)");
+	state->neuronAddr = (uint32_t)sshsNodeGetInt(moduleData->moduleNode, "Target_neuron_address");
+	state->rateHz = sshsNodeGetDouble(moduleData->moduleNode, "Rate_Hz");
 	state->run = sshsNodeGetBool(moduleData->moduleNode, "Run");
 	state->update = sshsNodeGetBool(moduleData->moduleNode, "Update");
-	state->loadRatesFromFile = sshsNodeGetBool(moduleData->moduleNode, "Load rates from file");
-	state->rateFile = sshsNodeGetString(moduleData->moduleNode, "Rate file");
-	state->chipID = sshsNodeGetInt(moduleData->moduleNode, "Chip ID");
-	state->programTestPattern = sshsNodeGetBool(moduleData->moduleNode, "Program test pattern");
+	state->loadRatesFromFile = sshsNodeGetBool(moduleData->moduleNode, "Load_rates_from_file");
+	state->rateFile = sshsNodeGetString(moduleData->moduleNode, "Rate_file");
+	state->chipID = sshsNodeGetInt(moduleData->moduleNode, "Chip_ID");
+	state->programTestPattern = sshsNodeGetBool(moduleData->moduleNode, "Program_test_pattern");
 
 	if (caerStrEquals(state->rateFile, "")) {
 		free(state->rateFile);
@@ -86,33 +121,9 @@ static bool caerPoissonSpikeGenModuleInit(caerModuleData moduleData) {
 	return (true);
 }
 
-static void caerPoissonSpikeGenModuleRun(caerModuleData moduleData, size_t argsNumber, va_list args) {
-	UNUSED_ARGUMENT(argsNumber);
+static void caerPoissonSpikeGenModuleRun(caerModuleData moduleData, caerEventPacketContainer in,
+    caerEventPacketContainer *out){
 
-	// Interpret variable arguments (same as above in main function).
-	caerSpikeEventPacket spike = va_arg(args, caerSpikeEventPacket);
-
-	// Only process packets with content.
-	if (spike == NULL) {
-		return;
-	}
-
-	HWFilterState state = moduleData->moduleState;
-
-  	// now we can do crazy processing etc..
-	// first find out which one is the module producing the spikes. and get usb handle
-	// --- start  usb handle / from spike event source id
-	int sourceID = caerEventPacketHeaderGetEventSource(&spike->packetHeader);
-	state->eventSourceModuleState = caerMainloopGetSourceState(U16T(sourceID));
-	state->eventSourceConfigNode = caerMainloopGetSourceNode(U16T(sourceID));
-	if(state->eventSourceModuleState == NULL || state->eventSourceConfigNode == NULL){
-		return;
-	}
-	caerInputDynapseState stateSource = state->eventSourceModuleState;
-	if(stateSource->deviceState == NULL){
-		return;
-	}
-	// --- end usb handle
 
 
 }
@@ -126,18 +137,18 @@ static void caerPoissonSpikeGenModuleConfig(caerModuleData moduleData) {
 	// this will update parameters, from user input
 	bool newUpdate = sshsNodeGetBool(moduleData->moduleNode, "Update");
 	bool newRun = sshsNodeGetBool(moduleData->moduleNode, "Run");
-	bool newProgramTestPattern = sshsNodeGetBool(moduleData->moduleNode, "Program test pattern");
+	bool newProgramTestPattern = sshsNodeGetBool(moduleData->moduleNode, "Program_test_pattern");
 
 
 	// These parameters are always safe to update
-	state->loadRatesFromFile = sshsNodeGetBool(moduleData->moduleNode, "Load rates from file");
+	state->loadRatesFromFile = sshsNodeGetBool(moduleData->moduleNode, "Load_rates_from_file");
 
 	// Change run state if necessary
 	if (newRun && !state->run) {
 		state->run = true;
 		caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_POISSONSPIKEGEN, DYNAPSE_CONFIG_POISSONSPIKEGEN_RUN,
 				    1);
-		state->chipID = sshsNodeGetInt(moduleData->moduleNode, "Chip ID");
+		state->chipID = sshsNodeGetInt(moduleData->moduleNode, "Chip_ID");
 		switch (state->chipID) {
 		case 0:
 		    caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_POISSONSPIKEGEN, DYNAPSE_CONFIG_POISSONSPIKEGEN_CHIPID, DYNAPSE_CONFIG_DYNAPSE_U0 );
@@ -164,13 +175,13 @@ static void caerPoissonSpikeGenModuleConfig(caerModuleData moduleData) {
 		state->update = true;
 		if (state->loadRatesFromFile) {
 			// parse the file and update the poisson source rates
-			state->rateFile = sshsNodeGetString(moduleData->moduleNode, "Rate file");
+			state->rateFile = sshsNodeGetString(moduleData->moduleNode, "Rate_file");
 			loadRatesFromFile(moduleData, state->rateFile);
 		}
 		else {
 			// otherwise, just update the single address/rate pair from the gui
-			state->neuronAddr = (uint32_t)sshsNodeGetInt(moduleData->moduleNode, "Target neuron address");
-			state->rateHz = sshsNodeGetDouble(moduleData->moduleNode, "Rate (Hz)");
+			state->neuronAddr = (uint32_t)sshsNodeGetInt(moduleData->moduleNode, "Target_neuron_address");
+			state->rateHz = sshsNodeGetDouble(moduleData->moduleNode, "Rate_Hz");
 			caerDynapseWritePoissonSpikeRate(stateSource->deviceState, state->neuronAddr, state->rateHz);
 		}
 	}
@@ -192,7 +203,7 @@ void loadProgramTestPattern(caerModuleData moduleData) {
 	HWFilterState state = moduleData->moduleState;
 	caerInputDynapseState stateSource = state->eventSourceModuleState;
 
-	state->chipID = sshsNodeGetInt(moduleData->moduleNode, "Chip ID");
+	state->chipID = sshsNodeGetInt(moduleData->moduleNode, "Chip_ID");
 	switch (state->chipID) {
 	case 0:
 	    caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_POISSONSPIKEGEN, DYNAPSE_CONFIG_POISSONSPIKEGEN_CHIPID, DYNAPSE_CONFIG_DYNAPSE_U0 );
@@ -275,7 +286,7 @@ static void caerPoissonSpikeGenModuleExit(caerModuleData moduleData) {
 
 }
 
-static void caerPoissonSpikeGenModuleReset(caerModuleData moduleData, uint16_t resetCallSourceID) {
+static void caerPoissonSpikeGenModuleReset(caerModuleData moduleData, int16_t resetCallSourceID) {
 	UNUSED_ARGUMENT(resetCallSourceID);
 
 	HWFilterState state = moduleData->moduleState;
