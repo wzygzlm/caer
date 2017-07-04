@@ -7,4 +7,3 @@ typedef struct {
 } COLOUR;
 
 COLOUR GetColour(double v, double vmin, double vmax);
-

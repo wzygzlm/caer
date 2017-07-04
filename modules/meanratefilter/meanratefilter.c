@@ -5,13 +5,15 @@
  */
 
 #include <time.h>
-#include "meanratefilter.h"
 #include "base/mainloop.h"
 #include "base/module.h"
 #include "ext/buffers.h"
 #include "ext/portable_time.h"
 #include "libcaer/devices/dynapse.h"
 #include "ext/colorjet/colorjet.h"
+#include "modules/ini/dynapse_common.h"
+#include <libcaer/events/spike.h>
+#include <libcaer/events/frame.h> //display
 
 struct MRFilter_state {
 	caerInputDynapseState eventSourceModuleState;
@@ -28,12 +30,14 @@ struct MRFilter_state {
 	bool doSetFreq;
 	struct timespec tstart;			//struct is defined in gen_spike.c
 	struct timespec tend;
+	int16_t sourceID;
 };
 
 typedef struct MRFilter_state *MRFilterState;
 
 static bool caerMeanRateFilterInit(caerModuleData moduleData);
-static void caerMeanRateFilterRun(caerModuleData moduleData, size_t argsNumber, va_list args);
+static void caerMeanRateFilterRun(caerModuleData moduleData, caerEventPacketContainer in,
+    caerEventPacketContainer *out);
 static void caerMeanRateFilterConfig(caerModuleData moduleData);
 static void caerMeanRateFilterExit(caerModuleData moduleData);
 static void caerMeanRateFilterReset(caerModuleData moduleData, uint16_t resetCallSourceID);
@@ -45,31 +49,56 @@ static struct caer_module_functions caerMeanRateFilterFunctions = { .moduleInit 
 	&caerMeanRateFilterConfig, .moduleExit = &caerMeanRateFilterExit, .moduleReset =
 	&caerMeanRateFilterReset };
 
-void caerMeanRateFilter(uint16_t moduleID,  caerSpikeEventPacket spike, caerFrameEventPacket *freqplot) {
-	caerModuleData moduleData = caerMainloopFindModule(moduleID, "MeanRate", CAER_MODULE_PROCESSOR);
-	if (moduleData == NULL) {
-		return;
-	}
+static const struct caer_event_stream_in moduleInputs[] = {
+    { .type = SPIKE_EVENT, .number = 1, .readOnly = true }
+};
 
-	caerModuleSM(&caerMeanRateFilterFunctions, moduleData, sizeof(struct MRFilter_state), 2, spike, freqplot);
+static const struct caer_event_stream_out moduleOutputs[] = { { .type = FRAME_EVENT } };
+
+static const struct caer_module_info moduleInfo = {
+	.version = 1, .name = "MeanRate",
+	.description = "Measure mean rate activity of neurons",
+	.type = CAER_MODULE_PROCESSOR,
+	.memSize = sizeof(struct MRFilter_state),
+	.functions = &caerMeanRateFilterFunctions,
+	.inputStreams = moduleInputs,
+	.inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(moduleInputs),
+	.outputStreams = moduleOutputs,
+	.outputStreamsSize = CAER_EVENT_STREAM_OUT_SIZE(moduleOutputs)
+};
+
+caerModuleInfo caerModuleGetInfo(void) {
+    return (&moduleInfo);
 }
 
+
 static bool caerMeanRateFilterInit(caerModuleData moduleData) {
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "colorscaleMax", 500);
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "colorscaleMin", 0);
-	sshsNodePutFloatIfAbsent(moduleData->moduleNode, "targetFreq", 100);
-	sshsNodePutFloatIfAbsent(moduleData->moduleNode, "measureMinTime", 3.0);
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "doSetFreq", false);
 
 	MRFilterState state = moduleData->moduleState;
+
+	// Wait for input to be ready. All inputs, once they are up and running, will
+	// have a valid sourceInfo node to query, especially if dealing with data.
+	int16_t *inputs = caerMainloopGetModuleInputIDs(moduleData->moduleID, NULL);
+	if (inputs == NULL) {
+		return (false);
+	}
+
+	state->sourceID = inputs[0];
+	free(inputs);
+
+	sshsNodeCreateInt(moduleData->moduleNode, "colorscaleMax", 500, 0, 1000, SSHS_FLAGS_NORMAL, "Color Scale, i.e. Max Frequency (Hz)");
+	sshsNodeCreateInt(moduleData->moduleNode, "colorscaleMin", 0, 0, 1000, SSHS_FLAGS_NORMAL, "Color Scale, i.e. Min Frequency (Hz)");
+	sshsNodeCreateFloat(moduleData->moduleNode, "targetFreq", 100, 0, 250, SSHS_FLAGS_NORMAL, "Target frequency for neurons");
+	sshsNodeCreateFloat(moduleData->moduleNode, "measureMinTime", 3.0, 0, 360, SSHS_FLAGS_NORMAL, "Measure time before updating the mean");
+	sshsNodeCreateBool(moduleData->moduleNode, "doSetFreq", false, SSHS_FLAGS_NORMAL, "Start/Stop changing biases for reaching target frequency");
 
 	// Add config listeners last, to avoid having them dangling if Init doesn't succeed.
 	sshsNodeAddAttributeListener(moduleData->moduleNode, moduleData, &caerModuleConfigDefaultListener);
 
 	sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
 	if (!sshsNodeAttributeExists(sourceInfoNode, "dataSizeX", SSHS_SHORT)) { //to do for visualizer change name of field to a more generic one
-		sshsNodePutShort(sourceInfoNode, "dataSizeX", DYNAPSE_X4BOARD_NEUX);
-		sshsNodePutShort(sourceInfoNode, "dataSizeY", DYNAPSE_X4BOARD_NEUY);
+		sshsNodeCreateShort(sourceInfoNode, "dataSizeX", DYNAPSE_X4BOARD_NEUX, DYNAPSE_X4BOARD_NEUX, DYNAPSE_X4BOARD_NEUX*16, SSHS_FLAGS_NORMAL, "number of neurons in X");
+		sshsNodeCreateShort(sourceInfoNode, "dataSizeY", DYNAPSE_X4BOARD_NEUY, DYNAPSE_X4BOARD_NEUY, DYNAPSE_X4BOARD_NEUY*16, SSHS_FLAGS_NORMAL, "number of neurons in Y");
 	}
 
 	// internals
@@ -77,16 +106,18 @@ static bool caerMeanRateFilterInit(caerModuleData moduleData) {
 	state->measureStartedAt = 0.0;
 	state->measureMinTime = sshsNodeGetFloat(moduleData->moduleNode, "measureMinTime");
 
+	allocateFrequencyMap(state, state->sourceID);
+	allocateSpikeCountMap(state, state->sourceID);
+
+	state->eventSourceConfigNode = caerMainloopGetSourceNode(U16T(state->sourceID));
+
 	// Nothing that can fail here.
 	return (true);
 }
 
-static void caerMeanRateFilterRun(caerModuleData moduleData, size_t argsNumber, va_list args) {
-	UNUSED_ARGUMENT(argsNumber);
-
-	// Interpret variable arguments (same as above in main function).
-	caerSpikeEventPacket spike = va_arg(args, caerSpikeEventPacket);
-	caerFrameEventPacket *freqplot = va_arg(args, caerFrameEventPacket*);
+static void caerMeanRateFilterRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out) {
+	caerSpikeEventPacketConst spike =
+		(caerSpikeEventPacketConst) caerEventPacketContainerFindEventPacketByTypeConst(in, SPIKE_EVENT);
 
 	// Only process packets with content.
 	if (spike == NULL) {
@@ -94,36 +125,6 @@ static void caerMeanRateFilterRun(caerModuleData moduleData, size_t argsNumber, 
 	}
 
 	MRFilterState state = moduleData->moduleState;
-
-	int eventSourceID = caerEventPacketHeaderGetEventSource(&spike->packetHeader);
-	// If the map is not allocated yet, do it.
-	if (state->frequencyMap == NULL) {
-		if (!allocateFrequencyMap(state, caerEventPacketHeaderGetEventSource(&spike->packetHeader))) {
-			// Failed to allocate memory, nothing to do.
-			caerLog(CAER_LOG_ERROR, moduleData->moduleSubSystemString, "Failed to allocate memory for frequencyMap.");
-			return;
-		}
-	}
-	// If the map is not allocated yet, do it.
-	if (state->spikeCountMap == NULL) {
-		if (!allocateSpikeCountMap(state, caerEventPacketHeaderGetEventSource(&spike->packetHeader))) {
-			// Failed to allocate memory, nothing to do.
-			caerLog(CAER_LOG_ERROR, moduleData->moduleSubSystemString, "Failed to allocate memory for spikeCountMap.");
-			return;
-		}
-	}
-
-	// --- start  usb handle / from spike event source id
-	state->eventSourceModuleState = caerMainloopGetSourceState(U16T(eventSourceID));
-	state->eventSourceConfigNode = caerMainloopGetSourceNode(U16T(eventSourceID));
-	if(state->eventSourceModuleState == NULL || state->eventSourceConfigNode == NULL){
-		return;
-	}
-	caerInputDynapseState stateSource = state->eventSourceModuleState;
-	if(stateSource->deviceState == NULL){
-		return;
-	}
-	// --- end usb handle
 
 	// if not measuring, let's start
 	if( state->startedMeas == false ){
@@ -298,13 +299,8 @@ static void caerMeanRateFilterRun(caerModuleData moduleData, size_t argsNumber, 
 					}
 					if(changed){
 						//generate bits to send
-						uint32_t bits = (uint32_t) generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode,
+						generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode,
 								biasName, coarseValue, fineValue, "HighBias", "Normal", "PBias", true, chipid);
-						//send bits to the usb
-						caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, chipid);
-						caerDeviceConfigSet(((caerInputDynapseState) moduleData->moduleState)->deviceState,
-							DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_CONTENT, bits);
-
 					}
 
 				}
@@ -327,29 +323,49 @@ static void caerMeanRateFilterRun(caerModuleData moduleData, size_t argsNumber, 
 
 	CAER_SPIKE_ITERATOR_VALID_END
 
-
-	// put info into frame
-	*freqplot = caerFrameEventPacketAllocate(1, I16T(moduleData->moduleID), 0, sizeX, sizeY, 3);
-	caerMainloopFreeAfterLoop(&free, *freqplot);
-	if (*freqplot != NULL) {
-		caerFrameEvent singleplot = caerFrameEventPacketGetEvent(*freqplot, 0);
-
-		uint32_t counter = 0;
-		for (int16_t x = 0; x < sizeX; x++) {
-			for (int16_t y = 0; y < sizeY; y++) {
-				COLOUR col  = GetColour((double) state->frequencyMap->buffer2d[y][x], state->colorscaleMin, state->colorscaleMax);
-				singleplot->pixels[counter] = (uint16_t) ( (int)(col.r*65535));			// red
-				singleplot->pixels[counter + 1] = (uint16_t) ( (int)(col.g*65535));		// green
-				singleplot->pixels[counter + 2] = (uint16_t) ( (int)(col.b*65535) );		// blue
-				counter += 3;
-			}
-		}
-
-		//add info to the frame
-		caerFrameEventSetLengthXLengthYChannelNumber(singleplot, sizeX, sizeY, 3, *freqplot);
-		//validate frame
-		caerFrameEventValidate(singleplot, *freqplot);
+	// Generate output frame.
+	// Allocate packet container for result packet.
+	*out = caerEventPacketContainerAllocate(1);
+	if (*out == NULL) {
+		return; // Error.
 	}
+
+	// Everything that is in the out packet container will be automatically freed after main loop.
+	caerFrameEventPacket frameOut = caerFrameEventPacketAllocate(1, moduleData->moduleID,
+		caerEventPacketHeaderGetEventTSOverflow(&spike->packetHeader), I32T(sizeX),
+		I32T(sizeY), 3);
+	if (frameOut == NULL) {
+		return; // Error.
+	}
+	else {
+		// Add output packet to packet container.
+		caerEventPacketContainerSetEventPacket(*out, 0, (caerEventPacketHeader) frameOut);
+	}
+
+	// Make image.
+	caerFrameEvent singleplot = caerFrameEventPacketGetEvent(frameOut, 0);
+
+	size_t counter = 0;
+	for (size_t y = 0; y < sizeY; y++) {
+		for (size_t x = 0; x < sizeX; x++) {
+			//uint16_t colorValue = U16T(state->surfaceMap->buffer2d[x][y] * UINT16_MAX);
+			COLOUR col  = GetColour((double) state->frequencyMap->buffer2d[y][x], state->colorscaleMin, state->colorscaleMax);
+
+			singleplot->pixels[counter] = 65533; // red
+			singleplot->pixels[counter + 1] = 0; // green
+			singleplot->pixels[counter + 2] = 0; // blue
+			counter += 3;
+		}
+	}
+
+	// Add info to frame.
+	caerFrameEventSetLengthXLengthYChannelNumber(singleplot, I32T(sizeX),
+		I32T(sizeY), 3, frameOut);
+	//caerFrameEventSetTSEndOfFrame(singleplot, state->lastTimeStamp);
+	// Validate frame.
+	caerFrameEventValidate(singleplot, frameOut);
+
+	caerLog(CAER_LOG_ERROR, __func__, "its over");
 
 }
 

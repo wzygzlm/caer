@@ -151,7 +151,7 @@ static void caerSpikeFeaturesRun(caerModuleData moduleData, caerEventPacketConta
 		}
 	}
 
-	// TODO: last timestamp is unused.
+	// TODO: last timestamp is unused... used for the frame
 	state->lastTimeStamp = ts;
 
 	// Generate output frame.
@@ -190,6 +190,7 @@ static void caerSpikeFeaturesRun(caerModuleData moduleData, caerEventPacketConta
 	// Add info to frame.
 	caerFrameEventSetLengthXLengthYChannelNumber(singleplot, I32T(state->surfaceMap->sizeX),
 		I32T(state->surfaceMap->sizeY), 3, frameOut);
+	//caerFrameEventSetTSEndOfFrame(singleplot, state->lastTimeStamp);
 	// Validate frame.
 	caerFrameEventValidate(singleplot, frameOut);
 }

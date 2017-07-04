@@ -67,18 +67,67 @@ struct caer_input_dynapse_state {
 };
 
 typedef struct caer_input_dynapse_state *caerInputDynapseState;
-
-// TODO: why does this have to be exposed?
-const char *chipIDToName(int16_t chipID, bool withEndSlash);
-
-// TODO: biasing needs to be rethought. Should always go via SSHS or helpers to SSHS.
-// That way lots of internals can remain internal.
-uint32_t generatesBitsCoarseFineBiasSetting(sshsNode node, const char *biasName, uint8_t coarseValue,
-	uint16_t fineValue, const char *hlbias, const char *currentLevel, const char *sex, bool enabled, uint32_t chipid);
 void caerDynapseSetBias(caerInputDynapseState state, uint32_t chipId, uint32_t coreId, const char *biasName_t,
 	uint8_t coarseValue, uint16_t fineValue, const char *lowHigh, const char *npBias);
 
 bool caerGenSpikeInit(caerModuleData moduleData);
 void caerGenSpikeExit(caerModuleData moduleData);
+
+static inline const char *chipIDToName(int16_t chipID, bool withEndSlash) {
+	switch (chipID) {
+		case DYNAPSE_CONFIG_DYNAPSE_U0: {
+			return ((withEndSlash) ? ("DYNAPSE_CONFIG_DYNAPSE_U0/") : ("DYNAPSE_CONFIG_DYNAPSE_U0"));
+			break;
+		}
+		case DYNAPSE_CONFIG_DYNAPSE_U1: {
+			return ((withEndSlash) ? ("DYNAPSE_CONFIG_DYNAPSE_U1/") : ("DYNAPSE_CONFIG_DYNAPSE_U1"));
+			break;
+		}
+		case DYNAPSE_CONFIG_DYNAPSE_U2: {
+			return ((withEndSlash) ? ("DYNAPSE_CONFIG_DYNAPSE_U2/") : ("DYNAPSE_CONFIG_DYNAPSE_U2"));
+			break;
+		}
+		case DYNAPSE_CONFIG_DYNAPSE_U3: {
+			return ((withEndSlash) ? ("DYNAPSE_CONFIG_DYNAPSE_U3/") : ("DYNAPSE_CONFIG_DYNAPSE_U3"));
+			break;
+		}
+		case DYNAPSE_CHIP_DYNAPSE: {
+			return ((withEndSlash) ? ("DYNAPSEFX2/") : ("DYNAPSEFX2"));
+			break;
+		}
+	}
+
+	printf("unknown device id %d exiting...\n", chipID);
+	exit(1);
+}
+
+static inline void generatesBitsCoarseFineBiasSetting(sshsNode node, const char *biasName, uint8_t coarseValue,
+	uint16_t fineValue, const char *hlbias, const char *currentLevel, const char *sex, bool enabled, uint32_t chipid) {
+
+	// Add trailing slash to node name (required!).
+	size_t biasNameLength = strlen(biasName);
+	char biasNameFull[biasNameLength + 2];
+	memcpy(biasNameFull, biasName, biasNameLength);
+	biasNameFull[biasNameLength] = '/';
+	biasNameFull[biasNameLength + 1] = '\0';
+
+	// Device related configuration has its own sub-node.
+	sshsNode deviceConfigNodeLP = sshsGetRelativeNode(node, chipIDToName((int16_t) chipid, true));
+
+	sshsNode biasNodeLP = sshsGetRelativeNode(deviceConfigNodeLP, "bias/");
+
+	// Create configuration node for this particular bias.
+	sshsNode biasConfigNode = sshsGetRelativeNode(biasNodeLP, biasNameFull);
+
+	// Add bias settings.
+	sshsNodePutByte(biasConfigNode, "coarseValue", I8T(coarseValue));
+	sshsNodePutShort(biasConfigNode, "fineValue", I16T(fineValue));
+	sshsNodePutString(biasConfigNode, "BiasLowHi", hlbias);
+	sshsNodePutString(biasConfigNode, "currentLevel", currentLevel);
+	sshsNodePutString(biasConfigNode, "sex", sex);
+	sshsNodePutBool(biasConfigNode, "enabled", enabled);
+	sshsNodePutBool(biasConfigNode, "special", false);
+
+}
 
 #endif /* DYNAPSE_COMMON_H_ */
