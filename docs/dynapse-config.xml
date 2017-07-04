@@ -2,11 +2,9 @@
     <node name="" path="/">
         <node name="caer" path="/caer/">
             <node name="logger" path="/caer/logger/">
-                <attr key="logFile" type="string">/media/federico/e247eb2e-273d-4a18-895a-6dd4c877d551/inilabs/caer/caer.log</attr>
                 <attr key="logLevel" type="byte">5</attr>
             </node>
             <node name="modules" path="/caer/modules/">
-                <attr key="modulesSearchPath" type="string">/media/federico/e247eb2e-273d-4a18-895a-6dd4c877d551/inilabs/caer/modules/:/usr/local/share/caer/modules/</attr>
             </node>
             <node name="server" path="/caer/server/">
                 <attr key="ipAddress" type="string">127.0.0.1</attr>
