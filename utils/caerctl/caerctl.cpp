@@ -167,7 +167,7 @@ int main(int argc, char *argv[]) {
 		commandHistoryFilePath = boost::filesystem::current_path();
 	}
 
-	commandHistoryFilePath.append(CAERCTL_HISTORY_FILE_NAME);
+	commandHistoryFilePath.append(CAERCTL_HISTORY_FILE_NAME, boost::filesystem::path::codecvt());
 
 	// Connect to the remote cAER config server.
 	try {

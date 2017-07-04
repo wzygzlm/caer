@@ -282,9 +282,9 @@ void caerMainloopRun(void) {
 
 	// Default search directories.
 	boost::filesystem::path modulesBuildDir(CM_BUILD_DIRECTORY);
-	modulesBuildDir.append(MODULES_DIRECTORY);
+	modulesBuildDir.append(MODULES_DIRECTORY, boost::filesystem::path::codecvt());
 	boost::filesystem::path modulesDefaultDir(CM_SHARE_DIRECTORY);
-	modulesDefaultDir.append(MODULES_DIRECTORY);
+	modulesDefaultDir.append(MODULES_DIRECTORY, boost::filesystem::path::codecvt());
 
 	sshsNodeCreate(modulesNode, "modulesSearchPath", modulesBuildDir.string() + ":" + modulesDefaultDir.string(), 1,
 		8 * PATH_MAX, SSHS_FLAGS_NORMAL, "Directories to search loadable modules in, separated by ':'.");
