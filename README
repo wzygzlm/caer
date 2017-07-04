@@ -11,7 +11,7 @@ gcc >= 5.2 or clang >= 3.6
 libcaer >= 2.2.0
 mini-xml (mxml) >= 2.7
 libuv >= 1.7.5
-Boost >= 1.50 (with system, filesystem, program_options)
+Boost >= 1.54 (with system, filesystem, program_options)
 Optional: libpng >= 1.6 (input/output frame PNG compression)
 Optional: tcmalloc >= 2.2 (faster memory allocation)
 Optional: allegro5 >= 5.0.11 (visualizer module)
@@ -45,8 +45,14 @@ The following modules can currently be selected to be built:
 -DMEDIANTRACKER=1 -- Track points of high event activity.
 -DRECTANGULARTRACKER=1 -- Track clusters of events.
 -DDYNAMICRECTANGULARTRACKER=1 -- Track a variable number of clusters of events.
--DSPIKEFEATURES=1 -- Create frames which represents decay of spikes.
-
+-DSPIKEFEATURES=1 -- Create frames which represents decay of polarity events.
+-DMEANRATEFILTER=1 -- Measure mean rate of spike events.
+ 
+To enable all just type:
+ cmake -DDVS128=1 -DEDVS=1 -DDAVIS=1 -DDYNAPSE=1 -DBAFILTER=1 -DFRAMEENHANCER=1 -DCAMERACALIBRATION=1  \
+ -DPOSEESTIMATION=1 -DSTATISTICS=1  -DVISUALIZER=1 -DINPUT_FILE=1 -DOUTPUT_FILE=1 -DINPUT_NETWORK=1  \
+ -DOUTPUT_NETWORK=1 -DROTATE=1 -DMEDIANTRACKER=1  -DRECTANGULARTRACKER=1 -DDYNAMICRECTANGULARTRACKER=1  /
+ -DSPIKEFEATURES=1  -DMEANRATEFILTER=1  .
 
 2) build:
 
