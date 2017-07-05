@@ -168,7 +168,7 @@ Each source ID token can only appear once, and the types inside one bracket pair
 appear once. Tokens are separated by a white-space character.
 
 With the above information, you should now be able to understand the example XML configuration
-file found in 'docs/simple-config.xml' fully, and possibly edit to include other modules or
+file found in 'docs/davis-config.xml' fully, and possibly edit to include other modules or
 change the connectivity, though it is heavily preferred to do so using the graphical tools.
 
 All the modules related configuration is elaborated when the main execution loop starts, so it
