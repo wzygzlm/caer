@@ -87,6 +87,14 @@ private:
 					// Total length to get for command.
 					size_t readLength = (size_t) (extraLength + nodeLength + keyLength + valueLength);
 
+					// Check for wrong (excessive) requested read length.
+					// Close connection by falling out of scope.
+					if (readLength > (CAER_CONFIG_SERVER_BUFFER_SIZE - CAER_CONFIG_SERVER_HEADER_SIZE)) {
+						log(logLevel::INFO, CONFIG_SERVER_NAME, "Client %s:%d: read length error (%d bytes requested).",
+							socket.remote_endpoint().address().to_string().c_str(), socket.remote_endpoint().port(), readLength);
+						return;
+					}
+
 					readData(readLength);
 				}
 			});
@@ -126,12 +134,13 @@ private:
 	void handleError(const boost::system::error_code &error, const char *message) {
 		if (error == asio::error::eof) {
 			// Handle EOF separately.
-			log(logLevel::INFO, CONFIG_SERVER_NAME, "Client %s:%d closed the connection.",
+			log(logLevel::INFO, CONFIG_SERVER_NAME, "Client %s:%d: connection closed.",
 				socket.remote_endpoint().address().to_string().c_str(), socket.remote_endpoint().port());
 		}
 		else {
-			log(logLevel::ERROR, CONFIG_SERVER_NAME, "%s. Error: %s (%d).", message, error.message().c_str(),
-				error.value());
+			log(logLevel::ERROR, CONFIG_SERVER_NAME, "Client %s:%d: %s. Error: %s (%d).",
+				socket.remote_endpoint().address().to_string().c_str(), socket.remote_endpoint().port(), message,
+				error.message().c_str(), error.value());
 		}
 	}
 };
