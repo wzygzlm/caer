@@ -302,7 +302,14 @@ static void updateCoarseFineBiasSetting(caerModuleData moduleData, const char *b
 	sshsNodePutBool(biasConfigNode, "enabled", enabled);
 	sshsNodePutBool(biasConfigNode, "special", false);
 
+	uint32_t value = generateCoarseFineBias(biasConfigNode);
+	// finally send configuration via USB
+	int retval = caerDeviceConfigSet(((caerInputDynapseState) moduleData->moduleState)->deviceState,
+	DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_CONTENT, value);
 
+	if (retval == false) {
+		caerModuleLog(moduleData, CAER_LOG_CRITICAL, "failed to set bias");
+	}
 }
 
 static void createCoarseFineBiasSetting(sshsNode biasNode, caerModuleData moduleData, const char *biasName, uint8_t coarseValue,
@@ -1326,7 +1333,7 @@ bool caerInputDYNAPSEInit(caerModuleData moduleData) {
 	sshsNodeCreateInt(sysNode, "DataExchangeBufferSize", 64, 8, 1024, SSHS_FLAGS_NORMAL,
 		"Size of EventPacketContainer queue, used for transfers between data acquisition thread and mainloop.");
 
-	// send it
+	// send default usb configuration
 	sendDefaultConfiguration(moduleData, &dynapse_info);
 
 	// Create default settings and send them to the devices.
