@@ -49,7 +49,7 @@ static const struct caer_event_stream_in moduleInputs[] = {
 static const struct caer_module_info moduleInfo = {
 	.version = 1, .name = "MonitorNeuronFilter",
 	.description = "Select neurons to monitor",
-	.type = CAER_MODULE_PROCESSOR,
+	.type = CAER_MODULE_OUTPUT,
 	.memSize = sizeof(struct MNFilter_state),
 	.functions = &caerMonitorNeuFilterFunctions,
 	.inputStreams = moduleInputs,

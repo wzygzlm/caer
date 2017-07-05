@@ -50,7 +50,7 @@ static const struct caer_event_stream_in moduleInputs[] = {
 static const struct caer_module_info moduleInfo = {
 	.version = 1, .name = "SpikeGen",
 	.description = "SpikeGenerator via FPGA",
-	.type = CAER_MODULE_PROCESSOR,
+	.type = CAER_MODULE_OUTPUT,
 	.memSize = sizeof(struct HWFilter_state),
 	.functions = &caerFpgaSpikeGenModuleFunctions,
 	.inputStreams = moduleInputs,
