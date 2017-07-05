@@ -5,12 +5,15 @@
  */
 
 #include <time.h>
-#include "meanratefilter_dvs.h"
 #include "base/mainloop.h"
 #include "base/module.h"
 #include "ext/buffers.h"
 #include "ext/portable_time.h"
 #include "ext/colorjet/colorjet.h"
+#include <libcaer/devices/dvs128.h>
+#include <libcaer/devices/davis.h>
+#include <libcaer/events/polarity.h>
+#include <libcaer/events/frame.h> //display
 
 struct MRFilter_state {
 	caerDeviceHandle eventSourceDeviceHandle;
@@ -27,12 +30,13 @@ struct MRFilter_state {
 	bool doSetFreq;
 	struct timespec tstart;
 	struct timespec tend;
+	int16_t sourceID;
 };
 
 typedef struct MRFilter_state *MRFilterState;
 
 static bool caerMeanRateFilterInit(caerModuleData moduleData);
-static void caerMeanRateFilterRun(caerModuleData moduleData, size_t argsNumber, va_list args);
+static void caerMeanRateFilterRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out);
 static void caerMeanRateFilterConfig(caerModuleData moduleData);
 static void caerMeanRateFilterExit(caerModuleData moduleData);
 static void caerMeanRateFilterReset(caerModuleData moduleData, uint16_t resetCallSourceID);
@@ -43,23 +47,48 @@ static struct caer_module_functions caerMeanRateFilterFunctions = { .moduleInit 
 	&caerMeanRateFilterRun, .moduleConfig = &caerMeanRateFilterConfig, .moduleExit = &caerMeanRateFilterExit,
 	.moduleReset = &caerMeanRateFilterReset };
 
-void caerMeanRateFilterDVS(uint16_t moduleID, caerPolarityEventPacket polarity, caerFrameEventPacket *freqplot) {
-	caerModuleData moduleData = caerMainloopFindModule(moduleID, "MeanRateFilterDVS", CAER_MODULE_PROCESSOR);
-	if (moduleData == NULL) {
-		return;
-	}
+static const struct caer_event_stream_in moduleInputs[] = {
+    { .type = POLARITY_EVENT, .number = 1, .readOnly = true }
+};
 
-	caerModuleSM(&caerMeanRateFilterFunctions, moduleData, sizeof(struct MRFilter_state), 2, polarity, freqplot);
+static const struct caer_event_stream_out moduleOutputs[] = { { .type = FRAME_EVENT } };
+
+static const struct caer_module_info moduleInfo = {
+	.version = 1, .name = "MeanRateDVS",
+	.description = "Measure mean rate activity of dvs pixels",
+	.type = CAER_MODULE_PROCESSOR,
+	.memSize = sizeof(struct MRFilter_state),
+	.functions = &caerMeanRateFilterFunctions,
+	.inputStreams = moduleInputs,
+	.inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(moduleInputs),
+	.outputStreams = moduleOutputs,
+	.outputStreamsSize = CAER_EVENT_STREAM_OUT_SIZE(moduleOutputs)
+};
+
+caerModuleInfo caerModuleGetInfo(void) {
+    return (&moduleInfo);
 }
 
+
 static bool caerMeanRateFilterInit(caerModuleData moduleData) {
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "colorscaleMax", 150);
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "colorscaleMin", 0);
-	sshsNodePutFloatIfAbsent(moduleData->moduleNode, "targetFreq", 100);
-	sshsNodePutFloatIfAbsent(moduleData->moduleNode, "measureMinTime", 0.3f);
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "doSetFreq", false);
 
 	MRFilterState state = moduleData->moduleState;
+
+	// Wait for input to be ready. All inputs, once they are up and running, will
+	// have a valid sourceInfo node to query, especially if dealing with data.
+	int16_t *inputs = caerMainloopGetModuleInputIDs(moduleData->moduleID, NULL);
+	if (inputs == NULL) {
+		return (false);
+	}
+
+	state->sourceID = inputs[0];
+	free(inputs);
+
+	sshsNodeCreateInt(moduleData->moduleNode, "colorscaleMax", 500, 0, 1000, SSHS_FLAGS_NORMAL, "Color Scale, i.e. Max Frequency (Hz)");
+	sshsNodeCreateInt(moduleData->moduleNode, "colorscaleMin", 0, 0, 1000, SSHS_FLAGS_NORMAL, "Color Scale, i.e. Min Frequency (Hz)");
+	sshsNodeCreateFloat(moduleData->moduleNode, "targetFreq", 100, 0, 250, SSHS_FLAGS_NORMAL, "Target frequency for neurons");
+	sshsNodeCreateFloat(moduleData->moduleNode, "measureMinTime", 3.0, 0, 360, SSHS_FLAGS_NORMAL, "Measure time before updating the mean");
+	sshsNodeCreateBool(moduleData->moduleNode, "doSetFreq", false, SSHS_FLAGS_NORMAL, "Start/Stop changing biases for reaching target frequency"); // TODO not implemented
 
 	// Add config listeners last, to avoid having them dangling if Init doesn't succeed.
 	sshsNodeAddAttributeListener(moduleData->moduleNode, moduleData, &caerModuleConfigDefaultListener);
@@ -69,16 +98,26 @@ static bool caerMeanRateFilterInit(caerModuleData moduleData) {
 	state->measureStartedAt = 0.0f;
 	state->measureMinTime = sshsNodeGetFloat(moduleData->moduleNode, "measureMinTime");
 
+	allocateFrequencyMap(state, state->sourceID);
+	allocateSpikeCountMap(state, state->sourceID);
+
+	sshsNode sourceInfoNodeCA = caerMainloopGetSourceInfo(state->sourceID);
+	sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
+	if (!sshsNodeAttributeExists(sourceInfoNode, "dataSizeX", SSHS_SHORT)) { //to do for visualizer change name of field to a more generic one
+		sshsNodePutShort(sourceInfoNode, "dataSizeX", sshsNodeGetShort(sourceInfoNodeCA, "dvsSizeX"));
+		sshsNodePutShort(sourceInfoNode, "dataSizeY", sshsNodeGetShort(sourceInfoNodeCA, "dvsSizeY"));
+	}
+
+	state->eventSourceConfigNode = caerMainloopGetSourceNode(U16T(state->sourceID));
+
 	// Nothing that can fail here.
 	return (true);
 }
 
-static void caerMeanRateFilterRun(caerModuleData moduleData, size_t argsNumber, va_list args) {
-	UNUSED_ARGUMENT(argsNumber);
+static void caerMeanRateFilterRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out) {
 
-	// Interpret variable arguments (same as above in main function).
-	caerPolarityEventPacket polarity = va_arg(args, caerPolarityEventPacket);
-	caerFrameEventPacket *freqplot = va_arg(args, caerFrameEventPacket*);
+	caerPolarityEventPacketConst polarity =
+		(caerPolarityEventPacketConst) caerEventPacketContainerFindEventPacketByTypeConst(in, POLARITY_EVENT);
 
 	// Only process packets with content.
 	if (polarity == NULL) {
@@ -87,31 +126,6 @@ static void caerMeanRateFilterRun(caerModuleData moduleData, size_t argsNumber, 
 
 	MRFilterState state = moduleData->moduleState;
 
-	int sourceID = caerEventPacketHeaderGetEventSource(&polarity->packetHeader);
-	sshsNode sourceInfoNodeCA = caerMainloopGetSourceInfo(sourceID);
-	sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
-	if (!sshsNodeAttributeExists(sourceInfoNode, "dataSizeX", SSHS_SHORT)) { //to do for visualizer change name of field to a more generic one
-		sshsNodePutShort(sourceInfoNode, "dataSizeX", sshsNodeGetShort(sourceInfoNodeCA, "dvsSizeX"));
-		sshsNodePutShort(sourceInfoNode, "dataSizeY", sshsNodeGetShort(sourceInfoNodeCA, "dvsSizeY"));
-	}
-
-	// If the map is not allocated yet, do it.
-	if (state->frequencyMap == NULL) {
-		if (!allocateFrequencyMap(state, caerEventPacketHeaderGetEventSource(&polarity->packetHeader))) {
-			// Failed to allocate memory, nothing to do.
-			caerLog(CAER_LOG_ERROR, moduleData->moduleSubSystemString, "Failed to allocate memory for frequencyMap.");
-			return;
-		}
-	}
-	// If the map is not allocated yet, do it.
-	if (state->spikeCountMap == NULL) {
-		if (!allocateSpikeCountMap(state, caerEventPacketHeaderGetEventSource(&polarity->packetHeader))) {
-			// Failed to allocate memory, nothing to do.
-			caerLog(CAER_LOG_ERROR, moduleData->moduleSubSystemString, "Failed to allocate memory for spikeCountMap.");
-			return;
-		}
-	}
-
 	// if not measuring, let's start
 	if (state->startedMeas == false) {
 		portable_clock_gettime_monotonic(&state->tstart);
@@ -119,7 +133,7 @@ static void caerMeanRateFilterRun(caerModuleData moduleData, size_t argsNumber, 
 		state->startedMeas = true;
 	}
 
-	//sshsNode sourceInfoNode = caerMainloopGetSourceInfo(caerEventPacketHeaderGetEventSource(&polarity->packetHeader));
+	sshsNode sourceInfoNode = caerMainloopGetSourceInfo(caerEventPacketHeaderGetEventSource(&polarity->packetHeader));
 
 	int16_t sizeX = sshsNodeGetShort(sourceInfoNode, "dataSizeX");
 	int16_t sizeY = sshsNodeGetShort(sourceInfoNode, "dataSizeY");
@@ -165,42 +179,47 @@ static void caerMeanRateFilterRun(caerModuleData moduleData, size_t argsNumber, 
 		state->spikeCountMap->buffer2d[x][y] += 1;
 	CAER_POLARITY_ITERATOR_VALID_END
 
-	// put info into frame
-	*freqplot = caerFrameEventPacketAllocate(1, I16T(moduleData->moduleID), 0, sizeX, sizeY, 3);
-	caerMainloopFreeAfterLoop(&free, *freqplot);
-	if (*freqplot != NULL) {
-		caerFrameEvent singleplot = caerFrameEventPacketGetEvent(*freqplot, 0);
 
-#ifdef DVS128
-		uint32_t counter = 0;
-		for (size_t x = 0; x < sizeX; x++) {
-			for (size_t y = 0; y < sizeY; y++) {
-				COLOUR col = GetColour((double) state->frequencyMap->buffer2d[y][x], state->colorscaleMin, state->colorscaleMax);
-				singleplot->pixels[counter] = (uint16_t) ( (int)(col.r*65535));			// red
-				singleplot->pixels[counter + 1] = (uint16_t) ( (int)(col.g*65535));// green
-				singleplot->pixels[counter + 2] = (uint16_t) ( (int)(col.b*65535) );// blue
-				counter += 3;
-			}
-		}
-#else
-		uint32_t counter = 0;
-		for (size_t x = 0; x < sizeY; x++) {
-			for (size_t y = 0; y < sizeX; y++) {
-				COLOUR col = GetColour((double) state->frequencyMap->buffer2d[y][x], state->colorscaleMin,
-					state->colorscaleMax);
-				singleplot->pixels[counter] = (uint16_t) ((int) (col.r * 65535));			// red
-				singleplot->pixels[counter + 1] = (uint16_t) ((int) (col.g * 65535));		// green
-				singleplot->pixels[counter + 2] = (uint16_t) ((int) (col.b * 65535));		// blue
-				counter += 3;
-			}
-		}
-#endif
-
-		//add info to the frame
-		caerFrameEventSetLengthXLengthYChannelNumber(singleplot, sizeX, sizeY, 3, *freqplot);
-		//validate frame
-		caerFrameEventValidate(singleplot, *freqplot);
+	// Generate output frame.
+	// Allocate packet container for result packet.
+	*out = caerEventPacketContainerAllocate(1);
+	if (*out == NULL) {
+		return; // Error.
 	}
+
+	// Everything that is in the out packet container will be automatically freed after main loop.
+	caerFrameEventPacket frameOut = caerFrameEventPacketAllocate(1, moduleData->moduleID,
+		caerEventPacketHeaderGetEventTSOverflow(&polarity->packetHeader), I32T(sizeX),
+		I32T(sizeY), 3);
+	if (frameOut == NULL) {
+		return; // Error.
+	}
+	else {
+		// Add output packet to packet container.
+		caerEventPacketContainerSetEventPacket(*out, 0, (caerEventPacketHeader) frameOut);
+	}
+
+	// Make image.
+	caerFrameEvent singleplot = caerFrameEventPacketGetEvent(frameOut, 0);
+
+	size_t counter = 0;
+	for (size_t x = 0; x < sizeX; x++) {
+		for (size_t y = 0; y < sizeY; y++) {
+			//uint16_t colorValue = U16T(state->surfaceMap->buffer2d[x][y] * UINT16_MAX);
+			COLOUR col  = GetColour((double) state->frequencyMap->buffer2d[y][x], state->colorscaleMin, state->colorscaleMax);
+			singleplot->pixels[counter] = (int) (col.r*65535); // red
+			singleplot->pixels[counter + 1] = (int) (col.g*65535); // green
+			singleplot->pixels[counter + 2] = (int) (col.b*65535); // blue
+			counter += 3;
+		}
+	}
+
+	// Add info to frame.
+	caerFrameEventSetLengthXLengthYChannelNumber(singleplot, I32T(sizeX),
+		I32T(sizeY), 3, frameOut);
+	// Validate frame.
+	caerFrameEventValidate(singleplot, frameOut);
+
 
 }
 
