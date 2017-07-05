@@ -4,8 +4,6 @@
             <node name="logger" path="/caer/logger/">
                 <attr key="logLevel" type="byte">5</attr>
             </node>
-            <node name="modules" path="/caer/modules/">
-            </node>
             <node name="server" path="/caer/server/">
                 <attr key="ipAddress" type="string">127.0.0.1</attr>
                 <attr key="portNumber" type="int">4040</attr>
@@ -3896,7 +3894,7 @@
             <attr key="eventHandlerListOptions" type="string">None,Spikes,Input</attr>
             <attr key="rendererListOptions" type="string">Polarity,Frame,IMU_6-axes,2D_Points,Spikes,Spikes_Raster_Plot,ETF4D,Polarity_and_Frames</attr>
             <attr key="eventHandler" type="string">None</attr>
-            <attr key="logLevel" type="byte">7</attr>
+            <attr key="logLevel" type="byte">5</attr>
             <attr key="moduleId" type="short">4</attr>
             <attr key="moduleInput" type="string">3[2]</attr>
             <attr key="moduleLibrary" type="string">caer_visualizer</attr>
@@ -3904,8 +3902,8 @@
             <attr key="runAtStartup" type="bool">true</attr>
             <attr key="showStatistics" type="bool">false</attr>
             <attr key="subsampleRendering" type="int">1</attr>
-            <attr key="windowPositionX" type="int">73</attr>
-            <attr key="windowPositionY" type="int">286</attr>
+            <attr key="windowPositionX" type="int">500</attr>
+            <attr key="windowPositionY" type="int">40</attr>
             <attr key="zoomFactor" type="float">6</attr>
         </node>
         <node name="meanrate" path="/meanrate/">
@@ -3919,10 +3917,6 @@
             <attr key="moduleLibrary" type="string">libmeanratefilter</attr>
             <attr key="runAtStartup" type="bool">true</attr>
             <attr key="targetFreq" type="float">100</attr>
-            <node name="sourceInfo" path="/meanrate/sourceInfo/">
-                <attr key="dataSizeX" type="short">64</attr>
-                <attr key="dataSizeY" type="short">64</attr>
-            </node>
         </node>
         <node name="spikeView" path="/spikeView/">
             <attr key="eventHandlerListOptions" type="string">None,Spikes,Input</attr>
@@ -3936,9 +3930,9 @@
             <attr key="runAtStartup" type="bool">true</attr>
             <attr key="showStatistics" type="bool">false</attr>
             <attr key="subsampleRendering" type="int">1</attr>
-            <attr key="windowPositionX" type="int">65</attr>
-            <attr key="windowPositionY" type="int">703</attr>
-            <attr key="zoomFactor" type="float">5.8</attr>
+            <attr key="windowPositionX" type="int">40</attr>
+            <attr key="windowPositionY" type="int">40</attr>
+            <attr key="zoomFactor" type="float">6</attr>
         </node>
     </node>
 </sshs>
