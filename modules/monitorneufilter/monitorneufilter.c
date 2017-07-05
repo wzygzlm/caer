@@ -5,8 +5,9 @@
  */
 
 #include <time.h>
-#include "monitorneufilter.h"
-#include "libcaer/devices/dynapse.h"
+#include <libcaer/devices/dynapse.h>
+#include "modules/ini/dynapse_common.h"
+#include <libcaer/events/spike.h>
 
 struct MNFilter_state {
 	caerInputDynapseState eventSourceModuleState;
@@ -27,31 +28,56 @@ struct MNFilter_state {
 	int dynapse_u3_c1;
 	int dynapse_u3_c2;
 	int dynapse_u3_c3;
+	int16_t sourceID;
 };
 
 typedef struct MNFilter_state *MNFilterState;
 
 static bool caerMonitorNeuFilterInit(caerModuleData moduleData);
-static void caerMonitorNeuFilterRun(caerModuleData moduleData, size_t argsNumber, va_list args);
+static void caerMonitorNeuFilterRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out);
 static void caerMonitorNeuFilterExit(caerModuleData moduleData);
-static void caerMonitorNeuFilterReset(caerModuleData moduleData, uint16_t resetCallSourceID);
+static void caerMonitorNeuFilterReset(caerModuleData moduleData, int16_t resetCallSourceID);
 
 static struct caer_module_functions caerMonitorNeuFilterFunctions = { .moduleInit =
 	&caerMonitorNeuFilterInit, .moduleRun = &caerMonitorNeuFilterRun, .moduleExit = &caerMonitorNeuFilterExit, .moduleReset =
 	&caerMonitorNeuFilterReset };
 
-void caerMonitorNeuFilter(uint16_t moduleID,  int16_t eventSourceID) {
-	caerModuleData moduleData = caerMainloopFindModule(moduleID, "MonitorNeu", CAER_MODULE_PROCESSOR);
-	if (moduleData == NULL) {
-		return;
-	}
+static const struct caer_event_stream_in moduleInputs[] = {
+    { .type = SPIKE_EVENT, .number = 1, .readOnly = true }
+};
 
-	caerModuleSM(&caerMonitorNeuFilterFunctions, moduleData, sizeof(struct MNFilter_state), 1, eventSourceID);
+static const struct caer_module_info moduleInfo = {
+	.version = 1, .name = "MonitorNeuronFilter",
+	.description = "Select neurons to monitor",
+	.type = CAER_MODULE_PROCESSOR,
+	.memSize = sizeof(struct MNFilter_state),
+	.functions = &caerMonitorNeuFilterFunctions,
+	.inputStreams = moduleInputs,
+	.inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(moduleInputs),
+	.outputStreams = NULL,
+	.outputStreamsSize = NULL
+};
+
+caerModuleInfo caerModuleGetInfo(void) {
+    return (&moduleInfo);
 }
+
 
 static bool caerMonitorNeuFilterInit(caerModuleData moduleData) {
 	MNFilterState state = moduleData->moduleState;
 
+	// Wait for input to be ready. All inputs, once they are up and running, will
+	// have a valid sourceInfo node to query, especially if dealing with data.
+	int16_t *inputs = caerMainloopGetModuleInputIDs(moduleData->moduleID, NULL);
+	if (inputs == NULL) {
+		return (false);
+	}
+
+	state->sourceID = inputs[0];
+	free(inputs);
+
+	state->eventSourceModuleState = caerMainloopGetSourceState(U16T(state->sourceID));
+	state->eventSourceConfigNode = caerMainloopGetSourceNode(U16T(state->sourceID));
 
 	// defaults is first neurons of all cores
 	sshsNodePutIntIfAbsent(moduleData->moduleNode, "dynapse_u0_c0", 0);
@@ -99,25 +125,15 @@ static bool caerMonitorNeuFilterInit(caerModuleData moduleData) {
 	return (true);
 }
 
-static void caerMonitorNeuFilterRun(caerModuleData moduleData, size_t argsNumber, va_list args) {
-	UNUSED_ARGUMENT(argsNumber);
+static void caerMonitorNeuFilterRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out) {
 
-	// Interpret variable arguments (same as above in main function).
-	int eventSourceID = va_arg(args, int);
+	caerSpikeEventPacketConst spike =
+		(caerSpikeEventPacketConst) caerEventPacketContainerFindEventPacketByTypeConst(in, SPIKE_EVENT);
+
 
 	MNFilterState state = moduleData->moduleState;
 
-	// --- start  usb handle / from spike event source id
-	state->eventSourceModuleState = caerMainloopGetSourceState(U16T(eventSourceID));
-	state->eventSourceConfigNode = caerMainloopGetSourceNode(U16T(eventSourceID));
-	if(state->eventSourceModuleState == NULL || state->eventSourceConfigNode == NULL){
-		return;
-	}
 	caerInputDynapseState stateSource = state->eventSourceModuleState;
-	if(stateSource->deviceState == NULL){
-		return;
-	}
-	// --- end usb handle
 
 	// if changed we set it
 	if(state->dynapse_u0_c0 != sshsNodeGetInt(moduleData->moduleNode, "dynapse_u0_c0")){
@@ -308,7 +324,7 @@ static void caerMonitorNeuFilterExit(caerModuleData moduleData) {
 
 }
 
-static void caerMonitorNeuFilterReset(caerModuleData moduleData, uint16_t resetCallSourceID) {
+static void caerMonitorNeuFilterReset(caerModuleData moduleData, int16_t resetCallSourceID) {
 	UNUSED_ARGUMENT(resetCallSourceID);
 
 }
