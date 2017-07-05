@@ -1,8 +1,8 @@
-#include "synapsereconfig.h"
 #include "base/mainloop.h"
 #include "base/module.h"
 #include <libcaer/devices/dynapse.h>
 #include "modules/ini/dynapse_common.h"
+#include <libcaer/events/spike.h>
 
 struct SynapseReconfig_state {
 	int sourceID;
@@ -27,7 +27,7 @@ static bool caerSynapseReconfigModuleInit(caerModuleData moduleData);
 
 // run will be called in the mainloop (it is where the processing of the events happens)
 
-static void caerSynapseReconfigModuleRun(caerModuleData moduleData, size_t argsNumber, va_list args);
+static void caerSynapseReconfigModuleRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out);
 
 // to configure the filter
 
@@ -39,7 +39,7 @@ static void caerSynapseReconfigModuleExit(caerModuleData moduleData);
 
 // to reset the filter/module in a default state
 
-static void caerSynapseReconfigModuleReset(caerModuleData moduleData, uint16_t resetCallSourceID);
+static void caerSynapseReconfigModuleReset(caerModuleData moduleData, int16_t resetCallSourceID);
 
 void updateChipSelect(caerModuleData moduleData);
 void updateGlobalKernelData(caerModuleData moduleData);
@@ -56,35 +56,50 @@ static struct caer_module_functions caerSynapseReconfigModuleFunctions = { .modu
 
 int global_sourceID;
 
-void caerSynapseReconfigModule(uint16_t moduleID, caerSpikeEventPacket spike) {
+static const struct caer_event_stream_in moduleInputs[] = {
+    { .type = SPIKE_EVENT, .number = 1, .readOnly = true }
+};
 
-	caerModuleData moduleData = caerMainloopFindModule(moduleID, "Synapse-Reconfig", CAER_MODULE_PROCESSOR);
-
-	if (moduleData == NULL) {
-
-		return;
-
-	}
-
-	caerModuleSM(&caerSynapseReconfigModuleFunctions, moduleData, sizeof(struct SynapseReconfig_state), 1, spike);
-
-}
+static const struct caer_module_info moduleInfo = {
+	.version = 1, .name = "SynapseReconfig",
+	.description = "Davis240C to dynapse processor mapping",
+	.type = CAER_MODULE_PROCESSOR,
+	.memSize = sizeof(struct SynapseReconfig_state),
+	.functions = &caerSynapseReconfigModuleFunctions,
+	.inputStreams = moduleInputs,
+	.inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(moduleInputs),
+	.outputStreams = NULL,
+	.outputStreamsSize = NULL
+};
 
 // init
 
 static bool caerSynapseReconfigModuleInit(caerModuleData moduleData) {
 
+	SynapseReconfigState state = moduleData->moduleState;
+
+	// Wait for input to be ready. All inputs, once they are up and running, will
+	// have a valid sourceInfo node to query, especially if dealing with data.
+	int16_t *inputs = caerMainloopGetModuleInputIDs(moduleData->moduleID, NULL);
+	if (inputs == NULL) {
+		return (false);
+	}
+
+	state->sourceID = inputs[0];
+	free(inputs);
+
+	// get source state
+	state->eventSourceModuleState = caerMainloopGetSourceState(U16T(state->sourceID));
+
 	// add parameters for the user
 
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "runDVS", false);
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "useSRAMKernels", false);
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "SRAMBaseAddress", 0);
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "targetChipID", 0);
-	sshsNodePutStringIfAbsent(moduleData->moduleNode, "globalKernelFilePath", "");
-	sshsNodePutStringIfAbsent(moduleData->moduleNode, "SRAMKernelFilePath", "");
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "updateSRAMKernels", false);
-
-	SynapseReconfigState state = moduleData->moduleState;
+	sshsNodeCreateBool(moduleData->moduleNode, "runDVS", false, SSHS_FLAGS_NORMAL, "Start/Stop mapping");
+	sshsNodeCreateBool(moduleData->moduleNode, "useSRAMKernels", false, SSHS_FLAGS_NORMAL, "Use Sram Kernel file");
+	sshsNodeCreateInt(moduleData->moduleNode, "SRAMBaseAddress", 0, 0, 1, SSHS_FLAGS_NORMAL, "Sram base address");
+	sshsNodeCreateInt(moduleData->moduleNode, "targetChipID", 0, 0, 12, SSHS_FLAGS_NORMAL, "Sram base address");
+	sshsNodeCreateString(moduleData->moduleNode, "globalKernelFilePath", "", 1, 2048, SSHS_FLAGS_NORMAL, "Global Sram kernel file path, relative from the folder in which caer is started");
+	sshsNodeCreateString(moduleData->moduleNode, "SRAMKernelFilePath", "", 1, 2048, SSHS_FLAGS_NORMAL, "Sram kernels file path, relative from the folder in which caer is started");
+	sshsNodeCreateBool(moduleData->moduleNode, "updateSRAMKernels", false, SSHS_FLAGS_NORMAL, "Perform update of Sram content from file");
 
 	// put the parameters in the state of the filter
 
@@ -103,12 +118,13 @@ static bool caerSynapseReconfigModuleInit(caerModuleData moduleData) {
 		free(state->globalKernelFilePath);
 	}
 
-	// do init false - initialiaztion clear cam and load biases -
+	// do init false - initialization clear cam and load biases -
 	state->doInit = true;
 
 	// Add config listeners last - let's the user interact with the parameter -
 
 	sshsNodeAddAttributeListener(moduleData->moduleNode, moduleData, &caerModuleConfigDefaultListener);
+
 
 	// Nothing that can fail here.
 
@@ -118,42 +134,20 @@ static bool caerSynapseReconfigModuleInit(caerModuleData moduleData) {
 
 // the actual processing function
 
-static void caerSynapseReconfigModuleRun(caerModuleData moduleData, size_t argsNumber, va_list args) {
-
-	UNUSED_ARGUMENT(argsNumber);
-
-	// Interpret variable arguments (same as above in main function).
-
-	// in this case we only get spike events
-
-	caerSpikeEventPacket spike = va_arg(args, caerSpikeEventPacket);
+static void caerSynapseReconfigModuleRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out) {
+	caerSpikeEventPacketConst spike =
+		(caerSpikeEventPacketConst) caerEventPacketContainerFindEventPacketByTypeConst(in, SPIKE_EVENT);
 
 	// Only process packets with content.
-
 	if (spike == NULL) {
-
 		return;
-
 	}
 
 	// short cut
 
 	SynapseReconfigState state = moduleData->moduleState;
-
-	global_sourceID = caerEventPacketHeaderGetEventSource(&spike->packetHeader);
-    
 	if(state->doInit){
 		// do init
-		// --- start  usb handle / from spike event source id
-		state->eventSourceModuleState = caerMainloopGetSourceState(U16T(global_sourceID));
-		if (state->eventSourceModuleState == NULL) {
-			return;
-		}
-		caerInputDynapseState stateSource = state->eventSourceModuleState;
-		if (stateSource->deviceState == NULL) {
-			return;
-		}
-		// --- end usb handle
 		// clear CAM al load default biases
 		atomic_store(&state->eventSourceModuleState->genSpikeState.clearAllCam, true);
 		atomic_store(&state->eventSourceModuleState->genSpikeState.loadDefaultBiases, true);
@@ -245,7 +239,7 @@ static void caerSynapseReconfigModuleExit(caerModuleData moduleData) {
 
 // reset
 
-static void caerSynapseReconfigModuleReset(caerModuleData moduleData, uint16_t resetCallSourceID) {
+static void caerSynapseReconfigModuleReset(caerModuleData moduleData, int16_t resetCallSourceID) {
 
 	UNUSED_ARGUMENT(resetCallSourceID);
 
