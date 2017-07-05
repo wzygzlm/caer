@@ -384,6 +384,9 @@ static void caerMeanRateFilterExit(caerModuleData moduleData) {
 
 	MRFilterState state = moduleData->moduleState;
 
+	sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
+	sshsNodeClearSubTree(sourceInfoNode,true);
+
 	// Ensure maps are freed.
 	simple2DBufferFreeFloat(state->frequencyMap);
 	simple2DBufferFreeLong(state->spikeCountMap);

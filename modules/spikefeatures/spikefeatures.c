@@ -216,7 +216,7 @@ static void caerSpikeFeaturesExit(caerModuleData moduleData) {
 
 	// Clear sourceInfo node.
 	sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
-	sshsNodeRemoveAllAttributes(sourceInfoNode);
+	sshsNodeClearSubTree(sourceInfoNode, true);
 }
 
 static void caerSpikeFeaturesReset(caerModuleData moduleData, int16_t resetCallSourceID) {
