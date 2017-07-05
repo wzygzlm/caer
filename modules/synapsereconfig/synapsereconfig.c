@@ -61,7 +61,7 @@ static const struct caer_event_stream_in moduleInputs[] = {
 static const struct caer_module_info moduleInfo = {
 	.version = 1, .name = "SynapseReconfig",
 	.description = "Davis240C to dynapse processor mapping",
-	.type = CAER_MODULE_PROCESSOR,
+	.type = CAER_MODULE_OUTPUT,
 	.memSize = sizeof(struct SynapseReconfig_state),
 	.functions = &caerSynapseReconfigModuleFunctions,
 	.inputStreams = moduleInputs,
@@ -99,8 +99,8 @@ static bool caerSynapseReconfigModuleInit(caerModuleData moduleData) {
 	sshsNodeCreateBool(moduleData->moduleNode, "useSRAMKernels", false, SSHS_FLAGS_NORMAL, "Use Sram Kernel file");
 	sshsNodeCreateInt(moduleData->moduleNode, "SRAMBaseAddress", 0, 0, 1, SSHS_FLAGS_NORMAL, "Sram base address");
 	sshsNodeCreateInt(moduleData->moduleNode, "targetChipID", 0, 0, 12, SSHS_FLAGS_NORMAL, "Sram base address");
-	sshsNodeCreateString(moduleData->moduleNode, "globalKernelFilePath", "", 1, 2048, SSHS_FLAGS_NORMAL, "Global Sram kernel file path, relative from the folder in which caer is started");
-	sshsNodeCreateString(moduleData->moduleNode, "SRAMKernelFilePath", "", 1, 2048, SSHS_FLAGS_NORMAL, "Sram kernels file path, relative from the folder in which caer is started");
+	sshsNodeCreateString(moduleData->moduleNode, "globalKernelFilePath", "", 0, 2048, SSHS_FLAGS_NORMAL, "Global Sram kernel file path, relative from the folder in which caer is started");
+	sshsNodeCreateString(moduleData->moduleNode, "SRAMKernelFilePath", "", 0, 2048, SSHS_FLAGS_NORMAL, "Sram kernels file path, relative from the folder in which caer is started");
 	sshsNodeCreateBool(moduleData->moduleNode, "updateSRAMKernels", false, SSHS_FLAGS_NORMAL, "Perform update of Sram content from file");
 
 	// put the parameters in the state of the filter
