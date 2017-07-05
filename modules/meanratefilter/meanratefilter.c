@@ -346,14 +346,13 @@ static void caerMeanRateFilterRun(caerModuleData moduleData, caerEventPacketCont
 	caerFrameEvent singleplot = caerFrameEventPacketGetEvent(frameOut, 0);
 
 	size_t counter = 0;
-	for (size_t y = 0; y < sizeY; y++) {
-		for (size_t x = 0; x < sizeX; x++) {
+	for (size_t x = 0; x < sizeX; x++) {
+		for (size_t y = 0; y < sizeY; y++) {
 			//uint16_t colorValue = U16T(state->surfaceMap->buffer2d[x][y] * UINT16_MAX);
-			COLOUR col  = GetColour((double) state->frequencyMap->buffer2d[x][y], state->colorscaleMin, state->colorscaleMax);
-
-			singleplot->pixels[counter] = (int)(col.r*65535); // red
-			singleplot->pixels[counter + 1] = (int)(col.g*65535); // green
-			singleplot->pixels[counter + 2] = (int)(col.b*65535); // blue
+			COLOUR col  = GetColour((double) state->frequencyMap->buffer2d[y][x], state->colorscaleMin, state->colorscaleMax);
+			singleplot->pixels[counter] = (int) (col.r*65535); // red
+			singleplot->pixels[counter + 1] = (int) (col.g*65535); // green
+			singleplot->pixels[counter + 2] = (int) (col.b*65535); // blue
 			counter += 3;
 		}
 	}
@@ -361,10 +360,8 @@ static void caerMeanRateFilterRun(caerModuleData moduleData, caerEventPacketCont
 	// Add info to frame.
 	caerFrameEventSetLengthXLengthYChannelNumber(singleplot, I32T(sizeX),
 		I32T(sizeY), 3, frameOut);
-	//caerFrameEventSetTSEndOfFrame(singleplot, state->lastTimeStamp);
 	// Validate frame.
 	caerFrameEventValidate(singleplot, frameOut);
-
 
 }
 
