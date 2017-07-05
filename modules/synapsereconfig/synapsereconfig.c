@@ -54,8 +54,6 @@ static struct caer_module_functions caerSynapseReconfigModuleFunctions = { .modu
 									   &caerSynapseReconfigModuleReset };
 
 
-int global_sourceID;
-
 static const struct caer_event_stream_in moduleInputs[] = {
     { .type = SPIKE_EVENT, .number = 1, .readOnly = true }
 };
@@ -73,6 +71,10 @@ static const struct caer_module_info moduleInfo = {
 };
 
 // init
+
+caerModuleInfo caerModuleGetInfo(void) {
+    return (&moduleInfo);
+}
 
 static bool caerSynapseReconfigModuleInit(caerModuleData moduleData) {
 
@@ -160,12 +162,11 @@ static void caerSynapseReconfigModuleRun(caerModuleData moduleData, caerEventPac
 // update parameters
 
 static void caerSynapseReconfigModuleConfig(caerModuleData moduleData) {
-	caerInputDynapseState eventSource = caerMainloopGetSourceState(U16T(global_sourceID)); 
 
 	caerModuleConfigUpdateReset(moduleData);
 
 	SynapseReconfigState state = moduleData->moduleState;
-
+	caerInputDynapseState eventSource = caerMainloopGetSourceState(U16T(state->sourceID));
 
 	// We don't know what changed when this function is called so we will check and only update
 	// when run/stop or "use SRAM kernels" changes.
@@ -249,7 +250,7 @@ static void caerSynapseReconfigModuleReset(caerModuleData moduleData, int16_t re
 
 void updateChipSelect(caerModuleData moduleData) {
 	SynapseReconfigState state = moduleData->moduleState;
-	caerInputDynapseState eventSource = caerMainloopGetSourceState(U16T(global_sourceID)); 
+	caerInputDynapseState eventSource = caerMainloopGetSourceState(U16T(state->sourceID));
 
 	switch ( state->chipSelect ) {
 	case DYNAPSE_CONFIG_DYNAPSE_U0:
@@ -280,7 +281,7 @@ void updateChipSelect(caerModuleData moduleData) {
 }
 void updateGlobalKernelData(caerModuleData moduleData) {
 	SynapseReconfigState state = moduleData->moduleState;
-	caerInputDynapseState eventSource = caerMainloopGetSourceState(U16T(global_sourceID)); 
+	caerInputDynapseState eventSource = caerMainloopGetSourceState(U16T(state->sourceID));
 
 	// Load kernel data from a formatted file consisting of 2 8x8 matrix with comma separated values
 	// The first 8 rows are the kernel entries for incoming positive events and the last 8 rows for negative events.
@@ -375,7 +376,7 @@ void updateGlobalKernelData(caerModuleData moduleData) {
 }
 void updateSramKernelData(caerModuleData moduleData) {
 	SynapseReconfigState state = moduleData->moduleState;
-	caerInputDynapseState eventSource = caerMainloopGetSourceState(U16T(global_sourceID)); 
+	caerInputDynapseState eventSource = caerMainloopGetSourceState(U16T(state->sourceID));
 	FILE* fp;
 
 	// Read SRAM kernels from a file formatted with 1024 rows of 128 entries alternating between

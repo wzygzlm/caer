@@ -80,25 +80,25 @@ static bool caerMonitorNeuFilterInit(caerModuleData moduleData) {
 	state->eventSourceConfigNode = caerMainloopGetSourceNode(U16T(state->sourceID));
 
 	// defaults is first neurons of all cores
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "dynapse_u0_c0", 0);
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "dynapse_u0_c1", 0);
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "dynapse_u0_c2", 0);
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "dynapse_u0_c3", 0);
+	sshsNodeCreateInt(moduleData->moduleNode, "dynapse_u0_c0", 0, 0, 255, SSHS_FLAGS_NORMAL, "Neuron id");
+	sshsNodeCreateInt(moduleData->moduleNode, "dynapse_u0_c1", 0, 0, 255, SSHS_FLAGS_NORMAL, "Neuron id");
+	sshsNodeCreateInt(moduleData->moduleNode, "dynapse_u0_c2", 0, 0, 255, SSHS_FLAGS_NORMAL, "Neuron id");
+	sshsNodeCreateInt(moduleData->moduleNode, "dynapse_u0_c3", 0, 0, 255, SSHS_FLAGS_NORMAL, "Neuron id");
 
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "dynapse_u1_c0", 0);
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "dynapse_u1_c1", 0);
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "dynapse_u1_c2", 0);
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "dynapse_u1_c3", 0);
+	sshsNodeCreateInt(moduleData->moduleNode, "dynapse_u1_c0", 0, 0, 255, SSHS_FLAGS_NORMAL, "Neuron id");
+	sshsNodeCreateInt(moduleData->moduleNode, "dynapse_u1_c1", 0, 0, 255, SSHS_FLAGS_NORMAL, "Neuron id");
+	sshsNodeCreateInt(moduleData->moduleNode, "dynapse_u1_c2", 0, 0, 255, SSHS_FLAGS_NORMAL, "Neuron id");
+	sshsNodeCreateInt(moduleData->moduleNode, "dynapse_u1_c3", 0, 0, 255, SSHS_FLAGS_NORMAL, "Neuron id");
 
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "dynapse_u2_c0", 0);
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "dynapse_u2_c1", 0);
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "dynapse_u2_c2", 0);
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "dynapse_u2_c3", 0);
+	sshsNodeCreateInt(moduleData->moduleNode, "dynapse_u2_c0", 0, 0, 255, SSHS_FLAGS_NORMAL, "Neuron id");
+	sshsNodeCreateInt(moduleData->moduleNode, "dynapse_u2_c1", 0, 0, 255, SSHS_FLAGS_NORMAL, "Neuron id");
+	sshsNodeCreateInt(moduleData->moduleNode, "dynapse_u2_c2", 0, 0, 255, SSHS_FLAGS_NORMAL, "Neuron id");
+	sshsNodeCreateInt(moduleData->moduleNode, "dynapse_u2_c3", 0, 0, 255, SSHS_FLAGS_NORMAL, "Neuron id");
 
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "dynapse_u3_c0", 0);
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "dynapse_u3_c1", 0);
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "dynapse_u3_c2", 0);
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "dynapse_u3_c3", 0);
+	sshsNodeCreateInt(moduleData->moduleNode, "dynapse_u3_c0", 0, 0, 255, SSHS_FLAGS_NORMAL, "Neuron id");
+	sshsNodeCreateInt(moduleData->moduleNode, "dynapse_u3_c1", 0, 0, 255, SSHS_FLAGS_NORMAL, "Neuron id");
+	sshsNodeCreateInt(moduleData->moduleNode, "dynapse_u3_c2", 0, 0, 255, SSHS_FLAGS_NORMAL, "Neuron id");
+	sshsNodeCreateInt(moduleData->moduleNode, "dynapse_u3_c3", 0, 0, 255, SSHS_FLAGS_NORMAL, "Neuron id");
 
 	// variables
 	state->dynapse_u0_c0 = sshsNodeGetInt(moduleData->moduleNode, "dynapse_u0_c0");

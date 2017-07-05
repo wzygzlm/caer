@@ -3,11 +3,13 @@
  *
  */
 
-#include "fpgaspikegen.h"
 #include "base/mainloop.h"
 #include "base/module.h"
 #include <libcaer/devices/dynapse.h>
 #include "modules/ini/dynapse_common.h"
+
+#include <libcaer/events/spike.h>
+
 
 struct HWFilter_state {
 	// user settings
@@ -23,12 +25,13 @@ struct HWFilter_state {
 	// usb utils
 	caerInputDynapseState eventSourceModuleState;
 	sshsNode eventSourceConfigNode;
+	int16_t sourceID;
 };
 
 typedef struct HWFilter_state *HWFilterState;
 
 static bool caerFpgaSpikeGenModuleInit(caerModuleData moduleData);
-static void caerFpgaSpikeGenModuleRun(caerModuleData moduleData, size_t argsNumber, va_list args);
+static void caerFpgaSpikeGenModuleRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out);
 static void caerFpgaSpikeGenModuleConfig(caerModuleData moduleData);
 static void caerFpgaSpikeGenModuleExit(caerModuleData moduleData);
 static void caerFpgaSpikeGenModuleReset(caerModuleData moduleData, uint16_t resetCallSourceID);
@@ -40,30 +43,53 @@ static struct caer_module_functions caerFpgaSpikeGenModuleFunctions = { .moduleI
 	&caerFpgaSpikeGenModuleConfig, .moduleExit = &caerFpgaSpikeGenModuleExit, .moduleReset =
 	&caerFpgaSpikeGenModuleReset };
 
-void caerFpgaSpikeGenModule(uint16_t moduleID, caerSpikeEventPacket spike) {
-	caerModuleData moduleData = caerMainloopFindModule(moduleID, "FPGA-SpikeGen", CAER_MODULE_PROCESSOR);
-	if (moduleData == NULL) {
-		return;
-	}
+static const struct caer_event_stream_in moduleInputs[] = {
+    { .type = SPIKE_EVENT, .number = 1, .readOnly = true }
+};
 
-	caerModuleSM(&caerFpgaSpikeGenModuleFunctions, moduleData, sizeof(struct HWFilter_state), 1, spike);
+static const struct caer_module_info moduleInfo = {
+	.version = 1, .name = "SpikeGen",
+	.description = "SpikeGenerator via FPGA",
+	.type = CAER_MODULE_PROCESSOR,
+	.memSize = sizeof(struct HWFilter_state),
+	.functions = &caerFpgaSpikeGenModuleFunctions,
+	.inputStreams = moduleInputs,
+	.inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(moduleInputs),
+	.outputStreams = NULL,
+	.outputStreamsSize = NULL
+};
+
+// init
+
+caerModuleInfo caerModuleGetInfo(void) {
+    return (&moduleInfo);
 }
 
 static bool caerFpgaSpikeGenModuleInit(caerModuleData moduleData) {
-	caerLog(CAER_LOG_NOTICE, __func__, "start init of fpga spikegen");
-	// create parameters
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "ISI", 10);
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "ISIBase", 1);
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "Run", false);
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "StimBount", 0);
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "BaseAddress", 0);
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "VariableISI", false);
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "WriteSRAM", false);
-	sshsNodePutStringIfAbsent(moduleData->moduleNode, "StimFile", "");
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "Repeat", false);
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "StimCount", 0);
 
 	HWFilterState state = moduleData->moduleState;
+
+	// Wait for input to be ready. All inputs, once they are up and running, will
+	// have a valid sourceInfo node to query, especially if dealing with data.
+	int16_t *inputs = caerMainloopGetModuleInputIDs(moduleData->moduleID, NULL);
+	if (inputs == NULL) {
+		return (false);
+	}
+
+	state->sourceID = inputs[0];
+	free(inputs);
+
+	// create parameters
+	sshsNodeCreateInt(moduleData->moduleNode, "ISI", 10, 0, 1000, SSHS_FLAGS_NORMAL, "Inter Spike Interval, in terms of ISIbase (ISIBase*ISI)");
+	sshsNodeCreateInt(moduleData->moduleNode, "ISIBase", 1, 0, 1000, SSHS_FLAGS_NORMAL, "Inter Spike Interval in us");
+	sshsNodeCreateBool(moduleData->moduleNode, "Run", false, SSHS_FLAGS_NORMAL, "Start/Stop changing biases for reaching target frequency");
+	sshsNodeCreateInt(moduleData->moduleNode, "StimBount", 1, 0, 1000, SSHS_FLAGS_NORMAL, "");
+	sshsNodeCreateInt(moduleData->moduleNode, "BaseAddress", 0, 0, 1024, SSHS_FLAGS_NORMAL, "");
+	sshsNodeCreateBool(moduleData->moduleNode, "VariableISI", false, SSHS_FLAGS_NORMAL, "Use variable interspike intervals");
+	sshsNodeCreateBool(moduleData->moduleNode, "WriteSRAM", false, SSHS_FLAGS_NORMAL, "Write Sram content");
+	sshsNodeCreateString(moduleData->moduleNode, "StimFile", "", 1, 2048, SSHS_FLAGS_NORMAL, "File containing the stimuli");
+	sshsNodeCreateBool(moduleData->moduleNode, "Repeat", false, SSHS_FLAGS_NORMAL, "Repeat");
+	sshsNodeCreateInt(moduleData->moduleNode, "StimCount", 0, 0, 1000, SSHS_FLAGS_NORMAL, "Number of stimulations");
 
 	// update node state
 	state->isi = (uint32_t)sshsNodeGetInt(moduleData->moduleNode, "ISI");
@@ -83,39 +109,22 @@ static bool caerFpgaSpikeGenModuleInit(caerModuleData moduleData) {
 	// Add config listeners last - let's the user interact with the parameter -
 	sshsNodeAddAttributeListener(moduleData->moduleNode, moduleData, &caerModuleConfigDefaultListener);
 
-	// Nothing that can fail here.
+	caerLog(CAER_LOG_NOTICE, __func__, "Inizialized fpga spikegen");
+
+	state->eventSourceModuleState = caerMainloopGetSourceState(U16T(state->sourceID));
+	state->eventSourceConfigNode = caerMainloopGetSourceNode(U16T(state->sourceID));
+
 	return (true);
 }
 
-static void caerFpgaSpikeGenModuleRun(caerModuleData moduleData, size_t argsNumber, va_list args) {
-	UNUSED_ARGUMENT(argsNumber);
-
-	// Interpret variable arguments (same as above in main function).
-	caerSpikeEventPacket spike = va_arg(args, caerSpikeEventPacket);
+static void caerFpgaSpikeGenModuleRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out) {
+	caerSpikeEventPacketConst spike =
+		(caerSpikeEventPacketConst) caerEventPacketContainerFindEventPacketByTypeConst(in, SPIKE_EVENT);
 
 	// Only process packets with content.
 	if (spike == NULL) {
 		return;
 	}
-
-	HWFilterState state = moduleData->moduleState;
-
-  	// now we can do crazy processing etc..
-	// first find out which one is the module producing the spikes. and get usb handle
-	// --- start  usb handle / from spike event source id
-	int sourceID = caerEventPacketHeaderGetEventSource(&spike->packetHeader);
-	state->eventSourceModuleState = caerMainloopGetSourceState(U16T(sourceID));
-	state->eventSourceConfigNode = caerMainloopGetSourceNode(U16T(sourceID));
-	if(state->eventSourceModuleState == NULL || state->eventSourceConfigNode == NULL){
-		return;
-	}
-	caerInputDynapseState stateSource = state->eventSourceModuleState;
-	if(stateSource->deviceState == NULL){
-		return;
-	}
-	// --- end usb handle
-
-
 
 }
 
