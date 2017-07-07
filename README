@@ -47,12 +47,15 @@ The following modules can currently be selected to be built:
 -DDYNAMICRECTANGULARTRACKER=1 -- Track a variable number of clusters of events.
 -DSPIKEFEATURES=1 -- Create frames which represents decay of polarity events.
 -DMEANRATEFILTER=1 -- Measure mean rate of spike events.
- 
+-DSYNAPSERECONFIG=1 -- Enable Davis240C to Dynap-se mapping 
+-DFPGASPIKEGEN=1 -- Enable FPGA spike generator Dynap-se
+-DPOISSONSPIKEGEN=1 -- Enable FPGA Poisson spike generator for Dynap-se
+
 To enable all just type:
  cmake -DDVS128=1 -DEDVS=1 -DDAVIS=1 -DDYNAPSE=1 -DBAFILTER=1 -DFRAMEENHANCER=1 -DCAMERACALIBRATION=1  \
  -DPOSEESTIMATION=1 -DSTATISTICS=1  -DVISUALIZER=1 -DINPUT_FILE=1 -DOUTPUT_FILE=1 -DINPUT_NETWORK=1  \
  -DOUTPUT_NETWORK=1 -DROTATE=1 -DMEDIANTRACKER=1  -DRECTANGULARTRACKER=1 -DDYNAMICRECTANGULARTRACKER=1  /
- -DSPIKEFEATURES=1  -DMEANRATEFILTER=1  .
+ -DSPIKEFEATURES=1  -DMEANRATEFILTER=1 -DSYNAPSERECONFIG=1 -DFPGASPIKEGEN=1 -DPOISSONSPIKEGEN=1.
 
 2) build:
 
