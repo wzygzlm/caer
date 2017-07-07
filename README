@@ -68,9 +68,11 @@ $ make install
 USAGE:
 
 You will need a 'caer-config.xml' file that specifies which and how modules
-should be interconnected. A good starting point is 'docs/davis-config.xml',
-please also read through 'docs/modules.txt' for an explanation of the
-modules system and its configuration syntax.
+should be interconnected. A good starting point is 'docs/davis-config.xml', 
+or 'docs/dynapse-config.xml', please also read through 'docs/modules.txt' for 
+an explanation of the modules system and its configuration syntax.
 
 $ caer-bin (see docs/ for more info on how to use cAER)
 $ caer-ctl (command-line run-time control program, optional)
+
+
