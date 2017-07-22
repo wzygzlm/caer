@@ -1442,6 +1442,11 @@ static void runModules(caerEventPacketContainer in) {
 		// Reset number of contained event packets, this also updates statistics.
 		caerEventPacketContainerSetEventPacketsNumber(in, idx);
 
+		// Debug logging.
+		caerModuleLog(m.get().runtimeData, CAER_LOG_DEBUG, "Module Input: passing %" PRIi32 " packets.", idx);
+		caerModuleLog(m.get().runtimeData, CAER_LOG_DEBUG, "Module Output: expecting %zu packets.",
+			m.get().outputs.size());
+
 		// Run module state machine.
 		caerEventPacketContainer out = nullptr;
 		caerModuleSM(m.get().libraryInfo->functions, m.get().runtimeData, m.get().libraryInfo->memSize,
@@ -1449,6 +1454,9 @@ static void runModules(caerEventPacketContainer in) {
 
 		// Parse possible output container.
 		if (out != nullptr) {
+			caerModuleLog(m.get().runtimeData, CAER_LOG_DEBUG, "Module Output: got %" PRIi32 " packets.",
+				caerEventPacketContainerGetEventPacketsNumber(out));
+
 			// Go through all packets, put them in their right place inside
 			// the global event storage.
 			for (int32_t i = 0; i < caerEventPacketContainerGetEventPacketsNumber(out); i++) {
@@ -1495,6 +1503,10 @@ static void runModules(caerEventPacketContainer in) {
 					else {
 						glMainloopData.eventPackets[static_cast<size_t>(destIdx)] = packet;
 					}
+				}
+				else {
+					caerModuleLog(m.get().runtimeData, CAER_LOG_DEBUG,
+						"Module Output: got null packet at idx=%" PRIi32 ".", i);
 				}
 			}
 
