@@ -1,9 +1,9 @@
-caer
-====
+# caer
+
 
 AER event-based framework, written in C, targeting embedded systems.
 
-REQUIREMENTS:
+# Dependencies:
 
 Linux, MacOS X or Windows (for Windows build instructions see README.Windows)
 cmake >= 2.6
@@ -17,7 +17,7 @@ Optional: tcmalloc >= 2.2 (faster memory allocation)
 Optional: allegro5 >= 5.0.11 (visualizer module)
 Optional: OpenCV >= 3.1 (cameracalibration, poseestimation modules)
 
-INSTALLATION:
+# Installation
 
 1) configure: 
 
@@ -65,7 +65,7 @@ $ make
 
 $ make install
 
-USAGE:
+# Usage
 
 You will need a 'caer-config.xml' file that specifies which and how modules
 should be interconnected. A good starting point is 'docs/davis-config.xml', 
