@@ -18,9 +18,16 @@ before_install:
   - sudo apt-get install libuv1/xenial -y -q
   - sudo apt-get install libuv1-dev/xenial -y -q
 
+# the stages are used to ensure that, in case of a failed build, the failure is detected early and the other long builds
+# are not run.
+# the setup time for a non opencv build is ca 3min in travis-ci
+# (because caer needs ubuntu 16.04 packages a lot of packages have to be installed)
+# the setup time for a OpenCV build is ca 28min in travis-ci
+# (because of lack of precompiled packages opencv has to be compiled before the build ca 25min)
+
 jobs:
   include:
-    - stage: plain-build
+    - stage: build plain
       before_script:
         # install latest libcaer release
         - wget -q --output-document=libcaer.zip https://api.github.com/repos/inilabs/libcaer/zipball
@@ -39,7 +46,7 @@ jobs:
         - make clean
         - make
         - ctest
-    - stage: module-build
+    - stage: build modules
       before_script:
         # install latest libcaer release
         - wget -q --output-document=libcaer.zip https://api.github.com/repos/inilabs/libcaer/zipball
@@ -53,7 +60,7 @@ jobs:
         - sudo make -s install
         - cd ..
       script:
-        # build with all default modules
+        # build with all default modules without opencv
         - cmake -DDVS128=1 -DEDVS=1 -DDAVIS=1 -DDYNAPSE=1 -DBAFILTER=1 -DFRAMEENHANCER=1 -DCAMERACALIBRATION=0
           -DPOSEESTIMATION=0 -DSTATISTICS=1 -DVISUALIZER=1 -DINPUT_FILE=1 -DOUTPUT_FILE=1 -DINPUT_NETWORK=1
           -DOUTPUT_NETWORK=1 -DROTATE=1 -DMEDIANTRACKER=1 -DRECTANGULARTRACKER=1 -DDYNAMICRECTANGULARTRACKER=1
@@ -61,7 +68,7 @@ jobs:
         - make clean
         - make
         - ctest
-    - stage: opencv-build # with opencv takes a long time!
+    - stage: build modules with OpenCV # with opencv takes a long time!
       before_script:
         # install opencv 3.1 +contrib
         - wget -q --output-document=opencv.zip https://github.com/opencv/opencv/archive/3.1.0.zip
@@ -88,7 +95,7 @@ jobs:
         - sudo make -s install
         - cd ..
       script:
-        # build with all default modules
+        # build with all default modules incl opencv
         - cmake -DDVS128=1 -DEDVS=1 -DDAVIS=1 -DDYNAPSE=1 -DBAFILTER=1 -DFRAMEENHANCER=1 -DCAMERACALIBRATION=1
           -DPOSEESTIMATION=1 -DSTATISTICS=1 -DVISUALIZER=1 -DINPUT_FILE=1 -DOUTPUT_FILE=1 -DINPUT_NETWORK=1
           -DOUTPUT_NETWORK=1 -DROTATE=1 -DMEDIANTRACKER=1 -DRECTANGULARTRACKER=1 -DDYNAMICRECTANGULARTRACKER=1
