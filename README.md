@@ -1,7 +1,8 @@
 # caer
 
 
-AER event-based framework, written in C, targeting embedded systems.
+AER event-based framework, written in C, targeting embedded systems.<br />
+[![Build Status](https://travis-ci.org/inilabs/caer.svg?branch=master)](https://travis-ci.org/inilabs/caer)
 
 # Dependencies:
 
