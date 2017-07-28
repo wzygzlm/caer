@@ -1143,6 +1143,28 @@ static void mergeDependencyTrees(std::shared_ptr<DependencyNode> destRoot,
 	}
 }
 
+static size_t countCopyNeeded(int16_t moduleID) {
+	// Tally copies needed for given module.
+	size_t copyCount = 0;
+
+	for (const auto &inputDef : glMainloopData.modules[moduleID].inputDefinition) {
+		for (const auto &orderIn : inputDef.second) {
+			if (orderIn.copyNeeded) {
+				copyCount++;
+			}
+		}
+	}
+
+	return (copyCount);
+}
+
+static bool sortByCopyNeeded(const int16_t a, const int16_t b) {
+	size_t copyCountA = countCopyNeeded(a);
+	size_t copyCountB = countCopyNeeded(b);
+
+	return (copyCountA < copyCountB);
+}
+
 static void mergeActiveStreamDeps() {
 	std::shared_ptr<DependencyNode> mergeResult = std::make_shared<DependencyNode>(0, -1, nullptr);
 
@@ -1155,35 +1177,50 @@ static void mergeActiveStreamDeps() {
 	// through the merged tree in BFS (level) order.
 	std::vector<int16_t> finalModuleOrder;
 
-	std::queue<const DependencyNode *> queue;
+	std::vector<const DependencyNode *> currLevel;
+	std::vector<const DependencyNode *> nextLevel;
 
 	// Initialize traversal queue with level 0 content, always has one element.
-	queue.push(mergeResult.get());
+	nextLevel.push_back(mergeResult.get());
 
-	while (!queue.empty()) {
-		// Take out first element from queue.
-		const DependencyNode *node = queue.front();
-		queue.pop();
+	while (!nextLevel.empty()) {
+		// Advance next elements to current.
+		currLevel.insert(currLevel.begin(), nextLevel.cbegin(), nextLevel.cend());
+		nextLevel.clear();
 
-		for (const auto &link : node->links) {
-			// Ignore dummy nodes (-1).
-			if (link.id != -1) {
-				finalModuleOrder.push_back(link.id);
+		std::vector<int16_t> currLevelOrder;
+
+		for (const auto &node : currLevel) {
+			// Add current ids to final order.
+			for (const auto &link : node->links) {
+				// Ignore dummy nodes (-1).
+				if (link.id != -1) {
+					currLevelOrder.push_back(link.id);
+				}
 			}
 		}
 
-		// Continue traversal.
-		for (const auto &link : node->links) {
-			if (link.next != nullptr) {
-				queue.push(link.next.get());
+		// Sort current level by number of needed copies.
+		// The final traversal order should try to take into account data copies.
+		// To do so, for each depth-level, module IDs should be ordered by how many
+		// inputs with copyNeeded=true they have. If same number, don't care.
+		std::sort(currLevelOrder.begin(), currLevelOrder.end(), &sortByCopyNeeded);
+
+		// Add ordered current level IDs to final order.
+		finalModuleOrder.insert(finalModuleOrder.end(), currLevelOrder.cbegin(), currLevelOrder.cend());
+
+		for (const auto &node : currLevel) {
+			// Continue traversal on next level.
+			for (const auto &link : node->links) {
+				if (link.next != nullptr) {
+					nextLevel.push_back(link.next.get());
+				}
 			}
 		}
+
+		// Clear current level, all done.
+		currLevel.clear();
 	}
-
-	// TODO: the final traversal order should try to take into account data copies.
-	// To do so, for each depth-level, module IDs should be ordered by how many
-	// inputs with copyNeeded=true they have. If same number, simple integer sort on ID.
-	// This might be implemented efficiently with an std::multimap.
 
 	// Publish result to global module execution order.
 	for (auto id : finalModuleOrder) {
