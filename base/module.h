@@ -158,7 +158,7 @@ void caerModuleDestroy(caerModuleData moduleData);
 // If Boost version recent enough, use their portable DLL loading support.
 // Else use dlopen() on POSIX systems.
 #include <boost/version.hpp>
-#if defined(BOOST_VERSION) && (BOOST_VERSION / 100000) >= 1 && (BOOST_VERSION / 100 % 1000) >= 61
+#if defined(BOOST_VERSION) && (BOOST_VERSION / 100000) == 1 && (BOOST_VERSION / 100 % 1000) >= 61
 #define BOOST_HAS_DLL_LOAD 1
 #else
 #define BOOST_HAS_DLL_LOAD 0
