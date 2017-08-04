@@ -1,8 +1,14 @@
 #include "visualizer.hpp"
 #include "base/mainloop.h"
 #include "ext/ringbuffer/ringbuffer.h"
+#include "ext/threads_ext.h"
 #include "modules/statistics/statistics.h"
 
+#include "visualizer_handlers.hpp"
+#include "visualizer_renderers.hpp"
+
+#include <atomic>
+#include <thread>
 #include <mutex>
 
 static caerVisualizerState caerVisualizerInit(caerVisualizerRenderer renderer, caerVisualizerEventHandler eventHandler,
@@ -13,7 +19,7 @@ static void caerVisualizerExit(caerVisualizerState state);
 static void caerVisualizerReset(caerVisualizerState state);
 static void caerVisualizerSystemInit(void);
 
-static std::once_flag visualizerSystemIsInitialized();
+static std::once_flag visualizerSystemIsInitialized;
 
 struct caer_visualizer_renderers {
 	const char *name;
@@ -45,8 +51,8 @@ struct caer_visualizer_state {
 	int32_t bitmapRendererSizeX;
 	int32_t bitmapRendererSizeY;
 	sf::Font *displayFont;
-	atomic_bool running;
-	atomic_bool displayWindowResize;
+	std::atomic_bool running;
+	std::atomic_bool displayWindowResize;
 	int32_t displayWindowSizeX;
 	int32_t displayWindowSizeY;
 	ALLEGRO_DISPLAY *displayWindow;
@@ -55,13 +61,13 @@ struct caer_visualizer_state {
 	ALLEGRO_BITMAP *bitmapRenderer;
 	bool bitmapDrawUpdate;
 	RingBuffer dataTransfer;
-	thrd_t renderingThread;
+	std::thread renderingThread;
 	caerVisualizerRenderer renderer;
 	caerVisualizerEventHandler eventHandler;
 	caerModuleData parentModule;
 	bool showStatistics;
 	struct caer_statistics_state packetStatistics;
-	atomic_int_fast32_t packetSubsampleRendering;
+	std::atomic_uint_fast32_t packetSubsampleRendering;
 	int32_t packetSubsampleCount;
 };
 
@@ -208,7 +214,7 @@ caerVisualizerState caerVisualizerInit(caerVisualizerRenderer renderer, caerVisu
 	int32_t bitmapSizeX, int32_t bitmapSizeY, float defaultZoomFactor, bool defaultShowStatistics,
 	caerModuleData parentModule, int16_t eventSourceID) {
 	// Initialize visualizer framework (load fonts etc.). Do only once per startup!
-	call_once(&visualizerSystemIsInitialized, &caerVisualizerSystemInit);
+	std::call_once(visualizerSystemIsInitialized, &caerVisualizerSystemInit);
 
 	// Allocate memory for visualizer state.
 	caerVisualizerState state = calloc(1, sizeof(struct caer_visualizer_state));
@@ -236,7 +242,7 @@ caerVisualizerState caerVisualizerInit(caerVisualizerRenderer renderer, caerVisu
 	sshsNodeCreateInt(parentModule->moduleNode, "windowPositionY", VISUALIZER_DEFAULT_POSITION_Y, 0, INT32_MAX,
 		SSHS_FLAGS_NORMAL, "Position of window on screen (Y coordinate).");
 
-	atomic_store(&state->packetSubsampleRendering, sshsNodeGetInt(parentModule->moduleNode, "subsampleRendering"));
+	state->packetSubsampleRendering.store(sshsNodeGetInt(parentModule->moduleNode, "subsampleRendering"));
 
 	// Remember sizes.
 	state->bitmapRendererSizeX = bitmapSizeX;
@@ -268,9 +274,12 @@ caerVisualizerState caerVisualizerInit(caerVisualizerRenderer renderer, caerVisu
 
 	// Start separate rendering thread. Decouples presentation from
 	// data processing and preparation. Communication over ring-buffer.
-	atomic_store(&state->running, true);
+	state->running.store(true);
 
-	if (thrd_create(&state->renderingThread, &caerVisualizerRenderThread, state) != thrd_success) {
+	try {
+		state->renderingThread = std::thread(&caerVisualizerRenderThread, state);
+	}
+	catch (const std::system_error &)  {
 		ringBufferFree(state->dataTransfer);
 		caerStatisticsStringExit(&state->packetStatistics);
 		free(state);
@@ -344,15 +353,15 @@ static void caerVisualizerConfigListener(sshsNode node, void *userData, enum ssh
 	if (event == SSHS_ATTRIBUTE_MODIFIED) {
 		if (changeType == SSHS_FLOAT && caerStrEquals(changeKey, "zoomFactor")) {
 			// Set resize flag.
-			atomic_store(&state->displayWindowResize, true);
+			state->displayWindowResize.store(true);
 		}
 		else if (changeType == SSHS_BOOL && caerStrEquals(changeKey, "showStatistics")) {
 			// Set resize flag. This will then also update the showStatistics flag, ensuring
 			// statistics are never shown without the screen having been properly resized first.
-			atomic_store(&state->displayWindowResize, true);
+			state->displayWindowResize.store(true);
 		}
 		else if (changeType == SSHS_INT && caerStrEquals(changeKey, "subsampleRendering")) {
-			atomic_store(&state->packetSubsampleRendering, changeValue.iint);
+			state->packetSubsampleRendering.store(changeValue.iint);
 		}
 	}
 }
@@ -370,7 +379,7 @@ void caerVisualizerUpdate(caerVisualizerState state, caerEventPacketContainer co
 		// Only render every Nth container (or packet, if using standard visualizer).
 	state->packetSubsampleCount++;
 
-	if (state->packetSubsampleCount >= atomic_load_explicit(&state->packetSubsampleRendering, memory_order_relaxed)) {
+	if (state->packetSubsampleCount >= state->packetSubsampleRendering.load(std::memory_order_relaxed)) {
 		state->packetSubsampleCount = 0;
 	}
 	else {
@@ -406,9 +415,12 @@ void caerVisualizerExit(caerVisualizerState state) {
 	sshsNodeRemoveAttributeListener(state->parentModule->moduleNode, state, &caerVisualizerConfigListener);
 
 	// Shut down rendering thread and wait on it to finish.
-	atomic_store(&state->running, false);
+	state->running.store(false);
 
-	if ((errno = thrd_join(state->renderingThread, NULL)) != thrd_success) {
+	try {
+		state->renderingThread.join();
+	}
+	catch (const std::system_error &)  {
 		// This should never happen!
 		caerModuleLog(state->parentModule, CAER_LOG_CRITICAL, "Visualizer: Failed to join rendering thread. Error: %d.",
 		errno);
@@ -676,8 +688,8 @@ static void caerVisualizerUpdateScreen(caerVisualizerState state) {
 	}
 
 	// Handle display resize (zoom).
-	if (atomic_load_explicit(&state->displayWindowResize, memory_order_relaxed)) {
-		atomic_store(&state->displayWindowResize, false);
+	if (state->displayWindowResize.load(std::memory_order_relaxed)) {
+		state->displayWindowResize.store(false);
 
 		// Update statistics flag and resize display appropriately.
 		updateDisplaySize(state, true);
@@ -760,7 +772,7 @@ static int caerVisualizerRenderThread(void *visualizerState) {
 	// Set thread name.
 	thrd_set_name(state->parentModule->moduleSubSystemString);
 
-	while (atomic_load_explicit(&state->running, memory_order_relaxed)) {
+	while (state->running.load(std::memory_order_relaxed)) {
 		caerVisualizerUpdateScreen(state);
 	}
 
