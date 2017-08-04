@@ -3937,7 +3937,7 @@
         <node name="spikeView" path="/spikeView/">
             <attr key="eventHandlerListOptions" type="string">None,Spikes,Input</attr>
             <attr key="rendererListOptions" type="string">Polarity,Frame,IMU_6-axes,2D_Points,Spikes,Spikes_Raster_Plot,ETF4D,Polarity_and_Frames</attr>
-            <attr key="eventHandler" type="string">None</attr>
+            <attr key="eventHandler" type="string">Spikes</attr>
             <attr key="logLevel" type="byte">5</attr>
             <attr key="moduleId" type="short">2</attr>
             <attr key="moduleInput" type="string">1[12]</attr>
