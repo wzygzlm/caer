@@ -4,6 +4,8 @@
             <node name="logger" path="/caer/logger/">
                 <attr key="logLevel" type="byte">5</attr>
             </node>
+            <node name="modules" path="/caer/modules/">
+            </node>
             <node name="server" path="/caer/server/">
                 <attr key="ipAddress" type="string">127.0.0.1</attr>
                 <attr key="portNumber" type="int">4040</attr>
@@ -3903,7 +3905,7 @@
             <attr key="showStatistics" type="bool">false</attr>
             <attr key="subsampleRendering" type="int">1</attr>
             <attr key="windowPositionX" type="int">500</attr>
-            <attr key="windowPositionY" type="int">40</attr>
+            <attr key="windowPositionY" type="int">96</attr>
             <attr key="zoomFactor" type="float">6</attr>
         </node>
         <node name="meanrate" path="/meanrate/">
@@ -3918,6 +3920,20 @@
             <attr key="runAtStartup" type="bool">true</attr>
             <attr key="targetFreq" type="float">100</attr>
         </node>
+        <node name="nettcpserver" path="/nettcpserver/">
+            <attr key="backlogSize" type="short">5</attr>
+            <attr key="concurrentConnections" type="short">10</attr>
+            <attr key="ipAddress" type="string">172.19.11.247</attr>
+            <attr key="keepPackets" type="bool">false</attr>
+            <attr key="logLevel" type="byte">5</attr>
+            <attr key="moduleId" type="short">5</attr>
+            <attr key="moduleInput" type="string">1[12]</attr>
+            <attr key="moduleLibrary" type="string">caer_output_net_tcp_server</attr>
+            <attr key="portNumber" type="int">7777</attr>
+            <attr key="ringBufferSize" type="int">512</attr>
+            <attr key="runAtStartup" type="bool">true</attr>
+            <attr key="validOnly" type="bool">false</attr>
+        </node>
         <node name="spikeView" path="/spikeView/">
             <attr key="eventHandlerListOptions" type="string">None,Spikes,Input</attr>
             <attr key="rendererListOptions" type="string">Polarity,Frame,IMU_6-axes,2D_Points,Spikes,Spikes_Raster_Plot,ETF4D,Polarity_and_Frames</attr>
@@ -3930,8 +3946,8 @@
             <attr key="runAtStartup" type="bool">true</attr>
             <attr key="showStatistics" type="bool">false</attr>
             <attr key="subsampleRendering" type="int">1</attr>
-            <attr key="windowPositionX" type="int">40</attr>
-            <attr key="windowPositionY" type="int">40</attr>
+            <attr key="windowPositionX" type="int">65</attr>
+            <attr key="windowPositionY" type="int">96</attr>
             <attr key="zoomFactor" type="float">6</attr>
         </node>
     </node>
