@@ -180,20 +180,19 @@ INCLUDE(FindPkgConfig)
 
 # Basic device and threads support.
 PKG_CHECK_MODULES(LIBCAER REQUIRED libcaer>=2.2.0)
-PKG_CHECK_MODULES(MXML REQUIRED mxml>=2.7)
 
+SET(CAER_INCDIRS ${LIBCAER_INCLUDE_DIRS})
+SET(CAER_LIBDIRS ${LIBCAER_LIBRARY_DIRS})
 
-SET(CAER_INCDIRS ${LIBCAER_INCLUDE_DIRS} ${MXML_INCLUDE_DIRS})
-SET(CAER_LIBDIRS ${LIBCAER_LIBRARY_DIRS} ${MXML_LIBRARY_DIRS})
-
-SET(CAER_C_LIBS ${LIBCAER_LIBRARIES} ${MXML_LIBRARIES})
+SET(CAER_C_LIBS ${LIBCAER_LIBRARIES})
 SET(CAER_C_SRC_FILES "")
 
-SET(CAER_CXX_LIBS "")
+SET(CAER_CXX_LIBS ${LIBCAER_LIBRARIES})
 SET(CAER_CXX_SRC_FILES "")
 
 # Threads support
 SET(CAER_C_LIBS ${CAER_C_LIBS} ${CMAKE_THREAD_LIBS_INIT})
+SET(CAER_CXX_LIBS ${CAER_CXX_LIBS} ${CMAKE_THREAD_LIBS_INIT})
 
 # Boost support for C++
 FIND_PACKAGE(Boost 1.50 REQUIRED COMPONENTS system filesystem program_options)
@@ -244,18 +243,19 @@ ENDIF()
 SET(CAER_INCDIRS ${CAER_INCDIRS} ${CMAKE_SOURCE_DIR}/)
 SET(CAER_LIBDIRS ${CAER_LIBDIRS} ${CMAKE_SOURCE_DIR}/)
 
-INCLUDE_DIRECTORIES(${CAER_INCDIRS})
-LINK_DIRECTORIES(${CAER_LIBDIRS})
-
 # Windows needs extra linker information for DLL plugins to work.
 # Part 1: tell linker to generate special import library when compiling caer-bin.exe.
 IF (OS_WINDOWS)
 	SET(CMAKE_EXE_LINKER_FLAGS "-Wl,--out-implib,libcaerbinsupport.a")
 ENDIF()
 
-# Add all source files and libraries.
+# Add all core source files and libraries.
 ADD_SUBDIRECTORY(base)
 ADD_SUBDIRECTORY(ext)
+
+# Set include/library paths for successive compilation.
+INCLUDE_DIRECTORIES(${CAER_INCDIRS})
+LINK_DIRECTORIES(${CAER_LIBDIRS})
 
 # Compile main caer executable.
 ADD_EXECUTABLE(caer-bin ${CAER_C_SRC_FILES} ${CAER_CXX_SRC_FILES} main.cpp)
