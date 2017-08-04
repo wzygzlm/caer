@@ -6,6 +6,18 @@ IF (NOT OUTPUT_NETWORK)
 	SET(OUTPUT_NETWORK 0 CACHE BOOL "Enable the network output modules (TCP server, TCP, UDP, UnixSockets)")
 ENDIF()
 
+IF (OUTPUT_FILE OR OUTPUT_NETWORK)
+	# Currently use libuv for output support.
+	PKG_CHECK_MODULES(LIBUV REQUIRED libuv>=1.7.5)
+
+	SET(OUTPUT_INCDIRS ${CAER_INCDIRS} ${LIBUV_INCLUDE_DIRS})
+	SET(OUTPUT_LIBDIRS ${CAER_LIBDIRS} ${LIBUV_LIBRARY_DIRS})
+	SET(OUTPUT_LIBS ${CAER_C_LIBS} ${LIBUV_LIBRARIES})
+
+	INCLUDE_DIRECTORIES(${OUTPUT_INCDIRS})
+	LINK_DIRECTORIES(${OUTPUT_LIBDIRS})
+ENDIF()
+
 IF (OUTPUT_FILE)
 	ADD_LIBRARY(output_file SHARED output_common.c file.c)
 
@@ -14,7 +26,7 @@ IF (OUTPUT_FILE)
 		PREFIX "caer_"
 	)
 
-	TARGET_LINK_LIBRARIES(output_file ${CAER_C_LIBS})
+	TARGET_LINK_LIBRARIES(output_file ${OUTPUT_LIBS})
 ENDIF()
 
 IF (OUTPUT_NETWORK)
@@ -26,7 +38,7 @@ IF (OUTPUT_NETWORK)
 		PREFIX "caer_"
 	)
 
-	TARGET_LINK_LIBRARIES(output_net_tcp_server ${CAER_C_LIBS})
+	TARGET_LINK_LIBRARIES(output_net_tcp_server ${OUTPUT_LIBS})
 	
 	# NET_TCP_CLIENT
 	ADD_LIBRARY(output_net_tcp_client SHARED output_common.c net_tcp.c)
@@ -36,7 +48,7 @@ IF (OUTPUT_NETWORK)
 		PREFIX "caer_"
 	)
 
-	TARGET_LINK_LIBRARIES(output_net_tcp_client ${CAER_C_LIBS})
+	TARGET_LINK_LIBRARIES(output_net_tcp_client ${OUTPUT_LIBS})
 	
 	# NET_UDP
 	ADD_LIBRARY(output_net_udp SHARED output_common.c net_udp.c)
@@ -46,7 +58,7 @@ IF (OUTPUT_NETWORK)
 		PREFIX "caer_"
 	)
 
-	TARGET_LINK_LIBRARIES(output_net_udp ${CAER_C_LIBS})
+	TARGET_LINK_LIBRARIES(output_net_udp ${OUTPUT_LIBS})
 	
 	# NET_SOCKET_SERVER
 	ADD_LIBRARY(output_net_socket_server SHARED output_common.c unix_socket_server.c)
@@ -56,7 +68,7 @@ IF (OUTPUT_NETWORK)
 		PREFIX "caer_"
 	)
 
-	TARGET_LINK_LIBRARIES(output_net_socket_server ${CAER_C_LIBS})
+	TARGET_LINK_LIBRARIES(output_net_socket_server ${OUTPUT_LIBS})
 	
 	# NET_SOCKET_CLIENT
 	ADD_LIBRARY(output_net_socket_client SHARED output_common.c unix_socket.c)
@@ -66,5 +78,5 @@ IF (OUTPUT_NETWORK)
 		PREFIX "caer_"
 	)
 
-	TARGET_LINK_LIBRARIES(output_net_socket_client ${CAER_C_LIBS})
+	TARGET_LINK_LIBRARIES(output_net_socket_client ${OUTPUT_LIBS})
 ENDIF()
