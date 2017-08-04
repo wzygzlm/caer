@@ -1,14 +1,19 @@
-#include "visualizer.h"
+#include "visualizer.hpp"
 #include "base/mainloop.h"
 #include "ext/ringbuffer/ringbuffer.h"
 #include "modules/statistics/statistics.h"
 
-#include <SFML/Graphics.hpp>
 #include <mutex>
 
+static caerVisualizerState caerVisualizerInit(caerVisualizerRenderer renderer, caerVisualizerEventHandler eventHandler,
+	int32_t bitmapSizeX, int32_t bitmapSizeY, float defaultZoomFactor, bool defaultShowStatistics,
+	caerModuleData parentModule, int16_t eventSourceID);
+static void caerVisualizerUpdate(caerVisualizerState state, caerEventPacketContainer container);
+static void caerVisualizerExit(caerVisualizerState state);
+static void caerVisualizerReset(caerVisualizerState state);
 static void caerVisualizerSystemInit(void);
 
-static std::once_flag visualizerSystemIsInitialized = ONCE_FLAG_INIT;
+static std::once_flag visualizerSystemIsInitialized();
 
 struct caer_visualizer_renderers {
 	const char *name;
@@ -35,12 +40,11 @@ static struct caer_visualizer_handlers caerVisualizerHandlerList[] = { { "None",
 	&caerVisualizerEventHandlerSpikeEvents }, { "Input", &caerInputVisualizerEventHandler } };
 
 struct caer_visualizer_state {
-	void *eventSourceModuleState;
 	sshsNode eventSourceConfigNode;
 	sshsNode visualizerConfigNode;
 	int32_t bitmapRendererSizeX;
 	int32_t bitmapRendererSizeY;
-	ALLEGRO_FONT *displayFont;
+	sf::Font *displayFont;
 	atomic_bool running;
 	atomic_bool displayWindowResize;
 	int32_t displayWindowSizeX;

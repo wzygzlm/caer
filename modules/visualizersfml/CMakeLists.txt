@@ -13,7 +13,7 @@ IF (VISUALIZER_SFML)
 	INCLUDE_DIRECTORIES(${VISUALIZER_SFML_INCDIRS})
 	LINK_DIRECTORIES(${VISUALIZER_SFML_LIBDIRS})
 
-	ADD_LIBRARY(visualizersfml SHARED visualizer.cpp)
+	ADD_LIBRARY(visualizersfml SHARED visualizer.cpp visualizer_handlers.cpp visualizer_renderers.cpp)
 
 	SET_TARGET_PROPERTIES(visualizersfml
 		PROPERTIES
