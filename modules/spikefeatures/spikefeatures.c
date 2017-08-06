@@ -139,9 +139,6 @@ static void caerSpikeFeaturesRun(caerModuleData moduleData, caerEventPacketConta
 				continue;
 			}
 			else {
-				// TODO: dt is always zero here? And decay never used?
-				int64_t dt = (state->surfaceMapLastTs->buffer2d[x][y] - ts);
-				float decay = state->tau * dt;
 
 				state->surfaceMap->buffer2d[x][y] -= state->tau; // Do decay.
 				if (state->surfaceMap->buffer2d[x][y] < 0) {
@@ -151,7 +148,7 @@ static void caerSpikeFeaturesRun(caerModuleData moduleData, caerEventPacketConta
 		}
 	}
 
-	// TODO: last timestamp is unused... used for the frame
+	// last timestamp is used for timing the frame
 	state->lastTimeStamp = ts;
 
 	// Generate output frame.
