@@ -53,9 +53,9 @@ struct caer_visualizer_state {
 	sf::Font *displayFont;
 	std::atomic_bool running;
 	std::atomic_bool displayWindowResize;
-	int32_t displayWindowSizeX;
-	int32_t displayWindowSizeY;
-	ALLEGRO_DISPLAY *displayWindow;
+	uint32_t displayWindowSizeX;
+	uint32_t displayWindowSizeY;
+	sf::RenderWindow *displayWindow;
 	ALLEGRO_EVENT_QUEUE *displayEventQueue;
 	ALLEGRO_TIMER *displayTimer;
 	ALLEGRO_BITMAP *bitmapRenderer;
@@ -110,58 +110,12 @@ static const char *buildFont = CM_BUILD_DIRECTORY "/" GLOBAL_RESOURCES_DIRECTORY
 static const char *globalFontPath = NULL;
 
 static void caerVisualizerSystemInit(void) {
-	// Remember original thread name.
-	char originalThreadName[15 + 1]; // +1 for terminating NUL character.
-	thrd_get_name(originalThreadName, 15);
-	originalThreadName[15] = '\0';
-
-	// Set custom thread name for Allegro system init.
-	thrd_set_name("AllegroSysInit");
-
-	// Initialize the Allegro library.
-	if (al_init()) {
-		// Successfully initialized Allegro.
-		caerLog(CAER_LOG_DEBUG, "Visualizer", "Allegro library initialized successfully.");
-	}
-	else {
-		// Failed to initialize Allegro.
-		caerLog(CAER_LOG_EMERGENCY, "Visualizer", "Failed to initialize Allegro library.");
-		exit(EXIT_FAILURE);
-	}
-
-	// Set correct names.
-	al_set_org_name("iniLabs");
-	al_set_app_name("cAER");
-
 	// Search for global font, first in system share dir, else in build dir.
 	if (access(systemFont, R_OK) == 0) {
 		globalFontPath = systemFont;
 	}
 	else {
 		globalFontPath = buildFont;
-	}
-
-	// Now load addons: primitives to draw, fonts (and TTF) to write text.
-	if (al_init_primitives_addon()) {
-		// Successfully initialized Allegro primitives addon.
-		caerLog(CAER_LOG_DEBUG, "Visualizer", "Allegro primitives addon initialized successfully.");
-	}
-	else {
-		// Failed to initialize Allegro primitives addon.
-		caerLog(CAER_LOG_EMERGENCY, "Visualizer", "Failed to initialize Allegro primitives addon.");
-		exit(EXIT_FAILURE);
-	}
-
-	al_init_font_addon();
-
-	if (al_init_ttf_addon()) {
-		// Successfully initialized Allegro TTF addon.
-		caerLog(CAER_LOG_DEBUG, "Visualizer", "Allegro TTF addon initialized successfully.");
-	}
-	else {
-		// Failed to initialize Allegro TTF addon.
-		caerLog(CAER_LOG_EMERGENCY, "Visualizer", "Failed to initialize Allegro TTF addon.");
-		exit(EXIT_FAILURE);
 	}
 
 	// Determine biggest possible statistics string.
@@ -185,29 +139,6 @@ static void caerVisualizerSystemInit(void) {
 
 		al_destroy_font(font);
 	}
-
-	// Install main event sources: mouse and keyboard.
-	if (al_install_mouse()) {
-		// Successfully initialized Allegro mouse event source.
-		caerLog(CAER_LOG_DEBUG, "Visualizer", "Allegro mouse event source initialized successfully.");
-	}
-	else {
-		// Failed to initialize Allegro mouse event source.
-		caerLog(CAER_LOG_EMERGENCY, "Visualizer", "Failed to initialize Allegro mouse event source.");
-	}
-
-	if (al_install_keyboard()) {
-		// Successfully initialized Allegro keyboard event source.
-		caerLog(CAER_LOG_DEBUG, "Visualizer", "Allegro keyboard event source initialized successfully.");
-	}
-	else {
-		// Failed to initialize Allegro keyboard event source.
-		caerLog(CAER_LOG_EMERGENCY, "Visualizer", "Failed to initialize Allegro keyboard event source.");
-	}
-
-	// On success, set thread name back to original. Any threads created by Allegro
-	// will have their own, unique name (AllegroSysInit) from above.
-	thrd_set_name(originalThreadName);
 }
 
 caerVisualizerState caerVisualizerInit(caerVisualizerRenderer renderer, caerVisualizerEventHandler eventHandler,
@@ -454,17 +385,17 @@ void caerVisualizerReset(caerVisualizerState state) {
 }
 
 static bool caerVisualizerInitGraphics(caerVisualizerState state) {
-	// Create display window.
-	state->displayWindow = al_create_display(state->displayWindowSizeX, state->displayWindowSizeY);
-	if (state->displayWindow == NULL) {
+	// Create display window and set its title.
+	state->displayWindow = new sf::RenderWindow(sf::VideoMode(state->displayWindowSizeX, state->displayWindowSizeY), state->parentModule->moduleSubSystemString);
+	if (state->displayWindow == nullptr) {
 		caerModuleLog(state->parentModule, CAER_LOG_ERROR,
-			"Visualizer: Failed to create display window with sizeX=%d, sizeY=%d.", state->displayWindowSizeX,
+			"Visualizer: Failed to create display window with sizeX=%" PRIu32 ", sizeY=%" PRIu32 ".", state->displayWindowSizeX,
 			state->displayWindowSizeY);
 		return (false);
 	}
 
-	// Set display window name.
-	al_set_window_title(state->displayWindow, state->parentModule->moduleSubSystemString);
+	// Enable VSync to avoid tearing.
+	//state->displayWindow->setVerticalSyncEnabled(true);
 
 	// Initialize window to all black.
 	al_set_target_backbuffer(state->displayWindow);
