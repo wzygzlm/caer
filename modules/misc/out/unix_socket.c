@@ -2,6 +2,7 @@
 #include "base/mainloop.h"
 #include "base/module.h"
 #include "output_common.h"
+#include "ext/pathmax.h"
 
 static bool caerOutputUnixSocketInit(caerModuleData moduleData);
 

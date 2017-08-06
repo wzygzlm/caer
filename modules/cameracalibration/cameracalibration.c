@@ -1,7 +1,7 @@
 #include "main.h"
 #include "base/mainloop.h"
 #include "base/module.h"
-#include <limits.h>
+#include "ext/pathmax.h"
 
 #include "calibration_settings.h"
 #include "calibration_wrapper.h"
