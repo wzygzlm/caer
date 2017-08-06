@@ -3,8 +3,8 @@
 #include "base/module.h"
 #include "poseestimation_settings.h"
 #include "poseestimation_wrapper.h"
+#include "ext/pathmax.h"
 
-#include <limits.h>
 #include <libcaer/events/polarity.h>
 #include <libcaer/events/frame.h>
 

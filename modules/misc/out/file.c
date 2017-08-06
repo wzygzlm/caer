@@ -3,12 +3,9 @@
 #include "base/module.h"
 #include "output_common.h"
 #include "ext/portable_misc.h"
+#include "ext/pathmax.h"
 #include <fcntl.h>
 #include <time.h>
-
-#if defined(__APPLE__)
-#include <sys/syslimits.h>
-#endif
 
 #define DEFAULT_PREFIX "caerOut"
 #define MAX_PREFIX_LENGTH 128

@@ -2,9 +2,8 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-#include <unistd.h>
-#include <limits.h>
 #include "ext/portable_misc.h"
+#include "ext/pathmax.h"
 
 int CAER_LOG_FILE_FD = -1;
 

@@ -2,9 +2,9 @@
 #include "base/mainloop.h"
 #include "base/module.h"
 #include "input_common.h"
+#include "ext/pathmax.h"
 #include <sys/types.h>
 #include <fcntl.h>
-#include <limits.h>
 
 static bool caerInputFileInit(caerModuleData moduleData);
 

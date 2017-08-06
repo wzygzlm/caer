@@ -1,6 +1,7 @@
 #include "config_server.h"
 #include "mainloop.h"
 #include "ext/threads_ext.h"
+#include "ext/pathmax.h"
 
 #include <atomic>
 #include <thread>

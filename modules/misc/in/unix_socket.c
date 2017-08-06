@@ -2,9 +2,9 @@
 #include "base/mainloop.h"
 #include "base/module.h"
 #include "input_common.h"
+#include "ext/pathmax.h"
 #include <sys/socket.h>
 #include <sys/un.h>
-#include <limits.h>
 
 static bool caerInputUnixSocketInit(caerModuleData moduleData);
 

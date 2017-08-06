@@ -1,7 +1,6 @@
 #include "mainloop.h"
+#include "ext/pathmax.h"
 #include <csignal>
-#include <climits>
-#include <unistd.h>
 
 #include <regex>
 #include <unordered_map>
