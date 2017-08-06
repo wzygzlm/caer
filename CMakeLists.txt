@@ -201,8 +201,10 @@ SET(CAER_INCDIRS ${CAER_INCDIRS} ${Boost_INCLUDE_DIRS})
 SET(CAER_LIBDIRS ${CAER_LIBDIRS} ${Boost_LIBRARY_DIRS})
 SET(CAER_CXX_LIBS ${CAER_CXX_LIBS} ${Boost_LIBRARIES})
 
-IF (NOT (Boost_MAJOR_VERSION EQUAL 1 AND Boost_MINOR_VERSION GREATER_EQUAL 61))
-	# libdl needed if Boost too old to have Boost.DLL
+IF ((NOT (Boost_MAJOR_VERSION EQUAL 1 AND Boost_MINOR_VERSION GREATER_EQUAL 61))
+	OR (OS_UNIX OR OS_LINUX OR OS_MACOSX))
+	# libdl needed if Boost too old to have Boost.DLL as a replacement,
+	# or for Boost.DLL itself on some platforms like Linux and MacOS X.
 	SET(CAER_CXX_LIBS ${CAER_CXX_LIBS} dl)
 ENDIF()
 
