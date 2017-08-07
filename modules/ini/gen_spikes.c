@@ -237,41 +237,18 @@ void spiketrainETF(void *spikeGenState) {
 	}
 
 	if (!atomic_load(&state->genSpikeState.ETFdone)) {
-		uint32_t bits_chipU0[DYNAPSE_MAX_USER_USB_PACKET_SIZE];
-		int counter = 0;
-		if (counter + 1 >= DYNAPSE_MAX_USER_USB_PACKET_SIZE) {
-			caerLog(CAER_LOG_ERROR, __func__, "Breaking transaction");
-			// we got data
-			// select destination chip
-			if (state->genSpikeState.ETFchip_id == DYNAPSE_CONFIG_DYNAPSE_U0
-				|| state->genSpikeState.ETFchip_id == DYNAPSE_CONFIG_DYNAPSE_U1
-				|| state->genSpikeState.ETFchip_id == DYNAPSE_CONFIG_DYNAPSE_U2
-				|| state->genSpikeState.ETFchip_id == DYNAPSE_CONFIG_DYNAPSE_U3) {
-				caerDeviceConfigSet(state->deviceState, DYNAPSE_CONFIG_CHIP,
-				DYNAPSE_CONFIG_CHIP_ID, (uint32_t) atomic_load(&state->genSpikeState.ETFchip_id));
-			}
-			else {
-				caerLog(CAER_LOG_ERROR, __func__, "Chip Id selected is non valid, please select one of 0,4,8,12");
-			}
-			// send data with libusb host transfer in packet
-			if (!caerDynapseSendDataToUSB(state->deviceState, bits_chipU0, counter)) {
-				caerLog(CAER_LOG_ERROR, __func__, "USB transfer failed");
-			}
-			counter = 0;
-		}
-		else {
-			bits_chipU0[counter] = 0xf | 0 << 16 | 0 << 17 | 1 << 13 | 0 << 18 | 5 << 20 | 0 << 4 | 0 << 6 | 0 << 7
-				| 0 << 9;
-			counter++;
-		}
-		if (counter > 0) {
-			caerDeviceConfigSet(state->deviceState, DYNAPSE_CONFIG_CHIP,
+		uint32_t bits_chipU0[1];
+
+		bits_chipU0[0] = 0xf | 0 << 16 | 0 << 17 | 1 << 13 | 0 << 18 | 5 << 20 | 0 << 4 | 0 << 6 | 0 << 7 | 0 << 9;
+
+		caerDeviceConfigSet(state->deviceState, DYNAPSE_CONFIG_CHIP,
 			DYNAPSE_CONFIG_CHIP_ID, (uint32_t) atomic_load(&state->genSpikeState.ETFchip_id));
-			// send data with libusb host transfer in packet
-			if (!caerDynapseSendDataToUSB(state->deviceState, bits_chipU0, counter)) {
-				caerLog(CAER_LOG_ERROR, __func__, "USB transfer failed");
-			}
+
+		// send data with libusb host transfer in packet
+		if (!caerDynapseSendDataToUSB(state->deviceState, bits_chipU0, 1)) {
+			caerLog(CAER_LOG_ERROR, __func__, "USB transfer failed");
 		}
+
 		portable_clock_gettime_monotonic(&dd);
 		tim.tv_nsec = tim.tv_nsec - (dd.tv_nsec - ss.tv_nsec);
 		/* now do the nano sleep */
@@ -853,7 +830,7 @@ void ClearAllCam(void *spikeGenState) {
 		numConfig = -1;
 		for (uint32_t camId = 0; camId < DYNAPSE_CONFIG_NUMCAM; camId++) {
 			numConfig++;
-			bits[numConfig] = caerDynapseGenerateCamBits(0, neuronId, camId, 0);
+			bits[numConfig] = caerDynapseGenerateCamBits(neuronId, camId, 0, 0);
 		}
 		// send data with libusb host transfer in packet
 		if (!caerDynapseSendDataToUSB(usb_handle, bits, numConfig)) {
