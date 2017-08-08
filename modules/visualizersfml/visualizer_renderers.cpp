@@ -296,17 +296,17 @@ bool doClear) {
 		// select chip
 		uint8_t chipId = caerSpikeEventGetChipID(caerSpikeIteratorElement);
 		// adjust coordinate for chip
-		if (chipId == DYNAPSE_CONFIG_DYNAPSE_U3) {
+		if (chipId == DYNAPSE_CONFIG_DYNAPSE_U3_OUT) {
 			x = x - DYNAPSE_CONFIG_XCHIPSIZE;
 			y = y - DYNAPSE_CONFIG_YCHIPSIZE;
 		}
-		else if (chipId == DYNAPSE_CONFIG_DYNAPSE_U2) {
+		else if (chipId == DYNAPSE_CONFIG_DYNAPSE_U2_OUT) {
 			y = y - DYNAPSE_CONFIG_YCHIPSIZE;
 		}
-		else if (chipId == DYNAPSE_CONFIG_DYNAPSE_U1) {
+		else if (chipId == DYNAPSE_CONFIG_DYNAPSE_U1_OUT) {
 			x = x - DYNAPSE_CONFIG_XCHIPSIZE;
 		}
-		else if (chipId == DYNAPSE_CONFIG_DYNAPSE_U0 + 1) { // sram can't be zero
+		else if (chipId == DYNAPSE_CONFIG_DYNAPSE_U0_OUT) {
 			;
 		}
 		// adjust coordinates for cores
@@ -336,7 +336,7 @@ bool doClear) {
 		}
 
 		// move
-		if (chipId == DYNAPSE_CONFIG_DYNAPSE_U3) {
+		if (chipId == DYNAPSE_CONFIG_DYNAPSE_U3_OUT) {
 			che = floor( new_x + ((double) sizeX / 2));
 			if(che < INT32_MAX && che > INT32_MIN ){
 				new_x = (int32_t) che;
@@ -346,19 +346,19 @@ bool doClear) {
 				new_y = (uint32_t) che;
 			}
 		}
-		else if (chipId == DYNAPSE_CONFIG_DYNAPSE_U2) {
+		else if (chipId == DYNAPSE_CONFIG_DYNAPSE_U2_OUT) {
 			che = floor( new_x + ((double) sizeX / 2));
 			if(che < INT32_MAX && che > INT32_MIN ){
 				new_x = (int32_t) che;
 			}
 		}
-		else if (chipId == DYNAPSE_CONFIG_DYNAPSE_U1) {
+		else if (chipId == DYNAPSE_CONFIG_DYNAPSE_U1_OUT) {
 			che = floor( new_y + (double) sizeY / 2.0);
 			if(che < INT32_MAX && che > INT32_MIN ){
 				new_y = (uint32_t) che;
 			}
 		}
-		else if (chipId == DYNAPSE_CONFIG_DYNAPSE_U0 + 1) { // sram can't be zero
+		else if (chipId == DYNAPSE_CONFIG_DYNAPSE_U0_OUT) {
 			;
 		}
 		// draw borders
