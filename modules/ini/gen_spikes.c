@@ -830,7 +830,7 @@ void ClearAllCam(void *spikeGenState) {
 		numConfig = -1;
 		for (uint32_t camId = 0; camId < DYNAPSE_CONFIG_NUMCAM; camId++) {
 			numConfig++;
-			bits[numConfig] = caerDynapseGenerateCamBits(neuronId, camId, 0, 0);
+			bits[numConfig] = caerDynapseGenerateCamBits(0, neuronId, camId, 0);
 		}
 		// send data with libusb host transfer in packet
 		if (!caerDynapseSendDataToUSB(usb_handle, bits, numConfig)) {
