@@ -22,8 +22,6 @@ static void updateLowPowerBiases(caerModuleData moduleData, int chipid);
 static void updateSilentBiases(caerModuleData moduleData, int chipid);
 static bool EnableStimuliGen(caerModuleData moduleData);
 static bool DisableStimuliGen(caerModuleData moduleData);
-static bool setCamContent(caerInputDynapseState state, int16_t chipId, bool ei, bool fs, int16_t address,
-	int8_t source_core, int8_t coreId, int16_t row, int16_t column);
 
 bool caerInputDYNAPSEInit(caerModuleData moduleData);
 void caerInputDYNAPSEExit(caerModuleData moduleData);
@@ -1234,7 +1232,7 @@ bool caerInputDYNAPSEInit(caerModuleData moduleData) {
 
 	caerInputDynapseState state = moduleData->moduleState;
 
-	state->deviceState = caerDeviceOpen(moduleData->moduleID, CAER_DEVICE_DYNAPSE, 0, 0, NULL);
+	state->deviceState = caerDeviceOpen(U16T(moduleData->moduleID), CAER_DEVICE_DYNAPSE, 0, 0, NULL);
 	state->eventSourceConfigNode = moduleData->moduleNode;
 
 	free(serialNumber);
@@ -1718,26 +1716,6 @@ void caerDynapseSetBias(caerInputDynapseState state, uint32_t chipId, uint32_t c
 		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, biasName, coarseValue, fineValue, lowHigh,
 			"Normal", npBias, true, chipId);
 	}
-}
-
-// TODO: this is not used anywhere
-//write neuron CAM when a synapse is built or modified
-static bool setCamContent(caerInputDynapseState state, int16_t chipId, bool ei, bool fs, int16_t address,
-	int8_t source_core, int8_t coreId, int16_t row, int16_t column) {
-
-	// Check if the pointer is valid.
-	if (state->deviceState == NULL) {
-		//struct caer_dynapse_info emptyInfo = { 0, .deviceString = NULL };
-		return (false);
-	}
-
-	uint32_t bits = (uint32_t) (ei << 29 | fs << 28 | (uint16_t) address << 20 | (uint8_t) source_core << 18 | 1 << 17
-		| (uint8_t) coreId << 8 | (uint16_t) row << 5 | (uint16_t) column << 0);
-
-	caerDeviceConfigSet(state->deviceState, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, (uint32_t) chipId);
-	caerDeviceConfigSet(state->deviceState, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_CONTENT, bits); //this is the 30 bits
-
-	return (true);
 }
 
 static void logLevelListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,

@@ -48,7 +48,7 @@ bool caerGenSpikeInit(caerModuleData moduleData) {
 
 	sshsNode spikeNode = sshsGetRelativeNode(deviceConfigNodeMain, "spikeGen/");
 
-	sshsNodeCreateBool(spikeNode, "doStim", false,  SSHS_FLAGS_NORMAL, "Enable stimulation.");
+	sshsNodeCreateBool(spikeNode, "doStim", false, SSHS_FLAGS_NORMAL, "Enable stimulation.");
 	atomic_store(&state->genSpikeState.doStim, sshsNodeGetBool(spikeNode, "doStim"));
 
 	// TODO: fix range limits.
@@ -242,7 +242,7 @@ void spiketrainETF(void *spikeGenState) {
 		bits_chipU0[0] = 0xf | 0 << 16 | 0 << 17 | 1 << 13 | 0 << 18 | 5 << 20 | 0 << 4 | 0 << 6 | 0 << 7 | 0 << 9;
 
 		caerDeviceConfigSet(state->deviceState, DYNAPSE_CONFIG_CHIP,
-			DYNAPSE_CONFIG_CHIP_ID, (uint32_t) atomic_load(&state->genSpikeState.ETFchip_id));
+		DYNAPSE_CONFIG_CHIP_ID, (uint32_t) atomic_load(&state->genSpikeState.ETFchip_id));
 
 		// send data with libusb host transfer in packet
 		if (!caerDynapseSendDataToUSB(state->deviceState, bits_chipU0, 1)) {
@@ -819,27 +819,20 @@ void ClearAllCam(void *spikeGenState) {
 	if (spikeGenState == NULL) {
 		return;
 	}
+
 	caerInputDynapseState state = spikeGenState;
 	caerDeviceHandle usb_handle = (caerDeviceHandle) state->deviceState;
-	caerDeviceConfigSet(usb_handle, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID,
-		(uint32_t) atomic_load(&state->genSpikeState.chip_id));
-	caerLog(CAER_LOG_NOTICE, "SpikeGen", "Started clearing cam..");
-	uint32_t bits[DYNAPSE_CONFIG_NUMNEURONS * DYNAPSE_X4BOARD_NEUX];
-	int numConfig = -1;
-	for (uint32_t neuronId = 0; neuronId < DYNAPSE_CONFIG_NUMNEURONS; neuronId++) {
-		numConfig = -1;
-		for (uint32_t camId = 0; camId < DYNAPSE_CONFIG_NUMCAM; camId++) {
-			numConfig++;
-			bits[numConfig] = caerDynapseGenerateCamBits(0, neuronId, camId, 0);
-		}
-		// send data with libusb host transfer in packet
-		if (!caerDynapseSendDataToUSB(usb_handle, bits, numConfig)) {
-			caerLog(CAER_LOG_ERROR, "spikeGen", "USB transfer failed");
-		}
-	}
-	caerLog(CAER_LOG_NOTICE, "SpikeGen", "CAM cleared successfully.");
-	atomic_store(&state->genSpikeState.clearAllCam, false);
 
+	// Select chip-id to operate on.
+	caerDeviceConfigSet(usb_handle, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID,
+		U32T(atomic_load(&state->genSpikeState.chip_id)));
+
+	// Clear all CAMs on this chip.
+	caerLog(CAER_LOG_NOTICE, "SpikeGen", "Started clearing CAM ...");
+	caerDeviceConfigSet(usb_handle, DYNAPSE_CONFIG_CLEAR_CAM, 0, 0);
+	caerLog(CAER_LOG_NOTICE, "SpikeGen", "CAM cleared successfully.");
+
+	atomic_store(&state->genSpikeState.clearAllCam, false);
 }
 
 void ResetBiases(void *spikeGenState) {
@@ -856,7 +849,7 @@ void ResetBiases(void *spikeGenState) {
 	uint32_t chipId = 0;
 
 	chipId = (uint32_t) atomic_load(&state->genSpikeState.chip_id);
-	caerDeviceConfigSet(usb_handle, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, (uint32_t)chipId);
+	caerDeviceConfigSet(usb_handle, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, (uint32_t) chipId);
 
 	for (coreId = 0; coreId < 4; coreId++) {
 		caerDynapseSetBias(state, chipId, coreId, "IF_AHTAU_N", 7, 35, "LowBias", "NBias");
