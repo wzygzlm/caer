@@ -15,8 +15,9 @@
 struct caer_visualizer_public_state {
 	sshsNode eventSourceConfigNode;
 	sshsNode visualizerConfigNode;
-	int32_t bitmapRendererSizeX;
-	int32_t bitmapRendererSizeY;
+	uint32_t displayWindowSizeX;
+	uint32_t displayWindowSizeY;
+	sf::RenderWindow *displayWindow;
 	sf::Font *displayFont;
 };
 

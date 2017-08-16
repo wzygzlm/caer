@@ -2,6 +2,7 @@
 #include "base/mainloop.h"
 #include "ext/ringbuffer/ringbuffer.h"
 #include "ext/threads_ext.h"
+#include "ext/resources/LiberationSans-Bold.h"
 #include "modules/statistics/statistics.h"
 
 #include "visualizer_handlers.hpp"
@@ -48,17 +49,12 @@ static struct caer_visualizer_handlers caerVisualizerHandlerList[] = { { "None",
 struct caer_visualizer_state {
 	sshsNode eventSourceConfigNode;
 	sshsNode visualizerConfigNode;
-	int32_t bitmapRendererSizeX;
-	int32_t bitmapRendererSizeY;
-	sf::Font *displayFont;
-	std::atomic_bool running;
-	std::atomic_bool displayWindowResize;
 	uint32_t displayWindowSizeX;
 	uint32_t displayWindowSizeY;
 	sf::RenderWindow *displayWindow;
-	ALLEGRO_EVENT_QUEUE *displayEventQueue;
-	ALLEGRO_TIMER *displayTimer;
-	ALLEGRO_BITMAP *bitmapRenderer;
+	sf::Font *displayFont;
+	std::atomic_bool running;
+	std::atomic_bool displayWindowResize;
 	bool bitmapDrawUpdate;
 	RingBuffer dataTransfer;
 	std::thread renderingThread;
@@ -81,23 +77,6 @@ static void caerVisualizerUpdateScreen(caerVisualizerState state);
 static void caerVisualizerExitGraphics(caerVisualizerState state);
 static int caerVisualizerRenderThread(void *visualizerState);
 
-#define xstr(a) str(a)
-#define str(a) #a
-
-#ifdef CM_SHARE_DIR
-#define CM_SHARE_DIRECTORY xstr(CM_SHARE_DIR)
-#else
-#define CM_SHARE_DIRECTORY "/usr/share/caer"
-#endif
-
-#ifdef CM_BUILD_DIR
-#define CM_BUILD_DIRECTORY xstr(CM_BUILD_DIR)
-#else
-#define CM_BUILD_DIRECTORY ""
-#endif
-
-#define GLOBAL_RESOURCES_DIRECTORY "ext/resources"
-#define GLOBAL_FONT_NAME "LiberationSans-Bold.ttf"
 #define GLOBAL_FONT_SIZE 20 // in pixels
 #define GLOBAL_FONT_SPACING 5 // in pixels
 
@@ -105,19 +84,7 @@ static int caerVisualizerRenderThread(void *visualizerState);
 static int STATISTICS_WIDTH = 0;
 static int STATISTICS_HEIGHT = 0;
 
-static const char *systemFont = CM_SHARE_DIRECTORY "/" GLOBAL_FONT_NAME;
-static const char *buildFont = CM_BUILD_DIRECTORY "/" GLOBAL_RESOURCES_DIRECTORY "/" GLOBAL_FONT_NAME;
-static const char *globalFontPath = NULL;
-
 static void caerVisualizerSystemInit(void) {
-	// Search for global font, first in system share dir, else in build dir.
-	if (access(systemFont, R_OK) == 0) {
-		globalFontPath = systemFont;
-	}
-	else {
-		globalFontPath = buildFont;
-	}
-
 	// Determine biggest possible statistics string.
 	size_t maxStatStringLength = (size_t) snprintf(NULL, 0, CAER_STATISTICS_STRING_TOTAL, UINT64_MAX);
 
@@ -126,19 +93,16 @@ static void caerVisualizerSystemInit(void) {
 	maxStatString[maxStatStringLength] = '\0';
 
 	// Load statistics font into memory.
-	ALLEGRO_FONT *font = al_load_font(globalFontPath, GLOBAL_FONT_SIZE, 0);
-	if (font == NULL) {
-		caerLog(CAER_LOG_ERROR, "Visualizer", "Failed to load display font '%s'.", globalFontPath);
+	sf::Font font;
+	if (!font.loadFromMemory(LiberationSans_Bold_ttf, LiberationSans_Bold_ttf_len)) {
+		caerLog(CAER_LOG_ERROR, "Visualizer", "Failed to load display font.");
 	}
 
 	// Determine statistics string width.
-	if (font != NULL) {
-		STATISTICS_WIDTH = (2 * GLOBAL_FONT_SPACING) + al_get_text_width(font, maxStatString);
+	sf::Text maxStatText(maxStatString, font, GLOBAL_FONT_SIZE);
+	STATISTICS_WIDTH = (2 * GLOBAL_FONT_SPACING) + (int) maxStatText.getLocalBounds().width;
 
-		STATISTICS_HEIGHT = (3 * GLOBAL_FONT_SPACING) + (2 * GLOBAL_FONT_SIZE);
-
-		al_destroy_font(font);
-	}
+	STATISTICS_HEIGHT = (3 * GLOBAL_FONT_SPACING) + (2 * (int) maxStatText.getLocalBounds().height);
 }
 
 caerVisualizerState caerVisualizerInit(caerVisualizerRenderer renderer, caerVisualizerEventHandler eventHandler,
@@ -228,18 +192,19 @@ caerVisualizerState caerVisualizerInit(caerVisualizerRenderer renderer, caerVisu
 }
 
 static void updateDisplayLocation(caerVisualizerState state) {
-	al_set_window_position(state->displayWindow, sshsNodeGetInt(state->parentModule->moduleNode, "windowPositionX"),
+	// Set current position to what is in configuration storage.
+	const sf::Vector2i newPos(sshsNodeGetInt(state->parentModule->moduleNode, "windowPositionX"),
 		sshsNodeGetInt(state->parentModule->moduleNode, "windowPositionY"));
+
+	state->displayWindow->setPosition(newPos);
 }
 
 static void saveDisplayLocation(caerVisualizerState state) {
-	int xWinPos = 0, yWinPos = 0;
+	const sf::Vector2i currPos = state->displayWindow->getPosition();
 
-	al_get_window_position(state->displayWindow, &xWinPos, &yWinPos);
-
-	// update parent module value
-	sshsNodePutInt(state->parentModule->moduleNode, "windowPositionX", xWinPos);
-	sshsNodePutInt(state->parentModule->moduleNode, "windowPositionY", yWinPos);
+	// Update current position in configuration storage.
+	sshsNodePutInt(state->parentModule->moduleNode, "windowPositionX", currPos.x);
+	sshsNodePutInt(state->parentModule->moduleNode, "windowPositionY", currPos.y);
 }
 
 static void updateDisplaySize(caerVisualizerState state, bool updateTransform) {
@@ -386,7 +351,7 @@ void caerVisualizerReset(caerVisualizerState state) {
 
 static bool caerVisualizerInitGraphics(caerVisualizerState state) {
 	// Create display window and set its title.
-	state->displayWindow = new sf::RenderWindow(sf::VideoMode(state->displayWindowSizeX, state->displayWindowSizeY), state->parentModule->moduleSubSystemString);
+	state->displayWindow = new sf::RenderWindow(sf::VideoMode(state->displayWindowSizeX, state->displayWindowSizeY), state->parentModule->moduleSubSystemString, sf::Style::Titlebar | sf::Style::Close);
 	if (state->displayWindow == nullptr) {
 		caerModuleLog(state->parentModule, CAER_LOG_ERROR,
 			"Visualizer: Failed to create display window with sizeX=%" PRIu32 ", sizeY=%" PRIu32 ".", state->displayWindowSizeX,
@@ -395,22 +360,17 @@ static bool caerVisualizerInitGraphics(caerVisualizerState state) {
 	}
 
 	// Enable VSync to avoid tearing.
-	//state->displayWindow->setVerticalSyncEnabled(true);
+	state->displayWindow->setVerticalSyncEnabled(true);
 
 	// Initialize window to all black.
-	al_set_target_backbuffer(state->displayWindow);
-	al_clear_to_color(al_map_rgb(0, 0, 0));
-	al_flip_display();
+	state->displayWindow->clear(sf::Color::Black);
+	state->displayWindow->display();
 
 	// Set scale transform for display window, update sizes.
 	updateDisplaySize(state, true);
 
 	// Set window position.
 	updateDisplayLocation(state);
-
-	// Create memory bitmap for drawing into.
-	al_set_new_bitmap_flags(ALLEGRO_MEMORY_BITMAP | ALLEGRO_MIN_LINEAR | ALLEGRO_MAG_LINEAR);
-	state->bitmapRenderer = al_create_bitmap(state->bitmapRendererSizeX, state->bitmapRendererSizeY);
 
 	if (state->bitmapRenderer == NULL) {
 		// Clean up all memory that may have been used.
