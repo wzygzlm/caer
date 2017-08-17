@@ -13,8 +13,7 @@
 #include <mutex>
 
 #if defined(OS_LINUX) && OS_LINUX == 1
-	#include <X11/Xlib.h>
-	#define OS_MACOSX 1
+#include <X11/Xlib.h>
 #endif
 
 static caerVisualizerState caerVisualizerInit(caerVisualizerRenderer renderer, caerVisualizerEventHandler eventHandler,
@@ -175,7 +174,7 @@ caerVisualizerState caerVisualizerInit(caerVisualizerRenderer renderer, caerVisu
 		return (nullptr);
 	}
 
-#if defined(OS_MACOSX) && OS_MACOSX == 1
+	// Initialize graphics on main thread.
 	// On OS X, creation (and destruction) of the window, as well as its event
 	// handling must happen on the main thread. Only drawing can be separate.
 	if (!caerVisualizerInitGraphics(state)) {
@@ -189,7 +188,6 @@ caerVisualizerState caerVisualizerInit(caerVisualizerRenderer renderer, caerVisu
 
 	// Disable OpenGL context to pass it to thread.
 	state->renderWindow->setActive(false);
-#endif
 
 	// Start separate rendering thread. Decouples presentation from
 	// data processing and preparation. Communication over ring-buffer.
@@ -199,12 +197,7 @@ caerVisualizerState caerVisualizerInit(caerVisualizerRenderer renderer, caerVisu
 		state->renderingThread = std::thread(&caerVisualizerRenderThread, state);
 	}
 	catch (const std::system_error &) {
-#if defined(OS_MACOSX) && OS_MACOSX == 1
-		// On OS X, creation (and destruction) of the window, as well as its event
-		// handling must happen on the main thread. Only drawing can be separate.
 		caerVisualizerExitGraphics(state);
-#endif
-
 		ringBufferFree(state->dataTransfer);
 		caerStatisticsStringExit(&state->packetStatistics);
 		free(state);
@@ -299,11 +292,10 @@ void caerVisualizerUpdate(caerVisualizerState state, caerEventPacketContainer co
 		return;
 	}
 
-#if defined(OS_MACOSX) && OS_MACOSX == 1
+	// Handle events on main thread.
 	// On OS X, creation (and destruction) of the window, as well as its event
 	// handling must happen on the main thread. Only drawing can be separate.
 	caerVisualizerHandleEvents(state);
-#endif
 
 	if (container == nullptr) {
 		return;
@@ -361,11 +353,10 @@ void caerVisualizerExit(caerVisualizerState state) {
 		errno);
 	}
 
-#if defined(OS_MACOSX) && OS_MACOSX == 1
+	// Shutdown graphics on main thread.
 	// On OS X, creation (and destruction) of the window, as well as its event
 	// handling must happen on the main thread. Only drawing can be separate.
 	caerVisualizerExitGraphics(state);
-#endif
 
 	// Now clean up the ring-buffer and its contents.
 	caerEventPacketContainer container;
@@ -421,10 +412,6 @@ static bool caerVisualizerInitGraphics(caerVisualizerState state) {
 
 	// Set window position.
 	updateDisplayLocation(state);
-
-	// Initialize window to all black.
-	state->renderWindow->clear(sf::Color::Black);
-	state->renderWindow->display();
 
 	// Re-load font here so it's hardware accelerated.
 	// A display must have been created and used as target for this to work.
@@ -649,26 +636,17 @@ static int caerVisualizerRenderThread(void *visualizerState) {
 	// Set thread name.
 	thrd_set_name(state->parentModule->moduleSubSystemString);
 
-#if defined(OS_MACOSX) && OS_MACOSX == 1
 	// On OS X, creation (and destruction) of the window, as well as its event
 	// handling must happen on the main thread. Only drawing can be separate.
 	state->renderWindow->setActive(true);
 
+	// Initialize window to all black.
+	state->renderWindow->clear(sf::Color::Black);
+	state->renderWindow->display();
+
 	while (state->running.load(std::memory_order_relaxed)) {
 		caerVisualizerUpdateScreen(state);
 	}
-#else
-	if (!caerVisualizerInitGraphics(state)) {
-		return (thrd_error);
-	}
-
-	while (state->running.load(std::memory_order_relaxed)) {
-		caerVisualizerHandleEvents(state);
-		caerVisualizerUpdateScreen(state);
-	}
-
-	caerVisualizerExitGraphics(state);
-#endif
 
 	return (thrd_success);
 }
