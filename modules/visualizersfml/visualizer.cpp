@@ -14,6 +14,7 @@
 
 #if defined(OS_LINUX) && OS_LINUX == 1
 	#include <X11/Xlib.h>
+	#define OS_MACOSX 1
 #endif
 
 static caerVisualizerState caerVisualizerInit(caerVisualizerRenderer renderer, caerVisualizerEventHandler eventHandler,
@@ -185,6 +186,9 @@ caerVisualizerState caerVisualizerInit(caerVisualizerRenderer renderer, caerVisu
 		caerModuleLog(parentModule, CAER_LOG_ERROR, "Visualizer: Failed to start rendering thread.");
 		return (nullptr);
 	}
+
+	// Disable OpenGL context to pass it to thread.
+	state->renderWindow->setActive(false);
 #endif
 
 	// Start separate rendering thread. Decouples presentation from
@@ -648,6 +652,8 @@ static int caerVisualizerRenderThread(void *visualizerState) {
 #if defined(OS_MACOSX) && OS_MACOSX == 1
 	// On OS X, creation (and destruction) of the window, as well as its event
 	// handling must happen on the main thread. Only drawing can be separate.
+	state->renderWindow->setActive(true);
+
 	while (state->running.load(std::memory_order_relaxed)) {
 		caerVisualizerUpdateScreen(state);
 	}
