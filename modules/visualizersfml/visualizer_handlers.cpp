@@ -1,5 +1,4 @@
 #include "visualizer_handlers.hpp"
-#include "base/mainloop.h"
 
 #include <math.h>
 

@@ -1,5 +1,4 @@
 #include "visualizer_renderers.hpp"
-#include "base/mainloop.h"
 
 #include <math.h>
 
@@ -231,8 +230,8 @@ bool caerVisualizerRendererSpikeEventsRaster(caerVisualizerPublicState state, ca
 	int32_t sizeY = state->renderSizeY;
 
 	// find max and min TS
-	int32_t min_ts = INT_MAX;
-	int32_t max_ts = INT_MIN;
+	int32_t min_ts = INT32_MAX;
+	int32_t max_ts = INT32_MIN;
 	CAER_SPIKE_ITERATOR_ALL_START( (caerSpikeEventPacket) spikeEventPacketHeader )
 		int32_t ts = caerSpikeEventGetTimestamp(caerSpikeIteratorElement);
 		if (ts > max_ts) {
@@ -401,7 +400,7 @@ bool caerVisualizerRendererETF4D(caerVisualizerPublicState state, caerEventPacke
 	int32_t sizeX = state->renderSizeX;
 	int32_t sizeY = state->renderSizeY;
 
-	float maxY = INT_MIN;
+	float maxY = INT32_MIN;
 
 	CAER_POINT4D_ITERATOR_VALID_START((caerPoint4DEventPacket) Point4DEventPacketHeader)
 		float mean = caerPoint4DEventGetZ(caerPoint4DIteratorElement);
