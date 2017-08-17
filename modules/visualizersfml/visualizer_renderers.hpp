@@ -4,23 +4,16 @@
 #include "visualizer.hpp"
 
 // Default renderers.
-bool caerVisualizerRendererPolarityEvents(caerVisualizerPublicState state, caerEventPacketContainer container,
-	bool doClear);
-bool caerVisualizerRendererFrameEvents(caerVisualizerPublicState state, caerEventPacketContainer container,
-	bool doClear);
-bool caerVisualizerRendererIMU6Events(caerVisualizerPublicState state, caerEventPacketContainer container, bool doClear);
-bool caerVisualizerRendererPoint2DEvents(caerVisualizerPublicState state, caerEventPacketContainer container,
-	bool doClear);
-bool caerVisualizerRendererSpikeEvents(caerVisualizerPublicState state, caerEventPacketContainer container,
-	bool doClear);
-bool caerVisualizerRendererSpikeEventsRaster(caerVisualizerPublicState state, caerEventPacketContainer container,
-bool doClear);
-bool caerVisualizerRendererETF4D(caerVisualizerPublicState state, caerEventPacketContainer container,
-bool doClear);
+bool caerVisualizerRendererPolarityEvents(caerVisualizerPublicState state, caerEventPacketContainer container);
+bool caerVisualizerRendererFrameEvents(caerVisualizerPublicState state, caerEventPacketContainer container);
+bool caerVisualizerRendererIMU6Events(caerVisualizerPublicState state, caerEventPacketContainer container);
+bool caerVisualizerRendererPoint2DEvents(caerVisualizerPublicState state, caerEventPacketContainer container);
+bool caerVisualizerRendererSpikeEvents(caerVisualizerPublicState state, caerEventPacketContainer container);
+bool caerVisualizerRendererSpikeEventsRaster(caerVisualizerPublicState state, caerEventPacketContainer container);
+bool caerVisualizerRendererETF4D(caerVisualizerPublicState state, caerEventPacketContainer container);
 
 // Default multi renderers.
 bool caerVisualizerMultiRendererPolarityAndFrameEvents(caerVisualizerPublicState state,
-	caerEventPacketContainer container,
-	bool doClear);
+	caerEventPacketContainer container);
 
 #endif /* MODULES_VISUALIZER_VISUALIZER_RENDERERS_H_ */

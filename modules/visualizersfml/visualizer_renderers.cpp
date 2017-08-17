@@ -2,8 +2,6 @@
 #include "base/mainloop.h"
 
 #include <math.h>
-#include <allegro5/allegro_primitives.h>
-#include <allegro5/allegro_ttf.h>
 
 #include <libcaer/events/polarity.h>
 #include <libcaer/events/frame.h>
@@ -13,14 +11,8 @@
 #include <libcaer/events/spike.h>
 #include <libcaer/devices/dynapse.h>
 
-bool caerVisualizerRendererPolarityEvents(caerVisualizerPublicState state, caerEventPacketContainer container,
-bool doClear) {
+bool caerVisualizerRendererPolarityEvents(caerVisualizerPublicState state, caerEventPacketContainer container) {
 	UNUSED_ARGUMENT(state);
-
-	// Clear bitmap to black to erase old events.
-	if (doClear) {
-		al_clear_to_color(al_map_rgb(0, 0, 0));
-	}
 
 	caerEventPacketHeader polarityEventPacketHeader = caerEventPacketContainerFindEventPacketByType(container,
 		POLARITY_EVENT);
@@ -29,26 +21,29 @@ bool doClear) {
 		return (false);
 	}
 
+	std::vector<sf::Vertex> vertices;
+
 	// Render all valid events.
 	CAER_POLARITY_ITERATOR_VALID_START((caerPolarityEventPacket) polarityEventPacketHeader)
 		if (caerPolarityEventGetPolarity(caerPolarityIteratorElement)) {
 			// ON polarity (green).
-			al_put_pixel(caerPolarityEventGetX(caerPolarityIteratorElement),
-				caerPolarityEventGetY(caerPolarityIteratorElement), al_map_rgb(0, 255, 0));
+			vertices.push_back(sf::Vertex(sf::Vector2f(caerPolarityEventGetX(caerPolarityIteratorElement),
+				caerPolarityEventGetY(caerPolarityIteratorElement)), sf::Color::Green));
 		}
 		else {
 			// OFF polarity (red).
-			al_put_pixel(caerPolarityEventGetX(caerPolarityIteratorElement),
-				caerPolarityEventGetY(caerPolarityIteratorElement), al_map_rgb(255, 0, 0));
-		}CAER_POLARITY_ITERATOR_VALID_END
+			vertices.push_back(sf::Vertex(sf::Vector2f(caerPolarityEventGetX(caerPolarityIteratorElement),
+				caerPolarityEventGetY(caerPolarityIteratorElement)), sf::Color::Red));
+		}
+	CAER_POLARITY_ITERATOR_VALID_END
+
+	state->renderWindow->draw(vertices.data(), vertices.size(), sf::Points);
 
 	return (true);
 }
 
-bool caerVisualizerRendererFrameEvents(caerVisualizerPublicState state, caerEventPacketContainer container,
-bool doClear) {
+bool caerVisualizerRendererFrameEvents(caerVisualizerPublicState state, caerEventPacketContainer container) {
 	UNUSED_ARGUMENT(state);
-	UNUSED_ARGUMENT(doClear); // Don't erase last frame.
 
 	caerEventPacketHeader frameEventPacketHeader = caerEventPacketContainerFindEventPacketByType(container,
 		FRAME_EVENT);
@@ -66,10 +61,6 @@ bool doClear) {
 
 		// Only operate on the last, valid frame.
 		if (caerFrameEventIsValid(currFrameEvent)) {
-			// Always clear bitmap to black to erase old frame, this is needed in case ROI
-			// has its position moving around in the screen.
-			al_clear_to_color(al_map_rgb(0, 0, 0));
-
 			// Copy the frame content to the render bitmap.
 			// Use frame sizes to correctly support small ROI frames.
 			int32_t frameSizeX = caerFrameEventGetLengthX(currFrameEvent);
@@ -80,9 +71,9 @@ bool doClear) {
 
 			for (int32_t y = 0; y < frameSizeY; y++) {
 				for (int32_t x = 0; x < frameSizeX; x++) {
-					ALLEGRO_COLOR color;
+					 sf::Color color;
 
-					switch (frameChannels) {
+					 /** TODO: switch (frameChannels) {
 						case GRAYSCALE: {
 							uint8_t pixel = U8T(caerFrameEventGetPixelUnsafe(currFrameEvent, x, y) >> 8);
 							color = al_map_rgb(pixel, pixel, pixel);
@@ -108,7 +99,7 @@ bool doClear) {
 						}
 					}
 
-					al_put_pixel((framePositionX + x), (framePositionY + y), color);
+					al_put_pixel((framePositionX + x), (framePositionY + y), color);*/
 				}
 			}
 
@@ -122,12 +113,7 @@ bool doClear) {
 #define RESET_LIMIT_POS(VAL, LIMIT) if ((VAL) > (LIMIT)) { (VAL) = (LIMIT); }
 #define RESET_LIMIT_NEG(VAL, LIMIT) if ((VAL) < (LIMIT)) { (VAL) = (LIMIT); }
 
-bool caerVisualizerRendererIMU6Events(caerVisualizerPublicState state, caerEventPacketContainer container, bool doClear) {
-	// Clear bitmap to black to erase old events.
-	if (doClear) {
-		al_clear_to_color(al_map_rgb(0, 0, 0));
-	}
-
+bool caerVisualizerRendererIMU6Events(caerVisualizerPublicState state, caerEventPacketContainer container) {
 	caerEventPacketHeader imu6EventPacketHeader = caerEventPacketContainerFindEventPacketByType(container, IMU6_EVENT);
 
 	if (imu6EventPacketHeader == NULL || caerEventPacketHeaderGetEventValid(imu6EventPacketHeader) == 0) {
@@ -137,11 +123,11 @@ bool caerVisualizerRendererIMU6Events(caerVisualizerPublicState state, caerEvent
 	float scaleFactorAccel = 30;
 	float scaleFactorGyro = 15;
 	float lineThickness = 4;
-	float maxSizeX = (float) state->bitmapRendererSizeX;
-	float maxSizeY = (float) state->bitmapRendererSizeY;
+	float maxSizeX = (float) state->renderSizeX;
+	float maxSizeY = (float) state->renderSizeY;
 
-	ALLEGRO_COLOR accelColor = al_map_rgb(0, 255, 0);
-	ALLEGRO_COLOR gyroColor = al_map_rgb(255, 0, 255);
+	sf::Color accelColor = sf::Color::Green;
+	sf::Color gyroColor = sf::Color::Magenta;
 
 	float centerPointX = maxSizeX / 2;
 	float centerPointY = maxSizeY / 2;
@@ -183,8 +169,8 @@ bool caerVisualizerRendererIMU6Events(caerVisualizerPublicState state, caerEvent
 	RESET_LIMIT_POS(accelZScaled, centerPointY - 2 - lineThickness); // Circle max.
 	RESET_LIMIT_NEG(accelZScaled, 1); // Circle min.
 
-	al_draw_line(centerPointX, centerPointY, accelXScaled, accelYScaled, accelColor, lineThickness);
-	al_draw_circle(centerPointX, centerPointY, accelZScaled, accelColor, lineThickness);
+	// TODO: al_draw_line(centerPointX, centerPointY, accelXScaled, accelYScaled, accelColor, lineThickness);
+	// TODO: al_draw_circle(centerPointX, centerPointY, accelZScaled, accelColor, lineThickness);
 
 	// TODO: Add text for values. Check that displayFont is not NULL.
 	//char valStr[128];
@@ -202,20 +188,14 @@ bool caerVisualizerRendererIMU6Events(caerVisualizerPublicState state, caerEvent
 	RESET_LIMIT_POS(gyroZScaled, maxSizeX - 2 - lineThickness);
 	RESET_LIMIT_NEG(gyroZScaled, 1 + lineThickness);
 
-	al_draw_line(centerPointX, centerPointY, gyroYScaled, gyroXScaled, gyroColor, lineThickness);
-	al_draw_line(centerPointX, centerPointY - 20, gyroZScaled, centerPointY - 20, gyroColor, lineThickness);
+	// TODO: al_draw_line(centerPointX, centerPointY, gyroYScaled, gyroXScaled, gyroColor, lineThickness);
+	// TODO: al_draw_line(centerPointX, centerPointY - 20, gyroZScaled, centerPointY - 20, gyroColor, lineThickness);
 
 	return (true);
 }
 
-bool caerVisualizerRendererPoint2DEvents(caerVisualizerPublicState state, caerEventPacketContainer container,
-bool doClear) {
+bool caerVisualizerRendererPoint2DEvents(caerVisualizerPublicState state, caerEventPacketContainer container) {
 	UNUSED_ARGUMENT(state);
-
-	// Clear bitmap to black to erase old events.
-	if (doClear) {
-		al_clear_to_color(al_map_rgb(0, 0, 0));
-	}
 
 	caerEventPacketHeader point2DEventPacketHeader = caerEventPacketContainerFindEventPacketByType(container,
 		POINT2D_EVENT);
@@ -230,20 +210,14 @@ bool doClear) {
 		float y = caerPoint2DEventGetY(caerPoint2DIteratorElement);
 
 		// Display points in blue.
-		al_put_pixel((int) x, (int) y, al_map_rgb(0, 255, 255));
+		// TODO: al_put_pixel((int) x, (int) y, al_map_rgb(0, 255, 255));
 	CAER_POINT2D_ITERATOR_VALID_END
 
 	return (true);
 }
 
-bool caerVisualizerRendererSpikeEventsRaster(caerVisualizerPublicState state, caerEventPacketContainer container,
-bool doClear) {
+bool caerVisualizerRendererSpikeEventsRaster(caerVisualizerPublicState state, caerEventPacketContainer container) {
 	UNUSED_ARGUMENT(state);
-
-	// Clear bitmap to black to erase old events.
-	if (doClear) {
-		al_clear_to_color(al_map_rgb(0, 0, 0));
-	}
 
 	caerEventPacketHeader spikeEventPacketHeader = caerEventPacketContainerFindEventPacketByType(container,
 		SPIKE_EVENT);
@@ -253,8 +227,8 @@ bool doClear) {
 	}
 
 	// get bitmap's size
-	int32_t sizeX = state->bitmapRendererSizeX;
-	int32_t sizeY = state->bitmapRendererSizeY;
+	int32_t sizeX = state->renderSizeX;
+	int32_t sizeY = state->renderSizeY;
 
 	// find max and min TS
 	int32_t min_ts = INT_MAX;
@@ -363,27 +337,21 @@ bool doClear) {
 		}
 		// draw borders
 		for (int xx = 0; xx < sizeX; xx++) {
-			al_put_pixel(xx, sizeY / 2, al_map_rgb(255, 255, 255));
+			// TODO: al_put_pixel(xx, sizeY / 2, al_map_rgb(255, 255, 255));
 		}
 		for (int yy = 0; yy < sizeY; yy++) {
-			al_put_pixel(sizeX / 2, yy, al_map_rgb(255, 255, 255));
+			// TODO: al_put_pixel(sizeX / 2, yy, al_map_rgb(255, 255, 255));
 		}
 
 		// draw pixels (neurons might be merged due to aliasing..)
-		al_put_pixel( (int) new_x, (int) new_y, al_map_rgb(coreId * 0, 255, 0 * coreId));
+		// TODO: al_put_pixel( (int) new_x, (int) new_y, al_map_rgb(coreId * 0, 255, 0 * coreId));
 	CAER_SPIKE_ITERATOR_ALL_END
 
 	return (true);
 }
 
-bool caerVisualizerRendererSpikeEvents(caerVisualizerPublicState state, caerEventPacketContainer container,
-bool doClear) {
+bool caerVisualizerRendererSpikeEvents(caerVisualizerPublicState state, caerEventPacketContainer container) {
 	UNUSED_ARGUMENT(state);
-
-	// Clear bitmap to black to erase old events.
-	if (doClear) {
-		al_clear_to_color(al_map_rgb(0, 0, 0));
-	}
 
 	caerEventPacketHeader spikeEventPacketHeader = caerEventPacketContainerFindEventPacketByType(container,
 		SPIKE_EVENT);
@@ -403,16 +371,16 @@ bool doClear) {
 		uint16_t x = caerSpikeEventGetX(caerSpikeIteratorElement);
 
 		if (coreId == 0) {
-			al_put_pixel(x, y, al_map_rgb(0, 255, 0));
+			// TODO: al_put_pixel(x, y, al_map_rgb(0, 255, 0));
 		}
 		else if (coreId == 1) {
-			al_put_pixel(x, y, al_map_rgb(0, 0, 255));
+			// TODO: al_put_pixel(x, y, al_map_rgb(0, 0, 255));
 		}
 		else if (coreId == 2) {
-			al_put_pixel(x, y, al_map_rgb(255, 0, 0));
+			// TODO: al_put_pixel(x, y, al_map_rgb(255, 0, 0));
 		}
 		else if (coreId == 3) {
-			al_put_pixel(x, y, al_map_rgb(255, 255, 0));
+			// TODO: al_put_pixel(x, y, al_map_rgb(255, 255, 0));
 		}
 
 	CAER_SPIKE_ITERATOR_ALL_END
@@ -420,8 +388,7 @@ bool doClear) {
 	return (true);
 }
 
-bool caerVisualizerRendererETF4D(caerVisualizerPublicState state, caerEventPacketContainer container,
-bool doClear) {
+bool caerVisualizerRendererETF4D(caerVisualizerPublicState state, caerEventPacketContainer container) {
 	UNUSED_ARGUMENT(state);
 
 	caerEventPacketHeader Point4DEventPacketHeader = caerEventPacketContainerFindEventPacketByType(container,
@@ -430,14 +397,9 @@ bool doClear) {
 		return (false);
 	}
 
-	// Clear bitmap to black to erase old events.
-	if (doClear) {
-		al_clear_to_color(al_map_rgb(0, 0, 0));
-	}
-
 	// get bitmap's size
-	int32_t sizeX = state->bitmapRendererSizeX;
-	int32_t sizeY = state->bitmapRendererSizeY;
+	int32_t sizeX = state->renderSizeX;
+	int32_t sizeY = state->renderSizeY;
 
 	float maxY = INT_MIN;
 
@@ -478,16 +440,16 @@ bool doClear) {
 		if(corex == 1.0f && corey == 1.0f){ coreId = 3;}
 
 		if (coreId == 0) {
-			al_put_pixel((int32_t) sizeX - checked, (int32_t) new_y,al_map_rgb(0, 255, 0));
+			// TODO: al_put_pixel((int32_t) sizeX - checked, (int32_t) new_y,al_map_rgb(0, 255, 0));
 		}
 		else if (coreId == 1) {
-			al_put_pixel((int32_t) sizeX - checked, (int32_t) new_y,al_map_rgb(0, 0, 255));
+			// TODO: al_put_pixel((int32_t) sizeX - checked, (int32_t) new_y,al_map_rgb(0, 0, 255));
 		}
 		else if (coreId == 2) {
-			al_put_pixel((int32_t) sizeX - checked, (int32_t) new_y,al_map_rgb(255, 0, 0));
+			// TODO: al_put_pixel((int32_t) sizeX - checked, (int32_t) new_y,al_map_rgb(255, 0, 0));
 		}
 		else if (coreId == 3) {
-			al_put_pixel((int32_t) sizeX - checked, (int32_t) new_y,al_map_rgb(255, 255, 0));
+			// TODO: al_put_pixel((int32_t) sizeX - checked, (int32_t) new_y,al_map_rgb(255, 255, 0));
 		}
 
 		if(counter == 5){
@@ -501,12 +463,10 @@ bool doClear) {
 }
 
 bool caerVisualizerMultiRendererPolarityAndFrameEvents(caerVisualizerPublicState state,
-	caerEventPacketContainer container, bool doClear) {
-	UNUSED_ARGUMENT(doClear); // Don't clear old frames, add events on top.
+	caerEventPacketContainer container) {
+	bool drewFrameEvents = caerVisualizerRendererFrameEvents(state, container);
 
-	bool drewFrameEvents = caerVisualizerRendererFrameEvents(state, container, false);
-
-	bool drewPolarityEvents = caerVisualizerRendererPolarityEvents(state, container, false);
+	bool drewPolarityEvents = caerVisualizerRendererPolarityEvents(state, container);
 
 	return (drewFrameEvents || drewPolarityEvents);
 }

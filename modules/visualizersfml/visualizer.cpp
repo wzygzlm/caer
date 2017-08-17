@@ -12,9 +12,13 @@
 #include <thread>
 #include <mutex>
 
+#if defined(OS_LINUX) && OS_LINUX == 1
+	#include <X11/Xlib.h>
+#endif
+
 static caerVisualizerState caerVisualizerInit(caerVisualizerRenderer renderer, caerVisualizerEventHandler eventHandler,
-	int32_t bitmapSizeX, int32_t bitmapSizeY, float defaultZoomFactor, bool defaultShowStatistics,
-	caerModuleData parentModule, int16_t eventSourceID);
+	uint32_t sizeX, uint32_t sizeY, float defaultZoomFactor, bool defaultShowStatistics, caerModuleData parentModule,
+	int16_t eventSourceID);
 static void caerVisualizerUpdate(caerVisualizerState state, caerEventPacketContainer container);
 static void caerVisualizerExit(caerVisualizerState state);
 static void caerVisualizerReset(caerVisualizerState state);
@@ -43,19 +47,19 @@ struct caer_visualizer_handlers {
 
 static const char *caerVisualizerHandlerListOptionsString = "None,Spikes,Input";
 
-static struct caer_visualizer_handlers caerVisualizerHandlerList[] = { { "None", NULL }, { "Spikes",
+static struct caer_visualizer_handlers caerVisualizerHandlerList[] = { { "None", nullptr }, { "Spikes",
 	&caerVisualizerEventHandlerSpikeEvents }, { "Input", &caerInputVisualizerEventHandler } };
 
 struct caer_visualizer_state {
 	sshsNode eventSourceConfigNode;
 	sshsNode visualizerConfigNode;
-	uint32_t displayWindowSizeX;
-	uint32_t displayWindowSizeY;
-	sf::RenderWindow *displayWindow;
-	sf::Font *displayFont;
+	uint32_t renderSizeX;
+	uint32_t renderSizeY;
+	sf::RenderWindow *renderWindow;
+	sf::Font *font;
 	std::atomic_bool running;
-	std::atomic_bool displayWindowResize;
-	bool bitmapDrawUpdate;
+	std::atomic_bool windowResize;
+	std::atomic_bool windowMove;
 	RingBuffer dataTransfer;
 	std::thread renderingThread;
 	caerVisualizerRenderer renderer;
@@ -64,15 +68,16 @@ struct caer_visualizer_state {
 	bool showStatistics;
 	struct caer_statistics_state packetStatistics;
 	std::atomic_uint_fast32_t packetSubsampleRendering;
-	int32_t packetSubsampleCount;
+	uint32_t packetSubsampleCount;
 };
 
-static void updateDisplaySize(caerVisualizerState state, bool updateTransform);
+static void updateDisplaySize(caerVisualizerState state);
 static void updateDisplayLocation(caerVisualizerState state);
 static void saveDisplayLocation(caerVisualizerState state);
 static void caerVisualizerConfigListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
 static bool caerVisualizerInitGraphics(caerVisualizerState state);
+static void caerVisualizerHandleEvents(caerVisualizerState state);
 static void caerVisualizerUpdateScreen(caerVisualizerState state);
 static void caerVisualizerExitGraphics(caerVisualizerState state);
 static int caerVisualizerRenderThread(void *visualizerState);
@@ -81,12 +86,17 @@ static int caerVisualizerRenderThread(void *visualizerState);
 #define GLOBAL_FONT_SPACING 5 // in pixels
 
 // Calculated at system init.
-static int STATISTICS_WIDTH = 0;
-static int STATISTICS_HEIGHT = 0;
+static uint32_t STATISTICS_WIDTH = 0;
+static uint32_t STATISTICS_HEIGHT = 0;
 
 static void caerVisualizerSystemInit(void) {
+	// Call XInitThreads() on Linux.
+#if defined(OS_LINUX) && OS_LINUX == 1
+	XInitThreads();
+#endif
+
 	// Determine biggest possible statistics string.
-	size_t maxStatStringLength = (size_t) snprintf(NULL, 0, CAER_STATISTICS_STRING_TOTAL, UINT64_MAX);
+	size_t maxStatStringLength = (size_t) snprintf(nullptr, 0, CAER_STATISTICS_STRING_TOTAL, UINT64_MAX);
 
 	char maxStatString[maxStatStringLength + 1];
 	snprintf(maxStatString, maxStatStringLength + 1, CAER_STATISTICS_STRING_TOTAL, UINT64_MAX);
@@ -100,28 +110,27 @@ static void caerVisualizerSystemInit(void) {
 
 	// Determine statistics string width.
 	sf::Text maxStatText(maxStatString, font, GLOBAL_FONT_SIZE);
-	STATISTICS_WIDTH = (2 * GLOBAL_FONT_SPACING) + (int) maxStatText.getLocalBounds().width;
+	STATISTICS_WIDTH = (2 * GLOBAL_FONT_SPACING) + U32T(maxStatText.getLocalBounds().width);
 
-	STATISTICS_HEIGHT = (3 * GLOBAL_FONT_SPACING) + (2 * (int) maxStatText.getLocalBounds().height);
+	STATISTICS_HEIGHT = (3 * GLOBAL_FONT_SPACING) + (2 * U32T(maxStatText.getLocalBounds().height));
 }
 
 caerVisualizerState caerVisualizerInit(caerVisualizerRenderer renderer, caerVisualizerEventHandler eventHandler,
-	int32_t bitmapSizeX, int32_t bitmapSizeY, float defaultZoomFactor, bool defaultShowStatistics,
-	caerModuleData parentModule, int16_t eventSourceID) {
-	// Initialize visualizer framework (load fonts etc.). Do only once per startup!
+	uint32_t sizeX, uint32_t sizeY, float defaultZoomFactor, bool defaultShowStatistics, caerModuleData parentModule,
+	int16_t eventSourceID) {
+	// Initialize visualizer framework (global font sizes). Do only once per startup!
 	std::call_once(visualizerSystemIsInitialized, &caerVisualizerSystemInit);
 
 	// Allocate memory for visualizer state.
-	caerVisualizerState state = calloc(1, sizeof(struct caer_visualizer_state));
-	if (state == NULL) {
+	caerVisualizerState state = (caerVisualizerState) calloc(1, sizeof(struct caer_visualizer_state));
+	if (state == nullptr) {
 		caerModuleLog(parentModule, CAER_LOG_ERROR, "Visualizer: Failed to allocate state memory.");
-		return (NULL);
+		return (nullptr);
 	}
 
 	state->parentModule = parentModule;
 	state->visualizerConfigNode = parentModule->moduleNode;
 	if (eventSourceID >= 0) {
-		state->eventSourceModuleState = caerMainloopGetSourceState(eventSourceID);
 		state->eventSourceConfigNode = caerMainloopGetSourceNode(eventSourceID);
 	}
 
@@ -132,18 +141,16 @@ caerVisualizerState caerVisualizerInit(caerVisualizerRenderer renderer, caerVisu
 		"Show event statistics above content (top of window).");
 	sshsNodeCreateFloat(parentModule->moduleNode, "zoomFactor", defaultZoomFactor, 0.5f, 50.0f, SSHS_FLAGS_NORMAL,
 		"Content zoom factor.");
-	sshsNodeCreateInt(parentModule->moduleNode, "windowPositionX", VISUALIZER_DEFAULT_POSITION_X, 0, INT32_MAX,
+	sshsNodeCreateInt(parentModule->moduleNode, "windowPositionX", VISUALIZER_DEFAULT_POSITION_X, 0, UINT16_MAX,
 		SSHS_FLAGS_NORMAL, "Position of window on screen (X coordinate).");
-	sshsNodeCreateInt(parentModule->moduleNode, "windowPositionY", VISUALIZER_DEFAULT_POSITION_Y, 0, INT32_MAX,
+	sshsNodeCreateInt(parentModule->moduleNode, "windowPositionY", VISUALIZER_DEFAULT_POSITION_Y, 0, UINT16_MAX,
 		SSHS_FLAGS_NORMAL, "Position of window on screen (Y coordinate).");
 
-	state->packetSubsampleRendering.store(sshsNodeGetInt(parentModule->moduleNode, "subsampleRendering"));
+	state->packetSubsampleRendering.store(U32T(sshsNodeGetInt(parentModule->moduleNode, "subsampleRendering")));
 
 	// Remember sizes.
-	state->bitmapRendererSizeX = bitmapSizeX;
-	state->bitmapRendererSizeY = bitmapSizeY;
-
-	updateDisplaySize(state, false);
+	state->renderSizeX = sizeX;
+	state->renderSizeY = sizeY;
 
 	// Remember rendering and event handling function.
 	state->renderer = renderer;
@@ -154,18 +161,31 @@ caerVisualizerState caerVisualizerInit(caerVisualizerRenderer renderer, caerVisu
 		free(state);
 
 		caerModuleLog(parentModule, CAER_LOG_ERROR, "Visualizer: Failed to initialize statistics string.");
-		return (NULL);
+		return (nullptr);
 	}
 
 	// Initialize ring-buffer to transfer data to render thread.
 	state->dataTransfer = ringBufferInit(64);
-	if (state->dataTransfer == NULL) {
+	if (state->dataTransfer == nullptr) {
 		caerStatisticsStringExit(&state->packetStatistics);
 		free(state);
 
 		caerModuleLog(parentModule, CAER_LOG_ERROR, "Visualizer: Failed to initialize ring-buffer.");
-		return (NULL);
+		return (nullptr);
 	}
+
+#if defined(OS_MACOSX) && OS_MACOSX == 1
+	// On OS X, creation (and destruction) of the window, as well as its event
+	// handling must happen on the main thread. Only drawing can be separate.
+	if (!caerVisualizerInitGraphics(state)) {
+		ringBufferFree(state->dataTransfer);
+		caerStatisticsStringExit(&state->packetStatistics);
+		free(state);
+
+		caerModuleLog(parentModule, CAER_LOG_ERROR, "Visualizer: Failed to start rendering thread.");
+		return (nullptr);
+	}
+#endif
 
 	// Start separate rendering thread. Decouples presentation from
 	// data processing and preparation. Communication over ring-buffer.
@@ -174,13 +194,19 @@ caerVisualizerState caerVisualizerInit(caerVisualizerRenderer renderer, caerVisu
 	try {
 		state->renderingThread = std::thread(&caerVisualizerRenderThread, state);
 	}
-	catch (const std::system_error &)  {
+	catch (const std::system_error &) {
+#if defined(OS_MACOSX) && OS_MACOSX == 1
+		// On OS X, creation (and destruction) of the window, as well as its event
+		// handling must happen on the main thread. Only drawing can be separate.
+		caerVisualizerExitGraphics(state);
+#endif
+
 		ringBufferFree(state->dataTransfer);
 		caerStatisticsStringExit(&state->packetStatistics);
 		free(state);
 
 		caerModuleLog(parentModule, CAER_LOG_ERROR, "Visualizer: Failed to start rendering thread.");
-		return (NULL);
+		return (nullptr);
 	}
 
 	// Add config listeners last, to avoid having them dangling if Init doesn't succeed.
@@ -196,74 +222,86 @@ static void updateDisplayLocation(caerVisualizerState state) {
 	const sf::Vector2i newPos(sshsNodeGetInt(state->parentModule->moduleNode, "windowPositionX"),
 		sshsNodeGetInt(state->parentModule->moduleNode, "windowPositionY"));
 
-	state->displayWindow->setPosition(newPos);
+	state->renderWindow->setPosition(newPos);
 }
 
 static void saveDisplayLocation(caerVisualizerState state) {
-	const sf::Vector2i currPos = state->displayWindow->getPosition();
+	const sf::Vector2i currPos = state->renderWindow->getPosition();
 
 	// Update current position in configuration storage.
 	sshsNodePutInt(state->parentModule->moduleNode, "windowPositionX", currPos.x);
 	sshsNodePutInt(state->parentModule->moduleNode, "windowPositionY", currPos.y);
 }
 
-static void updateDisplaySize(caerVisualizerState state, bool updateTransform) {
+static void updateDisplaySize(caerVisualizerState state) {
 	state->showStatistics = sshsNodeGetBool(state->parentModule->moduleNode, "showStatistics");
 	float zoomFactor = sshsNodeGetFloat(state->parentModule->moduleNode, "zoomFactor");
 
-	int32_t displayWindowSizeX = state->bitmapRendererSizeX;
-	int32_t displayWindowSizeY = state->bitmapRendererSizeY;
+	sf::Vector2u newRenderWindowSize(state->renderSizeX, state->renderSizeY);
 
 	// When statistics are turned on, we need to add some space to the
 	// X axis for displaying the whole line and the Y axis for spacing.
 	if (state->showStatistics) {
-		if (STATISTICS_WIDTH > displayWindowSizeX) {
-			displayWindowSizeX = STATISTICS_WIDTH;
+		if (STATISTICS_WIDTH > newRenderWindowSize.x) {
+			newRenderWindowSize.x = STATISTICS_WIDTH;
 		}
 
-		displayWindowSizeY += STATISTICS_HEIGHT;
+		newRenderWindowSize.y += STATISTICS_HEIGHT;
 	}
 
-	state->displayWindowSizeX = I32T((float ) displayWindowSizeX * zoomFactor);
-	state->displayWindowSizeY = I32T((float ) displayWindowSizeY * zoomFactor);
+	// Set view size to render area.
+	state->renderWindow->setView(sf::View(sf::FloatRect(0, 0, newRenderWindowSize.x, newRenderWindowSize.y)));
 
-	// Update Allegro drawing transformation to implement scaling.
-	if (updateTransform) {
-		al_set_target_backbuffer(state->displayWindow);
+	// Apply zoom to all content.
+	newRenderWindowSize.x *= zoomFactor;
+	newRenderWindowSize.y *= zoomFactor;
 
-		ALLEGRO_TRANSFORM t;
-		al_identity_transform(&t);
-		al_scale_transform(&t, zoomFactor, zoomFactor);
-		al_use_transform(&t);
-
-		al_resize_display(state->displayWindow, state->displayWindowSizeX, state->displayWindowSizeY);
-	}
+	// Set window size to zoomed area.
+	state->renderWindow->setSize(newRenderWindowSize);
 }
 
 static void caerVisualizerConfigListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue) {
 	UNUSED_ARGUMENT(node);
 
-	caerVisualizerState state = userData;
+	caerVisualizerState state = (caerVisualizerState) userData;
 
 	if (event == SSHS_ATTRIBUTE_MODIFIED) {
 		if (changeType == SSHS_FLOAT && caerStrEquals(changeKey, "zoomFactor")) {
 			// Set resize flag.
-			state->displayWindowResize.store(true);
+			state->windowResize.store(true);
 		}
 		else if (changeType == SSHS_BOOL && caerStrEquals(changeKey, "showStatistics")) {
 			// Set resize flag. This will then also update the showStatistics flag, ensuring
 			// statistics are never shown without the screen having been properly resized first.
-			state->displayWindowResize.store(true);
+			state->windowResize.store(true);
 		}
 		else if (changeType == SSHS_INT && caerStrEquals(changeKey, "subsampleRendering")) {
-			state->packetSubsampleRendering.store(changeValue.iint);
+			state->packetSubsampleRendering.store(U32T(changeValue.iint));
+		}
+		else if (changeType == SSHS_INT && caerStrEquals(changeKey, "windowPositionX")) {
+			// Set move flag.
+			state->windowMove.store(true);
+		}
+		else if (changeType == SSHS_INT && caerStrEquals(changeKey, "windowPositionY")) {
+			// Set move flag.
+			state->windowMove.store(true);
 		}
 	}
 }
 
 void caerVisualizerUpdate(caerVisualizerState state, caerEventPacketContainer container) {
-	if (state == NULL || container == NULL) {
+	if (state == nullptr) {
+		return;
+	}
+
+#if defined(OS_MACOSX) && OS_MACOSX == 1
+	// On OS X, creation (and destruction) of the window, as well as its event
+	// handling must happen on the main thread. Only drawing can be separate.
+	caerVisualizerHandleEvents(state);
+#endif
+
+	if (container == nullptr) {
 		return;
 	}
 
@@ -283,7 +321,7 @@ void caerVisualizerUpdate(caerVisualizerState state, caerEventPacketContainer co
 	}
 
 	caerEventPacketContainer containerCopy = caerEventPacketContainerCopyAllEvents(container);
-	if (containerCopy == NULL) {
+	if (containerCopy == nullptr) {
 		caerModuleLog(state->parentModule, CAER_LOG_ERROR,
 			"Visualizer: Failed to copy event packet container for rendering.");
 
@@ -300,12 +338,9 @@ void caerVisualizerUpdate(caerVisualizerState state, caerEventPacketContainer co
 }
 
 void caerVisualizerExit(caerVisualizerState state) {
-	if (state == NULL) {
+	if (state == nullptr) {
 		return;
 	}
-
-	// Update visualizer location
-	saveDisplayLocation(state);
 
 	// Remove listener, which can reference invalid memory in userData.
 	sshsNodeRemoveAttributeListener(state->parentModule->moduleNode, state, &caerVisualizerConfigListener);
@@ -316,15 +351,21 @@ void caerVisualizerExit(caerVisualizerState state) {
 	try {
 		state->renderingThread.join();
 	}
-	catch (const std::system_error &)  {
+	catch (const std::system_error &) {
 		// This should never happen!
 		caerModuleLog(state->parentModule, CAER_LOG_CRITICAL, "Visualizer: Failed to join rendering thread. Error: %d.",
 		errno);
 	}
 
+#if defined(OS_MACOSX) && OS_MACOSX == 1
+	// On OS X, creation (and destruction) of the window, as well as its event
+	// handling must happen on the main thread. Only drawing can be separate.
+	caerVisualizerExitGraphics(state);
+#endif
+
 	// Now clean up the ring-buffer and its contents.
 	caerEventPacketContainer container;
-	while ((container = ringBufferGet(state->dataTransfer)) != NULL) {
+	while ((container = (caerEventPacketContainer) ringBufferGet(state->dataTransfer)) != nullptr) {
 		caerEventPacketContainerFree(container);
 	}
 
@@ -340,7 +381,7 @@ void caerVisualizerExit(caerVisualizerState state) {
 }
 
 void caerVisualizerReset(caerVisualizerState state) {
-	if (state == NULL) {
+	if (state == nullptr) {
 		return;
 	}
 
@@ -350,129 +391,68 @@ void caerVisualizerReset(caerVisualizerState state) {
 }
 
 static bool caerVisualizerInitGraphics(caerVisualizerState state) {
+	// Set thread name to SFMLGraphics, so that the internal SFML
+	// threads do get a generic, recognizable name, if any are
+	// created when initializing the graphics sub-system.
+	// TODO: thrd_set_name("SFMLGraphics");
+
 	// Create display window and set its title.
-	state->displayWindow = new sf::RenderWindow(sf::VideoMode(state->displayWindowSizeX, state->displayWindowSizeY), state->parentModule->moduleSubSystemString, sf::Style::Titlebar | sf::Style::Close);
-	if (state->displayWindow == nullptr) {
+	state->renderWindow = new sf::RenderWindow(sf::VideoMode(state->renderSizeX, state->renderSizeY),
+		state->parentModule->moduleSubSystemString, sf::Style::Titlebar | sf::Style::Close);
+	if (state->renderWindow == nullptr) {
 		caerModuleLog(state->parentModule, CAER_LOG_ERROR,
-			"Visualizer: Failed to create display window with sizeX=%" PRIu32 ", sizeY=%" PRIu32 ".", state->displayWindowSizeX,
-			state->displayWindowSizeY);
+			"Visualizer: Failed to create display window with sizeX=%" PRIu32 ", sizeY=%" PRIu32 ".",
+			state->renderSizeX, state->renderSizeY);
 		return (false);
 	}
 
 	// Enable VSync to avoid tearing.
-	state->displayWindow->setVerticalSyncEnabled(true);
+	// TODO: state->renderWindow->setVerticalSyncEnabled(true);
 
-	// Initialize window to all black.
-	state->displayWindow->clear(sf::Color::Black);
-	state->displayWindow->display();
+	// Set frame rate limit to avoid too many refreshes.
+	// TODO: state->renderWindow->setFramerateLimit(VISUALIZER_REFRESH_RATE);
 
 	// Set scale transform for display window, update sizes.
-	updateDisplaySize(state, true);
+	updateDisplaySize(state);
 
 	// Set window position.
 	updateDisplayLocation(state);
 
-	if (state->bitmapRenderer == NULL) {
-		// Clean up all memory that may have been used.
-		caerVisualizerExitGraphics(state);
-
-		caerModuleLog(state->parentModule, CAER_LOG_ERROR,
-			"Visualizer: Failed to create bitmap element with sizeX=%d, sizeY=%d.", state->bitmapRendererSizeX,
-			state->bitmapRendererSizeY);
-		return (false);
-	}
-
-	// Clear bitmap to all black.
-	al_set_target_bitmap(state->bitmapRenderer);
-	al_clear_to_color(al_map_rgb(0, 0, 0));
-
-	// Timers and event queues for the rendering side.
-	state->displayEventQueue = al_create_event_queue();
-	if (state->displayEventQueue == NULL) {
-		// Clean up all memory that may have been used.
-		caerVisualizerExitGraphics(state);
-
-		caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Visualizer: Failed to create event queue.");
-		return (false);
-	}
-
-	state->displayTimer = al_create_timer((double) (1.00f / VISUALIZER_REFRESH_RATE));
-	if (state->displayTimer == NULL) {
-		// Clean up all memory that may have been used.
-		caerVisualizerExitGraphics(state);
-
-		caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Visualizer: Failed to create timer.");
-		return (false);
-	}
-
-	al_register_event_source(state->displayEventQueue, al_get_display_event_source(state->displayWindow));
-	al_register_event_source(state->displayEventQueue, al_get_timer_event_source(state->displayTimer));
-	al_register_event_source(state->displayEventQueue, al_get_keyboard_event_source());
-	al_register_event_source(state->displayEventQueue, al_get_mouse_event_source());
+	// Initialize window to all black.
+	state->renderWindow->clear(sf::Color::Black);
+	state->renderWindow->display();
 
 	// Re-load font here so it's hardware accelerated.
 	// A display must have been created and used as target for this to work.
-	state->displayFont = al_load_font(globalFontPath, GLOBAL_FONT_SIZE, 0);
-	if (state->displayFont == NULL) {
+	state->font = new sf::Font();
+	if (state->font == nullptr) {
 		caerModuleLog(state->parentModule, CAER_LOG_WARNING,
-			"Visualizer: Failed to load display font '%s'. Text rendering will not be possible.", globalFontPath);
+			"Visualizer: Failed to create display font. Text rendering will not be possible.");
 	}
+	else {
+		if (!state->font->loadFromMemory(LiberationSans_Bold_ttf, LiberationSans_Bold_ttf_len)) {
+			caerModuleLog(state->parentModule, CAER_LOG_WARNING,
+				"Visualizer: Failed to load display font. Text rendering will not be possible.");
 
-	// Everything fine, start timer for refresh.
-	al_start_timer(state->displayTimer);
+			delete state->font;
+			state->font = nullptr;
+		}
+	}
 
 	return (true);
 }
 
-static void caerVisualizerUpdateScreen(caerVisualizerState state) {
-	caerEventPacketContainer container = ringBufferGet(state->dataTransfer);
+static void caerVisualizerHandleEvents(caerVisualizerState state) {
+	sf::Event event;
 
-	repeat: if (container != NULL) {
-		// Are there others? Only render last one, to avoid getting backed up!
-		caerEventPacketContainer container2 = ringBufferGet(state->dataTransfer);
-
-		if (container2 != NULL) {
-			caerEventPacketContainerFree(container);
-			container = container2;
-			goto repeat;
+	while (state->renderWindow->pollEvent(event)) {
+		if (event.type == sf::Event::Closed) {
+			sshsNodePutBool(state->parentModule->moduleNode, "running", false);
 		}
-	}
-
-	if (container != NULL) {
-		al_set_target_bitmap(state->bitmapRenderer);
-
-		// Update bitmap with new content. (0, 0) is upper left corner.
-		// NULL renderer is supported and simply does nothing (black screen).
-		if (state->renderer != NULL) {
-			bool didDrawSomething = (*state->renderer)((caerVisualizerPublicState) state, container,
-				!state->bitmapDrawUpdate);
-
-			// Remember if something was drawn, even just once.
-			if (!state->bitmapDrawUpdate) {
-				state->bitmapDrawUpdate = didDrawSomething;
-			}
-		}
-
-		// Free packet container copy.
-		caerEventPacketContainerFree(container);
-	}
-
-	bool redraw = false;
-	ALLEGRO_EVENT displayEvent;
-
-	handleEvents: al_wait_for_event(state->displayEventQueue, &displayEvent);
-
-	if (displayEvent.type == ALLEGRO_EVENT_TIMER) {
-		redraw = true;
-	}
-	else if (displayEvent.type == ALLEGRO_EVENT_DISPLAY_CLOSE) {
-		sshsNodePutBool(state->parentModule->moduleNode, "running", false);
-	}
-	else if (displayEvent.type == ALLEGRO_EVENT_KEY_CHAR || displayEvent.type == ALLEGRO_EVENT_KEY_DOWN
-		|| displayEvent.type == ALLEGRO_EVENT_KEY_UP) {
-		// React to key presses, but only if they came from the corresponding display.
-		if (displayEvent.keyboard.display == state->displayWindow) {
-			if (displayEvent.type == ALLEGRO_EVENT_KEY_DOWN && displayEvent.keyboard.keycode == ALLEGRO_KEY_UP) {
+		else if (event.type == sf::Event::KeyPressed || event.type == sf::Event::KeyReleased
+			|| event.type == sf::Event::TextEntered) {
+			// React to key presses, but only if they came from the corresponding display.
+			if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Key::Up) {
 				float currentZoomFactor = sshsNodeGetFloat(state->parentModule->moduleNode, "zoomFactor");
 
 				currentZoomFactor += 0.5f;
@@ -484,7 +464,7 @@ static void caerVisualizerUpdateScreen(caerVisualizerState state) {
 
 				sshsNodePutFloat(state->parentModule->moduleNode, "zoomFactor", currentZoomFactor);
 			}
-			else if (displayEvent.type == ALLEGRO_EVENT_KEY_DOWN && displayEvent.keyboard.keycode == ALLEGRO_KEY_DOWN) {
+			else if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Key::Down) {
 				float currentZoomFactor = sshsNodeGetFloat(state->parentModule->moduleNode, "zoomFactor");
 
 				currentZoomFactor -= 0.5f;
@@ -496,7 +476,7 @@ static void caerVisualizerUpdateScreen(caerVisualizerState state) {
 
 				sshsNodePutFloat(state->parentModule->moduleNode, "zoomFactor", currentZoomFactor);
 			}
-			else if (displayEvent.type == ALLEGRO_EVENT_KEY_DOWN && displayEvent.keyboard.keycode == ALLEGRO_KEY_W) {
+			else if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Key::W) {
 				int32_t currentSubsampling = sshsNodeGetInt(state->parentModule->moduleNode, "subsampleRendering");
 
 				currentSubsampling--;
@@ -508,7 +488,7 @@ static void caerVisualizerUpdateScreen(caerVisualizerState state) {
 
 				sshsNodePutInt(state->parentModule->moduleNode, "subsampleRendering", currentSubsampling);
 			}
-			else if (displayEvent.type == ALLEGRO_EVENT_KEY_DOWN && displayEvent.keyboard.keycode == ALLEGRO_KEY_E) {
+			else if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Key::E) {
 				int32_t currentSubsampling = sshsNodeGetInt(state->parentModule->moduleNode, "subsampleRendering");
 
 				currentSubsampling++;
@@ -520,28 +500,25 @@ static void caerVisualizerUpdateScreen(caerVisualizerState state) {
 
 				sshsNodePutInt(state->parentModule->moduleNode, "subsampleRendering", currentSubsampling);
 			}
-			else if (displayEvent.type == ALLEGRO_EVENT_KEY_DOWN && displayEvent.keyboard.keycode == ALLEGRO_KEY_Q) {
+			else if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Key::Q) {
 				bool currentShowStatistics = sshsNodeGetBool(state->parentModule->moduleNode, "showStatistics");
 
 				sshsNodePutBool(state->parentModule->moduleNode, "showStatistics", !currentShowStatistics);
 			}
 			else {
 				// Forward event to user-defined event handler.
-				if (state->eventHandler != NULL) {
-					(*state->eventHandler)((caerVisualizerPublicState) state, displayEvent);
+				if (state->eventHandler != nullptr) {
+					(*state->eventHandler)((caerVisualizerPublicState) state, event);
 				}
 			}
 		}
-	}
-	else if (displayEvent.type == ALLEGRO_EVENT_MOUSE_AXES || displayEvent.type == ALLEGRO_EVENT_MOUSE_BUTTON_DOWN
-		|| displayEvent.type == ALLEGRO_EVENT_MOUSE_BUTTON_UP || displayEvent.type == ALLEGRO_EVENT_MOUSE_ENTER_DISPLAY
-		|| displayEvent.type == ALLEGRO_EVENT_MOUSE_LEAVE_DISPLAY || displayEvent.type == ALLEGRO_EVENT_MOUSE_WARPED) {
-		// React to mouse movements, but only if they came from the corresponding display.
-		if (displayEvent.mouse.display == state->displayWindow) {
-			if (displayEvent.type == ALLEGRO_EVENT_MOUSE_AXES && displayEvent.mouse.dz > 0) {
+		else if (event.type == sf::Event::MouseButtonPressed || event.type == sf::Event::MouseButtonReleased
+			|| event.type == sf::Event::MouseWheelScrolled || event.type == sf::Event::MouseEntered
+			|| event.type == sf::Event::MouseLeft || event.type == sf::Event::MouseMoved) {
+			if (event.type == sf::Event::MouseWheelScrolled && event.mouseWheelScroll.delta > 0) {
 				float currentZoomFactor = sshsNodeGetFloat(state->parentModule->moduleNode, "zoomFactor");
 
-				currentZoomFactor += (0.1f * (float) displayEvent.mouse.dz);
+				currentZoomFactor += (0.1f * (float) event.mouseWheelScroll.delta);
 
 				// Clip zoom factor.
 				if (currentZoomFactor > 50) {
@@ -550,11 +527,11 @@ static void caerVisualizerUpdateScreen(caerVisualizerState state) {
 
 				sshsNodePutFloat(state->parentModule->moduleNode, "zoomFactor", currentZoomFactor);
 			}
-			else if (displayEvent.type == ALLEGRO_EVENT_MOUSE_AXES && displayEvent.mouse.dz < 0) {
+			else if (event.type == sf::Event::MouseWheelScrolled && event.mouseWheelScroll.delta < 0) {
 				float currentZoomFactor = sshsNodeGetFloat(state->parentModule->moduleNode, "zoomFactor");
 
 				// Plus because dz is negative, so - and - is +.
-				currentZoomFactor += (0.1f * (float) displayEvent.mouse.dz);
+				currentZoomFactor += (0.1f * (float) event.mouseWheelScroll.delta);
 
 				// Clip zoom factor.
 				if (currentZoomFactor < 0.5f) {
@@ -565,109 +542,127 @@ static void caerVisualizerUpdateScreen(caerVisualizerState state) {
 			}
 			else {
 				// Forward event to user-defined event handler.
-				if (state->eventHandler != NULL) {
-					(*state->eventHandler)((caerVisualizerPublicState) state, displayEvent);
+				if (state->eventHandler != nullptr) {
+					(*state->eventHandler)((caerVisualizerPublicState) state, event);
 				}
 			}
 		}
 	}
+}
 
-	if (!al_is_event_queue_empty(state->displayEventQueue)) {
-		// Handle all events before rendering, to avoid
-		// having them backed up too much.
-		goto handleEvents;
+static void caerVisualizerUpdateScreen(caerVisualizerState state) {
+	caerEventPacketContainer container = (caerEventPacketContainer) ringBufferGet(state->dataTransfer);
+
+	repeat: if (container != nullptr) {
+		// Are there others? Only render last one, to avoid getting backed up!
+		caerEventPacketContainer container2 = (caerEventPacketContainer) ringBufferGet(state->dataTransfer);
+
+		if (container2 != nullptr) {
+			caerEventPacketContainerFree(container);
+			container = container2;
+			goto repeat;
+		}
 	}
 
-	// Handle display resize (zoom).
-	if (state->displayWindowResize.load(std::memory_order_relaxed)) {
-		state->displayWindowResize.store(false);
+	bool drewSomething = false;
+
+	if (container != nullptr) {
+		// Update render window with new content. (0, 0) is upper left corner.
+		// NULL renderer is supported and simply does nothing (black screen).
+		if (state->renderer != nullptr) {
+			drewSomething = (*state->renderer)((caerVisualizerPublicState) state, container);
+		}
+
+		// Free packet container copy.
+		caerEventPacketContainerFree(container);
+	}
+
+	// Handle display resize (zoom and statistics).
+	if (state->windowResize.load(std::memory_order_relaxed)) {
+		state->windowResize.store(false);
 
 		// Update statistics flag and resize display appropriately.
-		updateDisplaySize(state, true);
+		updateDisplaySize(state);
+	}
+
+	// Handle display move.
+	if (state->windowMove.load(std::memory_order_relaxed)) {
+		state->windowMove.store(false);
+
+		// Move display location appropriately.
+		updateDisplayLocation(state);
 	}
 
 	// Render content to display.
-	if (redraw && state->bitmapDrawUpdate) {
-		state->bitmapDrawUpdate = false;
-
-		al_set_target_backbuffer(state->displayWindow);
-		al_clear_to_color(al_map_rgb(0, 0, 0));
-
+	if (drewSomething) {
 		// Render statistics string.
-		bool doStatistics = (state->showStatistics && state->displayFont != NULL);
+		bool doStatistics = (state->showStatistics && state->font != nullptr);
 
 		if (doStatistics) {
 			// Split statistics string in two to use less horizontal space.
-			al_draw_text(state->displayFont, al_map_rgb(255, 255, 255), GLOBAL_FONT_SPACING,
-			GLOBAL_FONT_SPACING, 0, state->packetStatistics.currentStatisticsStringTotal);
+			// Put it below the normal render region, so people can access from
+			// (0,0) to (x-1,y-1) normally without fear of overwriting statistics.
+			sf::Text totalEventsText(state->packetStatistics.currentStatisticsStringTotal, *state->font,
+			GLOBAL_FONT_SIZE);
+			totalEventsText.setFillColor(sf::Color::White);
+			totalEventsText.setPosition(GLOBAL_FONT_SPACING, state->renderSizeY + GLOBAL_FONT_SPACING);
+			state->renderWindow->draw(totalEventsText);
 
-			al_draw_text(state->displayFont, al_map_rgb(255, 255, 255), GLOBAL_FONT_SPACING,
-				(2 * GLOBAL_FONT_SPACING) + GLOBAL_FONT_SIZE, 0, state->packetStatistics.currentStatisticsStringValid);
+			sf::Text validEventsText(state->packetStatistics.currentStatisticsStringValid, *state->font,
+			GLOBAL_FONT_SIZE);
+			validEventsText.setFillColor(sf::Color::White);
+			validEventsText.setPosition(GLOBAL_FONT_SPACING,
+				state->renderSizeY + (2 * GLOBAL_FONT_SPACING) + GLOBAL_FONT_SIZE);
+			state->renderWindow->draw(validEventsText);
 		}
 
-		// Blit bitmap to screen.
-		al_draw_bitmap(state->bitmapRenderer, 0, (doStatistics) ? ((float) STATISTICS_HEIGHT) : (0), 0);
+		// Draw to screen.
+		state->renderWindow->display();
 
-		al_flip_display();
+		// Reset window to all black for next rendering pass.
+		state->renderWindow->clear(sf::Color::Black);
 	}
 }
 
 static void caerVisualizerExitGraphics(caerVisualizerState state) {
-	al_set_target_bitmap(NULL);
+	// Update visualizer location
+	saveDisplayLocation(state);
 
-	if (state->bitmapRenderer != NULL) {
-		al_destroy_bitmap(state->bitmapRenderer);
-		state->bitmapRenderer = NULL;
-	}
+	// Close rendering window and free memory.
+	state->renderWindow->close();
 
-	if (state->displayFont != NULL) {
-		al_destroy_font(state->displayFont);
-		state->displayFont = NULL;
-	}
-
-	// Destroy event queue first to ensure all sources get
-	// unregistered before being destroyed in turn.
-	if (state->displayEventQueue != NULL) {
-		al_destroy_event_queue(state->displayEventQueue);
-		state->displayEventQueue = NULL;
-	}
-
-	if (state->displayTimer != NULL) {
-		al_destroy_timer(state->displayTimer);
-		state->displayTimer = NULL;
-	}
-
-	if (state->displayWindow != NULL) {
-		al_destroy_display(state->displayWindow);
-		state->displayWindow = NULL;
-	}
-
+	delete state->font;
+	delete state->renderWindow;
 }
 
 static int caerVisualizerRenderThread(void *visualizerState) {
-	if (visualizerState == NULL) {
+	if (visualizerState == nullptr) {
 		return (thrd_error);
 	}
 
-	caerVisualizerState state = visualizerState;
-
-	// Set thread name to AllegroGraphics, so that the internal Allegro
-	// threads do get a generic, recognizable name, if any are
-	// created when initializing the graphics sub-system.
-	thrd_set_name("AllegroGraphics");
-
-	if (!caerVisualizerInitGraphics(state)) {
-		return (thrd_error);
-	}
+	caerVisualizerState state = (caerVisualizerState) visualizerState;
 
 	// Set thread name.
 	thrd_set_name(state->parentModule->moduleSubSystemString);
 
+#if defined(OS_MACOSX) && OS_MACOSX == 1
+	// On OS X, creation (and destruction) of the window, as well as its event
+	// handling must happen on the main thread. Only drawing can be separate.
 	while (state->running.load(std::memory_order_relaxed)) {
+		caerVisualizerUpdateScreen(state);
+	}
+#else
+	if (!caerVisualizerInitGraphics(state)) {
+		return (thrd_error);
+	}
+
+	while (state->running.load(std::memory_order_relaxed)) {
+		caerVisualizerHandleEvents(state);
 		caerVisualizerUpdateScreen(state);
 	}
 
 	caerVisualizerExitGraphics(state);
+#endif
 
 	return (thrd_success);
 }
@@ -681,7 +676,7 @@ static void caerVisualizerModuleExit(caerModuleData moduleData);
 static void caerVisualizerModuleReset(caerModuleData moduleData, int16_t resetCallSourceID);
 
 static const struct caer_module_functions VisualizerFunctions = { .moduleInit = &caerVisualizerModuleInit, .moduleRun =
-	&caerVisualizerModuleRun, .moduleConfig = NULL, .moduleExit = &caerVisualizerModuleExit, .moduleReset =
+	&caerVisualizerModuleRun, .moduleConfig = nullptr, .moduleExit = &caerVisualizerModuleExit, .moduleReset =
 	&caerVisualizerModuleReset };
 
 static const struct caer_event_stream_in VisualizerInputs[] = { { .type = -1, .number = -1, .readOnly = true } };
@@ -689,7 +684,7 @@ static const struct caer_event_stream_in VisualizerInputs[] = { { .type = -1, .n
 static const struct caer_module_info VisualizerInfo = { .version = 1, .name = "Visualizer", .description =
 	"Visualize data in various forms.", .type = CAER_MODULE_OUTPUT, .memSize = 0, .functions = &VisualizerFunctions,
 	.inputStreams = VisualizerInputs, .inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(VisualizerInputs), .outputStreams =
-		NULL, .outputStreamsSize = 0, };
+		nullptr, .outputStreamsSize = 0, };
 
 caerModuleInfo caerModuleGetInfo(void) {
 	return (&VisualizerInfo);
@@ -700,7 +695,7 @@ static bool caerVisualizerModuleInit(caerModuleData moduleData) {
 	// have a valid sourceInfo node to query, especially if dealing with data.
 	size_t inputsSize;
 	int16_t *inputs = caerMainloopGetModuleInputIDs(moduleData->moduleID, &inputsSize);
-	if (inputs == NULL) {
+	if (inputs == nullptr) {
 		return (false);
 	}
 
@@ -735,7 +730,7 @@ static bool caerVisualizerModuleInitSize(caerModuleData moduleData, int16_t *inp
 		sourceID = inputs[i];
 
 		sshsNode sourceInfoNode = caerMainloopGetSourceInfo(sourceID);
-		if (sourceInfoNode == NULL) {
+		if (sourceInfoNode == nullptr) {
 			return (false);
 		}
 
@@ -765,7 +760,7 @@ static bool caerVisualizerModuleInitSize(caerModuleData moduleData, int16_t *inp
 	}
 
 	// Search for renderer in list.
-	caerVisualizerRenderer renderer = NULL;
+	caerVisualizerRenderer renderer = nullptr;
 
 	char *rendererChoice = sshsNodeGetString(moduleData->moduleNode, "renderer");
 
@@ -779,7 +774,7 @@ static bool caerVisualizerModuleInitSize(caerModuleData moduleData, int16_t *inp
 	free(rendererChoice);
 
 	// Search for event handler in list.
-	caerVisualizerEventHandler eventHandler = NULL;
+	caerVisualizerEventHandler eventHandler = nullptr;
 
 	char *eventHandlerChoice = sshsNodeGetString(moduleData->moduleNode, "eventHandler");
 
@@ -792,9 +787,9 @@ static bool caerVisualizerModuleInitSize(caerModuleData moduleData, int16_t *inp
 
 	free(eventHandlerChoice);
 
-	moduleData->moduleState = caerVisualizerInit(renderer, eventHandler, sizeX, sizeY, VISUALIZER_DEFAULT_ZOOM, true,
-		moduleData, sourceID);
-	if (moduleData->moduleState == NULL) {
+	moduleData->moduleState = caerVisualizerInit(renderer, eventHandler, U32T(sizeX), U32T(sizeY),
+	VISUALIZER_DEFAULT_ZOOM, true, moduleData, sourceID);
+	if (moduleData->moduleState == nullptr) {
 		return (false);
 	}
 
@@ -803,15 +798,15 @@ static bool caerVisualizerModuleInitSize(caerModuleData moduleData, int16_t *inp
 
 static void caerVisualizerModuleExit(caerModuleData moduleData) {
 	// Shut down rendering.
-	caerVisualizerExit(moduleData->moduleState);
-	moduleData->moduleState = NULL;
+	caerVisualizerExit((caerVisualizerState) moduleData->moduleState);
+	moduleData->moduleState = nullptr;
 }
 
 static void caerVisualizerModuleReset(caerModuleData moduleData, int16_t resetCallSourceID) {
 	UNUSED_ARGUMENT(resetCallSourceID);
 
 	// Reset counters for statistics on reset.
-	caerVisualizerReset(moduleData->moduleState);
+	caerVisualizerReset((caerVisualizerState) moduleData->moduleState);
 }
 
 static void caerVisualizerModuleRun(caerModuleData moduleData, caerEventPacketContainer in,
@@ -819,10 +814,10 @@ static void caerVisualizerModuleRun(caerModuleData moduleData, caerEventPacketCo
 	UNUSED_ARGUMENT(out);
 
 	// Without a packet container with events, we cannot initialize or render anything.
-	if (in == NULL || caerEventPacketContainerGetEventsNumber(in) == 0) {
+	if (in == nullptr || caerEventPacketContainerGetEventsNumber(in) == 0) {
 		return;
 	}
 
 	// Render given packet container.
-	caerVisualizerUpdate(moduleData->moduleState, in);
+	caerVisualizerUpdate((caerVisualizerState) moduleData->moduleState, in);
 }

@@ -2,22 +2,21 @@
 #include "base/mainloop.h"
 
 #include <math.h>
-#include <allegro5/allegro_primitives.h>
-#include <allegro5/allegro_ttf.h>
 
 #include <libcaer/events/spike.h>
 #include <libcaer/devices/dynapse.h>
 
-void caerVisualizerEventHandlerSpikeEvents(caerVisualizerPublicState state, ALLEGRO_EVENT event) {
-	if (event.type == ALLEGRO_EVENT_MOUSE_BUTTON_UP) {
+void caerVisualizerEventHandlerSpikeEvents(caerVisualizerPublicState state, sf::Event &event) {
+	// On release of left click.
+	if (event.type == sf::Event::MouseButtonReleased && event.mouseButton.button == sf::Mouse::Button::Left) {
 		// Check events come from an actual device.
 		if (strstr(sshsNodeGetName(state->eventSourceConfigNode), "DYNAPSEFX2") == NULL) {
 			return;
 		}
 
 		double posx, posy;
-		posx = (double) U32T(event.mouse.x);
-		posy = (double) U32T(event.mouse.y);
+		posx = (double) U32T(event.mouseButton.x);
+		posy = (double) U32T(event.mouseButton.y);
 
 		// adjust coordinates according to zoom
 		double currentZoomFactor = (double) sshsNodeGetFloat(state->visualizerConfigNode, "zoomFactor");
@@ -91,8 +90,9 @@ void caerVisualizerEventHandlerSpikeEvents(caerVisualizerPublicState state, ALLE
 			indexLin = 255;
 		}
 
-		caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, (uint32_t) chipId);
-		caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_MONITOR_NEU, coreid, indexLin);
+		// TODO: switch to using SSHS.
+		//caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, (uint32_t) chipId);
+		//caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_MONITOR_NEU, coreid, indexLin);
 
 		if (chipId == 0) {
 			caerLog(CAER_LOG_NOTICE, "Visualizer",
@@ -113,21 +113,21 @@ void caerVisualizerEventHandlerSpikeEvents(caerVisualizerPublicState state, ALLE
 	}
 }
 
-void caerInputVisualizerEventHandler(caerVisualizerPublicState state, ALLEGRO_EVENT event) {
+void caerInputVisualizerEventHandler(caerVisualizerPublicState state,  sf::Event &event) {
 	// PAUSE.
-	if (event.type == ALLEGRO_EVENT_KEY_DOWN && event.keyboard.keycode == ALLEGRO_KEY_SPACE) {
+	if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Key::Space) {
 		bool pause = sshsNodeGetBool(state->eventSourceConfigNode, "pause");
 
 		sshsNodePutBool(state->eventSourceConfigNode, "pause", !pause);
 	}
 	// SLOW DOWN.
-	else if (event.type == ALLEGRO_EVENT_KEY_DOWN && event.keyboard.keycode == ALLEGRO_KEY_S) {
+	else if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Key::S) {
 		int timeSlice = sshsNodeGetInt(state->eventSourceConfigNode, "PacketContainerInterval");
 
 		sshsNodePutInt(state->eventSourceConfigNode, "PacketContainerInterval", timeSlice / 2);
 	}
 	// SPEED UP.
-	else if (event.type == ALLEGRO_EVENT_KEY_DOWN && event.keyboard.keycode == ALLEGRO_KEY_F) {
+	else if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Key::F) {
 		int timeSlice = sshsNodeGetInt(state->eventSourceConfigNode, "PacketContainerInterval");
 
 		sshsNodePutInt(state->eventSourceConfigNode, "PacketContainerInterval", timeSlice * 2);
