@@ -112,7 +112,7 @@ void caerVisualizerEventHandlerSpikeEvents(caerVisualizerPublicState state, sf::
 	}
 }
 
-void caerInputVisualizerEventHandler(caerVisualizerPublicState state,  sf::Event &event) {
+void caerVisualizerEventHandlerInput(caerVisualizerPublicState state,  sf::Event &event) {
 	// PAUSE.
 	if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Key::Space) {
 		bool pause = sshsNodeGetBool(state->eventSourceConfigNode, "pause");
