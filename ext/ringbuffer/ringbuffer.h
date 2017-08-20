@@ -37,6 +37,7 @@ typedef struct ring_buffer *RingBuffer;
 RingBuffer ringBufferInit(size_t size) CAER_SYMBOL_EXPORT;
 void ringBufferFree(RingBuffer rBuf) CAER_SYMBOL_EXPORT;
 bool ringBufferPut(RingBuffer rBuf, void *elem) CAER_SYMBOL_EXPORT;
+bool ringBufferFull(RingBuffer rBuf) CAER_SYMBOL_EXPORT;
 void *ringBufferGet(RingBuffer rBuf) CAER_SYMBOL_EXPORT;
 void *ringBufferLook(RingBuffer rBuf) CAER_SYMBOL_EXPORT;
 
