@@ -173,7 +173,7 @@ static bool caerVisualizerInit(caerModuleData moduleData) {
 	state->running.store(true);
 
 	try {
-		state->renderingThread = std::thread(&renderThread, state);
+		state->renderingThread = std::thread(&renderThread, moduleData);
 	}
 	catch (const std::system_error &) {
 		exitGraphics(moduleData);
