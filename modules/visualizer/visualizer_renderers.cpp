@@ -24,19 +24,26 @@ bool caerVisualizerRendererPolarityEvents(caerVisualizerPublicState state, caerE
 
 	// Render all valid events.
 	CAER_POLARITY_ITERATOR_VALID_START((caerPolarityEventPacket) polarityEventPacketHeader)
+		sf::Vertex vtx(sf::Vector2f(caerPolarityEventGetX(caerPolarityIteratorElement),
+				caerPolarityEventGetY(caerPolarityIteratorElement)));
+
 		if (caerPolarityEventGetPolarity(caerPolarityIteratorElement)) {
 			// ON polarity (green).
-			vertices.push_back(sf::Vertex(sf::Vector2f(caerPolarityEventGetX(caerPolarityIteratorElement),
-				caerPolarityEventGetY(caerPolarityIteratorElement)), sf::Color::Green));
+			vtx.color = sf::Color::Green;
 		}
 		else {
 			// OFF polarity (red).
-			vertices.push_back(sf::Vertex(sf::Vector2f(caerPolarityEventGetX(caerPolarityIteratorElement),
-				caerPolarityEventGetY(caerPolarityIteratorElement)), sf::Color::Red));
+			vtx.color = sf::Color::Red;
 		}
+
+		// Quads need four vertices. Same color and position.
+		vertices.push_back(vtx);
+		vertices.push_back(vtx);
+		vertices.push_back(vtx);
+		vertices.push_back(vtx);
 	CAER_POLARITY_ITERATOR_VALID_END
 
-	state->renderWindow->draw(vertices.data(), vertices.size(), sf::Points);
+	state->renderWindow->draw(vertices.data(), vertices.size(), sf::Quads);
 
 	return (true);
 }
