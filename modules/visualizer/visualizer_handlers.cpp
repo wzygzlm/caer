@@ -5,7 +5,7 @@
 #include <libcaer/events/spike.h>
 #include <libcaer/devices/dynapse.h>
 
-void caerVisualizerEventHandlerSpikeEvents(caerVisualizerPublicState state, sf::Event &event) {
+void caerVisualizerEventHandlerSpikeEvents(caerVisualizerPublicState state, const sf::Event &event) {
 	// On release of left click.
 	if (event.type == sf::Event::MouseButtonReleased && event.mouseButton.button == sf::Mouse::Button::Left) {
 		// Check events come from an actual device.
@@ -112,7 +112,7 @@ void caerVisualizerEventHandlerSpikeEvents(caerVisualizerPublicState state, sf::
 	}
 }
 
-void caerVisualizerEventHandlerInput(caerVisualizerPublicState state,  sf::Event &event) {
+void caerVisualizerEventHandlerInput(caerVisualizerPublicState state, const sf::Event &event) {
 	// PAUSE.
 	if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Key::Space) {
 		bool pause = sshsNodeGetBool(state->eventSourceConfigNode, "pause");

@@ -4,17 +4,21 @@
 #include "visualizer.hpp"
 
 // Default event handlers.
-void caerVisualizerEventHandlerSpikeEvents(caerVisualizerPublicState state, sf::Event &event);
-void caerVisualizerEventHandlerInput(caerVisualizerPublicState state, sf::Event &event);
+void caerVisualizerEventHandlerSpikeEvents(caerVisualizerPublicState state, const sf::Event &event);
+void caerVisualizerEventHandlerInput(caerVisualizerPublicState state, const sf::Event &event);
 
-struct caer_visualizer_handlers {
+typedef void (*caerVisualizerEventHandler)(caerVisualizerPublicState state, const sf::Event &event);
+
+struct caer_visualizer_event_handler_info {
 	const std::string name;
-	caerVisualizerEventHandler handler;
+	caerVisualizerEventHandler eventHandler;
 };
 
-static const std::string caerVisualizerHandlerListOptionsString = "None,Spikes,Input";
+typedef const struct caer_visualizer_event_handler_info *caerVisualizerEventHandlerInfo;
 
-static struct caer_visualizer_handlers caerVisualizerHandlerList[] = { { "None", nullptr }, { "Spikes",
-	&caerVisualizerEventHandlerSpikeEvents }, { "Input", &caerVisualizerEventHandlerInput } };
+static const std::string caerVisualizerEventHandlerListOptionsString = "None,Spikes,Input";
+
+static const struct caer_visualizer_event_handler_info caerVisualizerEventHandlerList[] = { { "None", nullptr },
+	{ "Spikes", &caerVisualizerEventHandlerSpikeEvents }, { "Input", &caerVisualizerEventHandlerInput } };
 
 #endif /* MODULES_VISUALIZER_VISUALIZER_HANDLERS_H_ */

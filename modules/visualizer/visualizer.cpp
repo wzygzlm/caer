@@ -42,17 +42,16 @@ struct caer_visualizer_state {
 	sshsNode visualizerConfigNode;
 	uint32_t renderSizeX;
 	uint32_t renderSizeY;
+	void *renderState; // Reserved for renderers to put their internal state into.
 	sf::RenderWindow *renderWindow;
-	void *renderState; // Reserved for renderers to put their internal state into. Must allocate with malloc() family, free is automatic.
 	sf::Font *font;
 	std::atomic_bool running;
 	std::atomic_bool windowResize;
 	std::atomic_bool windowMove;
 	RingBuffer dataTransfer;
-	std::thread renderingThread;
-	caerVisualizerRenderer renderer;
-	caerVisualizerEventHandler eventHandler;
-	bool isOpenGL3Renderer;
+	std::thread *renderingThread;
+	caerVisualizerRendererInfo renderer;
+	caerVisualizerEventHandlerInfo eventHandler;
 	bool showStatistics;
 	struct caer_statistics_state packetStatistics;
 	std::atomic_uint_fast32_t packetSubsampleRendering;
@@ -116,8 +115,8 @@ static bool caerVisualizerInit(caerModuleData moduleData) {
 	sshsNodeCreate(moduleData->moduleNode, "eventHandler", "None", 0, 100, SSHS_FLAGS_NORMAL,
 		"Event handler to handle mouse and keyboard events.");
 	sshsNodeRemoveAttribute(moduleData->moduleNode, "eventHandlerListOptions", SSHS_STRING);
-	sshsNodeCreate(moduleData->moduleNode, "eventHandlerListOptions", caerVisualizerHandlerListOptionsString, 0, 200,
-		SSHS_FLAGS_READ_ONLY, "List of available event handlers.");
+	sshsNodeCreate(moduleData->moduleNode, "eventHandlerListOptions", caerVisualizerEventHandlerListOptionsString, 0,
+		200, SSHS_FLAGS_READ_ONLY, "List of available event handlers.");
 
 	sshsNodeCreateInt(moduleData->moduleNode, "subsampleRendering", 1, 1, 100000, SSHS_FLAGS_NORMAL,
 		"Speed-up rendering by only taking every Nth EventPacketContainer to render.");
@@ -177,14 +176,15 @@ static bool caerVisualizerInit(caerModuleData moduleData) {
 	state->running.store(true);
 
 	try {
-		state->renderingThread = std::thread(&renderThread, moduleData);
+		state->renderingThread = new std::thread(&renderThread, moduleData);
 	}
-	catch (const std::system_error &) {
+	catch (const std::system_error &ex) {
 		exitGraphics(moduleData);
 		ringBufferFree(state->dataTransfer);
 		caerStatisticsStringExit(&state->packetStatistics);
 
-		caerModuleLog(moduleData, CAER_LOG_ERROR, "Failed to start rendering thread.");
+		caerModuleLog(moduleData, CAER_LOG_ERROR, "Failed to start rendering thread. Error: '%s' (%d).", ex.what(),
+			ex.code().value());
 		return (false);
 	}
 
@@ -206,13 +206,15 @@ static void caerVisualizerExit(caerModuleData moduleData) {
 	state->running.store(false);
 
 	try {
-		state->renderingThread.join();
+		state->renderingThread->join();
 	}
 	catch (const std::system_error &ex) {
 		// This should never happen!
 		caerModuleLog(moduleData, CAER_LOG_CRITICAL, "Failed to join rendering thread. Error: '%s' (%d).", ex.what(),
 			ex.code().value());
 	}
+
+	delete state->renderingThread;
 
 	// Shutdown graphics on main thread.
 	// On OS X, creation (and destruction) of the window, as well as its event
@@ -398,38 +400,32 @@ static bool initRenderSize(caerModuleData moduleData, int16_t *inputs, size_t in
 static void initRenderersHandlers(caerModuleData moduleData) {
 	caerVisualizerState state = (caerVisualizerState) moduleData->moduleState;
 
-	// Search for renderer in list.
-	caerVisualizerRenderer renderer = nullptr;
+	// Standard renderer is the NULL renderer.
+	state->renderer = &caerVisualizerRendererList[0];
 
+	// Search for renderer in list.
 	const std::string rendererChoice = sshsNodeGetStdString(moduleData->moduleNode, "renderer");
 
-	for (size_t i = 0; i < (sizeof(caerVisualizerRendererList) / sizeof(struct caer_visualizer_renderers)); i++) {
+	for (size_t i = 0; i < (sizeof(caerVisualizerRendererList) / sizeof(struct caer_visualizer_renderer_info)); i++) {
 		if (rendererChoice == caerVisualizerRendererList[i].name) {
-			renderer = caerVisualizerRendererList[i].renderer;
+			state->renderer = &caerVisualizerRendererList[i];
 			break;
 		}
 	}
 
-	state->renderer = renderer;
-
-	// If renderer name ends in _3D we enable support for OpenGL 3.3 core profile.
-	if (renderer != nullptr && boost::algorithm::ends_with(rendererChoice, "_3D")) {
-		state->isOpenGL3Renderer = true;
-	}
+	// Standard event handler is the NULL event handler.
+	state->eventHandler = &caerVisualizerEventHandlerList[0];
 
 	// Search for event handler in list.
-	caerVisualizerEventHandler eventHandler = nullptr;
-
 	const std::string eventHandlerChoice = sshsNodeGetStdString(moduleData->moduleNode, "eventHandler");
 
-	for (size_t i = 0; i < (sizeof(caerVisualizerHandlerList) / sizeof(struct caer_visualizer_handlers)); i++) {
-		if (eventHandlerChoice == caerVisualizerHandlerList[i].name) {
-			eventHandler = caerVisualizerHandlerList[i].handler;
+	for (size_t i = 0; i < (sizeof(caerVisualizerEventHandlerList) / sizeof(struct caer_visualizer_event_handler_info));
+		i++) {
+		if (eventHandlerChoice == caerVisualizerEventHandlerList[i].name) {
+			state->eventHandler = &caerVisualizerEventHandlerList[i];
 			break;
 		}
 	}
-
-	state->eventHandler = eventHandler;
 }
 
 static bool initGraphics(caerModuleData moduleData) {
@@ -444,7 +440,7 @@ static bool initGraphics(caerModuleData moduleData) {
 	openGLSettings.depthBits = 24;
 	openGLSettings.stencilBits = 8;
 
-	if (state->isOpenGL3Renderer) {
+	if (state->renderer->needsOpenGL3) {
 		openGLSettings.majorVersion = 3;
 		openGLSettings.minorVersion = 3;
 		openGLSettings.attributeFlags = sf::ContextSettings::Core;
@@ -501,9 +497,6 @@ static void exitGraphics(caerModuleData moduleData) {
 
 	delete state->font;
 	delete state->renderWindow;
-
-	// Ensure internal renderer state, if allocated, is freed.
-	free(state->renderState);
 }
 
 static void updateDisplaySize(caerModuleData moduleData) {
@@ -624,8 +617,8 @@ static void handleEvents(caerModuleData moduleData) {
 			}
 			else {
 				// Forward event to user-defined event handler.
-				if (state->eventHandler != nullptr) {
-					(*state->eventHandler)((caerVisualizerPublicState) state, event);
+				if (state->eventHandler->eventHandler != nullptr) {
+					(*state->eventHandler->eventHandler)((caerVisualizerPublicState) state, event);
 				}
 			}
 		}
@@ -659,8 +652,8 @@ static void handleEvents(caerModuleData moduleData) {
 			}
 			else {
 				// Forward event to user-defined event handler.
-				if (state->eventHandler != nullptr) {
-					(*state->eventHandler)((caerVisualizerPublicState) state, event);
+				if (state->eventHandler->eventHandler != nullptr) {
+					(*state->eventHandler->eventHandler)((caerVisualizerPublicState) state, event);
 				}
 			}
 		}
@@ -691,7 +684,7 @@ static void renderScreen(caerModuleData moduleData) {
 		// Update render window with new content. (0, 0) is upper left corner.
 		// NULL renderer is supported and simply does nothing (black screen).
 		if (state->renderer != nullptr) {
-			drewSomething = (*state->renderer)((caerVisualizerPublicState) state, container);
+			drewSomething = (*state->renderer->renderer)((caerVisualizerPublicState) state, container);
 		}
 
 		// Free packet container copy.
@@ -718,7 +711,7 @@ static void renderScreen(caerModuleData moduleData) {
 	if (drewSomething) {
 		// Render statistics string.
 		// TODO: implement for OpenGL 3.3 too, using some text rendering library.
-		bool doStatistics = (state->showStatistics && state->font != nullptr && !state->isOpenGL3Renderer);
+		bool doStatistics = (state->showStatistics && state->font != nullptr && !state->renderer->needsOpenGL3);
 
 		if (doStatistics) {
 			// Split statistics string in two to use less horizontal space.

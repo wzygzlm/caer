@@ -2,42 +2,41 @@
 
 #include <math.h>
 
-#include <libcaer/events/polarity.h>
-#include <libcaer/events/frame.h>
+#include <libcaercpp/events/polarity.hpp>
+#include <libcaercpp/events/frame.hpp>
 #include <libcaer/events/imu6.h>
 #include <libcaer/events/point2d.h>
 #include <libcaer/events/point4d.h>
 #include <libcaer/events/spike.h>
-#include <libcaer/devices/dynapse.h>
+#include <libcaer/devices/dynapse.h> // Only for constants.
 
 bool caerVisualizerRendererPolarityEvents(caerVisualizerPublicState state, caerEventPacketContainer container) {
 	UNUSED_ARGUMENT(state);
 
-	caerEventPacketHeader polarityEventPacketHeader = caerEventPacketContainerFindEventPacketByType(container,
-		POLARITY_EVENT);
+	caerEventPacketHeader polarityPacketHeader = caerEventPacketContainerFindEventPacketByType(container, POLARITY_EVENT);
 
-	if (polarityEventPacketHeader == NULL || caerEventPacketHeaderGetEventValid(polarityEventPacketHeader) == 0) {
+	// No packet of requested type or empty packet (no valid events).
+	if (polarityPacketHeader == NULL || caerEventPacketHeaderGetEventValid(polarityPacketHeader) == 0) {
 		return (false);
 	}
 
-	std::vector<sf::Vertex> vertices;
+	const libcaer::events::PolarityEventPacket polarityPacket(polarityPacketHeader, false);
+
+	std::vector<sf::Vertex> vertices((size_t) polarityPacket.getEventValid() * 4);
 
 	// Render all valid events.
-	CAER_POLARITY_ITERATOR_VALID_START((caerPolarityEventPacket) polarityEventPacketHeader)
-		sf::Vertex vtx(sf::Vector2f(caerPolarityEventGetX(caerPolarityIteratorElement),
-				caerPolarityEventGetY(caerPolarityIteratorElement)));
-
-		if (caerPolarityEventGetPolarity(caerPolarityIteratorElement)) {
-			// ON polarity (green).
-			vtx.color = sf::Color::Green;
-		}
-		else {
-			// OFF polarity (red).
-			vtx.color = sf::Color::Red;
+	for (const auto &polarityEvent : polarityPacket) {
+		if (!polarityEvent.isValid()) {
+			continue; // Skip invalid events.
 		}
 
-		// Quads need four vertices. Color stays the same. Position changes
-		// by one in the clockwise sense.
+		sf::Vertex vtx(sf::Vector2f(polarityEvent.getX(), polarityEvent.getY()));
+
+		// ON polarity (green), OFF polarity (red).
+		vtx.color = (polarityEvent.getPolarity()) ? (sf::Color::Green) : (sf::Color::Red);
+
+		// Quads need four vertices. Color stays the same.
+		// Position changes by one in the clockwise sense.
 		vertices.push_back(vtx);
 		vtx.position.x++;
 		vertices.push_back(vtx);
@@ -45,79 +44,95 @@ bool caerVisualizerRendererPolarityEvents(caerVisualizerPublicState state, caerE
 		vertices.push_back(vtx);
 		vtx.position.x--;
 		vertices.push_back(vtx);
-	CAER_POLARITY_ITERATOR_VALID_END
+	}
 
 	state->renderWindow->draw(vertices.data(), vertices.size(), sf::Quads);
 
 	return (true);
 }
 
+struct renderer_frame_events_state {
+	sf::Sprite sprite;
+	sf::Texture texture;
+	std::vector<uint8_t> pixels;
+};
+
+typedef struct renderer_frame_events_state *rendererFrameEventsState;
+
+void *caerVisualizerRendererFrameEventsStateInit(caerVisualizerPublicState state) {
+	// Allocate memory via C++ for renderer state, since we use C++ objects directly.
+	rendererFrameEventsState renderState = new renderer_frame_events_state();
+
+	renderState->texture.create(state->renderSizeX, state->renderSizeY);
+	renderState->sprite.setTexture(renderState->texture);
+
+	// 32-bit RGBA pixels (8-bit per channel), standard CG layout.
+	renderState->pixels.assign(state->renderSizeX * state->renderSizeY * 4, 0);
+
+	return (renderState);
+}
+
+void caerVisualizerRendererFrameEventsStateExit(caerVisualizerPublicState state) {
+	rendererFrameEventsState renderState = (rendererFrameEventsState) state->renderState;
+
+	delete renderState;
+}
+
 bool caerVisualizerRendererFrameEvents(caerVisualizerPublicState state, caerEventPacketContainer container) {
 	UNUSED_ARGUMENT(state);
 
-	caerEventPacketHeader frameEventPacketHeader = caerEventPacketContainerFindEventPacketByType(container,
-		FRAME_EVENT);
+	caerEventPacketHeader framePacketHeader = caerEventPacketContainerFindEventPacketByType(container, FRAME_EVENT);
 
-	if (frameEventPacketHeader == NULL || caerEventPacketHeaderGetEventValid(frameEventPacketHeader) == 0) {
+	// No packet of requested type or empty packet (no valid events).
+	if (framePacketHeader == NULL || caerEventPacketHeaderGetEventValid(framePacketHeader) == 0) {
 		return (false);
 	}
 
+	const libcaer::events::FrameEventPacket framePacket(framePacketHeader, false);
+
 	// Render only the last, valid frame.
-	caerFrameEventPacket currFramePacket = (caerFrameEventPacket) frameEventPacketHeader;
-	caerFrameEvent currFrameEvent;
+	auto rIter = framePacket.crbegin();
+	while (rIter != framePacket.crend()) {
+		if (rIter->isValid()) {
+			break;
+		}
 
-	for (int32_t i = caerEventPacketHeaderGetEventNumber(&currFramePacket->packetHeader) - 1; i >= 0; i--) {
-		currFrameEvent = caerFrameEventPacketGetEvent(currFramePacket, i);
+		rIter++;
+	}
 
-		// Only operate on the last, valid frame.
-		if (caerFrameEventIsValid(currFrameEvent)) {
-			// Copy the frame content to the render bitmap.
-			// Use frame sizes to correctly support small ROI frames.
-			int32_t frameSizeX = caerFrameEventGetLengthX(currFrameEvent);
-			int32_t frameSizeY = caerFrameEventGetLengthY(currFrameEvent);
-			int32_t framePositionX = caerFrameEventGetPositionX(currFrameEvent);
-			int32_t framePositionY = caerFrameEventGetPositionY(currFrameEvent);
-			enum caer_frame_event_color_channels frameChannels = caerFrameEventGetChannelNumber(currFrameEvent);
+	// Only operate on the last, valid frame. At least one must exist (see check above).
+	const libcaer::events::FrameEvent &frameEvent = *rIter;
 
-			for (int32_t y = 0; y < frameSizeY; y++) {
-				for (int32_t x = 0; x < frameSizeX; x++) {
-					 sf::Color color;
+	// 32-bit RGBA pixels (8-bit per channel), standard CG layout.
+	rendererFrameEventsState renderState = (rendererFrameEventsState) state->renderState;
 
-					 /** TODO: switch (frameChannels) {
-						case GRAYSCALE: {
-							uint8_t pixel = U8T(caerFrameEventGetPixelUnsafe(currFrameEvent, x, y) >> 8);
-							color = al_map_rgb(pixel, pixel, pixel);
-							break;
-						}
+	// Reset all pixels to black. TODO: but then alpha is a problem. A loop that goes
+	// over all pixels AND considers position is a better solution here.
+	std::fill(renderState->pixels.begin(), renderState->pixels.end(), 0);
 
-						case RGB: {
-							uint8_t pixelR = U8T(caerFrameEventGetPixelForChannelUnsafe(currFrameEvent, x, y, 0) >> 8);
-							uint8_t pixelG = U8T(caerFrameEventGetPixelForChannelUnsafe(currFrameEvent, x, y, 1) >> 8);
-							uint8_t pixelB = U8T(caerFrameEventGetPixelForChannelUnsafe(currFrameEvent, x, y, 2) >> 8);
-							color = al_map_rgb(pixelR, pixelG, pixelB);
-							break;
-						}
+	switch (frameEvent.getChannelNumber()) {
+		case libcaer::events::FrameEvent::colorChannels::GRAYSCALE: {
 
-						case RGBA:
-						default: {
-							uint8_t pixelR = U8T(caerFrameEventGetPixelForChannelUnsafe(currFrameEvent, x, y, 0) >> 8);
-							uint8_t pixelG = U8T(caerFrameEventGetPixelForChannelUnsafe(currFrameEvent, x, y, 1) >> 8);
-							uint8_t pixelB = U8T(caerFrameEventGetPixelForChannelUnsafe(currFrameEvent, x, y, 2) >> 8);
-							uint8_t pixelA = U8T(caerFrameEventGetPixelForChannelUnsafe(currFrameEvent, x, y, 3) >> 8);
-							color = al_map_rgba(pixelR, pixelG, pixelB, pixelA);
-							break;
-						}
-					}
+			break;
+		}
 
-					al_put_pixel((framePositionX + x), (framePositionY + y), color);*/
-				}
-			}
+		case libcaer::events::FrameEvent::colorChannels::RGB: {
 
-			return (true);
+			break;
+		}
+
+		case libcaer::events::FrameEvent::colorChannels::RGBA: {
+
+			break;
 		}
 	}
 
-	return (false);
+	renderState->texture.update(renderState->pixels.data());
+
+	// TODO: maybe use setTextureRect() to place texture in right place?
+	state->renderWindow->draw(renderState->sprite);
+
+	return (true);
 }
 
 #define RESET_LIMIT_POS(VAL, LIMIT) if ((VAL) > (LIMIT)) { (VAL) = (LIMIT); }

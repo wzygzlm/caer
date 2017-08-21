@@ -12,14 +12,11 @@ struct caer_visualizer_public_state {
 	sshsNode visualizerConfigNode;
 	uint32_t renderSizeX;
 	uint32_t renderSizeY;
+	void *renderState; // Reserved for renderers to put their internal state into.
 	sf::RenderWindow *renderWindow;
-	void *renderState; // Reserved for renderers to put their internal state into. Must allocate with malloc() family, free is automatic.
 	sf::Font *font;
 };
 
-typedef struct caer_visualizer_public_state *caerVisualizerPublicState;
-
-typedef bool (*caerVisualizerRenderer)(caerVisualizerPublicState state, caerEventPacketContainer container);
-typedef void (*caerVisualizerEventHandler)(caerVisualizerPublicState state, sf::Event &event);
+typedef const struct caer_visualizer_public_state *caerVisualizerPublicState;
 
 #endif /* VISUALIZER_H_ */
