@@ -36,10 +36,14 @@ bool caerVisualizerRendererPolarityEvents(caerVisualizerPublicState state, caerE
 			vtx.color = sf::Color::Red;
 		}
 
-		// Quads need four vertices. Same color and position.
+		// Quads need four vertices. Color stays the same. Position changes
+		// by one in the clockwise sense.
 		vertices.push_back(vtx);
+		vtx.position.x++;
 		vertices.push_back(vtx);
+		vtx.position.y++;
 		vertices.push_back(vtx);
+		vtx.position.x--;
 		vertices.push_back(vtx);
 	CAER_POLARITY_ITERATOR_VALID_END
 
