@@ -13,6 +13,7 @@ struct caer_visualizer_public_state {
 	uint32_t renderSizeX;
 	uint32_t renderSizeY;
 	sf::RenderWindow *renderWindow;
+	void *renderState; // Reserved for renderers to put their internal state into. Must allocate with malloc() family, free is automatic.
 	sf::Font *font;
 };
 

@@ -43,6 +43,7 @@ struct caer_visualizer_state {
 	uint32_t renderSizeX;
 	uint32_t renderSizeY;
 	sf::RenderWindow *renderWindow;
+	void *renderState; // Reserved for renderers to put their internal state into. Must allocate with malloc() family, free is automatic.
 	sf::Font *font;
 	std::atomic_bool running;
 	std::atomic_bool windowResize;
@@ -500,6 +501,9 @@ static void exitGraphics(caerModuleData moduleData) {
 
 	delete state->font;
 	delete state->renderWindow;
+
+	// Ensure internal renderer state, if allocated, is freed.
+	free(state->renderState);
 }
 
 static void updateDisplaySize(caerModuleData moduleData) {
