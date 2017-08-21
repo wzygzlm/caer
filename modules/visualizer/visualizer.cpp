@@ -9,6 +9,8 @@
 #include "visualizer_handlers.hpp"
 #include "visualizer_renderers.hpp"
 
+#include <boost/algorithm/string.hpp>
+
 #include <atomic>
 #include <thread>
 #include <mutex>
@@ -49,6 +51,7 @@ struct caer_visualizer_state {
 	std::thread renderingThread;
 	caerVisualizerRenderer renderer;
 	caerVisualizerEventHandler eventHandler;
+	bool isOpenGL3Renderer;
 	bool showStatistics;
 	struct caer_statistics_state packetStatistics;
 	std::atomic_uint_fast32_t packetSubsampleRendering;
@@ -120,7 +123,7 @@ static bool caerVisualizerInit(caerModuleData moduleData) {
 	sshsNodeCreateBool(moduleData->moduleNode, "showStatistics", true, SSHS_FLAGS_NORMAL,
 		"Show useful statistics below content (bottom of window).");
 	sshsNodeCreateFloat(moduleData->moduleNode, "zoomFactor", VISUALIZER_ZOOM_DEF, VISUALIZER_ZOOM_MIN,
-		VISUALIZER_ZOOM_MAX, SSHS_FLAGS_NORMAL, "Content zoom factor.");
+	VISUALIZER_ZOOM_MAX, SSHS_FLAGS_NORMAL, "Content zoom factor.");
 	sshsNodeCreateInt(moduleData->moduleNode, "windowPositionX", VISUALIZER_POSITION_X_DEF, 0, UINT16_MAX,
 		SSHS_FLAGS_NORMAL, "Position of window on screen (X coordinate).");
 	sshsNodeCreateInt(moduleData->moduleNode, "windowPositionY", VISUALIZER_POSITION_Y_DEF, 0, UINT16_MAX,
@@ -408,6 +411,11 @@ static void initRenderersHandlers(caerModuleData moduleData) {
 
 	state->renderer = renderer;
 
+	// If renderer name ends in _3D we enable support for OpenGL 3.3 core profile.
+	if (renderer != nullptr && boost::algorithm::ends_with(rendererChoice, "_3D")) {
+		state->isOpenGL3Renderer = true;
+	}
+
 	// Search for event handler in list.
 	caerVisualizerEventHandler eventHandler = nullptr;
 
@@ -426,9 +434,29 @@ static void initRenderersHandlers(caerModuleData moduleData) {
 static bool initGraphics(caerModuleData moduleData) {
 	caerVisualizerState state = (caerVisualizerState) moduleData->moduleState;
 
+	// Create OpenGL context. Depending on flag, either an OpenGL 2.1
+	// default (compatibility) context, so it can be used with SFML graphics,
+	// or an OpenGL 3.3 context with core profile, so it can do 3D everywhere,
+	// even on MacOS X where newer OpenGL's only support the core profile.
+	sf::ContextSettings openGLSettings;
+
+	openGLSettings.depthBits = 24;
+	openGLSettings.stencilBits = 8;
+
+	if (state->isOpenGL3Renderer) {
+		openGLSettings.majorVersion = 3;
+		openGLSettings.minorVersion = 3;
+		openGLSettings.attributeFlags = sf::ContextSettings::Core;
+	}
+	else {
+		openGLSettings.majorVersion = 2;
+		openGLSettings.minorVersion = 1;
+		openGLSettings.attributeFlags = sf::ContextSettings::Default;
+	}
+
 	// Create display window and set its title.
 	state->renderWindow = new sf::RenderWindow(sf::VideoMode(state->renderSizeX, state->renderSizeY),
-		moduleData->moduleSubSystemString, sf::Style::Titlebar | sf::Style::Close);
+		moduleData->moduleSubSystemString, sf::Style::Titlebar | sf::Style::Close, openGLSettings);
 	if (state->renderWindow == nullptr) {
 		caerModuleLog(moduleData, CAER_LOG_ERROR,
 			"Failed to create display window with sizeX=%" PRIu32 ", sizeY=%" PRIu32 ".", state->renderSizeX,
@@ -685,7 +713,8 @@ static void renderScreen(caerModuleData moduleData) {
 	// Render content to display.
 	if (drewSomething) {
 		// Render statistics string.
-		bool doStatistics = (state->showStatistics && state->font != nullptr);
+		// TODO: implement for OpenGL 3.3 too, using some text rendering library.
+		bool doStatistics = (state->showStatistics && state->font != nullptr && !state->isOpenGL3Renderer);
 
 		if (doStatistics) {
 			// Split statistics string in two to use less horizontal space.
@@ -728,7 +757,16 @@ static int renderThread(void *inModuleData) {
 	// handling must happen on the main thread. Only drawing can be separate.
 	state->renderWindow->setActive(true);
 
-	// Initialize window to all black.
+	// Initialize GLEW. glewInit() should be called after every context change,
+	// since we have one context per visualizer, always active only in this one
+	// rendering thread, we can just do it here once and always be fine.
+	GLenum res = glewInit();
+	if (res != GLEW_OK) {
+		caerModuleLog(moduleData, CAER_LOG_ERROR, "Failed to initialize GLEW, error: %s.", glewGetErrorString(res));
+		return (thrd_error);
+	}
+
+	// Initialize window by clearing it to all black.
 	state->renderWindow->clear(sf::Color::Black);
 	state->renderWindow->display();
 

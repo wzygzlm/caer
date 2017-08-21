@@ -4,6 +4,7 @@
 #include "main.h"
 
 #include <libcaer/events/packetContainer.h>
+#include <GL/glew.h>
 #include <SFML/Graphics.hpp>
 
 struct caer_visualizer_public_state {
