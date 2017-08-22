@@ -517,7 +517,6 @@ static void updateDisplaySize(caerModuleData moduleData) {
 	}
 
 	// Set view size to render area.
-	// TODO: bug with statistics, lower text line cut off.
 	state->renderWindow->setView(sf::View(sf::FloatRect(0, 0, newRenderWindowSize.x, newRenderWindowSize.y)));
 
 	// Apply zoom to all content.
@@ -719,14 +718,13 @@ static void renderScreen(caerModuleData moduleData) {
 			sf::Text totalEventsText(state->packetStatistics.currentStatisticsStringTotal, *state->font,
 			GLOBAL_FONT_SIZE);
 			totalEventsText.setFillColor(sf::Color::White);
-			totalEventsText.setPosition(GLOBAL_FONT_SPACING, state->renderSizeY + GLOBAL_FONT_SPACING);
+			totalEventsText.setPosition(GLOBAL_FONT_SPACING, state->renderSizeY);
 			state->renderWindow->draw(totalEventsText);
 
 			sf::Text validEventsText(state->packetStatistics.currentStatisticsStringValid, *state->font,
 			GLOBAL_FONT_SIZE);
 			validEventsText.setFillColor(sf::Color::White);
-			validEventsText.setPosition(GLOBAL_FONT_SPACING,
-				state->renderSizeY + (2 * GLOBAL_FONT_SPACING) + GLOBAL_FONT_SIZE);
+			validEventsText.setPosition(GLOBAL_FONT_SPACING, state->renderSizeY + GLOBAL_FONT_SIZE);
 			state->renderWindow->draw(validEventsText);
 		}
 
