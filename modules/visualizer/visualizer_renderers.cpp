@@ -10,27 +10,38 @@
 #include <libcaer/events/spike.h>
 #include <libcaer/devices/dynapse.h> // Only for constants.
 
-// Default renderers.
 static bool caerVisualizerRendererPolarityEvents(caerVisualizerPublicState state, caerEventPacketContainer container);
-static bool caerVisualizerRendererFrameEvents(caerVisualizerPublicState state, caerEventPacketContainer container);
-static bool caerVisualizerRendererIMU6Events(caerVisualizerPublicState state, caerEventPacketContainer container);
-static bool caerVisualizerRendererPoint2DEvents(caerVisualizerPublicState state, caerEventPacketContainer container);
-static bool caerVisualizerRendererSpikeEvents(caerVisualizerPublicState state, caerEventPacketContainer container);
-static bool caerVisualizerRendererSpikeEventsRaster(caerVisualizerPublicState state, caerEventPacketContainer container);
-static bool caerVisualizerRendererETF4D(caerVisualizerPublicState state, caerEventPacketContainer container);
+static const struct caer_visualizer_renderer_info rendererPolarityEvents("Polarity", &caerVisualizerRendererPolarityEvents);
 
-// Default multi renderers.
-static bool caerVisualizerMultiRendererPolarityAndFrameEvents(caerVisualizerPublicState state,
-	caerEventPacketContainer container);
+static void *caerVisualizerRendererFrameEventsStateInit(caerVisualizerPublicState state);
+static void caerVisualizerRendererFrameEventsStateExit(caerVisualizerPublicState state);
+static bool caerVisualizerRendererFrameEvents(caerVisualizerPublicState state, caerEventPacketContainer container);
+static const struct caer_visualizer_renderer_info rendererFrameEvents("Frame", &caerVisualizerRendererFrameEvents, false, &caerVisualizerRendererFrameEventsStateInit, &caerVisualizerRendererFrameEventsStateExit);
+
+static bool caerVisualizerRendererIMU6Events(caerVisualizerPublicState state, caerEventPacketContainer container);
+static const struct caer_visualizer_renderer_info rendererIMU6Events("IMU_6-axes", &caerVisualizerRendererIMU6Events);
+
+static bool caerVisualizerRendererPoint2DEvents(caerVisualizerPublicState state, caerEventPacketContainer container);
+static const struct caer_visualizer_renderer_info rendererPoint2DEvents("2D_Points", &caerVisualizerRendererPoint2DEvents);
+
+static bool caerVisualizerRendererSpikeEvents(caerVisualizerPublicState state, caerEventPacketContainer container);
+static const struct caer_visualizer_renderer_info rendererSpikeEvents("Spikes", &caerVisualizerRendererSpikeEvents);
+
+static bool caerVisualizerRendererSpikeEventsRaster(caerVisualizerPublicState state, caerEventPacketContainer container);
+static const struct caer_visualizer_renderer_info rendererSpikeEventsRaster("Spikes_Raster_Plot", &caerVisualizerRendererSpikeEventsRaster);
+
+static bool caerVisualizerRendererETF4D(caerVisualizerPublicState state, caerEventPacketContainer container);
+static const struct caer_visualizer_renderer_info rendererETF4D("ETF4D", &caerVisualizerRendererETF4D);
+
+static bool caerVisualizerRendererPolarityAndFrameEvents(caerVisualizerPublicState state, caerEventPacketContainer container);
+static const struct caer_visualizer_renderer_info rendererPolarityAndFrameEvents("Polarity_and_Frames", &caerVisualizerRendererPolarityAndFrameEvents);
 
 const std::string caerVisualizerRendererListOptionsString =
 	"None,Polarity,Frame,IMU_6-axes,2D_Points,Spikes,Spikes_Raster_Plot,ETF4D,Polarity_and_Frames";
 
-const struct caer_visualizer_renderer_info caerVisualizerRendererList[] = { { "None", nullptr }, { "Polarity",
-	&caerVisualizerRendererPolarityEvents }, { "Frame", &caerVisualizerRendererFrameEvents }, { "IMU_6-axes",
-	&caerVisualizerRendererIMU6Events }, { "2D_Points", &caerVisualizerRendererPoint2DEvents }, { "Spikes",
-	&caerVisualizerRendererSpikeEvents }, { "Spikes_Raster_Plot", &caerVisualizerRendererSpikeEventsRaster }, { "ETF4D",
-	&caerVisualizerRendererETF4D }, { "Polarity_and_Frames", &caerVisualizerMultiRendererPolarityAndFrameEvents }, };
+const struct caer_visualizer_renderer_info caerVisualizerRendererList[] = { { "None", nullptr }, rendererPolarityEvents,
+	rendererFrameEvents, rendererIMU6Events, rendererPoint2DEvents, rendererSpikeEvents, rendererSpikeEventsRaster,
+	rendererETF4D, rendererPolarityAndFrameEvents };
 
 const size_t caerVisualizerRendererListLength = (sizeof(caerVisualizerRendererList) / sizeof(struct caer_visualizer_renderer_info));
 
@@ -87,11 +98,15 @@ static void *caerVisualizerRendererFrameEventsStateInit(caerVisualizerPublicStat
 	// Allocate memory via C++ for renderer state, since we use C++ objects directly.
 	rendererFrameEventsState renderState = new renderer_frame_events_state();
 
+	// Create texture representing frame, set smoothing.
 	renderState->texture.create(state->renderSizeX, state->renderSizeY);
+	renderState->texture.setSmooth(true);
+
+	// Assign texture to sprite.
 	renderState->sprite.setTexture(renderState->texture);
 
 	// 32-bit RGBA pixels (8-bit per channel), standard CG layout.
-	renderState->pixels.assign(state->renderSizeX * state->renderSizeY * 4, 0);
+	renderState->pixels.reserve(state->renderSizeX * state->renderSizeY * 4);
 
 	return (renderState);
 }
@@ -127,33 +142,49 @@ static bool caerVisualizerRendererFrameEvents(caerVisualizerPublicState state, c
 	// Only operate on the last, valid frame. At least one must exist (see check above).
 	const libcaer::events::FrameEvent &frameEvent = *rIter;
 
-	// 32-bit RGBA pixels (8-bit per channel), standard CG layout.
 	rendererFrameEventsState renderState = (rendererFrameEventsState) state->renderState;
 
-	// Reset all pixels to black. TODO: but then alpha is a problem. A loop that goes
-	// over all pixels AND considers position is a better solution here.
-	std::fill(renderState->pixels.begin(), renderState->pixels.end(), 0);
-
+	// 32-bit RGBA pixels (8-bit per channel), standard CG layout.
 	switch (frameEvent.getChannelNumber()) {
 		case libcaer::events::FrameEvent::colorChannels::GRAYSCALE: {
-
+			for (size_t srcIdx = 0, dstIdx = 0; srcIdx < frameEvent.getPixelsMaxIndex();) {
+				uint8_t greyValue = frameEvent.getPixelArrayUnsafe()[srcIdx++] >> 8;
+				renderState->pixels[dstIdx++] = greyValue; // R
+				renderState->pixels[dstIdx++] = greyValue; // G
+				renderState->pixels[dstIdx++] = greyValue; // B
+				renderState->pixels[dstIdx++] = UINT8_MAX; // A
+			}
 			break;
 		}
 
 		case libcaer::events::FrameEvent::colorChannels::RGB: {
-
+			for (size_t srcIdx = 0, dstIdx = 0; srcIdx < frameEvent.getPixelsMaxIndex();) {
+				renderState->pixels[dstIdx++] = frameEvent.getPixelArrayUnsafe()[srcIdx++] >> 8; // R
+				renderState->pixels[dstIdx++] = frameEvent.getPixelArrayUnsafe()[srcIdx++] >> 8; // G
+				renderState->pixels[dstIdx++] = frameEvent.getPixelArrayUnsafe()[srcIdx++] >> 8; // B
+				renderState->pixels[dstIdx++] = UINT8_MAX; // A
+			}
 			break;
 		}
 
 		case libcaer::events::FrameEvent::colorChannels::RGBA: {
-
+			for (size_t srcIdx = 0, dstIdx = 0; srcIdx < frameEvent.getPixelsMaxIndex();) {
+				renderState->pixels[dstIdx++] = frameEvent.getPixelArrayUnsafe()[srcIdx++] >> 8; // R
+				renderState->pixels[dstIdx++] = frameEvent.getPixelArrayUnsafe()[srcIdx++] >> 8; // G
+				renderState->pixels[dstIdx++] = frameEvent.getPixelArrayUnsafe()[srcIdx++] >> 8; // B
+				renderState->pixels[dstIdx++] = frameEvent.getPixelArrayUnsafe()[srcIdx++] >> 8; // A
+			}
 			break;
 		}
 	}
 
-	renderState->texture.update(renderState->pixels.data());
+	renderState->texture.update(renderState->pixels.data(), U32T(frameEvent.getLengthX()), U32T(frameEvent.getLengthY()),
+		U32T(frameEvent.getPositionX()), U32T(frameEvent.getPositionY()));
 
-	// TODO: maybe use setTextureRect() to place texture in right place?
+	renderState->sprite.setTextureRect(sf::IntRect(frameEvent.getPositionX(), frameEvent.getPositionY(),
+		frameEvent.getLengthX(), frameEvent.getLengthY()));
+	renderState->sprite.setPosition(frameEvent.getPositionX(), frameEvent.getPositionY());
+
 	state->renderWindow->draw(renderState->sprite);
 
 	return (true);
@@ -511,7 +542,7 @@ static bool caerVisualizerRendererETF4D(caerVisualizerPublicState state, caerEve
 	return (true);
 }
 
-static bool caerVisualizerMultiRendererPolarityAndFrameEvents(caerVisualizerPublicState state,
+static bool caerVisualizerRendererPolarityAndFrameEvents(caerVisualizerPublicState state,
 	caerEventPacketContainer container) {
 	bool drewFrameEvents = caerVisualizerRendererFrameEvents(state, container);
 
