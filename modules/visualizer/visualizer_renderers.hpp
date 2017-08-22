@@ -14,6 +14,15 @@ struct caer_visualizer_renderer_info {
 	bool needsOpenGL3;
 	caerVisualizerRendererStateInit stateInit;
 	caerVisualizerRendererStateExit stateExit;
+
+	caer_visualizer_renderer_info(const std::string &n, caerVisualizerRenderer r, bool opengl3 = false,
+		caerVisualizerRendererStateInit stInit = nullptr, caerVisualizerRendererStateExit stExit = nullptr) :
+			name(n),
+			renderer(r),
+			needsOpenGL3(opengl3),
+			stateInit(stInit),
+			stateExit(stExit) {
+	}
 };
 
 typedef const struct caer_visualizer_renderer_info *caerVisualizerRendererInfo;

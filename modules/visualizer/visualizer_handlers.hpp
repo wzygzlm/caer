@@ -8,6 +8,11 @@ typedef void (*caerVisualizerEventHandler)(caerVisualizerPublicState state, cons
 struct caer_visualizer_event_handler_info {
 	const std::string name;
 	caerVisualizerEventHandler eventHandler;
+
+	caer_visualizer_event_handler_info(const std::string &n, caerVisualizerEventHandler e) :
+			name(n),
+			eventHandler(e) {
+	}
 };
 
 typedef const struct caer_visualizer_event_handler_info *caerVisualizerEventHandlerInfo;
