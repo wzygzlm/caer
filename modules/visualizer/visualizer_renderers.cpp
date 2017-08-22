@@ -10,7 +10,31 @@
 #include <libcaer/events/spike.h>
 #include <libcaer/devices/dynapse.h> // Only for constants.
 
-bool caerVisualizerRendererPolarityEvents(caerVisualizerPublicState state, caerEventPacketContainer container) {
+// Default renderers.
+static bool caerVisualizerRendererPolarityEvents(caerVisualizerPublicState state, caerEventPacketContainer container);
+static bool caerVisualizerRendererFrameEvents(caerVisualizerPublicState state, caerEventPacketContainer container);
+static bool caerVisualizerRendererIMU6Events(caerVisualizerPublicState state, caerEventPacketContainer container);
+static bool caerVisualizerRendererPoint2DEvents(caerVisualizerPublicState state, caerEventPacketContainer container);
+static bool caerVisualizerRendererSpikeEvents(caerVisualizerPublicState state, caerEventPacketContainer container);
+static bool caerVisualizerRendererSpikeEventsRaster(caerVisualizerPublicState state, caerEventPacketContainer container);
+static bool caerVisualizerRendererETF4D(caerVisualizerPublicState state, caerEventPacketContainer container);
+
+// Default multi renderers.
+static bool caerVisualizerMultiRendererPolarityAndFrameEvents(caerVisualizerPublicState state,
+	caerEventPacketContainer container);
+
+const std::string caerVisualizerRendererListOptionsString =
+	"None,Polarity,Frame,IMU_6-axes,2D_Points,Spikes,Spikes_Raster_Plot,ETF4D,Polarity_and_Frames";
+
+const struct caer_visualizer_renderer_info caerVisualizerRendererList[] = { { "None", nullptr }, { "Polarity",
+	&caerVisualizerRendererPolarityEvents }, { "Frame", &caerVisualizerRendererFrameEvents }, { "IMU_6-axes",
+	&caerVisualizerRendererIMU6Events }, { "2D_Points", &caerVisualizerRendererPoint2DEvents }, { "Spikes",
+	&caerVisualizerRendererSpikeEvents }, { "Spikes_Raster_Plot", &caerVisualizerRendererSpikeEventsRaster }, { "ETF4D",
+	&caerVisualizerRendererETF4D }, { "Polarity_and_Frames", &caerVisualizerMultiRendererPolarityAndFrameEvents }, };
+
+const size_t caerVisualizerRendererListLength = (sizeof(caerVisualizerRendererList) / sizeof(struct caer_visualizer_renderer_info));
+
+static bool caerVisualizerRendererPolarityEvents(caerVisualizerPublicState state, caerEventPacketContainer container) {
 	UNUSED_ARGUMENT(state);
 
 	caerEventPacketHeader polarityPacketHeader = caerEventPacketContainerFindEventPacketByType(container, POLARITY_EVENT);
@@ -59,7 +83,7 @@ struct renderer_frame_events_state {
 
 typedef struct renderer_frame_events_state *rendererFrameEventsState;
 
-void *caerVisualizerRendererFrameEventsStateInit(caerVisualizerPublicState state) {
+static void *caerVisualizerRendererFrameEventsStateInit(caerVisualizerPublicState state) {
 	// Allocate memory via C++ for renderer state, since we use C++ objects directly.
 	rendererFrameEventsState renderState = new renderer_frame_events_state();
 
@@ -72,13 +96,13 @@ void *caerVisualizerRendererFrameEventsStateInit(caerVisualizerPublicState state
 	return (renderState);
 }
 
-void caerVisualizerRendererFrameEventsStateExit(caerVisualizerPublicState state) {
+static void caerVisualizerRendererFrameEventsStateExit(caerVisualizerPublicState state) {
 	rendererFrameEventsState renderState = (rendererFrameEventsState) state->renderState;
 
 	delete renderState;
 }
 
-bool caerVisualizerRendererFrameEvents(caerVisualizerPublicState state, caerEventPacketContainer container) {
+static bool caerVisualizerRendererFrameEvents(caerVisualizerPublicState state, caerEventPacketContainer container) {
 	UNUSED_ARGUMENT(state);
 
 	caerEventPacketHeader framePacketHeader = caerEventPacketContainerFindEventPacketByType(container, FRAME_EVENT);
@@ -138,7 +162,7 @@ bool caerVisualizerRendererFrameEvents(caerVisualizerPublicState state, caerEven
 #define RESET_LIMIT_POS(VAL, LIMIT) if ((VAL) > (LIMIT)) { (VAL) = (LIMIT); }
 #define RESET_LIMIT_NEG(VAL, LIMIT) if ((VAL) < (LIMIT)) { (VAL) = (LIMIT); }
 
-bool caerVisualizerRendererIMU6Events(caerVisualizerPublicState state, caerEventPacketContainer container) {
+static bool caerVisualizerRendererIMU6Events(caerVisualizerPublicState state, caerEventPacketContainer container) {
 	caerEventPacketHeader imu6EventPacketHeader = caerEventPacketContainerFindEventPacketByType(container, IMU6_EVENT);
 
 	if (imu6EventPacketHeader == NULL || caerEventPacketHeaderGetEventValid(imu6EventPacketHeader) == 0) {
@@ -219,7 +243,7 @@ bool caerVisualizerRendererIMU6Events(caerVisualizerPublicState state, caerEvent
 	return (true);
 }
 
-bool caerVisualizerRendererPoint2DEvents(caerVisualizerPublicState state, caerEventPacketContainer container) {
+static bool caerVisualizerRendererPoint2DEvents(caerVisualizerPublicState state, caerEventPacketContainer container) {
 	UNUSED_ARGUMENT(state);
 
 	caerEventPacketHeader point2DEventPacketHeader = caerEventPacketContainerFindEventPacketByType(container,
@@ -241,7 +265,7 @@ bool caerVisualizerRendererPoint2DEvents(caerVisualizerPublicState state, caerEv
 	return (true);
 }
 
-bool caerVisualizerRendererSpikeEventsRaster(caerVisualizerPublicState state, caerEventPacketContainer container) {
+static bool caerVisualizerRendererSpikeEventsRaster(caerVisualizerPublicState state, caerEventPacketContainer container) {
 	UNUSED_ARGUMENT(state);
 
 	caerEventPacketHeader spikeEventPacketHeader = caerEventPacketContainerFindEventPacketByType(container,
@@ -375,7 +399,7 @@ bool caerVisualizerRendererSpikeEventsRaster(caerVisualizerPublicState state, ca
 	return (true);
 }
 
-bool caerVisualizerRendererSpikeEvents(caerVisualizerPublicState state, caerEventPacketContainer container) {
+static bool caerVisualizerRendererSpikeEvents(caerVisualizerPublicState state, caerEventPacketContainer container) {
 	UNUSED_ARGUMENT(state);
 
 	caerEventPacketHeader spikeEventPacketHeader = caerEventPacketContainerFindEventPacketByType(container,
@@ -413,7 +437,7 @@ bool caerVisualizerRendererSpikeEvents(caerVisualizerPublicState state, caerEven
 	return (true);
 }
 
-bool caerVisualizerRendererETF4D(caerVisualizerPublicState state, caerEventPacketContainer container) {
+static bool caerVisualizerRendererETF4D(caerVisualizerPublicState state, caerEventPacketContainer container) {
 	UNUSED_ARGUMENT(state);
 
 	caerEventPacketHeader Point4DEventPacketHeader = caerEventPacketContainerFindEventPacketByType(container,
@@ -487,7 +511,7 @@ bool caerVisualizerRendererETF4D(caerVisualizerPublicState state, caerEventPacke
 	return (true);
 }
 
-bool caerVisualizerMultiRendererPolarityAndFrameEvents(caerVisualizerPublicState state,
+static bool caerVisualizerMultiRendererPolarityAndFrameEvents(caerVisualizerPublicState state,
 	caerEventPacketContainer container) {
 	bool drewFrameEvents = caerVisualizerRendererFrameEvents(state, container);
 

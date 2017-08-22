@@ -24,8 +24,8 @@
 #define VISUALIZER_ZOOM_INC 0.25f
 #define VISUALIZER_ZOOM_MIN 0.50f
 #define VISUALIZER_ZOOM_MAX 50.0f
-#define VISUALIZER_POSITION_X_DEF 40
-#define VISUALIZER_POSITION_Y_DEF 40
+#define VISUALIZER_POSITION_X_DEF 100
+#define VISUALIZER_POSITION_Y_DEF 100
 
 #define GLOBAL_FONT_SIZE 20 // in pixels
 #define GLOBAL_FONT_SPACING 5 // in pixels
@@ -406,7 +406,7 @@ static void initRenderersHandlers(caerModuleData moduleData) {
 	// Search for renderer in list.
 	const std::string rendererChoice = sshsNodeGetStdString(moduleData->moduleNode, "renderer");
 
-	for (size_t i = 0; i < (sizeof(caerVisualizerRendererList) / sizeof(struct caer_visualizer_renderer_info)); i++) {
+	for (size_t i = 0; i < caerVisualizerRendererListLength; i++) {
 		if (rendererChoice == caerVisualizerRendererList[i].name) {
 			state->renderer = &caerVisualizerRendererList[i];
 			break;
@@ -419,8 +419,7 @@ static void initRenderersHandlers(caerModuleData moduleData) {
 	// Search for event handler in list.
 	const std::string eventHandlerChoice = sshsNodeGetStdString(moduleData->moduleNode, "eventHandler");
 
-	for (size_t i = 0; i < (sizeof(caerVisualizerEventHandlerList) / sizeof(struct caer_visualizer_event_handler_info));
-		i++) {
+	for (size_t i = 0; i < caerVisualizerEventHandlerListLength; i++) {
 		if (eventHandlerChoice == caerVisualizerEventHandlerList[i].name) {
 			state->eventHandler = &caerVisualizerEventHandlerList[i];
 			break;
@@ -767,8 +766,23 @@ static int renderThread(void *inModuleData) {
 	state->renderWindow->clear(sf::Color::Black);
 	state->renderWindow->display();
 
+	// Initialize renderer state.
+	if (state->renderer->stateInit != nullptr) {
+		state->renderState = (*state->renderer->stateInit)((caerVisualizerPublicState) state);
+		if (state->renderState == nullptr) {
+			// Failed at requested state initialization, error out!
+			caerModuleLog(moduleData, CAER_LOG_ERROR, "Failed to initialize renderer state.");
+			return (thrd_error);
+		}
+	}
+
 	while (state->running.load(std::memory_order_relaxed)) {
 		renderScreen(moduleData);
+	}
+
+	// Destroy render state, if it exists.
+	if (state->renderer->stateExit != nullptr && state->renderState != nullptr) {
+		(*state->renderer->stateExit)((caerVisualizerPublicState) state);
 	}
 
 	return (thrd_success);
