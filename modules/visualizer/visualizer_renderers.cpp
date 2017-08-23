@@ -31,10 +31,11 @@ static const struct caer_visualizer_renderer_info rendererPoint2DEvents("2D_Poin
 static bool caerVisualizerRendererSpikeEvents(caerVisualizerPublicState state, caerEventPacketContainer container);
 static const struct caer_visualizer_renderer_info rendererSpikeEvents("Spikes", &caerVisualizerRendererSpikeEvents);
 
+static void *caerVisualizerRendererSpikeEventsRasterStateInit(caerVisualizerPublicState state);
 static bool caerVisualizerRendererSpikeEventsRaster(caerVisualizerPublicState state,
 	caerEventPacketContainer container);
 static const struct caer_visualizer_renderer_info rendererSpikeEventsRaster("Spikes_Raster_Plot",
-	&caerVisualizerRendererSpikeEventsRaster);
+	&caerVisualizerRendererSpikeEventsRaster, false, &caerVisualizerRendererSpikeEventsRasterStateInit, nullptr);
 
 static bool caerVisualizerRendererETF4D(caerVisualizerPublicState state, caerEventPacketContainer container);
 static const struct caer_visualizer_renderer_info rendererETF4D("ETF4D", &caerVisualizerRendererETF4D);
@@ -372,6 +373,19 @@ static bool caerVisualizerRendererSpikeEvents(caerVisualizerPublicState state, c
 	return (true);
 }
 
+// How many timestemps and neurons to show per chip.
+#define SPIKE_RASTER_PLOT_TIMESTEPS 500
+#define SPIKE_RASTER_PLOT_NEURONS 256
+
+static void *caerVisualizerRendererSpikeEventsRasterStateInit(caerVisualizerPublicState state) {
+	// Reset render size to allow for more neurons and timesteps to be displayed.
+	// This results in less scaling on the X and Y axes.
+	// Also add 2 pixels on X/Y to compensate for the middle separation bars.
+	caerVisualizerResetRenderSize(state, (SPIKE_RASTER_PLOT_TIMESTEPS * 2) + 2, (SPIKE_RASTER_PLOT_NEURONS * 2) + 2);
+
+	return (CAER_VISUALIZER_RENDER_INIT_NO_MEM); // No allocated memory.
+}
+
 static bool caerVisualizerRendererSpikeEventsRaster(caerVisualizerPublicState state,
 	caerEventPacketContainer container) {
 	UNUSED_ARGUMENT(state);
@@ -384,10 +398,6 @@ static bool caerVisualizerRendererSpikeEventsRaster(caerVisualizerPublicState st
 
 	const libcaer::events::SpikeEventPacket spikePacket(spikePacketHeader, false);
 
-	// get bitmap's size
-	uint32_t sizeX = state->renderSizeX;
-	uint32_t sizeY = state->renderSizeY;
-
 	// find max and min TS, event packets MUST be ordered by time, that's
 	// an invariant property, so we can just select first and last event.
 	// Also time is always positive, so we can use unsigned ints.
@@ -397,11 +407,13 @@ static bool caerVisualizerRendererSpikeEventsRaster(caerVisualizerPublicState st
 	// time span, +1 to divide space correctly in scaleX.
 	uint32_t timeSpan = maxTimestamp - minTimestamp + 1;
 
-	float scaleX = 0.0;
-	if (timeSpan > 0) {
-		scaleX = ((float) (sizeX / 2)) / ((float) timeSpan); // two rasterplots in x
-	}
-	float scaleY = ((float) (sizeY / 2)) / ((float) DYNAPSE_CONFIG_NUMNEURONS); // two rasterplots in y
+	// Get render sizes, subtract 2px for middle borders.
+	uint32_t sizeX = state->renderSizeX - 2;
+	uint32_t sizeY = state->renderSizeY - 2;
+
+	// Two plots in each of X and Y directions.
+	float scaleX = ((float) (sizeX / 2)) / ((float) timeSpan);
+	float scaleY = ((float) (sizeY / 2)) / ((float) DYNAPSE_CONFIG_NUMNEURONS);
 
 	std::vector<sf::Vertex> vertices((size_t) spikePacket.getEventNumber() * 4);
 
@@ -425,28 +437,30 @@ static bool caerVisualizerRendererSpikeEventsRaster(caerVisualizerPublicState st
 		uint8_t chipId = spikeEvent.getChipID();
 
 		if (chipId == DYNAPSE_CONFIG_DYNAPSE_U3) {
-			plotX += (sizeX / 2);
-			plotY += (sizeY / 2);
+			plotX += (sizeX / 2) + 2; // +2 for middle border!
+			plotY += (sizeY / 2) + 2; // +2 for middle border!
 		}
 		else if (chipId == DYNAPSE_CONFIG_DYNAPSE_U2) {
-			plotY += (sizeY / 2);
+			plotY += (sizeY / 2) + 2; // +2 for middle border!
 		}
 		else if (chipId == DYNAPSE_CONFIG_DYNAPSE_U1) {
-			plotX += (sizeX / 2);
+			plotX += (sizeX / 2) + 2; // +2 for middle border!
 		}
 		// DYNAPSE_CONFIG_DYNAPSE_U0 no changes.
 
-		// Draw pixels of raster plot (neurons might be merged due to aliasing). TODO: increase size, no scale?
+		// Draw pixels of raster plot (some neurons might be merged due to aliasing).
 		sfml::Helpers::addPixelVertices(vertices, sf::Vector2f(plotX, plotY), dynapseCoreIdToColor(coreId));
 	}
 
 	state->renderWindow->draw(vertices.data(), vertices.size(), sf::Quads);
 
-	// Draw middle borders, only once! TODO: this eats up a pixel +/-.
-	sfml::Line horizontalBorderLine(sf::Vector2f(0, sizeY / 2), sf::Vector2f(sizeX, sizeY / 2), 2, sf::Color::White);
+	// Draw middle borders, only once!
+	sfml::Line horizontalBorderLine(sf::Vector2f(0, state->renderSizeY / 2),
+		sf::Vector2f(state->renderSizeX, state->renderSizeY / 2), 2, sf::Color::White);
 	state->renderWindow->draw(horizontalBorderLine);
 
-	sfml::Line verticalBorderLine(sf::Vector2f(sizeX / 2, 0), sf::Vector2f(sizeX / 2, sizeY), 2, sf::Color::White);
+	sfml::Line verticalBorderLine(sf::Vector2f(state->renderSizeX / 2, 0),
+		sf::Vector2f(state->renderSizeX / 2, state->renderSizeY), 2, sf::Color::White);
 	state->renderWindow->draw(verticalBorderLine);
 
 	return (true);

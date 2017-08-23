@@ -69,9 +69,9 @@ static bool initRenderSize(caerModuleData moduleData, int16_t *inputs, size_t in
 static void initRenderersHandlers(caerModuleData moduleData);
 static bool initGraphics(caerModuleData moduleData);
 static void exitGraphics(caerModuleData moduleData);
-static void updateDisplaySize(caerModuleData moduleData);
-static void updateDisplayLocation(caerModuleData moduleData);
-static void saveDisplayLocation(caerModuleData moduleData);
+static void updateDisplaySize(caerVisualizerState state);
+static void updateDisplayLocation(caerVisualizerState state);
+static void saveDisplayLocation(caerVisualizerState state);
 static void handleEvents(caerModuleData moduleData);
 static void renderScreen(caerModuleData moduleData);
 static int renderThread(void *inModuleData);
@@ -459,10 +459,10 @@ static bool initGraphics(caerModuleData moduleData) {
 	}
 
 	// Set scale transform for display window, update sizes.
-	updateDisplaySize(moduleData);
+	updateDisplaySize(state);
 
 	// Set window position.
-	updateDisplayLocation(moduleData);
+	updateDisplayLocation(state);
 
 	// Load font here to have it always available on request.
 	state->font = new sf::Font();
@@ -487,7 +487,7 @@ static void exitGraphics(caerModuleData moduleData) {
 	caerVisualizerState state = (caerVisualizerState) moduleData->moduleState;
 
 	// Save visualizer window location in config.
-	saveDisplayLocation(moduleData);
+	saveDisplayLocation(state);
 
 	// Close rendering window and free memory.
 	state->renderWindow->close();
@@ -496,11 +496,9 @@ static void exitGraphics(caerModuleData moduleData) {
 	delete state->renderWindow;
 }
 
-static void updateDisplaySize(caerModuleData moduleData) {
-	caerVisualizerState state = (caerVisualizerState) moduleData->moduleState;
-
-	state->showStatistics = sshsNodeGetBool(moduleData->moduleNode, "showStatistics");
-	float zoomFactor = sshsNodeGetFloat(moduleData->moduleNode, "zoomFactor");
+static void updateDisplaySize(caerVisualizerState state) {
+	state->showStatistics = sshsNodeGetBool(state->visualizerConfigNode, "showStatistics");
+	float zoomFactor = sshsNodeGetFloat(state->visualizerConfigNode, "zoomFactor");
 
 	sf::Vector2u newRenderWindowSize(state->renderSizeX, state->renderSizeY);
 
@@ -525,24 +523,20 @@ static void updateDisplaySize(caerModuleData moduleData) {
 	state->renderWindow->setSize(newRenderWindowSize);
 }
 
-static void updateDisplayLocation(caerModuleData moduleData) {
-	caerVisualizerState state = (caerVisualizerState) moduleData->moduleState;
-
+static void updateDisplayLocation(caerVisualizerState state) {
 	// Set current position to what is in configuration storage.
-	const sf::Vector2i newPos(sshsNodeGetInt(moduleData->moduleNode, "windowPositionX"),
-		sshsNodeGetInt(moduleData->moduleNode, "windowPositionY"));
+	const sf::Vector2i newPos(sshsNodeGetInt(state->visualizerConfigNode, "windowPositionX"),
+		sshsNodeGetInt(state->visualizerConfigNode, "windowPositionY"));
 
 	state->renderWindow->setPosition(newPos);
 }
 
-static void saveDisplayLocation(caerModuleData moduleData) {
-	caerVisualizerState state = (caerVisualizerState) moduleData->moduleState;
-
+static void saveDisplayLocation(caerVisualizerState state) {
 	const sf::Vector2i currPos = state->renderWindow->getPosition();
 
 	// Update current position in configuration storage.
-	sshsNodePutInt(moduleData->moduleNode, "windowPositionX", currPos.x);
-	sshsNodePutInt(moduleData->moduleNode, "windowPositionY", currPos.y);
+	sshsNodePutInt(state->visualizerConfigNode, "windowPositionX", currPos.x);
+	sshsNodePutInt(state->visualizerConfigNode, "windowPositionY", currPos.y);
 }
 
 static void handleEvents(caerModuleData moduleData) {
@@ -692,7 +686,7 @@ static void renderScreen(caerModuleData moduleData) {
 		state->windowResize.store(false);
 
 		// Update statistics flag and resize display appropriately.
-		updateDisplaySize(moduleData);
+		updateDisplaySize(state);
 	}
 
 	// Handle display move.
@@ -700,7 +694,7 @@ static void renderScreen(caerModuleData moduleData) {
 		state->windowMove.store(false);
 
 		// Move display location appropriately.
-		updateDisplayLocation(moduleData);
+		updateDisplayLocation(state);
 	}
 
 	// Render content to display.
@@ -777,9 +771,20 @@ static int renderThread(void *inModuleData) {
 	}
 
 	// Destroy render state, if it exists.
-	if (state->renderer->stateExit != nullptr && state->renderState != nullptr) {
+	if ((state->renderer->stateExit != nullptr) && (state->renderState != nullptr)
+		&& (state->renderState != CAER_VISUALIZER_RENDER_INIT_NO_MEM)) {
 		(*state->renderer->stateExit)((caerVisualizerPublicState) state);
 	}
 
 	return (thrd_success);
+}
+
+void caerVisualizerResetRenderSize(caerVisualizerPublicState pubState, uint32_t newX, uint32_t newY) {
+	caerVisualizerState state = (caerVisualizerState) pubState;
+
+	// Set render sizes to new values and force update.
+	state->renderSizeX = newX;
+	state->renderSizeY = newY;
+
+	updateDisplaySize(state);
 }
