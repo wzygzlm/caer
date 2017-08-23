@@ -313,6 +313,50 @@ static bool caerVisualizerRendererPoint2DEvents(caerVisualizerPublicState state,
 	return (true);
 }
 
+static bool caerVisualizerRendererSpikeEvents(caerVisualizerPublicState state, caerEventPacketContainer container) {
+	UNUSED_ARGUMENT(state);
+
+	caerEventPacketHeader spikePacketHeader = caerEventPacketContainerFindEventPacketByType(container, SPIKE_EVENT);
+
+	if (spikePacketHeader == NULL || caerEventPacketHeaderGetEventValid(spikePacketHeader) == 0) {
+		return (false);
+	}
+
+	const libcaer::events::SpikeEventPacket spikePacket(spikePacketHeader, false);
+
+	std::vector<sf::Vertex> vertices((size_t) spikePacket.getEventValid() * 4);
+
+	// Render all valid events.
+	for (const auto &spikeEvent : spikePacket) {
+		if (!spikeEvent.isValid()) {
+			continue; // Skip invalid events.
+		}
+
+		// Render spikes with different colors based on core ID.
+		uint8_t coreId =spikeEvent.getSourceCoreID();
+		sf::Color color;
+
+		if (coreId == 0) {
+			color = sf::Color::Green;
+		}
+		else if (coreId == 1) {
+			color = sf::Color::Blue;
+		}
+		else if (coreId == 2) {
+			color = sf::Color::Red;
+		}
+		else if (coreId == 3) {
+			color = sf::Color::Yellow;
+		}
+
+		sfml::Helpers::addPixelVertices(vertices, sf::Vector2f(spikeEvent.getX(), spikeEvent.getY()), color);
+	}
+
+	state->renderWindow->draw(vertices.data(), vertices.size(), sf::Quads);
+
+	return (true);
+}
+
 static bool caerVisualizerRendererSpikeEventsRaster(caerVisualizerPublicState state, caerEventPacketContainer container) {
 	UNUSED_ARGUMENT(state);
 
@@ -375,17 +419,17 @@ static bool caerVisualizerRendererSpikeEventsRaster(caerVisualizerPublicState st
 		uint8_t chipId = spikeEvent.getChipID();
 
 		// adjust coordinate for chip
-		if (chipId == DYNAPSE_CONFIG_DYNAPSE_U3_OUT) {
+		if (chipId == DYNAPSE_CONFIG_DYNAPSE_U3) {
 			x = x - DYNAPSE_CONFIG_XCHIPSIZE;
 			y = y - DYNAPSE_CONFIG_YCHIPSIZE;
 		}
-		else if (chipId == DYNAPSE_CONFIG_DYNAPSE_U2_OUT) {
+		else if (chipId == DYNAPSE_CONFIG_DYNAPSE_U2) {
 			y = y - DYNAPSE_CONFIG_YCHIPSIZE;
 		}
-		else if (chipId == DYNAPSE_CONFIG_DYNAPSE_U1_OUT) {
+		else if (chipId == DYNAPSE_CONFIG_DYNAPSE_U1) {
 			x = x - DYNAPSE_CONFIG_XCHIPSIZE;
 		}
-		// DYNAPSE_CONFIG_DYNAPSE_U0_OUT no changes.
+		// DYNAPSE_CONFIG_DYNAPSE_U0 no changes.
 
 		// adjust coordinates for cores
 		if (coreId == 3) {
@@ -411,7 +455,7 @@ static bool caerVisualizerRendererSpikeEventsRaster(caerVisualizerPublicState st
 		}
 
 		// move
-		/*if (chipId == DYNAPSE_CONFIG_DYNAPSE_U3_OUT) {
+		/*if (chipId == DYNAPSE_CONFIG_DYNAPSE_U3) {
 			che = floor( new_x + ((double) sizeX / 2));
 			if(che < INT32_MAX && che > INT32_MIN ){
 				new_x = (int32_t) che;
@@ -421,19 +465,19 @@ static bool caerVisualizerRendererSpikeEventsRaster(caerVisualizerPublicState st
 				new_y = (uint32_t) che;
 			}
 		}
-		else if (chipId == DYNAPSE_CONFIG_DYNAPSE_U2_OUT) {
+		else if (chipId == DYNAPSE_CONFIG_DYNAPSE_U2) {
 			che = floor( new_x + ((double) sizeX / 2));
 			if(che < INT32_MAX && che > INT32_MIN ){
 				new_x = (int32_t) che;
 			}
 		}
-		else if (chipId == DYNAPSE_CONFIG_DYNAPSE_U1_OUT) {
+		else if (chipId == DYNAPSE_CONFIG_DYNAPSE_U1) {
 			che = floor( new_y + (double) sizeY / 2.0);
 			if(che < INT32_MAX && che > INT32_MIN ){
 				new_y = (uint32_t) che;
 			}
 		}*/
-		// DYNAPSE_CONFIG_DYNAPSE_U0_OUT no changes.
+		// DYNAPSE_CONFIG_DYNAPSE_U0 no changes.
 
 		// draw borders
 		for (int xx = 0; xx < sizeX; xx++) {
@@ -446,50 +490,6 @@ static bool caerVisualizerRendererSpikeEventsRaster(caerVisualizerPublicState st
 		// draw pixels (neurons might be merged due to aliasing..)
 		// TODO: al_put_pixel( (int) new_x, (int) new_y, al_map_rgb(coreId * 0, 255, 0 * coreId));
 	}
-
-	return (true);
-}
-
-static bool caerVisualizerRendererSpikeEvents(caerVisualizerPublicState state, caerEventPacketContainer container) {
-	UNUSED_ARGUMENT(state);
-
-	caerEventPacketHeader spikePacketHeader = caerEventPacketContainerFindEventPacketByType(container, SPIKE_EVENT);
-
-	if (spikePacketHeader == NULL || caerEventPacketHeaderGetEventValid(spikePacketHeader) == 0) {
-		return (false);
-	}
-
-	const libcaer::events::SpikeEventPacket spikePacket(spikePacketHeader, false);
-
-	std::vector<sf::Vertex> vertices((size_t) spikePacket.getEventValid() * 4);
-
-	// Render all valid events.
-	for (const auto &spikeEvent : spikePacket) {
-		if (!spikeEvent.isValid()) {
-			continue; // Skip invalid events.
-		}
-
-		// Render spikes with different colors based on core ID.
-		uint8_t coreId =spikeEvent.getSourceCoreID();
-		sf::Color color;
-
-		if (coreId == 0) {
-			color = sf::Color::Green;
-		}
-		else if (coreId == 1) {
-			color = sf::Color::Blue;
-		}
-		else if (coreId == 2) {
-			color = sf::Color::Red;
-		}
-		else if (coreId == 3) {
-			color = sf::Color::Yellow;
-		}
-
-		sfml::Helpers::addPixelVertices(vertices, sf::Vector2f(spikeEvent.getX(), spikeEvent.getY()), color);
-	}
-
-	state->renderWindow->draw(vertices.data(), vertices.size(), sf::Quads);
 
 	return (true);
 }
