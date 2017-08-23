@@ -12,30 +12,37 @@
 #include <libcaercpp/devices/dynapse.hpp> // Only for constants.
 
 static bool caerVisualizerRendererPolarityEvents(caerVisualizerPublicState state, caerEventPacketContainer container);
-static const struct caer_visualizer_renderer_info rendererPolarityEvents("Polarity", &caerVisualizerRendererPolarityEvents);
+static const struct caer_visualizer_renderer_info rendererPolarityEvents("Polarity",
+	&caerVisualizerRendererPolarityEvents);
 
 static void *caerVisualizerRendererFrameEventsStateInit(caerVisualizerPublicState state);
 static void caerVisualizerRendererFrameEventsStateExit(caerVisualizerPublicState state);
 static bool caerVisualizerRendererFrameEvents(caerVisualizerPublicState state, caerEventPacketContainer container);
-static const struct caer_visualizer_renderer_info rendererFrameEvents("Frame", &caerVisualizerRendererFrameEvents, false, &caerVisualizerRendererFrameEventsStateInit, &caerVisualizerRendererFrameEventsStateExit);
+static const struct caer_visualizer_renderer_info rendererFrameEvents("Frame", &caerVisualizerRendererFrameEvents,
+	false, &caerVisualizerRendererFrameEventsStateInit, &caerVisualizerRendererFrameEventsStateExit);
 
 static bool caerVisualizerRendererIMU6Events(caerVisualizerPublicState state, caerEventPacketContainer container);
 static const struct caer_visualizer_renderer_info rendererIMU6Events("IMU_6-axes", &caerVisualizerRendererIMU6Events);
 
 static bool caerVisualizerRendererPoint2DEvents(caerVisualizerPublicState state, caerEventPacketContainer container);
-static const struct caer_visualizer_renderer_info rendererPoint2DEvents("2D_Points", &caerVisualizerRendererPoint2DEvents);
+static const struct caer_visualizer_renderer_info rendererPoint2DEvents("2D_Points",
+	&caerVisualizerRendererPoint2DEvents);
 
 static bool caerVisualizerRendererSpikeEvents(caerVisualizerPublicState state, caerEventPacketContainer container);
 static const struct caer_visualizer_renderer_info rendererSpikeEvents("Spikes", &caerVisualizerRendererSpikeEvents);
 
-static bool caerVisualizerRendererSpikeEventsRaster(caerVisualizerPublicState state, caerEventPacketContainer container);
-static const struct caer_visualizer_renderer_info rendererSpikeEventsRaster("Spikes_Raster_Plot", &caerVisualizerRendererSpikeEventsRaster);
+static bool caerVisualizerRendererSpikeEventsRaster(caerVisualizerPublicState state,
+	caerEventPacketContainer container);
+static const struct caer_visualizer_renderer_info rendererSpikeEventsRaster("Spikes_Raster_Plot",
+	&caerVisualizerRendererSpikeEventsRaster);
 
 static bool caerVisualizerRendererETF4D(caerVisualizerPublicState state, caerEventPacketContainer container);
 static const struct caer_visualizer_renderer_info rendererETF4D("ETF4D", &caerVisualizerRendererETF4D);
 
-static bool caerVisualizerRendererPolarityAndFrameEvents(caerVisualizerPublicState state, caerEventPacketContainer container);
-static const struct caer_visualizer_renderer_info rendererPolarityAndFrameEvents("Polarity_and_Frames", &caerVisualizerRendererPolarityAndFrameEvents);
+static bool caerVisualizerRendererPolarityAndFrameEvents(caerVisualizerPublicState state,
+	caerEventPacketContainer container);
+static const struct caer_visualizer_renderer_info rendererPolarityAndFrameEvents("Polarity_and_Frames",
+	&caerVisualizerRendererPolarityAndFrameEvents);
 
 const std::string caerVisualizerRendererListOptionsString =
 	"None,Polarity,Frame,IMU_6-axes,2D_Points,Spikes,Spikes_Raster_Plot,ETF4D,Polarity_and_Frames";
@@ -44,12 +51,14 @@ const struct caer_visualizer_renderer_info caerVisualizerRendererList[] = { { "N
 	rendererFrameEvents, rendererIMU6Events, rendererPoint2DEvents, rendererSpikeEvents, rendererSpikeEventsRaster,
 	rendererETF4D, rendererPolarityAndFrameEvents };
 
-const size_t caerVisualizerRendererListLength = (sizeof(caerVisualizerRendererList) / sizeof(struct caer_visualizer_renderer_info));
+const size_t caerVisualizerRendererListLength = (sizeof(caerVisualizerRendererList)
+	/ sizeof(struct caer_visualizer_renderer_info));
 
 static bool caerVisualizerRendererPolarityEvents(caerVisualizerPublicState state, caerEventPacketContainer container) {
 	UNUSED_ARGUMENT(state);
 
-	caerEventPacketHeader polarityPacketHeader = caerEventPacketContainerFindEventPacketByType(container, POLARITY_EVENT);
+	caerEventPacketHeader polarityPacketHeader = caerEventPacketContainerFindEventPacketByType(container,
+		POLARITY_EVENT);
 
 	// No packet of requested type or empty packet (no valid events).
 	if (polarityPacketHeader == NULL || caerEventPacketHeaderGetEventValid(polarityPacketHeader) == 0) {
@@ -67,7 +76,8 @@ static bool caerVisualizerRendererPolarityEvents(caerVisualizerPublicState state
 		}
 
 		// ON polarity (green), OFF polarity (red).
-		sfml::Helpers::addPixelVertices(vertices, sf::Vector2f(polarityEvent.getX(), polarityEvent.getY()), (polarityEvent.getPolarity()) ? (sf::Color::Green) : (sf::Color::Red));
+		sfml::Helpers::addPixelVertices(vertices, sf::Vector2f(polarityEvent.getX(), polarityEvent.getY()),
+			(polarityEvent.getPolarity()) ? (sf::Color::Green) : (sf::Color::Red));
 	}
 
 	state->renderWindow->draw(vertices.data(), vertices.size(), sf::Quads);
@@ -167,11 +177,12 @@ static bool caerVisualizerRendererFrameEvents(caerVisualizerPublicState state, c
 		}
 	}
 
-	renderState->texture.update(renderState->pixels.data(), U32T(frameEvent.getLengthX()), U32T(frameEvent.getLengthY()),
-		U32T(frameEvent.getPositionX()), U32T(frameEvent.getPositionY()));
+	renderState->texture.update(renderState->pixels.data(), U32T(frameEvent.getLengthX()),
+		U32T(frameEvent.getLengthY()), U32T(frameEvent.getPositionX()), U32T(frameEvent.getPositionY()));
 
-	renderState->sprite.setTextureRect(sf::IntRect(frameEvent.getPositionX(), frameEvent.getPositionY(),
-		frameEvent.getLengthX(), frameEvent.getLengthY()));
+	renderState->sprite.setTextureRect(
+		sf::IntRect(frameEvent.getPositionX(), frameEvent.getPositionY(), frameEvent.getLengthX(),
+			frameEvent.getLengthY()));
 	renderState->sprite.setPosition(frameEvent.getPositionX(), frameEvent.getPositionY());
 
 	state->renderWindow->draw(renderState->sprite);
@@ -240,7 +251,8 @@ static bool caerVisualizerRendererIMU6Events(caerVisualizerPublicState state, ca
 	RESET_LIMIT_POS(accelZScaled, centerPointY - 2 - lineThickness); // Circle max.
 	RESET_LIMIT_NEG(accelZScaled, 1); // Circle min.
 
-	sfml::Line accelLine(sf::Vector2f(centerPointX, centerPointY), sf::Vector2f(accelXScaled, accelYScaled), lineThickness, accelColor);
+	sfml::Line accelLine(sf::Vector2f(centerPointX, centerPointY), sf::Vector2f(accelXScaled, accelYScaled),
+		lineThickness, accelColor);
 	state->renderWindow->draw(accelLine);
 
 	sf::CircleShape accelCircle(accelZScaled);
@@ -275,10 +287,12 @@ static bool caerVisualizerRendererIMU6Events(caerVisualizerPublicState state, ca
 	RESET_LIMIT_POS(gyroZScaled, maxSizeX - 2 - lineThickness);
 	RESET_LIMIT_NEG(gyroZScaled, 1 + lineThickness);
 
-	sfml::Line gyroLine1(sf::Vector2f(centerPointX, centerPointY), sf::Vector2f(gyroYScaled, gyroXScaled), lineThickness, gyroColor);
+	sfml::Line gyroLine1(sf::Vector2f(centerPointX, centerPointY), sf::Vector2f(gyroYScaled, gyroXScaled),
+		lineThickness, gyroColor);
 	state->renderWindow->draw(gyroLine1);
 
-	sfml::Line gyroLine2(sf::Vector2f(centerPointX, centerPointY - 20), sf::Vector2f(gyroZScaled, centerPointY - 20), lineThickness, gyroColor);
+	sfml::Line gyroLine2(sf::Vector2f(centerPointX, centerPointY - 20), sf::Vector2f(gyroZScaled, centerPointY - 20),
+		lineThickness, gyroColor);
 	state->renderWindow->draw(gyroLine2);
 
 	return (true);
@@ -287,8 +301,7 @@ static bool caerVisualizerRendererIMU6Events(caerVisualizerPublicState state, ca
 static bool caerVisualizerRendererPoint2DEvents(caerVisualizerPublicState state, caerEventPacketContainer container) {
 	UNUSED_ARGUMENT(state);
 
-	caerEventPacketHeader point2DPacketHeader = caerEventPacketContainerFindEventPacketByType(container,
-		POINT2D_EVENT);
+	caerEventPacketHeader point2DPacketHeader = caerEventPacketContainerFindEventPacketByType(container, POINT2D_EVENT);
 
 	if (point2DPacketHeader == NULL || caerEventPacketHeaderGetEventValid(point2DPacketHeader) == 0) {
 		return (false);
@@ -305,7 +318,8 @@ static bool caerVisualizerRendererPoint2DEvents(caerVisualizerPublicState state,
 		}
 
 		// Render points in color blue.
-		sfml::Helpers::addPixelVertices(vertices, sf::Vector2f(point2DEvent.getX(), point2DEvent.getY()), sf::Color::Blue);
+		sfml::Helpers::addPixelVertices(vertices, sf::Vector2f(point2DEvent.getX(), point2DEvent.getY()),
+			sf::Color::Blue);
 	}
 
 	state->renderWindow->draw(vertices.data(), vertices.size(), sf::Quads);
@@ -349,7 +363,8 @@ static bool caerVisualizerRendererSpikeEvents(caerVisualizerPublicState state, c
 
 		// Render spikes with different colors based on core ID.
 		uint8_t coreId = spikeEvent.getSourceCoreID();
-		sfml::Helpers::addPixelVertices(vertices, sf::Vector2f(spikeEvent.getX(), spikeEvent.getY()), dynapseCoreIdToColor(coreId));
+		sfml::Helpers::addPixelVertices(vertices, sf::Vector2f(spikeEvent.getX(), spikeEvent.getY()),
+			dynapseCoreIdToColor(coreId));
 	}
 
 	state->renderWindow->draw(vertices.data(), vertices.size(), sf::Quads);
@@ -357,11 +372,11 @@ static bool caerVisualizerRendererSpikeEvents(caerVisualizerPublicState state, c
 	return (true);
 }
 
-static bool caerVisualizerRendererSpikeEventsRaster(caerVisualizerPublicState state, caerEventPacketContainer container) {
+static bool caerVisualizerRendererSpikeEventsRaster(caerVisualizerPublicState state,
+	caerEventPacketContainer container) {
 	UNUSED_ARGUMENT(state);
 
-	caerEventPacketHeader spikePacketHeader = caerEventPacketContainerFindEventPacketByType(container,
-		SPIKE_EVENT);
+	caerEventPacketHeader spikePacketHeader = caerEventPacketContainerFindEventPacketByType(container, SPIKE_EVENT);
 
 	if (spikePacketHeader == NULL || caerEventPacketHeaderGetEventValid(spikePacketHeader) == 0) {
 		return (false);
@@ -396,7 +411,7 @@ static bool caerVisualizerRendererSpikeEventsRaster(caerVisualizerPublicState st
 		ts = ts - minTimestamp;
 
 		// X is based on time.
-		uint32_t plotX = U32T(floorf((float) ts * scaleX));
+		uint32_t plotX = U32T(floorf((float ) ts * scaleX));
 
 		uint8_t coreId = spikeEvent.getSourceCoreID();
 
@@ -404,7 +419,7 @@ static bool caerVisualizerRendererSpikeEventsRaster(caerVisualizerPublicState st
 		linearIndex += (coreId * DYNAPSE_CONFIG_NUMNEURONS_CORE);
 
 		// Y is based on all neurons.
-		uint32_t plotY = U32T(floorf((float) linearIndex * scaleY));
+		uint32_t plotY = U32T(floorf((float ) linearIndex * scaleY));
 
 		// Move plot X/Y based on chip ID, to get four quadrants with four chips.
 		uint8_t chipId = spikeEvent.getChipID();
@@ -428,85 +443,86 @@ static bool caerVisualizerRendererSpikeEventsRaster(caerVisualizerPublicState st
 	state->renderWindow->draw(vertices.data(), vertices.size(), sf::Quads);
 
 	// Draw middle borders, only once! TODO: this eats up a pixel +/-.
-	sfml::Line horizontalBorderLine(sf::Vector2f(0, sizeY / 2), sf::Vector2f(sizeX - 1, sizeY / 2), 2, sf::Color::White);
+	sfml::Line horizontalBorderLine(sf::Vector2f(0, sizeY / 2), sf::Vector2f(sizeX, sizeY / 2), 2, sf::Color::White);
 	state->renderWindow->draw(horizontalBorderLine);
 
-	sfml::Line verticalBorderLine(sf::Vector2f(sizeX / 2, 0), sf::Vector2f(sizeX / 2, sizeY - 1), 2, sf::Color::White);
+	sfml::Line verticalBorderLine(sf::Vector2f(sizeX / 2, 0), sf::Vector2f(sizeX / 2, sizeY), 2, sf::Color::White);
 	state->renderWindow->draw(verticalBorderLine);
 
 	return (true);
 }
 
+// TODO: what is this? Nowhere is a 4D event generated, nor is it needed as only X/Y/Z are used here.
 static bool caerVisualizerRendererETF4D(caerVisualizerPublicState state, caerEventPacketContainer container) {
 	UNUSED_ARGUMENT(state);
 
-	caerEventPacketHeader Point4DEventPacketHeader = caerEventPacketContainerFindEventPacketByType(container,
-		POINT4D_EVENT);
-	if (Point4DEventPacketHeader == NULL || caerEventPacketHeaderGetEventValid(Point4DEventPacketHeader) == 0) {
+	caerEventPacketHeader point4DPacketHeader = caerEventPacketContainerFindEventPacketByType(container, POINT4D_EVENT);
+
+	if (point4DPacketHeader == NULL || caerEventPacketHeaderGetEventValid(point4DPacketHeader) == 0) {
 		return (false);
 	}
 
+	const libcaer::events::Point4DEventPacket point4DPacket(point4DPacketHeader, false);
+
 	// get bitmap's size
-	int32_t sizeX = state->renderSizeX;
-	int32_t sizeY = state->renderSizeY;
+	uint32_t sizeX = state->renderSizeX;
+	uint32_t sizeY = state->renderSizeY;
 
-	float maxY = INT32_MIN;
+	float maxMean = 0;
 
-	CAER_POINT4D_ITERATOR_VALID_START((caerPoint4DEventPacket) Point4DEventPacketHeader)
-		float mean = caerPoint4DEventGetZ(caerPoint4DIteratorElement);
-		if (maxY < mean) {
-			maxY = mean;
+	for (const auto &point4DEvent : point4DPacket) {
+		if (!point4DEvent.isValid()) {
+			continue; // Skip invalid events.
 		}
-	CAER_POINT4D_ITERATOR_ALL_END
 
-	float scaley = ((float) sizeY) / maxY; // two rasterplots in x
-	float scalex = ((float) sizeX) / 5;
+		float mean = point4DEvent.getZ();
+		if (mean > maxMean) {
+			maxMean = mean;
+		}
+	}
+
+	float scaleX = ((float) sizeX) / 5.0f;
+	float scaleY = ((float) sizeY) / maxMean;
+
+	std::vector<sf::Vertex> vertices((size_t) point4DPacket.getEventValid() * 4);
 
 	int counter = 0;
-	CAER_POINT4D_ITERATOR_VALID_START((caerPoint4DEventPacket) Point4DEventPacketHeader)
-		float corex = caerPoint4DEventGetX(caerPoint4DIteratorElement);
-		float corey = caerPoint4DEventGetY(caerPoint4DIteratorElement);
-		float mean = caerPoint4DEventGetZ(caerPoint4DIteratorElement);
-
-		//int coreid = (int) corex * 1 + (int) corey;	// color
-
-		double range_check = floor( (double)mean * (double)scaley);
-		int32_t new_y = 0;
-		if(range_check < INT32_MAX && range_check > INT32_MIN ){
-			new_y = (int32_t) range_check;
+	for (const auto &point4DEvent : point4DPacket) {
+		if (!point4DEvent.isValid()) {
+			continue; // Skip invalid events.
 		}
 
-		range_check = round((double)counter*(double)scalex);
-		int32_t checked = 0;
-		if(range_check < INT32_MAX && range_check > INT32_MIN ){
-			checked = (int32_t) range_check;
+		float coreX = point4DEvent.getX();
+		float coreY = point4DEvent.getY();
+		float mean = point4DEvent.getZ();
+
+		uint32_t plotY = U32T(floorf(mean * scaleY));
+
+		uint32_t plotX = U32T(roundf((float ) counter * scaleX));
+
+		uint8_t coreId = 0; // Core ID 0 is default, doesn't get checked.
+		if (coreX == 0.0f && coreY == 1.0f) {
+			coreId = 1;
+		}
+		else if (coreX == 1.0f && coreY == 0.0f) {
+			coreId = 2;
+		}
+		else if (coreX == 1.0f && coreY == 1.0f) {
+			coreId = 3;
 		}
 
-		uint8_t coreId = 0;
-		if(corex == 0.0f && corey == 0.0f){ coreId = 0;}
-		if(corex == 0.0f && corey == 1.0f){ coreId = 1;}
-		if(corex == 1.0f && corey == 0.0f){ coreId = 2;}
-		if(corex == 1.0f && corey == 1.0f){ coreId = 3;}
+		sfml::Helpers::addPixelVertices(vertices, sf::Vector2f(sizeX - plotX, plotY), dynapseCoreIdToColor(coreId));
 
-		if (coreId == 0) {
-			// TODO: al_put_pixel((int32_t) sizeX - checked, (int32_t) new_y,al_map_rgb(0, 255, 0));
-		}
-		else if (coreId == 1) {
-			// TODO: al_put_pixel((int32_t) sizeX - checked, (int32_t) new_y,al_map_rgb(0, 0, 255));
-		}
-		else if (coreId == 2) {
-			// TODO: al_put_pixel((int32_t) sizeX - checked, (int32_t) new_y,al_map_rgb(255, 0, 0));
-		}
-		else if (coreId == 3) {
-			// TODO: al_put_pixel((int32_t) sizeX - checked, (int32_t) new_y,al_map_rgb(255, 255, 0));
-		}
-
-		if(counter == 5){
+		// Reset counter, must reset at -1 of value used in scale.
+		if (counter == 4) {
 			counter = 0;
-		}else{
+		}
+		else {
 			counter++;
 		}
-	CAER_POINT4D_ITERATOR_ALL_END
+	}
+
+	state->renderWindow->draw(vertices.data(), vertices.size(), sf::Quads);
 
 	return (true);
 }
