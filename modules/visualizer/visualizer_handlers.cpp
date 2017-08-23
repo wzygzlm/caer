@@ -1,129 +1,114 @@
 #include "visualizer_handlers.hpp"
 
-#include <math.h>
+#include <cmath>
+#include <boost/algorithm/string.hpp>
 
-#include <libcaer/events/spike.h>
-#include <libcaer/devices/dynapse.h>
+#include <libcaercpp/devices/dynapse.hpp> // Only for constants.
 
 // Default event handlers.
-static void caerVisualizerEventHandlerSpikeEvents(caerVisualizerPublicState state, const sf::Event &event);
+static void caerVisualizerEventHandlerNeuronMonitor(caerVisualizerPublicState state, const sf::Event &event);
 static void caerVisualizerEventHandlerInput(caerVisualizerPublicState state, const sf::Event &event);
 
-const std::string caerVisualizerEventHandlerListOptionsString = "None,Spikes,Input";
+const std::string caerVisualizerEventHandlerListOptionsString = "None,Neuron_Monitor,Input";
 
-const struct caer_visualizer_event_handler_info caerVisualizerEventHandlerList[] = { { "None", nullptr },
-	{ "Spikes", &caerVisualizerEventHandlerSpikeEvents }, { "Input", &caerVisualizerEventHandlerInput } };
+const struct caer_visualizer_event_handler_info caerVisualizerEventHandlerList[] = { { "None", nullptr }, {
+	"Neuron_Monitor", &caerVisualizerEventHandlerNeuronMonitor }, { "Input", &caerVisualizerEventHandlerInput } };
 
-const size_t caerVisualizerEventHandlerListLength = (sizeof(caerVisualizerEventHandlerList) / sizeof(struct caer_visualizer_event_handler_info));
+const size_t caerVisualizerEventHandlerListLength = (sizeof(caerVisualizerEventHandlerList)
+	/ sizeof(struct caer_visualizer_event_handler_info));
 
-static void caerVisualizerEventHandlerSpikeEvents(caerVisualizerPublicState state, const sf::Event &event) {
+static void caerVisualizerEventHandlerNeuronMonitor(caerVisualizerPublicState state, const sf::Event &event) {
+	// This only works with actual hardware.
+	const std::string moduleLibrary = sshsNodeGetStdString(state->eventSourceConfigNode, "moduleLibrary");
+	if (moduleLibrary != "caer_dynapse") {
+		return;
+	}
+
 	// On release of left click.
 	if (event.type == sf::Event::MouseButtonReleased && event.mouseButton.button == sf::Mouse::Button::Left) {
-		// Check events come from an actual device.
-		if (strstr(sshsNodeGetName(state->eventSourceConfigNode), "DYNAPSEFX2") == NULL) {
-			return;
+		float positionX = (float) event.mouseButton.x;
+		float positionY = (float) event.mouseButton.y;
+
+		// Adjust coordinates according to zoom factor.
+		float currentZoomFactor = sshsNodeGetFloat(state->visualizerConfigNode, "zoomFactor");
+		if (currentZoomFactor > 1.0f) {
+			positionX = floorf(positionX / currentZoomFactor);
+			positionY = floorf(positionY / currentZoomFactor);
+		}
+		else if (currentZoomFactor < 1.0f) {
+			positionX = floorf(positionX * currentZoomFactor);
+			positionY = floorf(positionY * currentZoomFactor);
 		}
 
-		double posx, posy;
-		posx = (double) U32T(event.mouseButton.x);
-		posy = (double) U32T(event.mouseButton.y);
+		// Select chip. DYNAPSE_CONFIG_DYNAPSE_U0 default, doesn't need check.
+		uint8_t chipId = DYNAPSE_CONFIG_DYNAPSE_U0;
 
-		// adjust coordinates according to zoom
-		double currentZoomFactor = (double) sshsNodeGetFloat(state->visualizerConfigNode, "zoomFactor");
-		if (currentZoomFactor > 1) {
-			posx = (double) floor((double) posx / currentZoomFactor);
-			posy = (double) floor((double) posy / currentZoomFactor);
-		}
-		else if (currentZoomFactor < 1) {
-			posx = (double) floor((double) posx * currentZoomFactor);
-			posy = (double) floor((double) posy * currentZoomFactor);
-		}
-
-		// select chip
-		uint16_t chipId = 0;
-		if (posx >= (int) DYNAPSE_CONFIG_XCHIPSIZE && posy >= (int) DYNAPSE_CONFIG_YCHIPSIZE) {
+		if (positionX >= DYNAPSE_CONFIG_XCHIPSIZE && positionY >= DYNAPSE_CONFIG_YCHIPSIZE) {
 			chipId = DYNAPSE_CONFIG_DYNAPSE_U3;
 		}
-		else if (posx < (int) DYNAPSE_CONFIG_XCHIPSIZE && posy >= (int) DYNAPSE_CONFIG_YCHIPSIZE) {
+		else if (positionX < DYNAPSE_CONFIG_XCHIPSIZE && positionY >= DYNAPSE_CONFIG_YCHIPSIZE) {
 			chipId = DYNAPSE_CONFIG_DYNAPSE_U2;
 		}
-		else if (posx >= (int) DYNAPSE_CONFIG_XCHIPSIZE && posy < (int) DYNAPSE_CONFIG_YCHIPSIZE) {
+		else if (positionX >= DYNAPSE_CONFIG_XCHIPSIZE && positionY < DYNAPSE_CONFIG_YCHIPSIZE) {
 			chipId = DYNAPSE_CONFIG_DYNAPSE_U1;
 		}
-		else if (posx < (int) DYNAPSE_CONFIG_XCHIPSIZE && posy < (int) DYNAPSE_CONFIG_YCHIPSIZE) {
-			chipId = DYNAPSE_CONFIG_DYNAPSE_U0;
-		}
-		// adjust coordinate for chip
+
+		// Adjust coordinates for chip.
 		if (chipId == DYNAPSE_CONFIG_DYNAPSE_U3) {
-			posx = posx - DYNAPSE_CONFIG_XCHIPSIZE;
-			posy = posy - DYNAPSE_CONFIG_YCHIPSIZE;
+			positionX -= DYNAPSE_CONFIG_XCHIPSIZE;
+			positionY -= DYNAPSE_CONFIG_YCHIPSIZE;
 		}
 		else if (chipId == DYNAPSE_CONFIG_DYNAPSE_U2) {
-			posy = posy - DYNAPSE_CONFIG_YCHIPSIZE;
+			positionY -= DYNAPSE_CONFIG_YCHIPSIZE;
 		}
 		else if (chipId == DYNAPSE_CONFIG_DYNAPSE_U1) {
-			posx = posx - DYNAPSE_CONFIG_XCHIPSIZE;
+			positionX -= DYNAPSE_CONFIG_XCHIPSIZE;
 		}
 
-		// select core
-		uint8_t coreid = 0;
-		if (posx >= 16 && posy < 16) {
-			coreid = 2;
+		// Select core. Core ID 0 default, doesn't need check.
+		uint8_t coreId = 0;
+
+		if (positionX < DYNAPSE_CONFIG_NEUCOL && positionY >= DYNAPSE_CONFIG_NEUROW) {
+			coreId = 1;
 		}
-		else if (posx >= 16 && posy >= 16) {
-			coreid = 3;
+		else if (positionX >= DYNAPSE_CONFIG_NEUCOL && positionY < DYNAPSE_CONFIG_NEUROW) {
+			coreId = 2;
 		}
-		else if (posx < 16 && posy < 16) {
-			coreid = 0;
+		else if (positionX >= DYNAPSE_CONFIG_NEUCOL && positionY >= DYNAPSE_CONFIG_NEUROW) {
+			coreId = 3;
 		}
-		else if (posx < 16 && posy >= 16) {
-			coreid = 1;
+
+		// Adjust coordinates for core.
+		if (coreId == 1) {
+			positionY -= DYNAPSE_CONFIG_NEUROW;
 		}
-		// adjust coordinates for cores
-		if (coreid == 1) {
-			posy = posy - DYNAPSE_CONFIG_NEUCOL;
+		else if (coreId == 2) {
+			positionX -= DYNAPSE_CONFIG_NEUCOL;
 		}
-		else if (coreid == 0) {
-			;
-		}
-		else if (coreid == 2) {
-			posx = posx - DYNAPSE_CONFIG_NEUCOL;
-		}
-		else if (coreid == 3) {
-			posx = posx - DYNAPSE_CONFIG_NEUCOL;
-			posy = posy - DYNAPSE_CONFIG_NEUCOL;
+		else if (coreId == 3) {
+			positionX -= DYNAPSE_CONFIG_NEUCOL;
+			positionY -= DYNAPSE_CONFIG_NEUROW;
 		}
 
 		// linear index
-		uint32_t indexLin = (uint32_t) posx * DYNAPSE_CONFIG_NEUCOL + (uint32_t) posy;
-		if (indexLin > 255) {
-			indexLin = 255;
-		}
+		uint32_t linearIndex = (U32T(positionY) * DYNAPSE_CONFIG_NEUCOL) + U32T(positionX);
 
 		// TODO: switch to using SSHS.
-		//caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, (uint32_t) chipId);
-		//caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_MONITOR_NEU, coreid, indexLin);
+		//caerDeviceConfigSet(NULL, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, U32T(chipId));
+		//caerDeviceConfigSet(NULL, DYNAPSE_CONFIG_MONITOR_NEU, coreId, linearIndex);
 
-		if (chipId == 0) {
-			caerLog(CAER_LOG_NOTICE, "Visualizer",
-				"Monitoring neuron from DYNAPSE_U0 id %d, neuron number %d of core %d\n", chipId, indexLin, coreid);
-		}
-		if (chipId == 4) {
-			caerLog(CAER_LOG_NOTICE, "Visualizer",
-				"Monitoring neuron from DYNAPSE_U2 id %d, neuron number %d of core %d\n", chipId, indexLin, coreid);
-		}
-		if (chipId == 8) {
-			caerLog(CAER_LOG_NOTICE, "Visualizer",
-				"Monitoring neuron from DYNAPSE_U1 id %d, neuron number %d of core %d\n", chipId, indexLin, coreid);
-		}
-		if (chipId == 12) {
-			caerLog(CAER_LOG_NOTICE, "Visualizer",
-				"Monitoring neuron from DYNAPSE_U3 id %d, neuron number %d of core %d\n", chipId, indexLin, coreid);
-		}
+		caerLog(CAER_LOG_DEBUG, "Visualizer", "Monitoring neuron - chip ID: %d, core ID: %d, neuron ID: %d.", chipId,
+			coreId, linearIndex);
 	}
 }
 
 static void caerVisualizerEventHandlerInput(caerVisualizerPublicState state, const sf::Event &event) {
+	// This only works with an input module.
+	const std::string moduleLibrary = sshsNodeGetStdString(state->eventSourceConfigNode, "moduleLibrary");
+	if (!boost::algorithm::starts_with(moduleLibrary, "caer_input_")) {
+		return;
+	}
+
 	// PAUSE.
 	if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Key::Space) {
 		bool pause = sshsNodeGetBool(state->eventSourceConfigNode, "pause");

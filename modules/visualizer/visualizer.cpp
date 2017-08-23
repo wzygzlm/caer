@@ -9,8 +9,6 @@
 #include "visualizer_handlers.hpp"
 #include "visualizer_renderers.hpp"
 
-#include <boost/algorithm/string.hpp>
-
 #include <atomic>
 #include <thread>
 #include <mutex>
