@@ -313,6 +313,21 @@ static bool caerVisualizerRendererPoint2DEvents(caerVisualizerPublicState state,
 	return (true);
 }
 
+static inline sf::Color dynapseCoreIdToColor(uint8_t coreId) {
+	if (coreId == 3) {
+		return (sf::Color::Yellow);
+	}
+	else if (coreId == 2) {
+		return (sf::Color::Red);
+	}
+	else if (coreId == 1) {
+		return (sf::Color::Blue);
+	}
+
+	// Core ID 0 has default.
+	return (sf::Color::Green);
+}
+
 static bool caerVisualizerRendererSpikeEvents(caerVisualizerPublicState state, caerEventPacketContainer container) {
 	UNUSED_ARGUMENT(state);
 
@@ -333,23 +348,8 @@ static bool caerVisualizerRendererSpikeEvents(caerVisualizerPublicState state, c
 		}
 
 		// Render spikes with different colors based on core ID.
-		uint8_t coreId =spikeEvent.getSourceCoreID();
-		sf::Color color;
-
-		if (coreId == 0) {
-			color = sf::Color::Green;
-		}
-		else if (coreId == 1) {
-			color = sf::Color::Blue;
-		}
-		else if (coreId == 2) {
-			color = sf::Color::Red;
-		}
-		else if (coreId == 3) {
-			color = sf::Color::Yellow;
-		}
-
-		sfml::Helpers::addPixelVertices(vertices, sf::Vector2f(spikeEvent.getX(), spikeEvent.getY()), color);
+		uint8_t coreId = spikeEvent.getSourceCoreID();
+		sfml::Helpers::addPixelVertices(vertices, sf::Vector2f(spikeEvent.getX(), spikeEvent.getY()), dynapseCoreIdToColor(coreId));
 	}
 
 	state->renderWindow->draw(vertices.data(), vertices.size(), sf::Quads);
@@ -373,123 +373,66 @@ static bool caerVisualizerRendererSpikeEventsRaster(caerVisualizerPublicState st
 	uint32_t sizeX = state->renderSizeX;
 	uint32_t sizeY = state->renderSizeY;
 
-	// find max and min TS
-	int32_t min_ts = INT32_MAX;
-	int32_t max_ts = INT32_MIN;
+	// find max and min TS, event packets MUST be ordered by time, that's
+	// an invariant property, so we can just select first and last event.
+	// Also time is always positive, so we can use unsigned ints.
+	uint32_t minTimestamp = U32T(spikePacket[0].getTimestamp());
+	uint32_t maxTimestamp = U32T(spikePacket[-1].getTimestamp());
 
-	for (const auto &spikeEvent : spikePacket) {
-		int32_t ts = spikeEvent.getTimestamp();
-		if (ts > max_ts) {
-			max_ts = ts;
-		}
-		if (ts < min_ts) {
-			min_ts = ts;
-		}
-	}
-
-	// time span
-	int32_t time_span = max_ts - min_ts;
+	// time span, +1 to divide space correctly in scaleX.
+	uint32_t timeSpan = maxTimestamp - minTimestamp + 1;
 
 	float scaleX = 0.0;
-	if (time_span > 0) {
-		scaleX = ((float) sizeX / 2) / ((float) time_span); // two rasterplots in x
+	if (timeSpan > 0) {
+		scaleX = ((float) (sizeX / 2)) / ((float) timeSpan); // two rasterplots in x
 	}
-	float scaleY = ((float) sizeY / 2) / ((float) DYNAPSE_CONFIG_NUMNEURONS); // two rasterplots in y
+	float scaleY = ((float) (sizeY / 2)) / ((float) DYNAPSE_CONFIG_NUMNEURONS); // two rasterplots in y
+
+	std::vector<sf::Vertex> vertices((size_t) spikePacket.getEventNumber() * 4);
 
 	// Render all spikes.
 	for (const auto &spikeEvent : spikePacket) {
-		// get core id
+		uint32_t ts = U32T(spikeEvent.getTimestamp());
+		ts = ts - minTimestamp;
+
+		// X is based on time.
+		uint32_t plotX = U32T(floorf((float) ts * scaleX));
+
 		uint8_t coreId = spikeEvent.getSourceCoreID();
 
-		int32_t ts = spikeEvent.getTimestamp();
-		ts = ts - min_ts;
+		uint32_t linearIndex = spikeEvent.getNeuronID();
+		linearIndex += (coreId * DYNAPSE_CONFIG_NUMNEURONS_CORE);
 
-		int32_t newX = 0;
-		double checkX = floor((double) ts * (double) scaleX);
-		if (checkX < INT32_MAX && checkX > INT32_MIN ){
-			newX = I32T(checkX);
-		}
+		// Y is based on all neurons.
+		uint32_t plotY = U32T(floorf((float) linearIndex * scaleY));
 
-		// get x,y position
-		uint16_t x = spikeEvent.getX();
-		uint16_t y = spikeEvent.getY();
-
-		// calculate coordinates in the screen
-		// select chip
+		// Move plot X/Y based on chip ID, to get four quadrants with four chips.
 		uint8_t chipId = spikeEvent.getChipID();
 
-		// adjust coordinate for chip
 		if (chipId == DYNAPSE_CONFIG_DYNAPSE_U3) {
-			x = x - DYNAPSE_CONFIG_XCHIPSIZE;
-			y = y - DYNAPSE_CONFIG_YCHIPSIZE;
+			plotX += (sizeX / 2);
+			plotY += (sizeY / 2);
 		}
 		else if (chipId == DYNAPSE_CONFIG_DYNAPSE_U2) {
-			y = y - DYNAPSE_CONFIG_YCHIPSIZE;
+			plotY += (sizeY / 2);
 		}
 		else if (chipId == DYNAPSE_CONFIG_DYNAPSE_U1) {
-			x = x - DYNAPSE_CONFIG_XCHIPSIZE;
+			plotX += (sizeX / 2);
 		}
 		// DYNAPSE_CONFIG_DYNAPSE_U0 no changes.
 
-		// adjust coordinates for cores
-		if (coreId == 3) {
-			x = x - DYNAPSE_CONFIG_NEUCOL;
-			y = y - DYNAPSE_CONFIG_NEUCOL;
-		}
-		else if (coreId == 2) {
-			x = x - DYNAPSE_CONFIG_NEUCOL;
-		}
-		else if (coreId == 1) {
-			y = y - DYNAPSE_CONFIG_NEUCOL;
-		}
-		// coreId == 0 no changes.
-
-		uint32_t indexLin = x * DYNAPSE_CONFIG_NEUCOL + y;
-		uint32_t newY = indexLin + U32T(coreId * DYNAPSE_CONFIG_NUMNEURONS_CORE);
-
-		// adjust coordinate for plot
-		double checkY = floor((double) newY * (double) scaleY);
-		newY = 0;
-		if(checkY < INT32_MAX && checkY > INT32_MIN ){
-			newY = U32T(checkY);
-		}
-
-		// move
-		/*if (chipId == DYNAPSE_CONFIG_DYNAPSE_U3) {
-			che = floor( new_x + ((double) sizeX / 2));
-			if(che < INT32_MAX && che > INT32_MIN ){
-				new_x = (int32_t) che;
-			}
-			che = floor( new_y + (double) sizeY / 2.0);
-			if(che < INT32_MAX && che > INT32_MIN ){
-				new_y = (uint32_t) che;
-			}
-		}
-		else if (chipId == DYNAPSE_CONFIG_DYNAPSE_U2) {
-			che = floor( new_x + ((double) sizeX / 2));
-			if(che < INT32_MAX && che > INT32_MIN ){
-				new_x = (int32_t) che;
-			}
-		}
-		else if (chipId == DYNAPSE_CONFIG_DYNAPSE_U1) {
-			che = floor( new_y + (double) sizeY / 2.0);
-			if(che < INT32_MAX && che > INT32_MIN ){
-				new_y = (uint32_t) che;
-			}
-		}*/
-		// DYNAPSE_CONFIG_DYNAPSE_U0 no changes.
-
-		// draw borders
-		for (int xx = 0; xx < sizeX; xx++) {
-			// TODO: al_put_pixel(xx, sizeY / 2, al_map_rgb(255, 255, 255));
-		}
-		for (int yy = 0; yy < sizeY; yy++) {
-			// TODO: al_put_pixel(sizeX / 2, yy, al_map_rgb(255, 255, 255));
-		}
-
-		// draw pixels (neurons might be merged due to aliasing..)
-		// TODO: al_put_pixel( (int) new_x, (int) new_y, al_map_rgb(coreId * 0, 255, 0 * coreId));
+		// Draw pixels of raster plot (neurons might be merged due to aliasing). TODO: increase size, no scale?
+		sfml::Helpers::addPixelVertices(vertices, sf::Vector2f(plotX, plotY), dynapseCoreIdToColor(coreId));
 	}
+
+	state->renderWindow->draw(vertices.data(), vertices.size(), sf::Quads);
+
+	// Draw middle borders, only once! TODO: this eats up a pixel +/-.
+	sfml::Line horizontalBorderLine(sf::Vector2f(0, sizeY / 2), sf::Vector2f(sizeX - 1, sizeY / 2), 2, sf::Color::White);
+	state->renderWindow->draw(horizontalBorderLine);
+
+	sfml::Line verticalBorderLine(sf::Vector2f(sizeX / 2, 0), sf::Vector2f(sizeX / 2, sizeY - 1), 2, sf::Color::White);
+	state->renderWindow->draw(verticalBorderLine);
 
 	return (true);
 }
