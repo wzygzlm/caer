@@ -519,8 +519,12 @@ static void updateDisplaySize(caerVisualizerState state) {
 	newRenderWindowSize.x *= zoomFactor;
 	newRenderWindowSize.y *= zoomFactor;
 
-	// Set window size to zoomed area.
-	state->renderWindow->setSize(newRenderWindowSize);
+	// Set window size to zoomed area (only if value changed!).
+	sf::Vector2u oldSize = state->renderWindow->getSize();
+
+	if ((newRenderWindowSize.x != oldSize.x) || (newRenderWindowSize.y != oldSize.y)) {
+		state->renderWindow->setSize(newRenderWindowSize);
+	}
 }
 
 static void updateDisplayLocation(caerVisualizerState state) {
@@ -548,6 +552,16 @@ static void handleEvents(caerModuleData moduleData) {
 		if (event.type == sf::Event::Closed) {
 			// Stop visualizer module on window close.
 			sshsNodePutBool(moduleData->moduleNode, "running", false);
+		}
+		else if (event.type == sf::Event::Resized) {
+			// Handle resize events, the window is non-resizeable, so in theory all
+			// resize events should come from our zoom resizes, and thus we can just
+			// ignore them. But in reality we can also get resize events from things
+			// like maximizing a window, especially with tiling window managers.
+			// So we always just set the resize flag to true; on the next graphics
+			// pass it will then go and set the size again to the correctly zoomed
+			// value. If the size is the same, nothing happens.
+			state->windowResize.store(true);
 		}
 		else if (event.type == sf::Event::KeyPressed || event.type == sf::Event::KeyReleased
 			|| event.type == sf::Event::TextEntered) {
