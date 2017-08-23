@@ -576,6 +576,10 @@ static void handleEvents(caerModuleData moduleData) {
 
 				sshsNodePutFloat(moduleData->moduleNode, "zoomFactor", currentZoomFactor);
 			}
+			else if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Key::Home) {
+				// Reset zoom factor to default value.
+				sshsNodePutFloat(moduleData->moduleNode, "zoomFactor", VISUALIZER_ZOOM_DEF);
+			}
 			else if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Key::W) {
 				int32_t currentSubsampling = sshsNodeGetInt(moduleData->moduleNode, "subsampleRendering");
 
@@ -752,10 +756,6 @@ static int renderThread(void *inModuleData) {
 		return (thrd_error);
 	}
 
-	// Initialize window by clearing it to all black.
-	state->renderWindow->clear(sf::Color::Black);
-	state->renderWindow->display();
-
 	// Initialize renderer state.
 	if (state->renderer->stateInit != nullptr) {
 		state->renderState = (*state->renderer->stateInit)((caerVisualizerPublicState) state);
@@ -765,6 +765,10 @@ static int renderThread(void *inModuleData) {
 			return (thrd_error);
 		}
 	}
+
+	// Initialize window by clearing it to all black.
+	state->renderWindow->clear(sf::Color::Black);
+	state->renderWindow->display();
 
 	while (state->running.load(std::memory_order_relaxed)) {
 		renderScreen(moduleData);
