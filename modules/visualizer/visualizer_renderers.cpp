@@ -1,14 +1,15 @@
 #include "visualizer_renderers.hpp"
 
-#include <math.h>
+#include "ext/sfml/line.hpp"
+#include "ext/sfml/helpers.hpp"
 
 #include <libcaercpp/events/polarity.hpp>
 #include <libcaercpp/events/frame.hpp>
-#include <libcaer/events/imu6.h>
-#include <libcaer/events/point2d.h>
-#include <libcaer/events/point4d.h>
-#include <libcaer/events/spike.h>
-#include <libcaer/devices/dynapse.h> // Only for constants.
+#include <libcaercpp/events/imu6.hpp>
+#include <libcaercpp/events/point2d.hpp>
+#include <libcaercpp/events/point4d.hpp>
+#include <libcaercpp/events/spike.hpp>
+#include <libcaercpp/devices/dynapse.hpp> // Only for constants.
 
 static bool caerVisualizerRendererPolarityEvents(caerVisualizerPublicState state, caerEventPacketContainer container);
 static const struct caer_visualizer_renderer_info rendererPolarityEvents("Polarity", &caerVisualizerRendererPolarityEvents);
@@ -65,20 +66,8 @@ static bool caerVisualizerRendererPolarityEvents(caerVisualizerPublicState state
 			continue; // Skip invalid events.
 		}
 
-		sf::Vertex vtx(sf::Vector2f(polarityEvent.getX(), polarityEvent.getY()));
-
 		// ON polarity (green), OFF polarity (red).
-		vtx.color = (polarityEvent.getPolarity()) ? (sf::Color::Green) : (sf::Color::Red);
-
-		// Quads need four vertices. Color stays the same.
-		// Position changes by one in the clockwise sense.
-		vertices.push_back(vtx);
-		vtx.position.x++;
-		vertices.push_back(vtx);
-		vtx.position.y++;
-		vertices.push_back(vtx);
-		vtx.position.x--;
-		vertices.push_back(vtx);
+		sfml::Helpers::addPixelVertices(vertices, sf::Vector2f(polarityEvent.getX(), polarityEvent.getY()), (polarityEvent.getPolarity()) ? (sf::Color::Green) : (sf::Color::Red));
 	}
 
 	state->renderWindow->draw(vertices.data(), vertices.size(), sf::Quads);
@@ -194,11 +183,13 @@ static bool caerVisualizerRendererFrameEvents(caerVisualizerPublicState state, c
 #define RESET_LIMIT_NEG(VAL, LIMIT) if ((VAL) < (LIMIT)) { (VAL) = (LIMIT); }
 
 static bool caerVisualizerRendererIMU6Events(caerVisualizerPublicState state, caerEventPacketContainer container) {
-	caerEventPacketHeader imu6EventPacketHeader = caerEventPacketContainerFindEventPacketByType(container, IMU6_EVENT);
+	caerEventPacketHeader imu6PacketHeader = caerEventPacketContainerFindEventPacketByType(container, IMU6_EVENT);
 
-	if (imu6EventPacketHeader == NULL || caerEventPacketHeaderGetEventValid(imu6EventPacketHeader) == 0) {
+	if (imu6PacketHeader == NULL || caerEventPacketHeaderGetEventValid(imu6PacketHeader) == 0) {
 		return (false);
 	}
+
+	const libcaer::events::IMU6EventPacket imu6Packet(imu6PacketHeader, false);
 
 	float scaleFactorAccel = 30;
 	float scaleFactorGyro = 15;
@@ -217,18 +208,18 @@ static bool caerVisualizerRendererIMU6Events(caerVisualizerPublicState state, ca
 
 	// Iterate over valid IMU events and average them.
 	// This somewhat smoothes out the rendering.
-	CAER_IMU6_ITERATOR_VALID_START((caerIMU6EventPacket) imu6EventPacketHeader)
-		accelX += caerIMU6EventGetAccelX(caerIMU6IteratorElement);
-		accelY += caerIMU6EventGetAccelY(caerIMU6IteratorElement);
-		accelZ += caerIMU6EventGetAccelZ(caerIMU6IteratorElement);
+	for (const auto &imu6Event : imu6Packet) {
+		accelX += imu6Event.getAccelX();
+		accelY += imu6Event.getAccelY();
+		accelZ += imu6Event.getAccelZ();
 
-		gyroX += caerIMU6EventGetGyroX(caerIMU6IteratorElement);
-		gyroY += caerIMU6EventGetGyroY(caerIMU6IteratorElement);
-		gyroZ += caerIMU6EventGetGyroZ(caerIMU6IteratorElement);
-	CAER_IMU6_ITERATOR_VALID_END
+		gyroX += imu6Event.getGyroX();
+		gyroY += imu6Event.getGyroY();
+		gyroZ += imu6Event.getGyroZ();
+	}
 
 	// Normalize values.
-	int32_t validEvents = caerEventPacketHeaderGetEventValid(imu6EventPacketHeader);
+	int32_t validEvents = imu6Packet.getEventValid();
 
 	accelX /= (float) validEvents;
 	accelY /= (float) validEvents;
@@ -249,13 +240,29 @@ static bool caerVisualizerRendererIMU6Events(caerVisualizerPublicState state, ca
 	RESET_LIMIT_POS(accelZScaled, centerPointY - 2 - lineThickness); // Circle max.
 	RESET_LIMIT_NEG(accelZScaled, 1); // Circle min.
 
-	// TODO: al_draw_line(centerPointX, centerPointY, accelXScaled, accelYScaled, accelColor, lineThickness);
-	// TODO: al_draw_circle(centerPointX, centerPointY, accelZScaled, accelColor, lineThickness);
+	sfml::Line accelLine(sf::Vector2f(centerPointX, centerPointY), sf::Vector2f(accelXScaled, accelYScaled), lineThickness, accelColor);
+	state->renderWindow->draw(accelLine);
 
-	// TODO: Add text for values. Check that displayFont is not NULL.
-	//char valStr[128];
-	//snprintf(valStr, 128, "%.2f,%.2f g", (double) accelX, (double) accelY);
-	//al_draw_text(state->displayFont, accelColor, accelXScaled, accelYScaled, 0, valStr);
+	sf::CircleShape accelCircle(accelZScaled);
+	sfml::Helpers::setOriginToCenter(accelCircle);
+	accelCircle.setFillColor(sf::Color::Transparent);
+	accelCircle.setOutlineColor(accelColor);
+	accelCircle.setOutlineThickness(-lineThickness);
+	accelCircle.setPosition(sf::Vector2f(centerPointX, centerPointY));
+
+	state->renderWindow->draw(accelCircle);
+
+	// TODO: enhance IMU renderer with more text info.
+	if (state->font != nullptr) {
+		char valStr[128];
+		snprintf(valStr, 128, "%.2f,%.2f g", (double) accelX, (double) accelY);
+
+		sf::Text accelText(valStr, *state->font, 20);
+		accelText.setFillColor(accelColor);
+		accelText.setPosition(sf::Vector2f(accelXScaled, accelYScaled));
+
+		state->renderWindow->draw(accelText);
+	}
 
 	// Gyroscope pitch(X), yaw(Y), roll(Z) as lines.
 	float gyroXScaled = centerPointY + gyroX * scaleFactorGyro;
@@ -268,8 +275,11 @@ static bool caerVisualizerRendererIMU6Events(caerVisualizerPublicState state, ca
 	RESET_LIMIT_POS(gyroZScaled, maxSizeX - 2 - lineThickness);
 	RESET_LIMIT_NEG(gyroZScaled, 1 + lineThickness);
 
-	// TODO: al_draw_line(centerPointX, centerPointY, gyroYScaled, gyroXScaled, gyroColor, lineThickness);
-	// TODO: al_draw_line(centerPointX, centerPointY - 20, gyroZScaled, centerPointY - 20, gyroColor, lineThickness);
+	sfml::Line gyroLine1(sf::Vector2f(centerPointX, centerPointY), sf::Vector2f(gyroYScaled, gyroXScaled), lineThickness, gyroColor);
+	state->renderWindow->draw(gyroLine1);
+
+	sfml::Line gyroLine2(sf::Vector2f(centerPointX, centerPointY - 20), sf::Vector2f(gyroZScaled, centerPointY - 20), lineThickness, gyroColor);
+	state->renderWindow->draw(gyroLine2);
 
 	return (true);
 }
@@ -277,21 +287,28 @@ static bool caerVisualizerRendererIMU6Events(caerVisualizerPublicState state, ca
 static bool caerVisualizerRendererPoint2DEvents(caerVisualizerPublicState state, caerEventPacketContainer container) {
 	UNUSED_ARGUMENT(state);
 
-	caerEventPacketHeader point2DEventPacketHeader = caerEventPacketContainerFindEventPacketByType(container,
+	caerEventPacketHeader point2DPacketHeader = caerEventPacketContainerFindEventPacketByType(container,
 		POINT2D_EVENT);
 
-	if (point2DEventPacketHeader == NULL || caerEventPacketHeaderGetEventValid(point2DEventPacketHeader) == 0) {
+	if (point2DPacketHeader == NULL || caerEventPacketHeaderGetEventValid(point2DPacketHeader) == 0) {
 		return (false);
 	}
 
-	// Render all valid events.
-	CAER_POINT2D_ITERATOR_VALID_START((caerPoint2DEventPacket) point2DEventPacketHeader)
-		float x = caerPoint2DEventGetX(caerPoint2DIteratorElement);
-		float y = caerPoint2DEventGetY(caerPoint2DIteratorElement);
+	const libcaer::events::Point2DEventPacket point2DPacket(point2DPacketHeader, false);
 
-		// Display points in blue.
-		// TODO: al_put_pixel((int) x, (int) y, al_map_rgb(0, 255, 255));
-	CAER_POINT2D_ITERATOR_VALID_END
+	std::vector<sf::Vertex> vertices((size_t) point2DPacket.getEventValid() * 4);
+
+	// Render all valid events.
+	for (const auto &point2DEvent : point2DPacket) {
+		if (!point2DEvent.isValid()) {
+			continue; // Skip invalid events.
+		}
+
+		// Render points in color blue.
+		sfml::Helpers::addPixelVertices(vertices, sf::Vector2f(point2DEvent.getX(), point2DEvent.getY()), sf::Color::Blue);
+	}
+
+	state->renderWindow->draw(vertices.data(), vertices.size(), sf::Quads);
 
 	return (true);
 }
@@ -299,56 +316,64 @@ static bool caerVisualizerRendererPoint2DEvents(caerVisualizerPublicState state,
 static bool caerVisualizerRendererSpikeEventsRaster(caerVisualizerPublicState state, caerEventPacketContainer container) {
 	UNUSED_ARGUMENT(state);
 
-	caerEventPacketHeader spikeEventPacketHeader = caerEventPacketContainerFindEventPacketByType(container,
+	caerEventPacketHeader spikePacketHeader = caerEventPacketContainerFindEventPacketByType(container,
 		SPIKE_EVENT);
 
-	if (spikeEventPacketHeader == NULL || caerEventPacketHeaderGetEventValid(spikeEventPacketHeader) == 0) {
+	if (spikePacketHeader == NULL || caerEventPacketHeaderGetEventValid(spikePacketHeader) == 0) {
 		return (false);
 	}
 
+	const libcaer::events::SpikeEventPacket spikePacket(spikePacketHeader, false);
+
 	// get bitmap's size
-	int32_t sizeX = state->renderSizeX;
-	int32_t sizeY = state->renderSizeY;
+	uint32_t sizeX = state->renderSizeX;
+	uint32_t sizeY = state->renderSizeY;
 
 	// find max and min TS
 	int32_t min_ts = INT32_MAX;
 	int32_t max_ts = INT32_MIN;
-	CAER_SPIKE_ITERATOR_ALL_START( (caerSpikeEventPacket) spikeEventPacketHeader )
-		int32_t ts = caerSpikeEventGetTimestamp(caerSpikeIteratorElement);
+
+	for (const auto &spikeEvent : spikePacket) {
+		int32_t ts = spikeEvent.getTimestamp();
 		if (ts > max_ts) {
 			max_ts = ts;
 		}
 		if (ts < min_ts) {
 			min_ts = ts;
-		}CAER_SPIKE_ITERATOR_ALL_END
+		}
+	}
+
 	// time span
 	int32_t time_span = max_ts - min_ts;
-	float scalex = 0.0;
+
+	float scaleX = 0.0;
 	if (time_span > 0) {
-		scalex = ((float) sizeX / 2) / ((float) time_span); // two rasterplots in x
+		scaleX = ((float) sizeX / 2) / ((float) time_span); // two rasterplots in x
 	}
-	float scaley = ((float) sizeY / 2) / ((float) DYNAPSE_CONFIG_NUMNEURONS); // two rasterplots in y
-	int32_t new_x = 0;
+	float scaleY = ((float) sizeY / 2) / ((float) DYNAPSE_CONFIG_NUMNEURONS); // two rasterplots in y
 
 	// Render all spikes.
-	CAER_SPIKE_ITERATOR_ALL_START( (caerSpikeEventPacket) spikeEventPacketHeader )
+	for (const auto &spikeEvent : spikePacket) {
+		// get core id
+		uint8_t coreId = spikeEvent.getSourceCoreID();
 
-	// get core id
-		uint8_t coreId = caerSpikeEventGetSourceCoreID(caerSpikeIteratorElement);
-		int32_t ts = caerSpikeEventGetTimestamp(caerSpikeIteratorElement);
+		int32_t ts = spikeEvent.getTimestamp();
 		ts = ts - min_ts;
-		double chek = floor( (double) ts * (double) scalex);
-		if(chek < INT32_MAX && chek > INT32_MIN ){
-			new_x = (int32_t) chek;
+
+		int32_t newX = 0;
+		double checkX = floor((double) ts * (double) scaleX);
+		if (checkX < INT32_MAX && checkX > INT32_MIN ){
+			newX = I32T(checkX);
 		}
 
 		// get x,y position
-		uint16_t y = caerSpikeEventGetY(caerSpikeIteratorElement);
-		uint16_t x = caerSpikeEventGetX(caerSpikeIteratorElement);
+		uint16_t x = spikeEvent.getX();
+		uint16_t y = spikeEvent.getY();
 
 		// calculate coordinates in the screen
 		// select chip
-		uint8_t chipId = caerSpikeEventGetChipID(caerSpikeIteratorElement);
+		uint8_t chipId = spikeEvent.getChipID();
+
 		// adjust coordinate for chip
 		if (chipId == DYNAPSE_CONFIG_DYNAPSE_U3_OUT) {
 			x = x - DYNAPSE_CONFIG_XCHIPSIZE;
@@ -360,37 +385,33 @@ static bool caerVisualizerRendererSpikeEventsRaster(caerVisualizerPublicState st
 		else if (chipId == DYNAPSE_CONFIG_DYNAPSE_U1_OUT) {
 			x = x - DYNAPSE_CONFIG_XCHIPSIZE;
 		}
-		else if (chipId == DYNAPSE_CONFIG_DYNAPSE_U0_OUT) {
-			;
-		}
+		// DYNAPSE_CONFIG_DYNAPSE_U0_OUT no changes.
+
 		// adjust coordinates for cores
-		if (coreId == 1) {
+		if (coreId == 3) {
+			x = x - DYNAPSE_CONFIG_NEUCOL;
 			y = y - DYNAPSE_CONFIG_NEUCOL;
-		}
-		else if (coreId == 0) {
-			;
 		}
 		else if (coreId == 2) {
 			x = x - DYNAPSE_CONFIG_NEUCOL;
 		}
-		else if (coreId == 3) {
-			x = x - DYNAPSE_CONFIG_NEUCOL;
+		else if (coreId == 1) {
 			y = y - DYNAPSE_CONFIG_NEUCOL;
 		}
+		// coreId == 0 no changes.
 
 		uint32_t indexLin = x * DYNAPSE_CONFIG_NEUCOL + y;
-		uint32_t new_y = (uint32_t) indexLin + (uint32_t) (coreId * DYNAPSE_CONFIG_NUMNEURONS_CORE);
+		uint32_t newY = indexLin + U32T(coreId * DYNAPSE_CONFIG_NUMNEURONS_CORE);
 
 		// adjust coordinate for plot
-
-		double che = floor((double) new_y * (double) scaley);
-		new_y = 0;
-		if(che < INT32_MAX && che > INT32_MIN ){
-			new_y = (uint32_t) che;
+		double checkY = floor((double) newY * (double) scaleY);
+		newY = 0;
+		if(checkY < INT32_MAX && checkY > INT32_MIN ){
+			newY = U32T(checkY);
 		}
 
 		// move
-		if (chipId == DYNAPSE_CONFIG_DYNAPSE_U3_OUT) {
+		/*if (chipId == DYNAPSE_CONFIG_DYNAPSE_U3_OUT) {
 			che = floor( new_x + ((double) sizeX / 2));
 			if(che < INT32_MAX && che > INT32_MIN ){
 				new_x = (int32_t) che;
@@ -411,10 +432,9 @@ static bool caerVisualizerRendererSpikeEventsRaster(caerVisualizerPublicState st
 			if(che < INT32_MAX && che > INT32_MIN ){
 				new_y = (uint32_t) che;
 			}
-		}
-		else if (chipId == DYNAPSE_CONFIG_DYNAPSE_U0_OUT) {
-			;
-		}
+		}*/
+		// DYNAPSE_CONFIG_DYNAPSE_U0_OUT no changes.
+
 		// draw borders
 		for (int xx = 0; xx < sizeX; xx++) {
 			// TODO: al_put_pixel(xx, sizeY / 2, al_map_rgb(255, 255, 255));
@@ -425,7 +445,7 @@ static bool caerVisualizerRendererSpikeEventsRaster(caerVisualizerPublicState st
 
 		// draw pixels (neurons might be merged due to aliasing..)
 		// TODO: al_put_pixel( (int) new_x, (int) new_y, al_map_rgb(coreId * 0, 255, 0 * coreId));
-	CAER_SPIKE_ITERATOR_ALL_END
+	}
 
 	return (true);
 }
@@ -433,37 +453,43 @@ static bool caerVisualizerRendererSpikeEventsRaster(caerVisualizerPublicState st
 static bool caerVisualizerRendererSpikeEvents(caerVisualizerPublicState state, caerEventPacketContainer container) {
 	UNUSED_ARGUMENT(state);
 
-	caerEventPacketHeader spikeEventPacketHeader = caerEventPacketContainerFindEventPacketByType(container,
-		SPIKE_EVENT);
+	caerEventPacketHeader spikePacketHeader = caerEventPacketContainerFindEventPacketByType(container, SPIKE_EVENT);
 
-	if (spikeEventPacketHeader == NULL || caerEventPacketHeaderGetEventValid(spikeEventPacketHeader) == 0) {
+	if (spikePacketHeader == NULL || caerEventPacketHeaderGetEventValid(spikePacketHeader) == 0) {
 		return (false);
 	}
 
-	// Render all spikes.
-	CAER_SPIKE_ITERATOR_ALL_START( (caerSpikeEventPacket) spikeEventPacketHeader )
+	const libcaer::events::SpikeEventPacket spikePacket(spikePacketHeader, false);
 
-		// get core id
-		uint8_t coreId = caerSpikeEventGetSourceCoreID(caerSpikeIteratorElement);
-		//uint8_t chipId = caerSpikeEventGetChipID(caerSpikeIteratorElement);
-		//get x,y position
-		uint16_t y = caerSpikeEventGetY(caerSpikeIteratorElement);
-		uint16_t x = caerSpikeEventGetX(caerSpikeIteratorElement);
+	std::vector<sf::Vertex> vertices((size_t) spikePacket.getEventValid() * 4);
+
+	// Render all valid events.
+	for (const auto &spikeEvent : spikePacket) {
+		if (!spikeEvent.isValid()) {
+			continue; // Skip invalid events.
+		}
+
+		// Render spikes with different colors based on core ID.
+		uint8_t coreId =spikeEvent.getSourceCoreID();
+		sf::Color color;
 
 		if (coreId == 0) {
-			// TODO: al_put_pixel(x, y, al_map_rgb(0, 255, 0));
+			color = sf::Color::Green;
 		}
 		else if (coreId == 1) {
-			// TODO: al_put_pixel(x, y, al_map_rgb(0, 0, 255));
+			color = sf::Color::Blue;
 		}
 		else if (coreId == 2) {
-			// TODO: al_put_pixel(x, y, al_map_rgb(255, 0, 0));
+			color = sf::Color::Red;
 		}
 		else if (coreId == 3) {
-			// TODO: al_put_pixel(x, y, al_map_rgb(255, 255, 0));
+			color = sf::Color::Yellow;
 		}
 
-	CAER_SPIKE_ITERATOR_ALL_END
+		sfml::Helpers::addPixelVertices(vertices, sf::Vector2f(spikeEvent.getX(), spikeEvent.getY()), color);
+	}
+
+	state->renderWindow->draw(vertices.data(), vertices.size(), sf::Quads);
 
 	return (true);
 }
