@@ -76,9 +76,9 @@ static void handleEvents(caerModuleData moduleData);
 static void renderScreen(caerModuleData moduleData);
 static int renderThread(void *inModuleData);
 
-static const struct caer_module_functions VisualizerFunctions =
-	{ .moduleInit = &caerVisualizerInit, .moduleRun = &caerVisualizerRun, .moduleConfig = nullptr, .moduleExit =
-		&caerVisualizerExit, .moduleReset = &caerVisualizerReset };
+static const struct caer_module_functions VisualizerFunctions = { .moduleConfigInit = nullptr, .moduleInit =
+	&caerVisualizerInit, .moduleRun = &caerVisualizerRun, .moduleConfig = nullptr, .moduleExit = &caerVisualizerExit,
+	.moduleReset = &caerVisualizerReset };
 
 static const struct caer_event_stream_in VisualizerInputs[] = { { .type = -1, .number = -1, .readOnly = true } };
 
