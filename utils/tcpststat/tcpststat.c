@@ -4,7 +4,10 @@
 #include <stdint.h>
 #include <inttypes.h>
 #include <string.h>
-#include "ext/libuv.h"
+#include <unistd.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
 #include "ext/nets.h"
 #include "modules/misc/inout_common.h"
 
@@ -75,12 +78,18 @@ int main(int argc, char *argv[]) {
 	}
 
 	struct sockaddr_in listenTCPAddress;
+	memset(&listenTCPAddress, 0, sizeof(struct sockaddr_in));
 
-	int retVal = uv_ip4_addr(ipAddress, portNumber, &listenTCPAddress);
-	UV_RET_CHECK_STDERR(retVal, "uv_ip4_addr", return (EXIT_FAILURE));
+	listenTCPAddress.sin_family = AF_INET;
+	listenTCPAddress.sin_port = htons(portNumber);
+
+	if (inet_pton(AF_INET, ipAddress, &listenTCPAddress.sin_addr) == 0) {
+		fprintf(stderr, "No valid IP address found. '%s' is invalid!\n", ipAddress);
+		return (EXIT_FAILURE);
+	}
 
 	// Create listening socket for TCP data.
-	uv_os_sock_t listenTCPSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	int listenTCPSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (listenTCPSocket < 0) {
 		fprintf(stderr, "Failed to create TCP socket.\n");
 		return (EXIT_FAILURE);
