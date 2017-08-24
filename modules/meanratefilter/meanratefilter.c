@@ -40,7 +40,7 @@ static void caerMeanRateFilterRun(caerModuleData moduleData, caerEventPacketCont
     caerEventPacketContainer *out);
 static void caerMeanRateFilterConfig(caerModuleData moduleData);
 static void caerMeanRateFilterExit(caerModuleData moduleData);
-static void caerMeanRateFilterReset(caerModuleData moduleData, uint16_t resetCallSourceID);
+static void caerMeanRateFilterReset(caerModuleData moduleData, int16_t resetCallSourceID);
 static bool allocateFrequencyMap(MRFilterState state, int16_t sourceID);
 static bool allocateSpikeCountMap(MRFilterState state, int16_t sourceID);
 
@@ -312,11 +312,11 @@ static void caerMeanRateFilterRun(caerModuleData moduleData, caerEventPacketCont
 	caerMeanRateFilterConfig(moduleData);
 
 	// Iterate over events and update frequency
-	CAER_SPIKE_ITERATOR_VALID_START(spike)
+	CAER_SPIKE_CONST_ITERATOR_VALID_START(spike)
 		// Get values on which to operate.
 		//int64_t ts = caerSpikeEventGetTimestamp64(caerSpikeIteratorElement, spike);
-		uint16_t x = caerSpikeEventGetX(caerSpikeIteratorElement);
-		uint16_t y = caerSpikeEventGetY(caerSpikeIteratorElement);
+		uint16_t x = caerDynapseSpikeEventGetX(caerSpikeIteratorElement);
+		uint16_t y = caerDynapseSpikeEventGetY(caerSpikeIteratorElement);
 
 		// Update value into maps 
 		state->spikeCountMap->buffer2d[x][y] += 1;
@@ -392,7 +392,7 @@ static void caerMeanRateFilterExit(caerModuleData moduleData) {
 	simple2DBufferFreeLong(state->spikeCountMap);
 }
 
-static void caerMeanRateFilterReset(caerModuleData moduleData, uint16_t resetCallSourceID) {
+static void caerMeanRateFilterReset(caerModuleData moduleData, int16_t resetCallSourceID) {
 	UNUSED_ARGUMENT(resetCallSourceID);
 
 	MRFilterState state = moduleData->moduleState;

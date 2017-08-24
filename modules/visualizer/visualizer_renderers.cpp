@@ -364,8 +364,9 @@ static bool caerVisualizerRendererSpikeEvents(caerVisualizerPublicState state, c
 
 		// Render spikes with different colors based on core ID.
 		uint8_t coreId = spikeEvent.getSourceCoreID();
-		sfml::Helpers::addPixelVertices(vertices, sf::Vector2f(spikeEvent.getX(), spikeEvent.getY()),
-			dynapseCoreIdToColor(coreId));
+		sfml::Helpers::addPixelVertices(vertices,
+			sf::Vector2f(libcaer::devices::dynapse::spikeEventGetX(spikeEvent),
+				libcaer::devices::dynapse::spikeEventGetY(spikeEvent)), dynapseCoreIdToColor(coreId));
 	}
 
 	state->renderWindow->draw(vertices.data(), vertices.size(), sf::Quads);
