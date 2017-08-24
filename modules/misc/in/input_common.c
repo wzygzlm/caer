@@ -573,7 +573,7 @@ static bool parseData(inputCommonState state) {
 
 		// New packet from stream, send it off to the input assembler thread. Same memory
 		// related considerations as above for state->packets.currPacketData apply here too!
-		while (!ringBufferPut(state->transferRingPackets, state->packets.currPacket)) {
+		while (!caerRingBufferPut(state->transferRingPackets, state->packets.currPacket)) {
 			// We ensure all read packets are sent to the Assembler stage.
 			if (!atomic_load_explicit(&state->running, memory_order_relaxed)) {
 				// On normal termination, just return without errors. The Reader thread
@@ -1580,7 +1580,7 @@ static void doPacketContainerCommit(inputCommonState state, caerEventPacketConta
 		return;
 	}
 
-	retry: if (!ringBufferPut(state->transferRingPacketContainers, packetContainer)) {
+	retry: if (!caerRingBufferPut(state->transferRingPacketContainers, packetContainer)) {
 		if (force && atomic_load_explicit(&state->running, memory_order_relaxed)) {
 			// Retry forever if requested, at least while the module is running.
 			goto retry;
@@ -1685,7 +1685,7 @@ static int inputAssemblerThread(void *stateArg) {
 		}
 
 		// Get parsed packets from Reader thread.
-		caerEventPacketHeader currPacket = ringBufferGet(state->transferRingPackets);
+		caerEventPacketHeader currPacket = caerRingBufferGet(state->transferRingPackets);
 		if (currPacket == NULL) {
 			// Let's see why there are no more packets to read, maybe the reader failed.
 			// Also EOF could have been reached, in which case the reader would have committed its last
@@ -1882,13 +1882,13 @@ bool isNetworkMessageBased) {
 	atomic_store(&state->packetContainer.timeDelay, sshsNodeGetInt(moduleData->moduleNode, "PacketContainerDelay"));
 
 	// Initialize transfer ring-buffers. ringBufferSize only changes here at init time!
-	state->transferRingPackets = ringBufferInit((size_t) ringSize);
+	state->transferRingPackets = caerRingBufferInit((size_t) ringSize);
 	if (state->transferRingPackets == NULL) {
 		caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Failed to allocate packets transfer ring-buffer.");
 		return (false);
 	}
 
-	state->transferRingPacketContainers = ringBufferInit((size_t) ringSize);
+	state->transferRingPacketContainers = caerRingBufferInit((size_t) ringSize);
 	if (state->transferRingPacketContainers == NULL) {
 		caerModuleLog(state->parentModule, CAER_LOG_ERROR,
 			"Failed to allocate packet containers transfer ring-buffer.");
@@ -1897,8 +1897,8 @@ bool isNetworkMessageBased) {
 
 	// Allocate data buffer. bufferSize is updated here.
 	if (!newInputBuffer(state)) {
-		ringBufferFree(state->transferRingPackets);
-		ringBufferFree(state->transferRingPacketContainers);
+		caerRingBufferFree(state->transferRingPackets);
+		caerRingBufferFree(state->transferRingPacketContainers);
 
 		caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Failed to allocate input data buffer.");
 		return (false);
@@ -1916,8 +1916,8 @@ bool isNetworkMessageBased) {
 	atomic_store(&state->running, true);
 
 	if (thrd_create(&state->inputAssemblerThread, &inputAssemblerThread, state) != thrd_success) {
-		ringBufferFree(state->transferRingPackets);
-		ringBufferFree(state->transferRingPacketContainers);
+		caerRingBufferFree(state->transferRingPackets);
+		caerRingBufferFree(state->transferRingPacketContainers);
 		free(state->dataBuffer);
 
 		caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Failed to start input assembler thread.");
@@ -1925,8 +1925,8 @@ bool isNetworkMessageBased) {
 	}
 
 	if (thrd_create(&state->inputReaderThread, &inputReaderThread, state) != thrd_success) {
-		ringBufferFree(state->transferRingPackets);
-		ringBufferFree(state->transferRingPacketContainers);
+		caerRingBufferFree(state->transferRingPackets);
+		caerRingBufferFree(state->transferRingPacketContainers);
 		free(state->dataBuffer);
 
 		// Stop assembler thread (started just above) and wait on it.
@@ -1970,7 +1970,7 @@ void caerInputCommonExit(caerModuleData moduleData) {
 
 	// Now clean up the transfer ring-buffers and its contents.
 	caerEventPacketContainer packetContainer;
-	while ((packetContainer = ringBufferGet(state->transferRingPacketContainers)) != NULL) {
+	while ((packetContainer = caerRingBufferGet(state->transferRingPacketContainers)) != NULL) {
 		caerEventPacketContainerFree(packetContainer);
 
 		// If we're here, then nobody will (or even can) consume this data afterwards.
@@ -1978,7 +1978,7 @@ void caerInputCommonExit(caerModuleData moduleData) {
 		atomic_fetch_sub_explicit(&state->dataAvailableModule, 1, memory_order_relaxed);
 	}
 
-	ringBufferFree(state->transferRingPacketContainers);
+	caerRingBufferFree(state->transferRingPacketContainers);
 
 	// Check we indeed removed all data and counters match this expectation.
 	if (atomic_load(&state->dataAvailableModule) != 0) {
@@ -1989,11 +1989,11 @@ void caerInputCommonExit(caerModuleData moduleData) {
 	}
 
 	caerEventPacketHeader packet;
-	while ((packet = ringBufferGet(state->transferRingPackets)) != NULL) {
+	while ((packet = caerRingBufferGet(state->transferRingPackets)) != NULL) {
 		free(packet);
 	}
 
-	ringBufferFree(state->transferRingPackets);
+	caerRingBufferFree(state->transferRingPackets);
 
 	// Free all waiting packets.
 	caerEventPacketHeader *packetPtr = NULL;
@@ -2038,7 +2038,7 @@ void caerInputCommonRun(caerModuleData moduleData, caerEventPacketContainer in, 
 
 	inputCommonState state = moduleData->moduleState;
 
-	*out = ringBufferGet(state->transferRingPacketContainers);
+	*out = caerRingBufferGet(state->transferRingPacketContainers);
 
 	if (*out != NULL) {
 		// No special memory order for decrease, because the acquire load to even start running

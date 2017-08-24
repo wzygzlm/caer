@@ -136,7 +136,7 @@ void caerOutputCommonReset(caerModuleData moduleData, int16_t resetCallSourceID)
 		// Assign special packet to packet container.
 		caerEventPacketContainerSetEventPacket(tsResetContainer, SPECIAL_EVENT, (caerEventPacketHeader) tsResetPacket);
 
-		while (!ringBufferPut(state->compressorRing, tsResetContainer)) {
+		while (!caerRingBufferPut(state->compressorRing, tsResetContainer)) {
 			; // Ensure this goes into the first ring-buffer.
 		}
 
@@ -292,7 +292,7 @@ static void copyPacketsToTransferRing(outputCommonState state, caerEventPacketCo
 	// to successfully copy.
 	caerEventPacketContainerSetEventPacketsNumber(eventPackets, (int32_t) idx);
 
-	retry: if (!ringBufferPut(state->compressorRing, eventPackets)) {
+	retry: if (!caerRingBufferPut(state->compressorRing, eventPackets)) {
 		if (atomic_load_explicit(&state->keepPackets, memory_order_relaxed)) {
 			// Delay by 500 µs if no change, to avoid a wasteful busy loop.
 			struct timespec retrySleep = { .tv_sec = 0, .tv_nsec = 500000 };
@@ -346,7 +346,7 @@ static int compressorThread(void *stateArg) {
 
 	while (atomic_load_explicit(&state->running, memory_order_relaxed)) {
 		// Get the newest event packet container from the transfer ring-buffer.
-		caerEventPacketContainer currPacketContainer = ringBufferGet(state->compressorRing);
+		caerEventPacketContainer currPacketContainer = caerRingBufferGet(state->compressorRing);
 		if (currPacketContainer == NULL) {
 			// There is none, so we can't work on and commit this.
 			// We just sleep here a little and then try again, as we need the data!
@@ -363,7 +363,7 @@ static int compressorThread(void *stateArg) {
 
 	// Handle shutdown, write out all content remaining in the transfer ring-buffer.
 	caerEventPacketContainer packetContainer;
-	while ((packetContainer = ringBufferGet(state->compressorRing)) != NULL) {
+	while ((packetContainer = caerRingBufferGet(state->compressorRing)) != NULL) {
 		orderAndSendEventPackets(state, packetContainer);
 	}
 
@@ -450,7 +450,7 @@ static void sendEventPacket(outputCommonState state, caerEventPacketHeader packe
 	libuvWriteBufInitWithAnyBuffer(packetBuffer, packet, packetSize);
 
 	// Put packet buffer onto output ring-buffer. Retry until successful.
-	while (!ringBufferPut(state->outputRing, packetBuffer)) {
+	while (!caerRingBufferPut(state->outputRing, packetBuffer)) {
 		// If the output thread failed, we'd forever block here, if it can't accept
 		// any more data. So we detect that condition and discard remaining packets.
 		if (atomic_load_explicit(&state->outputThreadFailure, memory_order_relaxed)) {
@@ -868,7 +868,7 @@ static int outputThread(void *stateArg) {
 	// in caerOutputCommonExit() we expect the ring-buffer to always be empty!
 	if (!headerSent) {
 		libuvWriteBuf packetBuffer;
-		while ((packetBuffer = ringBufferGet(state->outputRing)) != NULL) {
+		while ((packetBuffer = caerRingBufferGet(state->outputRing)) != NULL) {
 			free(packetBuffer->freeBuf);
 			free(packetBuffer);
 		}
@@ -895,7 +895,7 @@ static int outputThread(void *stateArg) {
 		struct timespec noDataSleep = { .tv_sec = 0, .tv_nsec = 1000000 };
 
 		while (atomic_load_explicit(&state->running, memory_order_relaxed)) {
-			libuvWriteBuf packetBuffer = ringBufferGet(state->outputRing);
+			libuvWriteBuf packetBuffer = caerRingBufferGet(state->outputRing);
 			if (packetBuffer == NULL) {
 				// There is none, so we can't work on and commit this.
 				// We just sleep here a little and then try again, as we need the data!
@@ -914,7 +914,7 @@ static int outputThread(void *stateArg) {
 
 		// Write all remaining buffers to file.
 		libuvWriteBuf packetBuffer;
-		while ((packetBuffer = ringBufferGet(state->outputRing)) != NULL) {
+		while ((packetBuffer = caerRingBufferGet(state->outputRing)) != NULL) {
 			if (!writeUntilDone(state->fileIO, (uint8_t *) packetBuffer->buf.base, packetBuffer->buf.len)) {
 				errorExit(state, packetBuffer);
 			}
@@ -934,7 +934,7 @@ static void libuvRingBufferGet(uv_idle_t *handle) {
 	// but never more than 10 at a time.
 	size_t count = 0;
 	libuvWriteBuf packetBuffer;
-	while (count < MAX_OUTPUT_RINGBUFFER_GET && (packetBuffer = ringBufferGet(state->outputRing)) != NULL) {
+	while (count < MAX_OUTPUT_RINGBUFFER_GET && (packetBuffer = caerRingBufferGet(state->outputRing)) != NULL) {
 		writePacket(state, packetBuffer);
 		count++;
 	}
@@ -961,7 +961,7 @@ static void libuvAsyncShutdown(uv_async_t *handle) {
 
 	// Then we empty the ring-buffer and write out all data.
 	libuvWriteBuf packetBuffer;
-	while ((packetBuffer = ringBufferGet(state->outputRing)) != NULL) {
+	while ((packetBuffer = caerRingBufferGet(state->outputRing)) != NULL) {
 		writePacket(state, packetBuffer);
 	}
 
@@ -1408,16 +1408,16 @@ bool caerOutputCommonInit(caerModuleData moduleData, int fileDescriptor, outputC
 	state->formatID = 0x00; // RAW format by default.
 
 	// Initialize compressor ring-buffer. ringBufferSize only changes here at init time!
-	state->compressorRing = ringBufferInit((size_t) ringSize);
+	state->compressorRing = caerRingBufferInit((size_t) ringSize);
 	if (state->compressorRing == NULL) {
 		caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Failed to allocate compressor ring-buffer.");
 		return (false);
 	}
 
 	// Initialize output ring-buffer. ringBufferSize only changes here at init time!
-	state->outputRing = ringBufferInit((size_t) ringSize);
+	state->outputRing = caerRingBufferInit((size_t) ringSize);
 	if (state->outputRing == NULL) {
-		ringBufferFree(state->compressorRing);
+		caerRingBufferFree(state->compressorRing);
 
 		caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Failed to allocate output ring-buffer.");
 		return (false);
@@ -1429,17 +1429,17 @@ bool caerOutputCommonInit(caerModuleData moduleData, int fileDescriptor, outputC
 		state->networkIO->shutdown.data = state;
 		int retVal = uv_async_init(&state->networkIO->loop, &state->networkIO->shutdown, &libuvAsyncShutdown);
 		UV_RET_CHECK(retVal, state->parentModule->moduleSubSystemString, "uv_async_init",
-			ringBufferFree(state->compressorRing); ringBufferFree(state->outputRing); return (false));
+			caerRingBufferFree(state->compressorRing); caerRingBufferFree(state->outputRing); return (false));
 
 		// Use idle handles to check for new data on every loop run.
 		state->networkIO->ringBufferGet.data = state;
 		retVal = uv_idle_init(&state->networkIO->loop, &state->networkIO->ringBufferGet);
 		UV_RET_CHECK(retVal, state->parentModule->moduleSubSystemString, "uv_idle_init",
-			uv_close((uv_handle_t *) &state->networkIO->shutdown, NULL); ringBufferFree(state->compressorRing); ringBufferFree(state->outputRing); return (false));
+			uv_close((uv_handle_t *) &state->networkIO->shutdown, NULL); caerRingBufferFree(state->compressorRing); caerRingBufferFree(state->outputRing); return (false));
 
 		retVal = uv_idle_start(&state->networkIO->ringBufferGet, &libuvRingBufferGet);
 		UV_RET_CHECK(retVal, state->parentModule->moduleSubSystemString, "uv_idle_start",
-			uv_close((uv_handle_t *) &state->networkIO->ringBufferGet, NULL); uv_close((uv_handle_t *) &state->networkIO->shutdown, NULL); ringBufferFree(state->compressorRing); ringBufferFree(state->outputRing); return (false));
+			uv_close((uv_handle_t *) &state->networkIO->ringBufferGet, NULL); uv_close((uv_handle_t *) &state->networkIO->shutdown, NULL); caerRingBufferFree(state->compressorRing); caerRingBufferFree(state->outputRing); return (false));
 	}
 
 	// Start output handling thread.
@@ -1451,8 +1451,8 @@ bool caerOutputCommonInit(caerModuleData moduleData, int fileDescriptor, outputC
 			uv_close((uv_handle_t *) &state->networkIO->ringBufferGet, NULL);
 			uv_close((uv_handle_t *) &state->networkIO->shutdown, NULL);
 		}
-		ringBufferFree(state->compressorRing);
-		ringBufferFree(state->outputRing);
+		caerRingBufferFree(state->compressorRing);
+		caerRingBufferFree(state->outputRing);
 
 		caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Failed to start compressor thread.");
 		return (false);
@@ -1473,8 +1473,8 @@ bool caerOutputCommonInit(caerModuleData moduleData, int fileDescriptor, outputC
 			uv_close((uv_handle_t *) &state->networkIO->ringBufferGet, NULL);
 			uv_close((uv_handle_t *) &state->networkIO->shutdown, NULL);
 		}
-		ringBufferFree(state->compressorRing);
-		ringBufferFree(state->outputRing);
+		caerRingBufferFree(state->compressorRing);
+		caerRingBufferFree(state->outputRing);
 
 		caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Failed to start output thread.");
 		return (false);
@@ -1511,25 +1511,25 @@ void caerOutputCommonExit(caerModuleData moduleData) {
 	// Now clean up the ring-buffers: they should be empty, so sanity check!
 	caerEventPacketContainer packetContainer;
 
-	while ((packetContainer = ringBufferGet(state->compressorRing)) != NULL) {
+	while ((packetContainer = caerRingBufferGet(state->compressorRing)) != NULL) {
 		caerEventPacketContainerFree(packetContainer);
 
 		// This should never happen!
 		caerModuleLog(state->parentModule, CAER_LOG_CRITICAL, "Compressor ring-buffer was not empty!");
 	}
 
-	ringBufferFree(state->compressorRing);
+	caerRingBufferFree(state->compressorRing);
 
 	libuvWriteBuf packetBuffer;
 
-	while ((packetBuffer = ringBufferGet(state->outputRing)) != NULL) {
+	while ((packetBuffer = caerRingBufferGet(state->outputRing)) != NULL) {
 		free(packetBuffer);
 
 		// This should never happen!
 		caerModuleLog(state->parentModule, CAER_LOG_CRITICAL, "Output ring-buffer was not empty!");
 	}
 
-	ringBufferFree(state->outputRing);
+	caerRingBufferFree(state->outputRing);
 
 	// Cleanup IO resources.
 	if (state->isNetworkStream) {

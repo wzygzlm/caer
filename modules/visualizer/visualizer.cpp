@@ -1,10 +1,10 @@
 #include "visualizer.hpp"
 #include "base/mainloop.h"
 #include "base/module.h"
-#include "ext/ringbuffer/ringbuffer.h"
 #include "ext/threads_ext.h"
 #include "ext/resources/LiberationSans-Bold.h"
 #include "modules/statistics/statistics.h"
+#include <libcaer/ringbuffer.h>
 
 #include "visualizer_handlers.hpp"
 #include "visualizer_renderers.hpp"
@@ -46,7 +46,7 @@ struct caer_visualizer_state {
 	std::atomic_bool running;
 	std::atomic_bool windowResize;
 	std::atomic_bool windowMove;
-	RingBuffer dataTransfer;
+	caerRingBuffer dataTransfer;
 	std::thread *renderingThread;
 	caerVisualizerRendererInfo renderer;
 	caerVisualizerEventHandlerInfo eventHandler;
@@ -147,7 +147,7 @@ static bool caerVisualizerInit(caerModuleData moduleData) {
 	}
 
 	// Initialize ring-buffer to transfer data to render thread.
-	state->dataTransfer = ringBufferInit(64);
+	state->dataTransfer = caerRingBufferInit(64);
 	if (state->dataTransfer == nullptr) {
 		caerStatisticsStringExit(&state->packetStatistics);
 
@@ -159,7 +159,7 @@ static bool caerVisualizerInit(caerModuleData moduleData) {
 	// On OS X, creation (and destruction) of the window, as well as its event
 	// handling must happen on the main thread. Only drawing can be separate.
 	if (!initGraphics(moduleData)) {
-		ringBufferFree(state->dataTransfer);
+		caerRingBufferFree(state->dataTransfer);
 		caerStatisticsStringExit(&state->packetStatistics);
 
 		caerModuleLog(moduleData, CAER_LOG_ERROR, "Failed to initialize rendering window.");
@@ -178,7 +178,7 @@ static bool caerVisualizerInit(caerModuleData moduleData) {
 	}
 	catch (const std::system_error &ex) {
 		exitGraphics(moduleData);
-		ringBufferFree(state->dataTransfer);
+		caerRingBufferFree(state->dataTransfer);
 		caerStatisticsStringExit(&state->packetStatistics);
 
 		caerModuleLog(moduleData, CAER_LOG_ERROR, "Failed to start rendering thread. Error: '%s' (%d).", ex.what(),
@@ -221,11 +221,11 @@ static void caerVisualizerExit(caerModuleData moduleData) {
 
 	// Now clean up the ring-buffer and its contents.
 	caerEventPacketContainer container;
-	while ((container = (caerEventPacketContainer) ringBufferGet(state->dataTransfer)) != nullptr) {
+	while ((container = (caerEventPacketContainer) caerRingBufferGet(state->dataTransfer)) != nullptr) {
 		caerEventPacketContainerFree(container);
 	}
 
-	ringBufferFree(state->dataTransfer);
+	caerRingBufferFree(state->dataTransfer);
 
 	// Then the statistics string.
 	caerStatisticsStringExit(&state->packetStatistics);
@@ -263,7 +263,7 @@ static void caerVisualizerRun(caerModuleData moduleData, caerEventPacketContaine
 		return;
 	}
 
-	if (ringBufferFull(state->dataTransfer)) {
+	if (caerRingBufferFull(state->dataTransfer)) {
 		caerModuleLog(moduleData, CAER_LOG_INFO, "Transfer ring-buffer full.");
 		return;
 	}
@@ -275,7 +275,7 @@ static void caerVisualizerRun(caerModuleData moduleData, caerEventPacketContaine
 	}
 
 	// Will always succeed because of full check above.
-	ringBufferPut(state->dataTransfer, containerCopy);
+	caerRingBufferPut(state->dataTransfer, containerCopy);
 }
 
 static void caerVisualizerReset(caerModuleData moduleData, int16_t resetCallSourceID) {
@@ -689,11 +689,11 @@ static void renderScreen(caerModuleData moduleData) {
 
 	// TODO: rethink this, implement max FPS control, FPS count,
 	// and multiple render passes per displayed frame.
-	caerEventPacketContainer container = (caerEventPacketContainer) ringBufferGet(state->dataTransfer);
+	caerEventPacketContainer container = (caerEventPacketContainer) caerRingBufferGet(state->dataTransfer);
 
 	repeat: if (container != nullptr) {
 		// Are there others? Only render last one, to avoid getting backed up!
-		caerEventPacketContainer container2 = (caerEventPacketContainer) ringBufferGet(state->dataTransfer);
+		caerEventPacketContainer container2 = (caerEventPacketContainer) caerRingBufferGet(state->dataTransfer);
 
 		if (container2 != nullptr) {
 			caerEventPacketContainerFree(container);

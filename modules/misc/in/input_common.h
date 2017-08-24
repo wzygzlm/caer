@@ -3,9 +3,9 @@
 
 #include "base/module.h"
 #include "modules/misc/inout_common.h"
-#include "ext/ringbuffer/ringbuffer.h"
 #include "ext/buffers.h"
 #include "ext/uthash/utarray.h"
+#include <libcaer/ringbuffer.h>
 #include <unistd.h>
 
 #ifdef HAVE_PTHREADS
@@ -139,11 +139,11 @@ struct input_common_state {
 	atomic_bool pause;
 	/// Transfer packets coming from the input reading thread to the assembly
 	/// thread. Normal EventPackets are used here.
-	RingBuffer transferRingPackets;
+	caerRingBuffer transferRingPackets;
 	/// Transfer packet containers coming from the input assembly thread to
 	/// the mainloop. We use EventPacketContainers, as that is the standard
 	/// data structure returned from an input module.
-	RingBuffer transferRingPacketContainers;
+	caerRingBuffer transferRingPacketContainers;
 	/// Track how many packet containers are in the ring-buffer, ready for
 	/// consumption by the user. The Mainloop's 'dataAvailable' variable already
 	/// does this at a global level, but we also need to keep track at a local
