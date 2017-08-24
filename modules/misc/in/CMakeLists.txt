@@ -27,7 +27,7 @@ IF (INPUT_NETWORK)
 	)
 
 	TARGET_LINK_LIBRARIES(input_net_tcp_client ${CAER_C_LIBS})
-	
+
 	# NET_SOCKET_CLIENT
 	ADD_LIBRARY(input_net_socket_client SHARED input_common.c unix_socket.c)
 
