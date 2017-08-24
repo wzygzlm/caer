@@ -269,6 +269,7 @@ INSTALL(TARGETS caer-bin DESTINATION ${CMAKE_INSTALL_BINDIR})
 # Part 2: tell DLL plugins to use this special import library.
 IF (OS_WINDOWS)
 	SET(CAER_C_LIBS ${CAER_C_LIBS} caerbinsupport)
+	SET(CAER_CXX_LIBS ${CAER_CXX_LIBS} caerbinsupport)
 ENDIF()
 
 # Mac OS X's linker also needs to be told that undefined
