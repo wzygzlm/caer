@@ -671,22 +671,6 @@ static void handleEvents(caerModuleData moduleData) {
 static void renderScreen(caerModuleData moduleData) {
 	caerVisualizerState state = (caerVisualizerState) moduleData->moduleState;
 
-	// Handle display resize (zoom and statistics).
-	if (state->windowResize.load(std::memory_order_relaxed)) {
-		state->windowResize.store(false);
-
-		// Update statistics flag and resize display appropriately.
-		updateDisplaySize(state);
-	}
-
-	// Handle display move.
-	if (state->windowMove.load(std::memory_order_relaxed)) {
-		state->windowMove.store(false);
-
-		// Move display location appropriately.
-		updateDisplayLocation(state);
-	}
-
 	// TODO: rethink this, implement max FPS control, FPS count,
 	// and multiple render passes per displayed frame.
 	caerEventPacketContainer container = (caerEventPacketContainer) caerRingBufferGet(state->dataTransfer);
@@ -713,6 +697,22 @@ static void renderScreen(caerModuleData moduleData) {
 
 		// Free packet container copy.
 		caerEventPacketContainerFree(container);
+	}
+
+	// Handle display resize (zoom and statistics).
+	if (state->windowResize.load(std::memory_order_relaxed)) {
+		state->windowResize.store(false);
+
+		// Update statistics flag and resize display appropriately.
+		updateDisplaySize(state);
+	}
+
+	// Handle display move.
+	if (state->windowMove.load(std::memory_order_relaxed)) {
+		state->windowMove.store(false);
+
+		// Move display location appropriately.
+		updateDisplayLocation(state);
 	}
 
 	// Render content to display.
