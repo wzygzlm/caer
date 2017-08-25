@@ -15,7 +15,7 @@ libuv >= 1.7.5 <br />
 Boost >= 1.50 (with system, filesystem, program_options) <br />
 Optional: libpng >= 1.6 (input/output frame PNG compression) <br />
 Optional: tcmalloc >= 2.2 (faster memory allocation) <br />
-Optional: allegro5 >= 5.0.11 (visualizer module) <br />
+Optional: SFML >= 2.3.0 (visualizer module) <br />
 Optional: OpenCV >= 3.1 (cameracalibration, poseestimation modules) <br />
 
 # Installation

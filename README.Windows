@@ -12,11 +12,11 @@ dependencies as described in detail in libcaer's 'README.Windows'.
 
 === The following happens in the MSYS2 shell! ===
 
-2) Install the required dependencies: pacman -S mingw-w64-x86_64-libuv mingw-w64-x86_64-boost
+2) Install the required dependencies: pacman -S mingw-w64-x86_64-boost
 
 3) Install any additional dependencies as required: pacman -S <pkg-name>
- Input/Output modules: mingw-w64-x86_64-libpng
- Visualizer module: mingw-w64-x86_64-allegro mingw-w64-x86_64-freetype mingw-w64-x86_64-libjpeg-turbo mingw-w64-x86_64-libpng
+ Input/Output modules: mingw-w64-x86_64-libpng mingw-w64-x86_64-libuv
+ Visualizer module: mingw-w64-x86_64-sfml
  CameraCalibration, PoseEstimation modules: mingw-w64-x86_64-opencv
 
 4) Install Mini-XML manually:
