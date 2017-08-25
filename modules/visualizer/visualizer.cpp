@@ -25,6 +25,13 @@
 #define VISUALIZER_POSITION_X_DEF 100
 #define VISUALIZER_POSITION_Y_DEF 100
 
+#define VISUALIZER_HANDLE_EVENTS_MAIN 1
+
+#if defined(OS_WINDOWS) && OS_WINDOWS == 1
+// Avoid blocking of main thread on Windows when the window is being dragged.
+#define VISUALIZER_HANDLE_EVENTS_MAIN 0
+#endif
+
 #define GLOBAL_FONT_SIZE 20 // in pixels
 #define GLOBAL_FONT_SPACING 5 // in pixels
 
@@ -155,6 +162,7 @@ static bool caerVisualizerInit(caerModuleData moduleData) {
 		return (false);
 	}
 
+#if VISUALIZER_HANDLE_EVENTS_MAIN == 1
 	// Initialize graphics on main thread.
 	// On OS X, creation (and destruction) of the window, as well as its event
 	// handling must happen on the main thread. Only drawing can be separate.
@@ -168,6 +176,7 @@ static bool caerVisualizerInit(caerModuleData moduleData) {
 
 	// Disable OpenGL context to pass it to thread.
 	state->renderWindow->setActive(false);
+#endif
 
 	// Start separate rendering thread. Decouples presentation from
 	// data processing and preparation. Communication over ring-buffer.
@@ -177,7 +186,9 @@ static bool caerVisualizerInit(caerModuleData moduleData) {
 		state->renderingThread = new std::thread(&renderThread, moduleData);
 	}
 	catch (const std::system_error &ex) {
+#if VISUALIZER_HANDLE_EVENTS_MAIN == 1
 		exitGraphics(moduleData);
+#endif
 		caerRingBufferFree(state->dataTransfer);
 		caerStatisticsStringExit(&state->packetStatistics);
 
@@ -214,10 +225,12 @@ static void caerVisualizerExit(caerModuleData moduleData) {
 
 	delete state->renderingThread;
 
+#if VISUALIZER_HANDLE_EVENTS_MAIN == 1
 	// Shutdown graphics on main thread.
 	// On OS X, creation (and destruction) of the window, as well as its event
 	// handling must happen on the main thread. Only drawing can be separate.
 	exitGraphics(moduleData);
+#endif
 
 	// Now clean up the ring-buffer and its contents.
 	caerEventPacketContainer container;
@@ -238,10 +251,12 @@ static void caerVisualizerRun(caerModuleData moduleData, caerEventPacketContaine
 
 	caerVisualizerState state = (caerVisualizerState) moduleData->moduleState;
 
-	// Handle events on main thread, always.
+#if VISUALIZER_HANDLE_EVENTS_MAIN == 1
+	// Handle events on main thread.
 	// On OS X, creation (and destruction) of the window, as well as its event
 	// handling must happen on the main thread. Only drawing can be separate.
 	handleEvents(moduleData);
+#endif
 
 	// Without a packet container with events, we cannot render anything.
 	if (in == nullptr || caerEventPacketContainerGetEventsNumber(in) == 0) {
@@ -566,7 +581,7 @@ static void handleEvents(caerModuleData moduleData) {
 		else if (event.type == sf::Event::KeyPressed || event.type == sf::Event::KeyReleased
 			|| event.type == sf::Event::TextEntered) {
 			// React to key presses, but only if they came from the corresponding display.
-			if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Key::Up) {
+			if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Key::PageUp) {
 				float currentZoomFactor = sshsNodeGetFloat(moduleData->moduleNode, "zoomFactor");
 
 				currentZoomFactor += VISUALIZER_ZOOM_INC;
@@ -578,7 +593,7 @@ static void handleEvents(caerModuleData moduleData) {
 
 				sshsNodePutFloat(moduleData->moduleNode, "zoomFactor", currentZoomFactor);
 			}
-			else if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Key::Down) {
+			else if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Key::PageDown) {
 				float currentZoomFactor = sshsNodeGetFloat(moduleData->moduleNode, "zoomFactor");
 
 				currentZoomFactor -= VISUALIZER_ZOOM_INC;
@@ -757,8 +772,16 @@ static int renderThread(void *inModuleData) {
 	// Set thread name.
 	thrd_set_name(moduleData->moduleSubSystemString);
 
-	// On OS X, creation (and destruction) of the window, as well as its event
-	// handling must happen on the main thread. Only drawing can be separate.
+#if VISUALIZER_HANDLE_EVENTS_MAIN == 0
+	// Initialize graphics on separate thread. Mostly to avoid Windows quirkiness.
+	if (!initGraphics(moduleData)) {
+		caerModuleLog(moduleData, CAER_LOG_ERROR, "Failed to initialize rendering window.");
+		return (thrd_error);
+	}
+#endif
+
+	// Ensure OpenGL context is active, whether it was created in this thread
+	// or on the main thread.
 	state->renderWindow->setActive(true);
 
 	// Initialize GLEW. glewInit() should be called after every context change,
@@ -766,6 +789,10 @@ static int renderThread(void *inModuleData) {
 	// rendering thread, we can just do it here once and always be fine.
 	GLenum res = glewInit();
 	if (res != GLEW_OK) {
+#if VISUALIZER_HANDLE_EVENTS_MAIN == 0
+		exitGraphics(moduleData); // Destroy on error.
+#endif
+
 		caerModuleLog(moduleData, CAER_LOG_ERROR, "Failed to initialize GLEW, error: %s.", glewGetErrorString(res));
 		return (thrd_error);
 	}
@@ -774,6 +801,10 @@ static int renderThread(void *inModuleData) {
 	if (state->renderer->stateInit != nullptr) {
 		state->renderState = (*state->renderer->stateInit)((caerVisualizerPublicState) state);
 		if (state->renderState == nullptr) {
+#if VISUALIZER_HANDLE_EVENTS_MAIN == 0
+			exitGraphics(moduleData); // Destroy on error.
+#endif
+
 			// Failed at requested state initialization, error out!
 			caerModuleLog(moduleData, CAER_LOG_ERROR, "Failed to initialize renderer state.");
 			return (thrd_error);
@@ -785,6 +816,10 @@ static int renderThread(void *inModuleData) {
 	state->renderWindow->display();
 
 	while (state->running.load(std::memory_order_relaxed)) {
+#if VISUALIZER_HANDLE_EVENTS_MAIN == 0
+		handleEvents(moduleData);
+#endif
+
 		renderScreen(moduleData);
 	}
 
@@ -793,6 +828,11 @@ static int renderThread(void *inModuleData) {
 		&& (state->renderState != CAER_VISUALIZER_RENDER_INIT_NO_MEM)) {
 		(*state->renderer->stateExit)((caerVisualizerPublicState) state);
 	}
+
+#if VISUALIZER_HANDLE_EVENTS_MAIN == 0
+	// Destroy graphics objects on same thread that created them.
+	exitGraphics(moduleData);
+#endif
 
 	return (thrd_success);
 }
