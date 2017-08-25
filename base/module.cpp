@@ -345,9 +345,9 @@ void caerUpdateModulesInformation() {
 	// Search for available modules. Will be loaded as needed later.
 	const std::string modulesSearchPath = sshsNodeGetStdString(modulesNode, "modulesSearchPath");
 
-	// Split on ':'.
+	// Split on '|'.
 	std::vector<std::string> searchPaths;
-	boost::algorithm::split(searchPaths, modulesSearchPath, boost::is_any_of(":"));
+	boost::algorithm::split(searchPaths, modulesSearchPath, boost::is_any_of("|"));
 
 	const std::regex moduleRegex("\\w+\\.(so|dll|dylib)");
 

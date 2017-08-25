@@ -28,12 +28,12 @@ static inline bool caerStatisticsStringInit(caerStatisticsState state) {
 	// Total and Valid parts have same length.
 	size_t maxSplitStatStringLength = (size_t) snprintf(NULL, 0, CAER_STATISTICS_STRING_TOTAL, UINT64_MAX);
 
-	state->currentStatisticsStringTotal = calloc(maxSplitStatStringLength + 1, sizeof(char)); // +1 for NUL termination.
+	state->currentStatisticsStringTotal = (char *) calloc(maxSplitStatStringLength + 1, sizeof(char)); // +1 for NUL termination.
 	if (state->currentStatisticsStringTotal == NULL) {
 		return (false);
 	}
 
-	state->currentStatisticsStringValid = calloc(maxSplitStatStringLength + 1, sizeof(char)); // +1 for NUL termination.
+	state->currentStatisticsStringValid = (char *) calloc(maxSplitStatStringLength + 1, sizeof(char)); // +1 for NUL termination.
 	if (state->currentStatisticsStringValid == NULL) {
 		free(state->currentStatisticsStringTotal);
 		state->currentStatisticsStringTotal = NULL;

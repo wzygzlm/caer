@@ -39,7 +39,7 @@ IF (OUTPUT_NETWORK)
 	)
 
 	TARGET_LINK_LIBRARIES(output_net_tcp_server ${OUTPUT_LIBS})
-	
+
 	# NET_TCP_CLIENT
 	ADD_LIBRARY(output_net_tcp_client SHARED output_common.c net_tcp.c)
 
@@ -49,7 +49,7 @@ IF (OUTPUT_NETWORK)
 	)
 
 	TARGET_LINK_LIBRARIES(output_net_tcp_client ${OUTPUT_LIBS})
-	
+
 	# NET_UDP
 	ADD_LIBRARY(output_net_udp SHARED output_common.c net_udp.c)
 
@@ -59,7 +59,7 @@ IF (OUTPUT_NETWORK)
 	)
 
 	TARGET_LINK_LIBRARIES(output_net_udp ${OUTPUT_LIBS})
-	
+
 	# NET_SOCKET_SERVER
 	ADD_LIBRARY(output_net_socket_server SHARED output_common.c unix_socket_server.c)
 
@@ -69,7 +69,7 @@ IF (OUTPUT_NETWORK)
 	)
 
 	TARGET_LINK_LIBRARIES(output_net_socket_server ${OUTPUT_LIBS})
-	
+
 	# NET_SOCKET_CLIENT
 	ADD_LIBRARY(output_net_socket_client SHARED output_common.c unix_socket.c)
 

@@ -4,7 +4,7 @@
 #include "base/module.h"
 #include "modules/misc/inout_common.h"
 #include "ext/libuv.h"
-#include "ext/ringbuffer/ringbuffer.h"
+#include <libcaer/ringbuffer.h>
 
 #ifdef HAVE_PTHREADS
 #include "ext/c11threads_posix.h"
@@ -70,9 +70,9 @@ struct output_common_state {
 	/// Transfer packets coming from a mainloop run to the compression handling thread.
 	/// We use EventPacketContainers as data structure for convenience, they do exactly
 	/// keep track of the data we do want to transfer and are part of libcaer.
-	RingBuffer compressorRing;
+	caerRingBuffer compressorRing;
 	/// Transfer buffers to output handling thread.
-	RingBuffer outputRing;
+	caerRingBuffer outputRing;
 	/// Track last packet container's highest event timestamp that was sent out.
 	int64_t lastTimestamp;
 	/// Support different formats, providing data compression.

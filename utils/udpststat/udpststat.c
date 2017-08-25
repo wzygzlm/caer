@@ -4,7 +4,10 @@
 #include <stdint.h>
 #include <inttypes.h>
 #include <string.h>
-#include "ext/libuv.h"
+#include <unistd.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
 #include "ext/uthash/utarray.h"
 #include "ext/uthash/utlist.h"
 #include "modules/misc/inout_common.h"
@@ -100,12 +103,18 @@ int main(int argc, char *argv[]) {
 	}
 
 	struct sockaddr_in listenUDPAddress;
+	memset(&listenUDPAddress, 0, sizeof(struct sockaddr_in));
 
-	int retVal = uv_ip4_addr(ipAddress, portNumber, &listenUDPAddress);
-	UV_RET_CHECK_STDERR(retVal, "uv_ip4_addr", return (EXIT_FAILURE));
+	listenUDPAddress.sin_family = AF_INET;
+	listenUDPAddress.sin_port = htons(portNumber);
+
+	if (inet_pton(AF_INET, ipAddress, &listenUDPAddress.sin_addr) == 0) {
+		fprintf(stderr, "No valid IP address found. '%s' is invalid!\n", ipAddress);
+		return (EXIT_FAILURE);
+	}
 
 	// Create listening socket for UDP data.
-	uv_os_sock_t listenUDPSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	int listenUDPSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	if (listenUDPSocket < 0) {
 		fprintf(stderr, "Failed to create UDP socket.\n");
 		return (EXIT_FAILURE);

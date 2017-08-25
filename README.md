@@ -9,7 +9,7 @@ AER event-based framework, written in C, targeting embedded systems.<br />
 Linux, MacOS X or Windows (for Windows build instructions see README.Windows) <br />
 cmake >= 2.6 <br />
 gcc >= 5.2 or clang >= 3.6 <br />
-libcaer >= 2.2.0 <br />
+libcaer >= 2.4.0 <br />
 mini-xml (mxml) >= 2.7 <br />
 libuv >= 1.7.5 <br />
 Boost >= 1.50 (with system, filesystem, program_options) <br />

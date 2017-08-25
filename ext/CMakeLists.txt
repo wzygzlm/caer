@@ -8,7 +8,6 @@ SET(CAER_C_LIBS ${CAER_C_LIBS} ${MXML_LIBRARIES} PARENT_SCOPE)
 
 # Support files to compile.
 SET(CAER_EXT_FILES
-	ext/ringbuffer/ringbuffer.c
 	ext/slre/slre.c
 	ext/sshs/sshs.c
 	ext/sshs/sshs_helper.c
