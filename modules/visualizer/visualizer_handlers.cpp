@@ -1,5 +1,7 @@
 #include "visualizer_handlers.hpp"
 
+#include "base/mainloop.h"
+
 #include <cmath>
 #include <boost/algorithm/string.hpp>
 
@@ -93,9 +95,11 @@ static void caerVisualizerEventHandlerNeuronMonitor(caerVisualizerPublicState st
 		// linear index
 		uint32_t linearIndex = (U32T(positionY) * DYNAPSE_CONFIG_NEUCOL) + U32T(positionX);
 
-		// TODO: switch to using SSHS.
-		//caerDeviceConfigSet(NULL, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, U32T(chipId));
-		//caerDeviceConfigSet(NULL, DYNAPSE_CONFIG_MONITOR_NEU, coreId, linearIndex);
+		// TODO: switch to using SSHS fully, move monitorneu filter into device config.
+		int16_t sourceId = sshsNodeGetShort(state->eventSourceConfigNode, "moduleId");
+		caerDeviceHandle *sourceState = (caerDeviceHandle *) caerMainloopGetSourceState(sourceId);
+		caerDeviceConfigSet(*sourceState, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, U32T(chipId));
+		caerDeviceConfigSet(*sourceState, DYNAPSE_CONFIG_MONITOR_NEU, coreId, linearIndex);
 
 		caerLog(CAER_LOG_DEBUG, "Visualizer", "Monitoring neuron - chip ID: %d, core ID: %d, neuron ID: %d.", chipId,
 			coreId, linearIndex);
