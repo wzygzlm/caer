@@ -5,7 +5,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <unistd.h>
-#include <uv.h>
+#include <sys/socket.h>
 
 /**
  * Write N bytes to the socket S from buffer B.
@@ -16,7 +16,7 @@
  *
  * @return Return true on success, false on failure.
  */
-static inline bool sendUntilDone(uv_os_sock_t sock, const uint8_t *buffer, size_t bytesToWrite) {
+static inline bool sendUntilDone(int sock, const uint8_t *buffer, size_t bytesToWrite) {
 	size_t curWritten = 0;
 
 	while (curWritten < bytesToWrite) {
@@ -40,7 +40,7 @@ static inline bool sendUntilDone(uv_os_sock_t sock, const uint8_t *buffer, size_
  *
  * @return Return true on success, false on failure.
  */
-static inline bool recvUntilDone(uv_os_sock_t sock, uint8_t *buffer, size_t bytesToRead) {
+static inline bool recvUntilDone(int sock, uint8_t *buffer, size_t bytesToRead) {
 	size_t curRead = 0;
 
 	while (curRead < bytesToRead) {
