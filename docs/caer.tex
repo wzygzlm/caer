@@ -14,31 +14,18 @@
 
 \begin{document}
 
-\title{\textbf{cAER}\\A framework for event-based processing\\on embedded systems}
+\title{\textbf{cAER}\\A framework for event-based processing\\on embedded and desktop systems}
 
-\author{\textbf{Bachelor of Science in Informatics, Software Systems Thesis}\\submitted by:\\\textbf{Luca Longinotti}\\Zürich, Switzerland\\Matriculation number 08-920-142\\\\\\\\In collaboration with:\\Department of Informatics, UZH\\Prof. Dr. Davide Scaramuzza\\Institute of Neuroinformatics, UZH/ETHZ\\Prof. Dr. Tobi Delbruck\\\\Supervisor: Christian Brändli}
+\author{iniLabs Ltd.}
 
 \date{\today}
 
 \maketitle
 
-\abstract{A new class of sensors, inspired by biology, promises significant savings in terms of power consumption and computation. But for these savings to really be meaningful, the systems to which such sensors are connected for data processing, must exhibit low-power consumption too. A new software architecture has to be created to both run efficiently on such systems and take advantage of the event-based nature of these sensors' output. This thesis discusses the details of such an architecture and presents a working implementation, showing that the goals of portability to a wide range of systems and efficient resource usage have been successfully met.}
-
 \tableofcontents{}
 
 \chapter{Introduction} \label{chap:introduction}
 
-A new class of neuromorphic sensors, so called because they take their inspiration from biology and especially the way the brain works, have been developed in the past few years, and are still an active area of research.
-Camera sensors, like the DVS128 silicon retina \cite{dvs128_paper} in Figure \ref{fig:dvs128}, take their inspiration from the way the human retina works, and auditory sensors, such as the AER-EAR2 silicon cochlea \cite{cochlea_paper}, are inspired by how the human cochlea works.
-These new sensors promise significant advantages over current ones, mainly in the areas of power consumption, output redundancy and temporal resolution \cite{neuromorphic_systems}.
-Systems such as flying robots can take advantage of these new sensors to react to events taking place in the world around them much quicker than with conventional methods and sensors, as shown in \cite{dvs_led_tracking}, and using less power, as discussed in \cite{fast_motor_control}.
-
-The output of these sensors follows the address-event representation (AER) scheme, in which spikes are sent by the sensor chip, carrying information on what happened and when, to an external processing system. This method allows for low-power and low-latency communication \cite{neuromorphic_systems}.
-These spikes, representing events, are only sent when something actually happens on the sensor, greatly reducing the amount of redundant information being produced, resulting in a significant reduction of computational costs on the processing system.
-
-This particular nature of the output has led to the development of event-driven computation software, such as the jAER open-source project \cite{jaer_project}, whose visual output is show in Figure \ref{fig:jaer}, that takes advantage of it to implement novel algorithms.
-
-Ideally, the processing component of the system should consume little power itself, to be able to keep the advantages stated above, because requiring a full desktop system, burning hundreds of watts, to elaborate the data coming from these low-power sensors would work against one of their main benefits.
 Embedded systems are prime candidates to fill this role of power-efficient computation units, but they also pose significant challenges in terms of software design, owing to their often very limited computing resources.
 
 The current jAER project is written entirely in the Java programming language, which already poses a significant problem: many embedded systems do not posses a working Java Virtual Machine (JVM) implementation, and even on those that do, the overhead imposed by it may already be prohibitive to the kind of applications people are interested in. Further, jAER is reliant on a graphical user interface (GUI) for interactive control and output visualization, a feature that is rarely present on target systems such as autonomous robots, and that again requires significant computational resources and increases power consumption.
@@ -46,54 +33,8 @@ The current jAER project is written entirely in the Java programming language, w
 A new software needed to be written, that would take full advantage of the event-driven computation model, as well as being usable on a wide range of embedded systems, taking their limited available resources into account.
 This work explores just such a software component, its architecture and its implementation.
 
-\begin{figure}[H]
-\begin{center}
-\includegraphics[width=0.4\textwidth]{dvs128}
-\caption{DVS128 camera sensor (image courtesy of iniLabs.com)}
-\label{fig:dvs128}
-\end{center}
-\end{figure}
-
-\begin{figure}[H]
-\begin{center}
-\includegraphics[width=0.7\textwidth]{jaer}
-\caption{jAER visual output (image courtesy of jAER.sf.net)}
-\label{fig:jaer}
-\end{center}
-\end{figure}
-
-\chapter{Related work} \label{chap:related_work}
-
-Event-based processing is becoming increasingly more important in the industry as a simple and efficient way to aggregate data coming from different sources, filtering it, finding patterns inside it, and reacting to them in some manner, be it visually presenting them, sending alerts to specialized personnel, or sending commands to a mechanical arm.
-
-Several complex event processing (CEP, \cite{cep_thesis}) software products exist for big data applications, such as Esper \cite{cep_thesis} or spChains \cite{spchains}. These are geared towards large enterprise IT systems, focusing on queries, correlation, aggregation and filtering over large networks of systems, and are not considered relevant for this work.
-
-The only software that can be considered truly related to the very specific aims of this work is jAER, from which significant inspiration was taken.
-
-\section{jAER} \label{sec:jaer}
-
-The jAER project \cite{jaer_project}, started in 2007, is an event-processing framework for neuromorphic sensors written entirely in Java, initially developed by the Institute of Neuroinformatics at UZH/ETHZ, and gradually expanded over the years with contributions from all over the world, thanks to being open-source.
-
-It focuses on supporting mainly silicon retinas and cochleas, enabling easy access to all possible options through a graphical user interface, and visualizing and processing their output in interesting ways, useful both for research and for the development of various applications, such as a pencil balancing robot \cite{pencil_balancer} or an object tracking software \cite{frame_free}.
-
-\chapter{Architecture} \label{chap:architecture}
-
-A novel event-driven software architecture had to be thought of to meet the main goals of this thesis: portability to a wide range of embedded systems, efficiency of resource usage, and enabling users and developers to easily create complex applications, leveraging reusable code and powerful, industry-standard application programming interfaces (APIs).
-
-A work pattern of getting events from an input, the \emph{source}, then processing and filtering them, and finally moving them to an output, the \emph{drain}, and repeating those steps again and again (usually in a loop), is common to most event-based processing software, and also forms the basis for the architecture described here.
-
-\section{Use cases} \label{sec:use_cases}
-
-Determining the use cases for new software represents one of the first steps to take on the road to its realization.
-Knowing where the software is going to be deployed, and what kind of usage it will be subjected to, has far-reaching consequences on its architectural decisions.
-
 The main target platforms were determined to be consumer-grade embedded systems, such as the Raspberry Pi, the PandaBoard, the Parallella or the Odroid embedded computers.
 
-Between one and four external sensors would be connected to such systems via USB (Universal Serial Bus) interface, the most widely used interface for the current generation of neuromorphic sensors, as well as for a large range of other sensors that are available in the consumer and professional markets. The number of simultaneously connected sensors would in any case always be low, given the small number of I/O ports that embedded systems usually offer.
-
-Such systems would predominantly run some small, optimized version of the Linux operating system.
-\clearpage
-\section{Requirements} \label{sec:requirements}
 
 Based on the use cases above, the project goals and the mentioned issues (in chapter \ref{chap:introduction}) with the jAER framework, a number of requirements quickly emerged:
 \begin{itemize}
@@ -109,7 +50,9 @@ Based on the use cases above, the project goals and the mentioned issues (in cha
 \item reusable code: framework structure and modularity
 \end{itemize}
 
-\section{Programming language} \label{sec:programming_language}
+\chapter{Architecture} \label{chap:architecture}
+
+A work pattern of getting events from an input, the \emph{source}, then processing and filtering them, and finally moving them to an output, the \emph{drain}, and repeating those steps again and again (usually in a loop), is common to most event-based processing software, and also forms the basis for the architecture described here.
 
 The choice of an appropriate programming language is central to any software project.
 As discussed in chapter \ref{chap:introduction}, the Java programming language was found to be ill suited for the task at hand. In fact, any kind of interpreted or virtual machine based language would add similar overhead.
@@ -144,76 +87,15 @@ A further benefit of grouping events into packets is that a packet header can be
 
 Finally, concerning the low deletion overhead, instead of implementing the removal of events by copying only the valid ones to a new packet, or shifting them around inside the current packet, a 1-bit boolean flag has been made a mandatory part of each event, indicating if the event is to be considered valid (flag is 1) or invalid (flag is 0). A side-benefit of this approach is that it is still possible for later processing stages to examine invalidated events, which might be interesting for example for statistics.
 
-All fields, both in the header and in the events themselves, are to be considered little-endian. The reason for this is simple: 95\% of architectures on which this software is expected to run are in fact little-endian (x86, x86-64, ARM), and it would only impose needless overhead to change the data format to big-endian instead.
-Also, all fields and structures are tightly packed together, to avoid wasting memory on alignment and padding.
-
-The following code shows the common data structure representing the packet header for all event packets:
-
-\begin{lstlisting}
-struct caer_event_packet_header {
-    uint16_t eventType;
-    uint16_t eventSource;
-    uint32_t eventSize;
-    uint32_t eventTSOffset
-    uint32_t eventCapacity;
-    uint32_t eventNumber;
-    uint32_t eventValid;
-};
-
-typedef struct caer_event_packet_header *caerEventPacketHeader;
-\end{lstlisting}
+\url{https://inilabs.com/support/software/fileformat/#h.oqxw4mby5yg2}
 
 The \emph{eventType} field stores the type of event that is contained in the packet.
 Currently the following event types are defined:
 
-\begin{table}[H]
-\begin{center}
-\caption{Event types}
-\label{tab:event_types}
-\begin{tabu} to \linewidth {|l|c|X|}
-\hline
-Event type & Code & Description \\ \hline
-SPECIAL\_EVENT & 0 & Exceptional event (timestamp changes, external triggers, ...). \\ \hline
-POLARITY\_EVENT & 1 & Pixel polarity change (ON or OFF, representing the relative light intensity increase or decrease of a pixel). \\ \hline
-SAMPLE\_EVENT & 2 & Digital sample from Analog-Digital Converter (ADC). \\ \hline
-EAR\_EVENT & 3 & Cochlea event (ear, channel, ganglion and filter). \\ \hline
-FRAME\_EVENT & 4 & RAW digital image (packed ADC sample sequence). \\ \hline
-IMU6\_EVENT & 5 & Inertial Measurement Unit data, 6 axes (accel., gyro). \\ \hline
-IMU9\_EVENT & 6 & Inertial Measurement Unit data, 9 axes (+ compass). \\ \hline
-\end{tabu}
-\end{center}
-\end{table}
-
 The \emph{eventSource} field encodes a unique numeric ID that represents the input from which the event originates.
 The ID is unique inside a data processing loop and can be used to retrieve information on the input in later processing stages that work on a particular packet.
 
-The \emph{eventSize} field gives the size in bytes of an event and can be used to calculate where the next event is in memory, without having to check its type and interpreting its memory as that type. This is important for efficient generic programming.
-
-The \emph{eventTSOffset} field gives an offset in bytes from the start of the event, at which the main timestamp integer is located. This is used to get the timestamp without having to check the type of event: all events must have a timestamp, which has to be a 4-byte unsigned integer. So, to get any event's timestamp, it is enough to add this offset to the event pointer and cast the resulting address to be a pointer to a 4-byte unsigned integer. Coupled with the previous \emph{eventSize} field, it is then possible to get the timestamp of any event in any packet reliably, without having to concern oneself about the packet type and possible casts or other memory interpretation issues.
-
-The last three fields are concerned with the number of events contained in a packet: \emph{eventCapacity} tells how many events this packet could maximally hold and is determined by the amount of memory that was initially allocated to the packet (packets don't grow or shrink, to avoid re-allocation overhead); \emph{eventNumber} gives the amount of meaningful events inside the packet, and is always equal or smaller than the capacity; and finally \emph{eventValid} contains the number of events that are still valid, a value which is always equal or smaller than the number of events. Thanks to this information, it is possible to know how far one can iterate over a packet, or how much memory would need to be allocated if, for example, one wanted to copy only the valid events to another memory location.
-
-The following code defines the data structures behind a polarity event and its packet (see table \ref{tab:event_types} for a definition of polarity event), probably the most frequently used type:
-
-\begin{lstlisting}
-struct caer_polarity_event {
-    uint32_t data;
-    uint32_t timestamp;
-};
-
-typedef struct caer_polarity_event *caerPolarityEvent;
-
-struct caer_polarity_event_packet {
-    struct caer_event_packet_header packetHeader;
-    struct caer_polarity_event events[];
-};
-
-typedef struct caer_polarity_event_packet *caerPolarityEventPacket;
-\end{lstlisting}
-
-This basic structure is common to all event types: the event packet is composed of the packet header, which was examined in detail above, and an array of events of that type. The packet header field is called packetHeader and is required to be the first field, which allows the interpretation of a pointer to the packet as a pointer to the header and vice-versa, since the first field is always guaranteed to live at offset 0.
-Each event has a 32-bit integer timestamp, as well as a number of bytes (in this case four) reserved for the actual event data.
-Please note that the first bit (bit 0) of the first byte of an event is reserved for the validity boolean flag, to allow uniform access to it, without requiring any ulterior kind of interpretation or type-casting.
+getTimestamp/getTimestamp64
 
 \section{Framework} \label{sec:framework}
 
@@ -222,7 +104,7 @@ Such a framework should provide common functionality such as configuration manag
 It should offer the user a simple, well-defined way to put together the parts of the framework he needs for his application, and be easy to deploy across various systems.
 It should further be easily possible to extend the functionality of the framework with self-written, application-specific code.
 
-To this end it was decided to implement cAER as a collection of basic framework functionality and modules, which could easily be plugged and extended by the user. In the end, everything would compile down to one binary, which could then be deployed and executed on the target systems.
+To this end it was decided to implement cAER as a collection of basic framework functionality and modules, which could easily be plugged and extended by the user.
 
 A broad overview of the resulting architecture is shown in Figure \ref{fig:caer_architecture}. The various components will be explained in detail in the following sections, first from a high-level architectural point of view, and then from a more implementation-minded point of view in chapter \ref{chap:implementation}.
 
@@ -236,32 +118,13 @@ A broad overview of the resulting architecture is shown in Figure \ref{fig:caer_
 
 \section{Process and Thread structure} \label{sec:process_and_thread_structure}
 
-The main program thread is responsible for setting up configuration and logging, and then start the rest of the framework. Once that is done, it just waits for the orderly shutdown of those parts that it initialized, and is then the last thread to exit.
-This provides a clear path for orderly shutdown; if the main thread were not kept around, who would be responsible for waiting on all the other threads to ensure a clean program termination? This way, the thread starting everything is also responsible for then waiting on everybody to finish their work.
-Keeping this thread around is no resource drain, as it just checks a variable and then goes back to sleep for one second in a loop.
-
-Given the limited resources of the target systems, especially in terms of number of CPU cores, it was decided to only start one process, and keep the number of threads inside it to the bare minimum which would still provide a good logical separation of tasks and functionality.
+The main program thread is responsible for setting up configuration and logging, and then start the rest of the framework. 
 As such, each data processing loop runs inside its own thread, as well as each input.
 A further thread is started for the run-time configuration system, to allow users to modify system settings at any time, while the other parts of the program are running.
 
-The total number of running threads is thus given by:
-\begin{itemize}
-\item main thread (1)
-\item run-time configuration system (1)
-\item data processing loops (N)
-\item inputs (at least N)
-\end{itemize}
-So, on a minimal setup with one data processing loop getting data from one input, a total of four threads would be started.
-
-\subsection{Daemon mode} \label{subsec:daemon_mode}
-
-To support the needs of server-like, always-on applications, a daemon mode was introduced. This allows the program to easily detach from the current terminal and run in the background, enabling it to be started on a system and then just let run for weeks or months without any user interaction.
+The total number of running system threads is 2 (main thread + config thread).
 
 \section{Configuration} \label{sec:configuration_A}
-
-One of the foremost concerns when writing a framework that compiles down to a binary is how to configure it at start-up and at run-time. It would be tedious to stop the application, then manually change parts of the source code and recompile, every time one wanted to change a setting somewhere, so a mechanism has to be provided to allow changes to be done after the binary is compiled and once the program is running.
-
-It is also important to determine how each part of the program would be able to access such a configuration system. A quick way to access the configuration for single parts of the code is as important as having a global view of all configuration settings for users to manipulate.
 
 To this end, the Super Simple Hierarchical Storage (SSHS, \ref{subsec:sshs}) library was written and then employed. A configuration file from which to load the initial settings is also part of this system.
 
@@ -276,11 +139,17 @@ To retrieve a specific node, absolute paths from the root node (\emph{/this/is/a
 
 The attributes contain the actual data, which can be of eight types: boolean, byte (8-bit integer), short (16-bit integer), int (32-bit integer), long (64-bit integer), float, double and string.
 Each attribute is uniquely identified by its type in combination with a string identifier.
-Functions to get and set attribute values are provided, such as GetBool() or PutInt(), as well as functions to test the presence of attributes.
+Functions to get and set attribute values are provided:
 
-Getting an attribute is only possible if the attribute was declared beforehand, by either loading it from an XML file or by setting it to a defined value with the various Put() or PutIfAbsent() functions. This ensures that a valid value is present, and avoids having to specify a default value on each Get() call, as has to be done, for example, in the Java Preferences system.
+list them
+also C++ std::string variants
+
+Getting an attribute is only possible if the attribute was declared beforehand, by either loading it from an XML file or by creating it using CREATE HERE.
+This ensures that a valid value is present, and avoids having to specify a default value on each Get() call, as has to be done, for example, in the Java Preferences system.
 
 Listeners can be added to nodes to react to changes to both the node's children and to its attributes.
+
+FLAGS
 
 \subsection{Remote configuration} \label{subsec:remote_configuration}
 
