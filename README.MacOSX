@@ -1,0 +1,17 @@
+libcaer
+- Install Homebrew - https://brew.sh/
+- brew install cmake pkg-config libusb opencv
+- cmake -DCMAKE_INSTALL_PREFIX=/usr/local -DENABLE_OPENCV=1 .
+- make
+- sudo make install
+
+caer
+- brew install libmxml boost boost-build glew
+- SFML currently doesn't install pkg-config files correctly:
+  - brew edit sfml
+  - change the file like this:
+
+  - brew install --build-from-source sfml
+- cmake -DCMAKE_INSTALL_PREFIX=/usr/local -DDAVIS=1 -DBAFILTER=1 -DVISUALIZER=1 .
+- make
+- sudo make install
