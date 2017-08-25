@@ -9,9 +9,32 @@ caer
 - brew install libmxml boost boost-build glew
 - SFML currently doesn't install pkg-config files correctly:
   - brew edit sfml
-  - change the file like this:
-
+  - apply the patch at the end of this README to:
+    /usr/local/Homebrew/Library/Taps/homebrew/homebrew-core/Formula/sfml.rb
   - brew install --build-from-source sfml
 - cmake -DCMAKE_INSTALL_PREFIX=/usr/local -DDAVIS=1 -DBAFILTER=1 -DVISUALIZER=1 .
 - make
 - sudo make install
+
+
+
+diff --git a/Formula/sfml.rb b/Formula/sfml.rb
+index 71f4942..dc698d5 100644
+--- a/Formula/sfml.rb
++++ b/Formula/sfml.rb
+@@ -26,8 +26,15 @@ class Sfml < Formula
+   # https://github.com/Homebrew/homebrew/issues/40301
+   depends_on :macos => :lion
+ 
++  # install pkg-config files, currently skips OS X
++  patch :p0 do
++    url "https://gist.githubusercontent.com/llongi/0cb8b9ad00c858de05f22e839844f6e1/raw/0492d6f75b6da1c2e55993bd13bdd62667dbadd1/sfml_2.4.2_osx_homebrew_pkgconfig.patch"
++    sha256 "0804b3d1933e1aea791d1d2e4e24e61d589f3ec4a148c2797cf3209fd525e01a"
++  end
++
+   def install
+     args = std_cmake_args
++    args << "-DSFML_INSTALL_PKGCONFIG_FILES=TRUE"
+     args << "-DSFML_BUILD_DOC=TRUE" if build.with? "doxygen"
+ 
+     # Always remove the "extlibs" to avoid install_name_tool failure
