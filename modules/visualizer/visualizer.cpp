@@ -65,6 +65,7 @@ struct caer_visualizer_state {
 
 typedef struct caer_visualizer_state *caerVisualizerState;
 
+static void caerVisualizerConfigInit(sshsNode moduleNode);
 static bool caerVisualizerInit(caerModuleData moduleData);
 static void caerVisualizerExit(caerModuleData moduleData);
 static void caerVisualizerRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out);
@@ -83,9 +84,9 @@ static void handleEvents(caerModuleData moduleData);
 static void renderScreen(caerModuleData moduleData);
 static int renderThread(void *inModuleData);
 
-static const struct caer_module_functions VisualizerFunctions = { .moduleConfigInit = nullptr, .moduleInit =
-	&caerVisualizerInit, .moduleRun = &caerVisualizerRun, .moduleConfig = nullptr, .moduleExit = &caerVisualizerExit,
-	.moduleReset = &caerVisualizerReset };
+static const struct caer_module_functions VisualizerFunctions = { .moduleConfigInit = &caerVisualizerConfigInit,
+	.moduleInit = &caerVisualizerInit, .moduleRun = &caerVisualizerRun, .moduleConfig = nullptr, .moduleExit =
+		&caerVisualizerExit, .moduleReset = &caerVisualizerReset };
 
 static const struct caer_event_stream_in VisualizerInputs[] = { { .type = -1, .number = -1, .readOnly = true } };
 
@@ -96,6 +97,29 @@ static const struct caer_module_info VisualizerInfo = { .version = 1, .name = "V
 
 caerModuleInfo caerModuleGetInfo(void) {
 	return (&VisualizerInfo);
+}
+
+static void caerVisualizerConfigInit(sshsNode moduleNode) {
+	sshsNodeCreate(moduleNode, "renderer", "None", 0, 100, SSHS_FLAGS_NORMAL, "Renderer to use to generate content.");
+	sshsNodeRemoveAttribute(moduleNode, "rendererListOptions", SSHS_STRING);
+	sshsNodeCreate(moduleNode, "rendererListOptions", caerVisualizerRendererListOptionsString, 0, 200,
+		SSHS_FLAGS_READ_ONLY, "List of available renderers.");
+	sshsNodeCreate(moduleNode, "eventHandler", "None", 0, 100, SSHS_FLAGS_NORMAL,
+		"Event handler to handle mouse and keyboard events.");
+	sshsNodeRemoveAttribute(moduleNode, "eventHandlerListOptions", SSHS_STRING);
+	sshsNodeCreate(moduleNode, "eventHandlerListOptions", caerVisualizerEventHandlerListOptionsString, 0, 200,
+		SSHS_FLAGS_READ_ONLY, "List of available event handlers.");
+
+	sshsNodeCreateInt(moduleNode, "subsampleRendering", 1, 1, 100000, SSHS_FLAGS_NORMAL,
+		"Speed-up rendering by only taking every Nth EventPacketContainer to render.");
+	sshsNodeCreateBool(moduleNode, "showStatistics", true, SSHS_FLAGS_NORMAL,
+		"Show useful statistics below content (bottom of window).");
+	sshsNodeCreateFloat(moduleNode, "zoomFactor", VISUALIZER_ZOOM_DEF, VISUALIZER_ZOOM_MIN,
+	VISUALIZER_ZOOM_MAX, SSHS_FLAGS_NORMAL, "Content zoom factor.");
+	sshsNodeCreateInt(moduleNode, "windowPositionX", VISUALIZER_POSITION_X_DEF, 0, UINT16_MAX, SSHS_FLAGS_NORMAL,
+		"Position of window on screen (X coordinate).");
+	sshsNodeCreateInt(moduleNode, "windowPositionY", VISUALIZER_POSITION_Y_DEF, 0, UINT16_MAX, SSHS_FLAGS_NORMAL,
+		"Position of window on screen (Y coordinate).");
 }
 
 static bool caerVisualizerInit(caerModuleData moduleData) {
@@ -111,28 +135,6 @@ static bool caerVisualizerInit(caerModuleData moduleData) {
 	if (inputs == nullptr) {
 		return (false);
 	}
-
-	sshsNodeCreate(moduleData->moduleNode, "renderer", "None", 0, 100, SSHS_FLAGS_NORMAL,
-		"Renderer to use to generate content.");
-	sshsNodeRemoveAttribute(moduleData->moduleNode, "rendererListOptions", SSHS_STRING);
-	sshsNodeCreate(moduleData->moduleNode, "rendererListOptions", caerVisualizerRendererListOptionsString, 0, 200,
-		SSHS_FLAGS_READ_ONLY, "List of available renderers.");
-	sshsNodeCreate(moduleData->moduleNode, "eventHandler", "None", 0, 100, SSHS_FLAGS_NORMAL,
-		"Event handler to handle mouse and keyboard events.");
-	sshsNodeRemoveAttribute(moduleData->moduleNode, "eventHandlerListOptions", SSHS_STRING);
-	sshsNodeCreate(moduleData->moduleNode, "eventHandlerListOptions", caerVisualizerEventHandlerListOptionsString, 0,
-		200, SSHS_FLAGS_READ_ONLY, "List of available event handlers.");
-
-	sshsNodeCreateInt(moduleData->moduleNode, "subsampleRendering", 1, 1, 100000, SSHS_FLAGS_NORMAL,
-		"Speed-up rendering by only taking every Nth EventPacketContainer to render.");
-	sshsNodeCreateBool(moduleData->moduleNode, "showStatistics", true, SSHS_FLAGS_NORMAL,
-		"Show useful statistics below content (bottom of window).");
-	sshsNodeCreateFloat(moduleData->moduleNode, "zoomFactor", VISUALIZER_ZOOM_DEF, VISUALIZER_ZOOM_MIN,
-	VISUALIZER_ZOOM_MAX, SSHS_FLAGS_NORMAL, "Content zoom factor.");
-	sshsNodeCreateInt(moduleData->moduleNode, "windowPositionX", VISUALIZER_POSITION_X_DEF, 0, UINT16_MAX,
-		SSHS_FLAGS_NORMAL, "Position of window on screen (X coordinate).");
-	sshsNodeCreateInt(moduleData->moduleNode, "windowPositionY", VISUALIZER_POSITION_Y_DEF, 0, UINT16_MAX,
-		SSHS_FLAGS_NORMAL, "Position of window on screen (Y coordinate).");
 
 	// Initialize visualizer. Needs size information from the source.
 	if (!initRenderSize(moduleData, inputs, inputsSize)) {
