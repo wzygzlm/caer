@@ -3,6 +3,7 @@
 #include "base/module.h"
 #include "ext/threads_ext.h"
 #include "ext/resources/LiberationSans-Bold.h"
+#include "ext/sfml/helpers.hpp"
 #include "modules/statistics/statistics.h"
 #include <libcaer/ringbuffer.h>
 
@@ -744,13 +745,13 @@ static void renderScreen(caerModuleData moduleData) {
 			// (0,0) to (x-1,y-1) normally without fear of overwriting statistics.
 			sf::Text totalEventsText(state->packetStatistics.currentStatisticsStringTotal, *state->font,
 			GLOBAL_FONT_SIZE);
-			totalEventsText.setFillColor(sf::Color::White);
+			sfml::Helpers::setTextColor(totalEventsText, sf::Color::White);
 			totalEventsText.setPosition(GLOBAL_FONT_SPACING, state->renderSizeY);
 			state->renderWindow->draw(totalEventsText);
 
 			sf::Text validEventsText(state->packetStatistics.currentStatisticsStringValid, *state->font,
 			GLOBAL_FONT_SIZE);
-			validEventsText.setFillColor(sf::Color::White);
+			sfml::Helpers::setTextColor(validEventsText, sf::Color::White);
 			validEventsText.setPosition(GLOBAL_FONT_SPACING, state->renderSizeY + GLOBAL_FONT_SIZE);
 			state->renderWindow->draw(validEventsText);
 		}

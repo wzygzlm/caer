@@ -271,7 +271,7 @@ static bool caerVisualizerRendererIMU6Events(caerVisualizerPublicState state, ca
 		snprintf(valStr, 128, "%.2f,%.2f g", (double) accelX, (double) accelY);
 
 		sf::Text accelText(valStr, *state->font, 20);
-		accelText.setFillColor(accelColor);
+		sfml::Helpers::setTextColor(accelText, accelColor);
 		accelText.setPosition(sf::Vector2f(accelXScaled, accelYScaled));
 
 		state->renderWindow->draw(accelText);

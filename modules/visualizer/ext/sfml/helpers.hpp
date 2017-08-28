@@ -26,6 +26,14 @@ public:
 		vtx.position.x--;
 		vec.push_back(vtx);
 	}
+
+	static void setTextColor(sf::Text &text, const sf::Color &color) {
+#if SFML_VERSION_MAJOR == 2 && SFML_VERSION_MINOR == 3
+		text.setColor(color);
+#else
+		text.setFillColor(color);
+#endif
+	}
 };
 }
 
