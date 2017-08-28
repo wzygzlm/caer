@@ -1,0 +1,11 @@
+IF (NOT RESERVOIR)
+	SET(RESERVOIR 0 CACHE BOOL "Enable the reservoir filter module")
+ENDIF()
+
+IF (RESERVOIR)
+    ADD_LIBRARY(reservoir SHARED reservoir.c)
+
+    TARGET_LINK_LIBRARIES(reservoir ${CAER_C_LIBS})
+
+ENDIF()
+
