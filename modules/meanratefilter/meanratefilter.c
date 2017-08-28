@@ -299,8 +299,7 @@ static void caerMeanRateFilterRun(caerModuleData moduleData, caerEventPacketCont
 					}
 					if(changed){
 						//generate bits to send
-						generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode,
-								biasName, coarseValue, fineValue, "HighBias", "Normal", "PBias", true, chipid);
+						caerDynapseSetBiasCore(state->eventSourceConfigNode, chipid, coreid, "IF_DC_P", coarseValue, fineValue, "High");
 					}
 
 				}
