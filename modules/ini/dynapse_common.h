@@ -127,7 +127,8 @@ static inline void caerDynapseSetBiasCore(sshsNode dynapseNode, uint8_t chipId, 
 	}
 
 	size_t biasNameLength = strlen(biasName);
-	char biasNameWithCore[biasNameLength + 3 + 1]; // +1 for terminating NUL char.
+	// +3 for Cx_, +1 for closing /, +1 for terminating NUL char.
+	char biasNameWithCore[biasNameLength + 3 + 1 + 1];
 
 	biasNameWithCore[0] = 'C';
 	if (coreId == 0)
@@ -141,6 +142,9 @@ static inline void caerDynapseSetBiasCore(sshsNode dynapseNode, uint8_t chipId, 
 	biasNameWithCore[2] = '_';
 
 	strcpy(&biasNameWithCore[3], biasName);
+
+	biasNameWithCore[biasNameLength + 3] = '/';
+	biasNameWithCore[biasNameLength + 3 + 1] = '\0';
 
 	// Device related configuration has its own sub-node.
 	sshsNode deviceConfigNodeLP = sshsGetRelativeNode(dynapseNode, chipIDToName(chipId, true));
