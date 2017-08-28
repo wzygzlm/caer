@@ -100,7 +100,7 @@ static void *caerVisualizerRendererFrameEventsStateInit(caerVisualizerPublicStat
 
 	// Create texture representing frame, set smoothing.
 	renderState->texture.create(state->renderSizeX, state->renderSizeY);
-	renderState->texture.setSmooth(true);
+	renderState->texture.setSmooth(false);
 
 	// Assign texture to sprite.
 	renderState->sprite.setTexture(renderState->texture);
