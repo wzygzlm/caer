@@ -5,7 +5,7 @@
 #include <limits.h>
 
 static uint32_t convertBias(const char *biasName, const char* lowhi, const char*cl, const char*sex, uint8_t enal,
-	uint16_t fineValue, uint8_t coarseValue, uint8_t special);
+	uint16_t fineValue, uint8_t coarseValue);
 static uint32_t generateCoarseFineBias(sshsNode biasNode);
 static void systemConfigListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
@@ -18,8 +18,6 @@ static void biasConfigListener(sshsNode node, void *userData, enum sshs_node_att
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
 static void logLevelListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
-static bool EnableStimuliGen(caerModuleData moduleData);
-static bool DisableStimuliGen(caerModuleData moduleData);
 
 bool caerInputDYNAPSEInit(caerModuleData moduleData);
 void caerInputDYNAPSEExit(caerModuleData moduleData);
@@ -43,23 +41,6 @@ caerModuleInfo caerModuleGetInfo(void) {
 
 static bool caerInputDYNAPSEFX2Init(caerModuleData moduleData) {
 	return (caerInputDYNAPSEInit(moduleData));
-}
-
-bool EnableStimuliGen(caerModuleData moduleData) {
-	sshsNode deviceConfigNode = sshsGetRelativeNode(moduleData->moduleNode, chipIDToName(DYNAPSE_CHIP_DYNAPSE, true));
-	sshsNode spikeNode = sshsGetRelativeNode(deviceConfigNode, "spikeGen/");
-
-	sshsNodePutBool(spikeNode, "doStimPrimitiveBias", true);
-	return (true);
-}
-
-bool DisableStimuliGen(caerModuleData moduleData) {
-
-	sshsNode deviceConfigNode = sshsGetRelativeNode(moduleData->moduleNode, chipIDToName(DYNAPSE_CHIP_DYNAPSE, true));
-	sshsNode spikeNode = sshsGetRelativeNode(deviceConfigNode, "spikeGen/");
-
-	sshsNodePutBool(spikeNode, "doStimPrimitiveBias", false);
-	return (true);
 }
 
 static void moduleShutdownNotify(void *p) {
@@ -271,8 +252,8 @@ static void usbConfigListener(sshsNode node, void *userData, enum sshs_node_attr
 	}
 }
 
-static void createCoarseFineBiasSetting(sshsNode biasNode, caerModuleData moduleData, const char *biasName, uint8_t coarseValue,
-	uint16_t fineValue, const char *hlbias, const char *currentLevel, const char *sex, bool enabled) {
+static void createCoarseFineBiasSetting(sshsNode biasNode, caerModuleData moduleData, const char *biasName,
+	uint8_t coarseValue, uint8_t fineValue, bool biasHigh, bool typeNormal, bool sexN, bool enabled) {
 	// Add trailing slash to node name (required!).
 	size_t biasNameLength = strlen(biasName);
 	char biasNameFull[biasNameLength + 2];
@@ -288,11 +269,22 @@ static void createCoarseFineBiasSetting(sshsNode biasNode, caerModuleData module
 		"Coarse current value (big adjustments).");
 	sshsNodeCreateShort(biasConfigNode, "fineValue", I16T(fineValue), 0, 255, SSHS_FLAGS_NORMAL,
 		"Fine current value (small adjustments).");
+
 	sshsNodeCreateBool(biasConfigNode, "enabled", enabled, SSHS_FLAGS_NORMAL, "Bias enabled.");
-	sshsNodeCreateString(biasConfigNode, "sex", sex, 5, 5, SSHS_FLAGS_NORMAL, "Bias sex.");
-	sshsNodeCreateString(biasConfigNode, "currentLevel", currentLevel, 3, 7, SSHS_FLAGS_NORMAL, "Bias current level.");
-	sshsNodeCreateString(biasConfigNode, "BiasLowHi", hlbias, 0, 100, SSHS_FLAGS_NORMAL, "Bias low or high TODO.");
-	sshsNodeCreateBool(biasConfigNode, "special", false, SSHS_FLAGS_NORMAL, "Bias special type TODO.");
+	sshsNodeCreateString(biasConfigNode, "sex", (sexN) ? ("N") : ("P"), 1, 1, SSHS_FLAGS_NORMAL, "Bias sex.");
+	sshsNodeRemoveAttribute(biasConfigNode, "sexListOptions", SSHS_STRING);
+	sshsNodeCreateString(biasConfigNode, "sexListOptions", "N,P", 0, 10, SSHS_FLAGS_READ_ONLY,
+		"Bias sex possible values.");
+	sshsNodeCreateString(biasConfigNode, "type", (typeNormal) ? ("Normal") : ("Cascode"), 6, 7, SSHS_FLAGS_NORMAL,
+		"Bias type.");
+	sshsNodeRemoveAttribute(biasConfigNode, "typeListOptions", SSHS_STRING);
+	sshsNodeCreateString(biasConfigNode, "typeListOptions", "Normal,Cascode", 0, 30, SSHS_FLAGS_READ_ONLY,
+		"Bias type possible values.");
+	sshsNodeCreateString(biasConfigNode, "currentLevel", (biasHigh) ? ("High") : ("Low"), 3, 4, SSHS_FLAGS_NORMAL,
+		"Bias current level.");
+	sshsNodeRemoveAttribute(biasConfigNode, "currentLevelListOptions", SSHS_STRING);
+	sshsNodeCreateString(biasConfigNode, "currentLevelListOptions", "High,Low", 0, 20, SSHS_FLAGS_READ_ONLY,
+		"Bias current level possible values.");
 
 	sshsNodeAddAttributeListener(biasConfigNode, moduleData, &biasConfigListener);
 
@@ -361,129 +353,130 @@ static void biasConfigListener(sshsNode node, void *userData, enum sshs_node_att
 }
 
 static void createDefaultConfiguration(caerModuleData moduleData, int chipid) {
-
 	// Device related configuration has its own sub-node..
 	sshsNode deviceConfigNode = sshsGetRelativeNode(moduleData->moduleNode, chipIDToName((int16_t) chipid, true));
 
 	// Chip biases, defaults.
 	sshsNode biasNode = sshsGetRelativeNode(deviceConfigNode, "bias/");
 
-	createCoarseFineBiasSetting(biasNode, moduleData, "C0_IF_BUF_P", 7, 0, "HighBias", "Normal", "NBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C0_IF_RFR_N", 7, 0, "HighBias", "Normal", "NBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C0_IF_NMDA_N", 7, 0, "HighBias", "Normal", "NBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C0_IF_DC_P", 7, 0, "HighBias", "Normal", "PBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C0_IF_TAU1_N", 7, 0, "LowBias", "Normal", "NBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C0_IF_TAU2_N", 7, 0, "LowBias", "Normal", "NBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C0_IF_THR_N", 7, 0, "HighBias", "Normal", "NBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C0_IF_AHW_P", 7, 0, "HighBias", "Normal", "PBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C0_IF_AHTAU_N", 7, 0, "HighBias", "Normal", "NBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C0_IF_AHTHR_N", 7, 0, "HighBias", "Normal", "NBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C0_IF_CASC_N", 7, 0, "HighBias", "Normal", "NBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C0_PULSE_PWLK_P", 7, 0, "HighBias", "Normal", "PBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C0_PS_WEIGHT_INH_S_N", 7, 0, "HighBias", "Normal", "NBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C0_PS_WEIGHT_INH_F_N", 7, 0, "HighBias", "Normal", "NBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C0_PS_WEIGHT_EXC_S_N", 7, 0, "HighBias", "Normal", "NBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C0_PS_WEIGHT_EXC_F_N", 7, 0, "HighBias", "Normal", "NBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C0_NPDPII_TAU_S_P", 7, 0, "HighBias", "Normal", "PBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C0_NPDPII_THR_S_P", 7, 0, "HighBias", "Normal", "PBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C0_NPDPII_TAU_F_P", 7, 0, "HighBias", "Normal", "PBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C0_NPDPII_THR_F_P", 7, 0, "HighBias", "Normal", "PBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C0_NPDPIE_TAU_S_P", 7, 0, "HighBias", "Normal", "PBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C0_NPDPIE_THR_S_P", 7, 0, "HighBias", "Normal", "PBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C0_NPDPIE_TAU_F_P", 7, 0, "HighBias", "Normal", "PBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C0_NPDPIE_THR_F_P", 7, 0, "HighBias", "Normal", "PBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C0_R2R_P", 7, 0, "HighBias", "Normal", "PBias", true);
+	// Core 0.
+	createCoarseFineBiasSetting(biasNode, moduleData, "C0_IF_BUF_P", 3, 80, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C0_IF_RFR_N", 3, 3, true, true, true, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C0_IF_NMDA_N", 7, 0, true, true, true, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C0_IF_DC_P", 1, 30, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C0_IF_TAU1_N", 7, 10, false, true, true, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C0_IF_TAU2_N", 6, 100, true, true, true, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C0_IF_THR_N", 3, 120, true, true, true, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C0_IF_AHW_P", 7, 0, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C0_IF_AHTAU_N", 7, 35, true, true, true, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C0_IF_AHTHR_N", 7, 0, true, true, true, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C0_IF_CASC_N", 7, 0, true, true, true, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C0_PULSE_PWLK_P", 3, 106, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C0_PS_WEIGHT_INH_S_N", 7, 0, true, true, true, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C0_PS_WEIGHT_INH_F_N", 7, 0, true, true, true, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C0_PS_WEIGHT_EXC_S_N", 7, 0, true, true, true, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C0_PS_WEIGHT_EXC_F_N", 15, 0, true, true, true, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C0_NPDPII_TAU_S_P", 7, 40, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C0_NPDPII_TAU_F_P", 7, 0, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C0_NPDPII_THR_S_P", 7, 40, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C0_NPDPII_THR_F_P", 7, 0, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C0_NPDPIE_TAU_S_P", 7, 0, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C0_NPDPIE_TAU_F_P", 7, 40, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C0_NPDPIE_THR_S_P", 7, 0, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C0_NPDPIE_THR_F_P", 7, 0, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C0_R2R_P", 4, 85, true, true, false, true);
 
-	createCoarseFineBiasSetting(biasNode, moduleData, "C1_IF_BUF_P", 7, 0, "HighBias", "Normal", "PBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C1_IF_RFR_N", 7, 0, "HighBias", "Normal", "NBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C1_IF_NMDA_N", 7, 0, "HighBias", "Normal", "NBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C1_IF_DC_P", 7, 0, "HighBias", "Normal", "PBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C1_IF_TAU1_N", 7, 0, "LowBias", "Normal", "NBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C1_IF_TAU2_N", 7, 0, "LowBias", "Normal", "NBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C1_IF_THR_N", 7, 0, "HighBias", "Normal", "NBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C1_IF_AHW_P", 7, 0, "HighBias", "Normal", "PBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C1_IF_AHTAU_N", 7, 0, "HighBias", "Normal", "NBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C1_IF_AHTHR_N", 7, 0, "HighBias", "Normal", "NBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C1_IF_CASC_N", 7, 0, "HighBias", "Normal", "NBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C1_PULSE_PWLK_P", 7, 0, "HighBias", "Normal", "PBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C1_PS_WEIGHT_INH_S_N", 7, 0, "HighBias", "Normal", "NBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C1_PS_WEIGHT_INH_F_N", 7, 0, "HighBias", "Normal", "NBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C1_PS_WEIGHT_EXC_S_N", 7, 0, "HighBias", "Normal", "NBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C1_PS_WEIGHT_EXC_F_N", 7, 0, "HighBias", "Normal", "NBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C1_NPDPII_TAU_S_P", 7, 0, "HighBias", "Normal", "PBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C1_NPDPII_THR_S_P", 7, 0, "HighBias", "Normal", "PBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C1_NPDPII_TAU_F_P", 7, 0, "HighBias", "Normal", "PBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C1_NPDPII_THR_F_P", 7, 0, "HighBias", "Normal", "PBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C1_NPDPIE_TAU_S_P", 7, 0, "HighBias", "Normal", "PBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C1_NPDPIE_THR_S_P", 7, 0, "HighBias", "Normal", "PBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C1_NPDPIE_TAU_F_P", 7, 0, "HighBias", "Normal", "PBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C1_NPDPIE_THR_F_P", 7, 0, "HighBias", "Normal", "PBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C1_R2R_P", 7, 0, "HighBias", "Normal", "PBias", true);
+	// Core 1.
+	createCoarseFineBiasSetting(biasNode, moduleData, "C1_IF_BUF_P", 3, 80, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C1_IF_RFR_N", 3, 3, true, true, true, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C1_IF_NMDA_N", 7, 0, true, true, true, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C1_IF_DC_P", 1, 30, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C1_IF_TAU1_N", 7, 5, false, true, true, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C1_IF_TAU2_N", 6, 100, true, true, true, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C1_IF_THR_N", 4, 120, true, true, true, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C1_IF_AHW_P", 7, 0, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C1_IF_AHTAU_N", 7, 35, true, true, true, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C1_IF_AHTHR_N", 7, 0, true, true, true, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C1_IF_CASC_N", 7, 0, true, true, true, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C1_PULSE_PWLK_P", 3, 106, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C1_PS_WEIGHT_INH_S_N", 7, 0, true, true, true, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C1_PS_WEIGHT_INH_F_N", 7, 0, true, true, true, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C1_PS_WEIGHT_EXC_S_N", 7, 0, true, true, true, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C1_PS_WEIGHT_EXC_F_N", 15, 0, true, true, true, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C1_NPDPII_TAU_S_P", 7, 40, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C1_NPDPII_TAU_F_P", 7, 0, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C1_NPDPII_THR_S_P", 7, 40, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C1_NPDPII_THR_F_P", 7, 0, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C1_NPDPIE_TAU_S_P", 7, 0, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C1_NPDPIE_TAU_F_P", 7, 40, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C1_NPDPIE_THR_S_P", 7, 0, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C1_NPDPIE_THR_F_P", 7, 0, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C1_R2R_P", 4, 85, true, true, false, true);
 
-	createCoarseFineBiasSetting(biasNode, moduleData, "C2_IF_BUF_P", 7, 0, "HighBias", "Normal", "PBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C2_IF_RFR_N", 7, 0, "HighBias", "Normal", "NBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C2_IF_NMDA_N", 7, 0, "HighBias", "Normal", "NBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C2_IF_DC_P", 7, 0, "HighBias", "Normal", "PBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C2_IF_TAU1_N", 7, 0, "LowBias", "Normal", "NBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C2_IF_TAU2_N", 7, 0, "LowBias", "Normal", "NBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C2_IF_THR_N", 7, 0, "HighBias", "Normal", "NBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C2_IF_AHW_P", 7, 0, "HighBias", "Normal", "PBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C2_IF_AHTAU_N", 7, 0, "HighBias", "Normal", "NBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C2_IF_AHTHR_N", 7, 0, "HighBias", "Normal", "NBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C2_IF_CASC_N", 7, 0, "HighBias", "Normal", "NBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C2_PULSE_PWLK_P", 7, 0, "HighBias", "Normal", "PBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C2_PS_WEIGHT_INH_S_N", 7, 0, "HighBias", "Normal", "NBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C2_PS_WEIGHT_INH_F_N", 7, 0, "HighBias", "Normal", "NBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C2_PS_WEIGHT_EXC_S_N", 7, 0, "HighBias", "Normal", "NBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C2_PS_WEIGHT_EXC_F_N", 7, 0, "HighBias", "Normal", "NBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C2_NPDPII_TAU_S_P", 7, 0, "HighBias", "Normal", "PBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C2_NPDPII_THR_S_P", 7, 0, "HighBias", "Normal", "PBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C2_NPDPII_TAU_F_P", 7, 0, "HighBias", "Normal", "PBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C2_NPDPII_THR_F_P", 7, 0, "HighBias", "Normal", "PBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C2_NPDPIE_TAU_S_P", 7, 0, "HighBias", "Normal", "PBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C2_NPDPIE_THR_S_P", 7, 0, "HighBias", "Normal", "PBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C2_NPDPIE_TAU_F_P", 7, 0, "HighBias", "Normal", "PBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C2_NPDPIE_THR_F_P", 7, 0, "HighBias", "Normal", "PBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C2_R2R_P", 7, 0, "HighBias", "Normal", "PBias", true);
+	// Core 2.
+	createCoarseFineBiasSetting(biasNode, moduleData, "C2_IF_BUF_P", 3, 80, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C2_IF_RFR_N", 3, 3, true, true, true, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C2_IF_NMDA_N", 7, 0, true, true, true, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C2_IF_DC_P", 1, 30, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C2_IF_TAU1_N", 7, 10, false, true, true, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C2_IF_TAU2_N", 6, 100, true, true, true, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C2_IF_THR_N", 4, 120, true, true, true, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C2_IF_AHW_P", 7, 0, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C2_IF_AHTAU_N", 7, 35, true, true, true, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C2_IF_AHTHR_N", 7, 0, true, true, true, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C2_IF_CASC_N", 7, 0, true, true, true, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C2_PULSE_PWLK_P", 3, 106, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C2_PS_WEIGHT_INH_S_N", 7, 0, true, true, true, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C2_PS_WEIGHT_INH_F_N", 7, 0, true, true, true, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C2_PS_WEIGHT_EXC_S_N", 7, 0, true, true, true, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C2_PS_WEIGHT_EXC_F_N", 15, 0, true, true, true, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C2_NPDPII_TAU_S_P", 7, 40, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C2_NPDPII_TAU_F_P", 7, 0, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C2_NPDPII_THR_S_P", 7, 40, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C2_NPDPII_THR_F_P", 7, 0, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C2_NPDPIE_TAU_S_P", 7, 0, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C2_NPDPIE_TAU_F_P", 7, 40, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C2_NPDPIE_THR_S_P", 7, 0, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C2_NPDPIE_THR_F_P", 7, 0, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C2_R2R_P", 4, 85, true, true, false, true);
 
-	createCoarseFineBiasSetting(biasNode, moduleData, "C3_IF_BUF_P", 7, 0, "HighBias", "Normal", "PBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C3_IF_RFR_N", 7, 0, "HighBias", "Normal", "NBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C3_IF_NMDA_N", 7, 0, "HighBias", "Normal", "NBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C3_IF_DC_P", 7, 0, "HighBias", "Normal", "PBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C3_IF_TAU1_N", 7, 0, "LowBias", "Normal", "NBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C3_IF_TAU2_N", 7, 0, "LowBias", "Normal", "NBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C3_IF_THR_N", 7, 0, "HighBias", "Normal", "NBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C3_IF_AHW_P", 7, 0, "HighBias", "Normal", "PBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C3_IF_AHTAU_N", 7, 0, "HighBias", "Normal", "NBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C3_IF_AHTHR_N", 7, 0, "HighBias", "Normal", "NBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C3_IF_CASC_N", 7, 0, "HighBias", "Normal", "NBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C3_PULSE_PWLK_P", 7, 0, "HighBias", "Normal", "PBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C3_PS_WEIGHT_INH_S_N", 7, 0, "HighBias", "Normal", "NBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C3_PS_WEIGHT_INH_F_N", 7, 0, "HighBias", "Normal", "NBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C3_PS_WEIGHT_EXC_S_N", 7, 0, "HighBias", "Normal", "NBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C3_PS_WEIGHT_EXC_F_N", 7, 0, "HighBias", "Normal", "NBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C3_NPDPII_TAU_S_P", 7, 0, "HighBias", "Normal", "PBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C3_NPDPII_THR_S_P", 7, 0, "HighBias", "Normal", "PBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C3_NPDPII_TAU_F_P", 7, 0, "HighBias", "Normal", "PBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C3_NPDPII_THR_F_P", 7, 0, "HighBias", "Normal", "PBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C3_NPDPIE_TAU_S_P", 7, 0, "HighBias", "Normal", "PBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C3_NPDPIE_THR_S_P", 7, 0, "HighBias", "Normal", "PBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C3_NPDPIE_TAU_F_P", 7, 0, "HighBias", "Normal", "PBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C3_NPDPIE_THR_F_P", 7, 0, "HighBias", "Normal", "PBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "C3_R2R_P", 7, 0, "HighBias", "Normal", "PBias", true);
+	// Core 3.
+	createCoarseFineBiasSetting(biasNode, moduleData, "C3_IF_BUF_P", 3, 80, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C3_IF_RFR_N", 3, 3, true, true, true, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C3_IF_NMDA_N", 7, 0, true, true, true, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C3_IF_DC_P", 1, 30, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C3_IF_TAU1_N", 7, 5, false, true, true, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C3_IF_TAU2_N", 6, 100, true, true, true, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C3_IF_THR_N", 4, 120, true, true, true, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C3_IF_AHW_P", 7, 0, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C3_IF_AHTAU_N", 7, 35, true, true, true, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C3_IF_AHTHR_N", 7, 0, true, true, true, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C3_IF_CASC_N", 7, 0, true, true, true, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C3_PULSE_PWLK_P", 3, 106, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C3_PS_WEIGHT_INH_S_N", 7, 0, true, true, true, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C3_PS_WEIGHT_INH_F_N", 7, 0, true, true, true, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C3_PS_WEIGHT_EXC_S_N", 7, 0, true, true, true, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C3_PS_WEIGHT_EXC_F_N", 7, 0, true, true, true, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C3_NPDPII_TAU_S_P", 7, 40, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C3_NPDPII_TAU_F_P", 7, 0, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C3_NPDPII_THR_S_P", 7, 40, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C3_NPDPII_THR_F_P", 7, 0, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C3_NPDPIE_TAU_S_P", 7, 0, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C3_NPDPIE_TAU_F_P", 7, 40, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C3_NPDPIE_THR_S_P", 7, 0, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C3_NPDPIE_THR_F_P", 7, 0, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "C3_R2R_P", 4, 85, true, true, false, true);
 
-	createCoarseFineBiasSetting(biasNode, moduleData, "U_BUFFER", 1, 80, "LowBias", "Normal", "PBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "U_SSP", 0, 7, "LowBias", "Cascade", "PBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "U_SSN", 0, 15, "LowBias", "Normal", "PBias", true);
-
-	createCoarseFineBiasSetting(biasNode, moduleData, "D_BUFFER", 1, 80, "LowBias", "Normal", "PBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "D_SSP", 0, 7, "LowBias", "Normal", "PBias", true);
-	createCoarseFineBiasSetting(biasNode, moduleData, "D_SSN", 0, 15, "LowBias", "Normal", "PBias", true);
-
+	createCoarseFineBiasSetting(biasNode, moduleData, "D_BUFFER", 1, 2, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "D_SSP", 0, 7, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "D_SSN", 0, 15, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "U_BUFFER", 1, 2, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "U_SSP", 0, 7, true, true, false, true);
+	createCoarseFineBiasSetting(biasNode, moduleData, "U_SSN", 0, 15, true, true, false, true);
 }
 
-static uint32_t convertBias(const char *biasName, const char* lowhi, const char*cl, const char*sex, uint8_t enal,
-	uint16_t fineValue, uint8_t coarseValue, uint8_t special) {
+static uint32_t convertBias(const char *biasName, const char *lowhi, const char *type, const char*sex, uint8_t enal,
+	uint16_t fineValue, uint8_t coarseValue) {
 
 	int32_t confbits;
 	int32_t addr = 0;
@@ -814,7 +807,7 @@ static uint32_t convertBias(const char *biasName, const char* lowhi, const char*
 	}
 
 	uint8_t lws, ssx, cls;
-	if (caerStrEquals(lowhi, "HighBias")) {
+	if (caerStrEquals(lowhi, "High")) {
 		//"HighBias": 1,
 		lws = 1;
 	}
@@ -822,7 +815,7 @@ static uint32_t convertBias(const char *biasName, const char* lowhi, const char*
 		//"LowBias": 0,
 		lws = 0;
 	}
-	if (caerStrEquals(sex, "NBias")) {
+	if (caerStrEquals(sex, "N")) {
 		//"NBias": 1,
 		ssx = 1;
 	}
@@ -830,7 +823,7 @@ static uint32_t convertBias(const char *biasName, const char* lowhi, const char*
 		//  "PBias": 0,
 		ssx = 0;
 	}
-	if (caerStrEquals(cl, "Normal")) {
+	if (caerStrEquals(type, "Normal")) {
 		//"Normal": 1,
 		cls = 1;
 	}
@@ -882,11 +875,11 @@ static uint32_t convertBias(const char *biasName, const char* lowhi, const char*
 	}
 	else if (addr == DYNAPSE_CONFIG_BIAS_D_BUFFER || addr == DYNAPSE_CONFIG_BIAS_U_BUFFER) {
 		confbits = 0;
-		inbits = (uint32_t) addr << 18 | 1 << 16 | (uint32_t) special << 15 | (uint32_t) coarseRev << 12
+		inbits = (uint32_t) addr << 18 | 1 << 16 | (uint32_t) coarseRev << 12
 			| (uint32_t) fineValue << 4;
 	}
 	else {
-		inbits = (uint32_t) addr << 18 | 1 << 16 | (uint32_t) special << 15 | (uint32_t) coarseRev << 12
+		inbits = (uint32_t) addr << 18 | 1 << 16 | (uint32_t) coarseRev << 12
 			| (uint32_t) fineValue << 4 | (uint32_t) confbits;
 	}
 
@@ -899,26 +892,13 @@ uint32_t generateCoarseFineBias(sshsNode biasNode) {
 	const char *biasName = sshsNodeGetName(biasNode);
 
 	bool enal = sshsNodeGetBool(biasNode, "enabled");
-	bool special = sshsNodeGetBool(biasNode, "special");
 	int8_t coarseValue = sshsNodeGetByte(biasNode, "coarseValue");
 	int16_t fineValue = sshsNodeGetShort(biasNode, "fineValue");
-	char * lowhi = sshsNodeGetString(biasNode, "BiasLowHi");
-	char * cl = sshsNodeGetString(biasNode, "currentLevel");
+	char * lowhi = sshsNodeGetString(biasNode, "currentLevel");
+	char * type = sshsNodeGetString(biasNode, "type");
 	char * sex = sshsNodeGetString(biasNode, "sex");
 
-	// generates bits values
-	uint8_t enabled;
-	uint8_t specialed;
-	if (enal)
-		enabled = 1;
-	else
-		enabled = 0;
-	if (special)
-		specialed = 1;
-	else
-		specialed = 0;
-
-	uint32_t bits = convertBias(biasName, lowhi, cl, sex, enal, (uint16_t) fineValue, (uint8_t) coarseValue, specialed);
+	uint32_t bits = convertBias(biasName, lowhi, type, sex, enal, U8T(fineValue), U8T(coarseValue));
 
 	return (bits);
 }
@@ -1018,7 +998,8 @@ bool caerInputDYNAPSEInit(caerModuleData moduleData) {
 	caerModuleSetSubSystemString(moduleData, subSystemString);
 
 	// Let's turn on blocking data-get mode to avoid wasting resources.
-	caerDeviceConfigSet(state->deviceState, CAER_HOST_CONFIG_DATAEXCHANGE, CAER_HOST_CONFIG_DATAEXCHANGE_BLOCKING, false);
+	caerDeviceConfigSet(state->deviceState, CAER_HOST_CONFIG_DATAEXCHANGE, CAER_HOST_CONFIG_DATAEXCHANGE_BLOCKING,
+	false);
 
 	// Device related configuration has its own sub-node DYNAPSEFX2
 	sshsNode deviceConfigNode = sshsGetRelativeNode(moduleData->moduleNode, chipIDToName(DYNAPSE_CHIP_DYNAPSE, true));
@@ -1032,7 +1013,6 @@ bool caerInputDYNAPSEInit(caerModuleData moduleData) {
 		"Size in bytes of data buffers for USB transfers.");
 	sshsNodeCreateShort(usbNode, "EarlyPacketDelay", 8, 1, 8000, SSHS_FLAGS_NORMAL,
 		"Send early USB packets if this timeout is reached (in 125µs time-slices).");
-
 
 	sshsNode sysNode = sshsGetRelativeNode(moduleData->moduleNode, "system/");
 
@@ -1311,45 +1291,6 @@ void caerInputDYNAPSERun(caerModuleData moduleData, caerEventPacketContainer in,
 			sshsNodeUpdateReadOnlyAttribute(sourceInfoNode, "deviceIsMaster", SSHS_BOOL, (union sshs_node_attr_value ) {
 					.boolean = devInfo.deviceIsMaster });
 		}
-	}
-}
-
-
-void caerDynapseSetBias(caerInputDynapseState state, uint32_t chipId, uint32_t coreId, const char *biasName_t,
-	uint8_t coarseValue, uint16_t fineValue, const char *lowHigh, const char *npBias) {
-
-	// Check if the pointer is valid.
-	if (state->deviceState == NULL) {
-		//struct caer_dynapse_info emptyInfo = { 0, .deviceString = NULL };
-		return;
-	}
-
-	size_t biasNameLength = strlen(biasName_t);
-	char biasName[biasNameLength + 3];
-
-	biasName[0] = 'C';
-	if (coreId == 0)
-		biasName[1] = '0';
-	else if (coreId == 1)
-		biasName[1] = '1';
-	else if (coreId == 2)
-		biasName[1] = '2';
-	else if (coreId == 3)
-		biasName[1] = '3';
-	biasName[2] = '_';
-
-	uint32_t i;
-	for (i = 0; i < biasNameLength + 3; i++) {
-		biasName[3 + i] = biasName_t[i];
-	}
-
-	if (chipId != DYNAPSE_CONFIG_DYNAPSE_U0 && chipId != DYNAPSE_CONFIG_DYNAPSE_U1
-		&& chipId != DYNAPSE_CONFIG_DYNAPSE_U2 && chipId != DYNAPSE_CONFIG_DYNAPSE_U3) {
-		caerLog(CAER_LOG_ERROR, __func__, "Chip id is not valid %d", chipId);
-	}
-	else {
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, biasName, coarseValue, fineValue, lowHigh,
-			"Normal", npBias, true, chipId);
 	}
 }
 

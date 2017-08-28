@@ -67,11 +67,6 @@ struct caer_input_dynapse_state {
 };
 
 typedef struct caer_input_dynapse_state *caerInputDynapseState;
-void caerDynapseSetBias(caerInputDynapseState state, uint32_t chipId, uint32_t coreId, const char *biasName_t,
-	uint8_t coarseValue, uint16_t fineValue, const char *lowHigh, const char *npBias);
-
-bool caerGenSpikeInit(caerModuleData moduleData);
-void caerGenSpikeExit(caerModuleData moduleData);
 
 static inline const char *chipIDToName(int16_t chipID, bool withEndSlash) {
 	switch (chipID) {
@@ -101,33 +96,67 @@ static inline const char *chipIDToName(int16_t chipID, bool withEndSlash) {
 	exit(1);
 }
 
-static inline void generatesBitsCoarseFineBiasSetting(sshsNode node, const char *biasName, uint8_t coarseValue,
-	uint16_t fineValue, const char *hlbias, const char *currentLevel, const char *sex, bool enabled, uint32_t chipid) {
+/**
+ * Set a certain bias of a specific core of a chip of the Dynap-SE device
+ * to a user-supplied value.
+ *
+ * @param dynapseNode Dynap-SE module configuration node (source node).
+ * @param chipId Chip ID.
+ * @param coreId Core ID.
+ * @param biasName Bias name, like "IF_RFR_N" or "IF_DC_P".
+ * @param coarseValue coarse current value, range [0,7], 0 is highest current, 7 lowest.
+ * @param fineValue fine current value, range [0,255], 0 is lowest current, 255 highest.
+ * @param highLow bias current level, choices are 'High' and 'Low'.
+ */
+static inline void caerDynapseSetBiasCore(sshsNode dynapseNode, uint8_t chipId, uint8_t coreId, const char *biasName,
+	uint8_t coarseValue, uint8_t fineValue, const char *highLow) {
+	// Check if the pointer is valid.
+	if (dynapseNode == NULL) {
+		return;
+	}
 
-	// Add trailing slash to node name (required!).
+	if (chipId != DYNAPSE_CONFIG_DYNAPSE_U0 && chipId != DYNAPSE_CONFIG_DYNAPSE_U1
+		&& chipId != DYNAPSE_CONFIG_DYNAPSE_U2 && chipId != DYNAPSE_CONFIG_DYNAPSE_U3) {
+		caerLog(CAER_LOG_ERROR, __func__, "Chip ID %d is invalid.", chipId);
+		return;
+	}
+
+	if (coreId >= 4) {
+		caerLog(CAER_LOG_ERROR, __func__, "Core ID %d is invalid.", coreId);
+		return;
+	}
+
 	size_t biasNameLength = strlen(biasName);
-	char biasNameFull[biasNameLength + 2];
-	memcpy(biasNameFull, biasName, biasNameLength);
-	biasNameFull[biasNameLength] = '/';
-	biasNameFull[biasNameLength + 1] = '\0';
+	char biasNameWithCore[biasNameLength + 3 + 1]; // +1 for terminating NUL char.
+
+	biasNameWithCore[0] = 'C';
+	if (coreId == 0)
+		biasNameWithCore[1] = '0';
+	else if (coreId == 1)
+		biasNameWithCore[1] = '1';
+	else if (coreId == 2)
+		biasNameWithCore[1] = '2';
+	else if (coreId == 3)
+		biasNameWithCore[1] = '3';
+	biasNameWithCore[2] = '_';
+
+	strcpy(&biasNameWithCore[3], biasName);
 
 	// Device related configuration has its own sub-node.
-	sshsNode deviceConfigNodeLP = sshsGetRelativeNode(node, chipIDToName((int16_t) chipid, true));
+	sshsNode deviceConfigNodeLP = sshsGetRelativeNode(dynapseNode, chipIDToName(chipId, true));
 
 	sshsNode biasNodeLP = sshsGetRelativeNode(deviceConfigNodeLP, "bias/");
 
 	// Create configuration node for this particular bias.
-	sshsNode biasConfigNode = sshsGetRelativeNode(biasNodeLP, biasNameFull);
+	sshsNode biasConfigNode = sshsGetRelativeNode(biasNodeLP, biasNameWithCore);
 
 	// Add bias settings.
 	sshsNodePutByte(biasConfigNode, "coarseValue", I8T(coarseValue));
 	sshsNodePutShort(biasConfigNode, "fineValue", I16T(fineValue));
-	sshsNodePutString(biasConfigNode, "BiasLowHi", hlbias);
-	sshsNodePutString(biasConfigNode, "currentLevel", currentLevel);
-	sshsNodePutString(biasConfigNode, "sex", sex);
-	sshsNodePutBool(biasConfigNode, "enabled", enabled);
-	sshsNodePutBool(biasConfigNode, "special", false);
-
+	sshsNodePutString(biasConfigNode, "currentLevel", highLow);
 }
+
+bool caerGenSpikeInit(caerModuleData moduleData);
+void caerGenSpikeExit(caerModuleData moduleData);
 
 #endif /* DYNAPSE_COMMON_H_ */
