@@ -21,7 +21,7 @@ struct sshs_node_attr {
 	union sshs_node_attr_range min;
 	union sshs_node_attr_range max;
 	int flags;
-	const char *description;
+	char *description;
 	union sshs_node_attr_value value;
 	enum sshs_node_attr_value_type value_type;
 	char key[];
@@ -397,6 +397,7 @@ static inline void sshsNodeFreeAttribute(sshsNodeAttr attr) {
 		free(attr->value.string);
 	}
 
+	free(attr->description);
 	free(attr);
 }
 
@@ -482,7 +483,10 @@ void sshsNodeCreateAttribute(sshsNode node, const char *key, enum sshs_node_attr
 	newAttr->min = minValue;
 	newAttr->max = maxValue;
 	newAttr->flags = flags;
-	newAttr->description = description;
+
+	char *descriptionCopy = strdup(description);
+	SSHS_MALLOC_CHECK_EXIT(descriptionCopy);
+	newAttr->description = descriptionCopy;
 
 	newAttr->value_type = type;
 	strcpy(newAttr->key, key);
@@ -511,7 +515,10 @@ void sshsNodeCreateAttribute(sshsNode node, const char *key, enum sshs_node_attr
 		oldAttr->min = minValue;
 		oldAttr->max = maxValue;
 		oldAttr->flags = flags;
-		oldAttr->description = description;
+
+		free(oldAttr->description);
+		oldAttr->description = newAttr->description;
+		newAttr->description = NULL;
 
 		// Check if the current value is still fine and within range; if it's
 		// not, we replace it with the new one.
@@ -1622,15 +1629,16 @@ int sshsNodeGetAttributeFlags(sshsNode node, const char *key, enum sshs_node_att
 	return (flags);
 }
 
-const char *sshsNodeGetAttributeDescription(sshsNode node, const char *key, enum sshs_node_attr_value_type type) {
+char *sshsNodeGetAttributeDescription(sshsNode node, const char *key, enum sshs_node_attr_value_type type) {
 	sshsNodeAttr attr = sshsNodeFindAttribute(node, key, type);
 
 	// Verify that a valid attribute exists.
 	sshsNodeVerifyValidAttribute(attr, key, type, "sshsNodeGetAttributeDescription");
 
-	const char *description = attr->description;
+	char *descriptionCopy = strdup(attr->description);
+	SSHS_MALLOC_CHECK_EXIT(descriptionCopy);
 
 	mtx_unlock(&node->node_lock);
 
-	return (description);
+	return (descriptionCopy);
 }

@@ -177,7 +177,7 @@ struct sshs_node_attr_ranges sshsNodeGetAttributeRanges(sshsNode node, const cha
 	enum sshs_node_attr_value_type type) CAER_SYMBOL_EXPORT;
 int sshsNodeGetAttributeFlags(sshsNode node, const char *key, enum sshs_node_attr_value_type type)
 	CAER_SYMBOL_EXPORT;
-const char *sshsNodeGetAttributeDescription(sshsNode node, const char *key, enum sshs_node_attr_value_type type)
+char *sshsNodeGetAttributeDescription(sshsNode node, const char *key, enum sshs_node_attr_value_type type)
 	CAER_SYMBOL_EXPORT;
 
 // Helper functions

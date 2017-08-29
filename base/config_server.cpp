@@ -694,11 +694,13 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 				break;
 			}
 
-			const char *description = sshsNodeGetAttributeDescription(wantedNode, (const char *) key,
+			char *description = sshsNodeGetAttributeDescription(wantedNode, (const char *) key,
 				(enum sshs_node_attr_value_type) type);
 
 			caerConfigSendResponse(client, CAER_CONFIG_GET_DESCRIPTION, SSHS_STRING, (const uint8_t *) description,
 				strlen(description) + 1);
+
+			free(description);
 
 			break;
 		}
