@@ -22,9 +22,9 @@ static void caerFrameStatisticsRun(caerModuleData moduleData, caerEventPacketCon
 static void caerFrameStatisticsExit(caerModuleData moduleData);
 static void caerFrameStatisticsConfig(caerModuleData moduleData);
 
-static const struct caer_module_functions FrameStatisticsFunctions = { .moduleInit = &caerFrameStatisticsInit,
-	.moduleRun = &caerFrameStatisticsRun, .moduleConfig = &caerFrameStatisticsConfig, .moduleExit =
-		&caerFrameStatisticsExit, .moduleReset = NULL };
+static const struct caer_module_functions FrameStatisticsFunctions = { .moduleConfigInit = NULL, .moduleInit =
+	&caerFrameStatisticsInit, .moduleRun = &caerFrameStatisticsRun, .moduleConfig = &caerFrameStatisticsConfig,
+	.moduleExit = &caerFrameStatisticsExit, .moduleReset = NULL };
 
 static const struct caer_event_stream_in FrameStatisticsInputs[] = { { .type = FRAME_EVENT, .number = 1, .readOnly =
 	true } };
