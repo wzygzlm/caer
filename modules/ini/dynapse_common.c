@@ -875,12 +875,11 @@ static uint32_t convertBias(const char *biasName, const char *lowhi, const char 
 	}
 	else if (addr == DYNAPSE_CONFIG_BIAS_D_BUFFER || addr == DYNAPSE_CONFIG_BIAS_U_BUFFER) {
 		confbits = 0;
-		inbits = (uint32_t) addr << 18 | 1 << 16 | (uint32_t) coarseRev << 12
-			| (uint32_t) fineValue << 4;
+		inbits = (uint32_t) addr << 18 | 1 << 16 | (uint32_t) coarseRev << 12 | (uint32_t) fineValue << 4;
 	}
 	else {
-		inbits = (uint32_t) addr << 18 | 1 << 16 | (uint32_t) coarseRev << 12
-			| (uint32_t) fineValue << 4 | (uint32_t) confbits;
+		inbits = (uint32_t) addr << 18 | 1 << 16 | (uint32_t) coarseRev << 12 | (uint32_t) fineValue << 4
+			| (uint32_t) confbits;
 	}
 
 	return (inbits);
@@ -944,7 +943,7 @@ bool caerInputDYNAPSEInit(caerModuleData moduleData) {
 	}
 
 	// Initialize per-device log-level to module log-level.
-	caerDeviceConfigSet(moduleData->moduleState, CAER_HOST_CONFIG_LOG, CAER_HOST_CONFIG_LOG_LEVEL,
+	caerDeviceConfigSet(state->deviceState, CAER_HOST_CONFIG_LOG, CAER_HOST_CONFIG_LOG_LEVEL,
 		atomic_load(&moduleData->moduleLogLevel));
 
 	// Let's take a look at the information we have on the device.
@@ -1301,7 +1300,7 @@ static void logLevelListener(sshsNode node, void *userData, enum sshs_node_attri
 	caerModuleData moduleData = userData;
 
 	if (event == SSHS_ATTRIBUTE_MODIFIED && changeType == SSHS_BYTE && caerStrEquals(changeKey, "logLevel")) {
-		caerDeviceConfigSet(moduleData->moduleState, CAER_HOST_CONFIG_LOG, CAER_HOST_CONFIG_LOG_LEVEL,
-			U32T(changeValue.ibyte));
+		caerDeviceConfigSet(((caerInputDynapseState) moduleData->moduleState)->deviceState, CAER_HOST_CONFIG_LOG,
+			CAER_HOST_CONFIG_LOG_LEVEL, U32T(changeValue.ibyte));
 	}
 }
