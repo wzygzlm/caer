@@ -121,76 +121,26 @@ static void caerReservoirRun(caerModuleData moduleData, caerEventPacketContainer
 		caerLog(CAER_LOG_NOTICE, __func__, "Initialization of the Reservoir Network");
 
 		// load biases
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C0_IF_DC_P", 7, 0, "HighBias", "Normal",
-			"PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C1_IF_DC_P", 7, 0, "HighBias", "Normal",
-			"PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C2_IF_DC_P", 7, 0, "HighBias", "Normal",
-			"PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C3_IF_DC_P", 7, 0, "HighBias", "Normal",
-			"PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C0_IF_DC_P", 7, 0, "HighBias", "Normal",
-			"PBias", true, DYNAPSE_CONFIG_DYNAPSE_U1);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C1_IF_DC_P", 7, 0, "HighBias", "Normal",
-			"PBias", true, DYNAPSE_CONFIG_DYNAPSE_U1);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C2_IF_DC_P", 7, 0, "HighBias", "Normal",
-			"PBias", true, DYNAPSE_CONFIG_DYNAPSE_U1);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C3_IF_DC_P", 7, 0, "HighBias", "Normal",
-			"PBias", true, DYNAPSE_CONFIG_DYNAPSE_U1);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C0_IF_DC_P", 7, 0, "HighBias", "Normal",
-			"PBias", true, DYNAPSE_CONFIG_DYNAPSE_U2);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C1_IF_DC_P", 7, 0, "HighBias", "Normal",
-			"PBias", true, DYNAPSE_CONFIG_DYNAPSE_U2);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C2_IF_DC_P", 7, 0, "HighBias", "Normal",
-			"PBias", true, DYNAPSE_CONFIG_DYNAPSE_U2);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C3_IF_DC_P", 7, 0, "HighBias", "Normal",
-			"PBias", true, DYNAPSE_CONFIG_DYNAPSE_U2);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C0_IF_DC_P", 7, 0, "HighBias", "Normal",
-			"PBias", true, DYNAPSE_CONFIG_DYNAPSE_U3);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C1_IF_DC_P", 7, 0, "HighBias", "Normal",
-			"PBias", true, DYNAPSE_CONFIG_DYNAPSE_U3);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C2_IF_DC_P", 7, 0, "HighBias", "Normal",
-			"PBias", true, DYNAPSE_CONFIG_DYNAPSE_U3);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C3_IF_DC_P", 7, 0, "HighBias", "Normal",
-			"PBias", true, DYNAPSE_CONFIG_DYNAPSE_U3);
 
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C0_IF_THR_N", 7, 0, "HighBias", "Normal",
-			"NBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C1_IF_THR_N", 7, 0, "HighBias", "Normal",
-			"NBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C2_IF_THR_N", 7, 0, "HighBias", "Normal",
-			"NBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C3_IF_THR_N", 7, 0, "HighBias", "Normal",
-			"NBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C0_IF_THR_N", 7, 0, "HighBias", "Normal",
-			"NBias", true, DYNAPSE_CONFIG_DYNAPSE_U1);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C1_IF_THR_N", 7, 0, "HighBias", "Normal",
-			"NBias", true, DYNAPSE_CONFIG_DYNAPSE_U1);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C2_IF_THR_N", 7, 0, "HighBias", "Normal",
-			"NBias", true, DYNAPSE_CONFIG_DYNAPSE_U1);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C3_IF_THR_N", 7, 0, "HighBias", "Normal",
-			"NBias", true, DYNAPSE_CONFIG_DYNAPSE_U1);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C0_IF_THR_N", 7, 0, "HighBias", "Normal",
-			"NBias", true, DYNAPSE_CONFIG_DYNAPSE_U2);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C1_IF_THR_N", 7, 0, "HighBias", "Normal",
-			"NBias", true, DYNAPSE_CONFIG_DYNAPSE_U2);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C2_IF_THR_N", 7, 0, "HighBias", "Normal",
-			"NBias", true, DYNAPSE_CONFIG_DYNAPSE_U2);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C3_IF_THR_N", 7, 0, "HighBias", "Normal",
-			"NBias", true, DYNAPSE_CONFIG_DYNAPSE_U2);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C0_IF_THR_N", 7, 0, "HighBias", "Normal",
-			"NBias", true, DYNAPSE_CONFIG_DYNAPSE_U3);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C1_IF_THR_N", 7, 0, "HighBias", "Normal",
-			"NBias", true, DYNAPSE_CONFIG_DYNAPSE_U3);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C2_IF_THR_N", 7, 0, "HighBias", "Normal",
-			"NBias", true, DYNAPSE_CONFIG_DYNAPSE_U3);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C3_IF_THR_N", 7, 0, "HighBias", "Normal",
-			"NBias", true, DYNAPSE_CONFIG_DYNAPSE_U3);
+		for (size_t coreid = 0; coreid < 4; coreid++) {
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, 0, "IF_DC_P", 7, 0, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U1, 0, "IF_DC_P", 7, 0, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U2, 0, "IF_DC_P", 7, 0, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, 0, "IF_DC_P", 7, 0, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, 0, "IF_THR_N", 7, 0,
+				"High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U1, 0, "IF_THR_N", 7, 0,
+				"High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U2, 0, "IF_THR_N", 7, 0,
+				"High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, 0, "IF_THR_N", 7, 0,
+				"High");
+		}
 
 		// --- set sram
 		//  0 - select which chip to configure
 		caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID,
-			DYNAPSE_CONFIG_DYNAPSE_U0);
+		DYNAPSE_CONFIG_DYNAPSE_U0);
 
 		int i, j, index, num_exc = 0, num_inh = 0;
 		bool v[1024];
@@ -213,7 +163,6 @@ static void caerReservoirRun(caerModuleData moduleData, caerEventPacketContainer
 			for (j = 0; j < 64; j++) {
 
 				// Sample unique source neuron
-
 				do {
 					index = rand() % 1250;
 					index = index % 1024;
@@ -244,217 +193,61 @@ static void caerReservoirRun(caerModuleData moduleData, caerEventPacketContainer
 		caerLog(CAER_LOG_NOTICE, __func__, "exc num: %i", num_exc);
 
 		// load biases
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C0_IF_DC_P", 7, 200, "HighBias", "Normal",
-			"PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C0_IF_AHTAU_N", 7, 35, "HighBias", "Normal",
-			"NBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C0_IF_AHTHR_N", 7, 1, "HighBias", "Normal",
-			"NBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C0_IF_AHW_P", 7, 1, "HighBias", "Normal",
-			"PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C0_IF_BUF_P", 3, 80, "HighBias", "Normal",
-			"PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C0_IF_CASC_N", 7, 1, "HighBias", "Normal",
-			"NBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C0_IF_NMDA_N", 7, 1, "HighBias", "Normal",
-			"PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C0_IF_RFR_N", 3, 248, "HighBias", "Normal",
-			"NBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C0_IF_RFR_N", 0, 248, "HighBias", "Normal",
-			"NBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C0_IF_TAU1_N", 7, 0, "LowBias", "Normal",
-			"NBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C0_IF_TAU2_N", 7, 15, "HighBias", "Normal",
-			"NBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C0_IF_THR_N", 1, 250, "HighBias", "Normal",
-			"NBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C0_NPDPIE_TAU_F_P", 2, 53, "HighBias",
-			"Normal", "PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C0_NPDPIE_TAU_S_P", 2, 40, "HighBias",
-			"Normal", "PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C0_NPDPIE_THR_F_P", 2, 200, "HighBias",
-			"Normal", "PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C0_NPDPIE_THR_S_P", 7, 0, "HighBias",
-			"Normal", "PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C0_NPDPII_TAU_F_P", 2, 40, "HighBias",
-			"Normal", "PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C0_NPDPII_TAU_S_P", 2, 40, "HighBias",
-			"Normal", "PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C0_NPDPII_THR_F_P", 7, 40, "HighBias",
-			"Normal", "PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C0_NPDPII_THR_S_P", 7, 40, "HighBias",
-			"Normal", "PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C0_PS_WEIGHT_EXC_F_N", 1, 90, "HighBias",
-			"Normal", "NBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C0_PS_WEIGHT_EXC_S_N", 0, 255, "HighBias",
-			"Normal", "NBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C0_PS_WEIGHT_INH_F_N", 0, 100, "HighBias",
-			"Normal", "NBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C0_PS_WEIGHT_INH_S_N", 0, 100, "HighBias",
-			"Normal", "NBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C0_PULSE_PWLK_P", 0, 43, "HighBias", "Normal",
-			"PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C0_R2R_P", 4, 85, "HighBias", "Normal",
-			"PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
+		for (size_t coreid = 0; coreid < 4; coreid++) {
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_DC_P", 7, 200,
+				"High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_AHTAU_N", 7, 35,
+				"Low");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_AHTHR_N", 7, 1,
+				"High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_AHW_P", 7, 1,
+				"High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_BUF_P", 3, 80,
+				"High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_CASC_N", 7, 1,
+				"High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_NMDA_N", 7, 1,
+				"High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_RFR_N", 3, 248,
+				"High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_RFR_N", 0, 248,
+				"High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_TAU1_N", 7, 0,
+				"Low");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_TAU2_N", 7, 15,
+				"High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_THR_N", coreid,
+				250, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "NPDPIE_TAU_F_P", 2,
+				53, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "NPDPIE_TAU_S_P", 2,
+				40, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "NPDPIE_THR_F_P", 2,
+				200, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "NPDPIE_THR_S_P", 7,
+				0, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "NPDPII_TAU_F_P", 2,
+				40, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "NPDPII_TAU_S_P", 2,
+				40, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "NPDPII_THR_F_P", 7,
+				40, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "NPDPII_THR_S_P", 7,
+				40, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "PS_WEIGHT_EXC_F_N",
+				1, 90, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "PS_WEIGHT_EXC_S_N",
+				0, 255, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "PS_WEIGHT_INH_F_N",
+				0, 100, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "PS_WEIGHT_INH_S_N",
+				0, 100, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "PULSE_PWLK_P", 0,
+				43, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "R2R_P", 4, 85,
+				"High");
 
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C1_IF_DC_P", 7, 200, "HighBias", "Normal",
-			"PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C1_IF_AHTAU_N", 7, 35, "HighBias", "Normal",
-			"NBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C1_IF_AHTHR_N", 7, 1, "HighBias", "Normal",
-			"NBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C1_IF_AHW_P", 7, 1, "HighBias", "Normal",
-			"PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C1_IF_BUF_P", 3, 80, "HighBias", "Normal",
-			"PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C1_IF_CASC_N", 7, 1, "HighBias", "Normal",
-			"NBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C1_IF_NMDA_N", 7, 1, "HighBias", "Normal",
-			"PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C1_IF_RFR_N", 3, 248, "HighBias", "Normal",
-			"NBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C1_IF_RFR_N", 0, 248, "HighBias", "Normal",
-			"NBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C1_IF_TAU1_N", 7, 0, "LowBias", "Normal",
-			"NBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C1_IF_TAU2_N", 7, 15, "HighBias", "Normal",
-			"NBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C1_IF_THR_N", 1, 250, "HighBias", "Normal",
-			"NBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C1_NPDPIE_TAU_F_P", 2, 53, "HighBias",
-			"Normal", "PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C1_NPDPIE_TAU_S_P", 2, 40, "HighBias",
-			"Normal", "PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C1_NPDPIE_THR_F_P", 2, 200, "HighBias",
-			"Normal", "PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C1_NPDPIE_THR_S_P", 7, 0, "HighBias",
-			"Normal", "PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C1_NPDPII_TAU_F_P", 2, 40, "HighBias",
-			"Normal", "PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C1_NPDPII_TAU_S_P", 2, 40, "HighBias",
-			"Normal", "PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C1_NPDPII_THR_F_P", 7, 40, "HighBias",
-			"Normal", "PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C1_NPDPII_THR_S_P", 7, 40, "HighBias",
-			"Normal", "PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C1_PS_WEIGHT_EXC_F_N", 1, 90, "HighBias",
-			"Normal", "NBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C1_PS_WEIGHT_EXC_S_N", 0, 255, "HighBias",
-			"Normal", "NBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C1_PS_WEIGHT_INH_F_N", 0, 100, "HighBias",
-			"Normal", "NBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C1_PS_WEIGHT_INH_S_N", 0, 100, "HighBias",
-			"Normal", "NBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C1_PULSE_PWLK_P", 0, 43, "HighBias", "Normal",
-			"PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C1_R2R_P", 4, 85, "HighBias", "Normal",
-			"PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C2_IF_DC_P", 7, 200, "HighBias", "Normal",
-			"PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C2_IF_AHTAU_N", 7, 35, "HighBias", "Normal",
-			"NBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C2_IF_AHTHR_N", 7, 1, "HighBias", "Normal",
-			"NBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C2_IF_AHW_P", 7, 1, "HighBias", "Normal",
-			"PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C2_IF_BUF_P", 3, 80, "HighBias", "Normal",
-			"PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C2_IF_CASC_N", 7, 1, "HighBias", "Normal",
-			"NBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C2_IF_NMDA_N", 7, 1, "HighBias", "Normal",
-			"PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C2_IF_RFR_N", 3, 248, "HighBias", "Normal",
-			"NBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C2_IF_RFR_N", 0, 248, "HighBias", "Normal",
-			"NBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C2_IF_TAU1_N", 7, 0, "LowBias", "Normal",
-			"NBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C2_IF_TAU2_N", 7, 15, "HighBias", "Normal",
-			"NBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C2_IF_THR_N", 1, 250, "HighBias", "Normal",
-			"NBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C2_NPDPIE_TAU_F_P", 2, 53, "HighBias",
-			"Normal", "PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C2_NPDPIE_TAU_S_P", 2, 40, "HighBias",
-			"Normal", "PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C2_NPDPIE_THR_F_P", 2, 200, "HighBias",
-			"Normal", "PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C2_NPDPIE_THR_S_P", 7, 0, "HighBias",
-			"Normal", "PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C2_NPDPII_TAU_F_P", 2, 40, "HighBias",
-			"Normal", "PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C2_NPDPII_TAU_S_P", 2, 40, "HighBias",
-			"Normal", "PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C2_NPDPII_THR_F_P", 7, 40, "HighBias",
-			"Normal", "PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C2_NPDPII_THR_S_P", 7, 40, "HighBias",
-			"Normal", "PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C2_PS_WEIGHT_EXC_F_N", 1, 90, "HighBias",
-			"Normal", "NBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C2_PS_WEIGHT_EXC_S_N", 0, 255, "HighBias",
-			"Normal", "NBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C2_PS_WEIGHT_INH_F_N", 0, 100, "HighBias",
-			"Normal", "NBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C2_PS_WEIGHT_INH_S_N", 0, 100, "HighBias",
-			"Normal", "NBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C2_PULSE_PWLK_P", 0, 43, "HighBias", "Normal",
-			"PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C2_R2R_P", 4, 85, "HighBias", "Normal",
-			"PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C3_IF_DC_P", 7, 200, "HighBias", "Normal",
-			"PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C3_IF_AHTAU_N", 7, 35, "HighBias", "Normal",
-			"NBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C3_IF_AHTHR_N", 7, 1, "HighBias", "Normal",
-			"NBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C3_IF_AHW_P", 7, 1, "HighBias", "Normal",
-			"PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C3_IF_BUF_P", 3, 80, "HighBias", "Normal",
-			"PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C3_IF_CASC_N", 7, 1, "HighBias", "Normal",
-			"NBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C3_IF_NMDA_N", 7, 1, "HighBias", "Normal",
-			"PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C3_IF_RFR_N", 3, 248, "HighBias", "Normal",
-			"NBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C3_IF_RFR_N", 0, 248, "HighBias", "Normal",
-			"NBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C3_IF_TAU1_N", 7, 0, "LowBias", "Normal",
-			"NBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C3_IF_TAU2_N", 7, 15, "HighBias", "Normal",
-			"NBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C3_IF_THR_N", 1, 250, "HighBias", "Normal",
-			"NBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C3_NPDPIE_TAU_F_P", 2, 53, "HighBias",
-			"Normal", "PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C3_NPDPIE_TAU_S_P", 2, 40, "HighBias",
-			"Normal", "PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C3_NPDPIE_THR_F_P", 2, 200, "HighBias",
-			"Normal", "PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C3_NPDPIE_THR_S_P", 7, 0, "HighBias",
-			"Normal", "PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C3_NPDPII_TAU_F_P", 2, 40, "HighBias",
-			"Normal", "PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C3_NPDPII_TAU_S_P", 2, 40, "HighBias",
-			"Normal", "PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C3_NPDPII_THR_F_P", 7, 40, "HighBias",
-			"Normal", "PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C3_NPDPII_THR_S_P", 7, 40, "HighBias",
-			"Normal", "PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C3_PS_WEIGHT_EXC_F_N", 1, 90, "HighBias",
-			"Normal", "NBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C3_PS_WEIGHT_EXC_S_N", 0, 255, "HighBias",
-			"Normal", "NBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C3_PS_WEIGHT_INH_F_N", 0, 100, "HighBias",
-			"Normal", "NBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C3_PS_WEIGHT_INH_S_N", 0, 100, "HighBias",
-			"Normal", "NBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C3_PULSE_PWLK_P", 0, 43, "HighBias", "Normal",
-			"PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
-		generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode, "C3_R2R_P", 4, 85, "HighBias", "Normal",
-			"PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
+		}
 
 		caerLog(CAER_LOG_NOTICE, __func__, "init completed");
 
