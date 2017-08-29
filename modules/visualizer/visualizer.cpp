@@ -140,6 +140,8 @@ static bool caerVisualizerInit(caerModuleData moduleData) {
 	// Initialize visualizer. Needs size information from the source.
 	if (!initRenderSize(moduleData, inputs, inputsSize)) {
 		caerModuleLog(moduleData, CAER_LOG_ERROR, "Failed to initialize render sizes from source.");
+
+		free(inputs);
 		return (false);
 	}
 
@@ -147,6 +149,8 @@ static bool caerVisualizerInit(caerModuleData moduleData) {
 
 	state->visualizerConfigNode = moduleData->moduleNode;
 	state->eventSourceConfigNode = caerMainloopGetSourceNode(inputs[0]);
+
+	free(inputs);
 
 	state->packetSubsampleRendering.store(U32T(sshsNodeGetInt(moduleData->moduleNode, "subsampleRendering")));
 
