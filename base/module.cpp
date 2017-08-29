@@ -149,16 +149,19 @@ caerModuleData caerModuleInitialize(int16_t moduleID, const char *moduleName, ss
 	caerModuleConfigInit(moduleNode);
 
 	// Per-module log level support.
-	moduleData->moduleLogLevel.store(U8T(sshsNodeGetByte(moduleData->moduleNode, "logLevel")),
-		std::memory_order_relaxed);
+	uint8_t logLevel = U8T(sshsNodeGetByte(moduleData->moduleNode, "logLevel"));
+
+	moduleData->moduleLogLevel.store(logLevel, std::memory_order_relaxed);
 	sshsNodeAddAttributeListener(moduleData->moduleNode, moduleData, &caerModuleLogLevelListener);
 
 	// Initialize shutdown controls.
 	bool runModule = sshsNodeGetBool(moduleData->moduleNode, "runAtStartup");
 
-	moduleData->running.store(runModule, std::memory_order_relaxed);
-	sshsNodeCreateBool(moduleData->moduleNode, "running", runModule, SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT,
+	sshsNodeCreateBool(moduleData->moduleNode, "running", false, SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT,
 		"Module start/stop.");
+	sshsNodePutBool(moduleData->moduleNode, "running", runModule);
+
+	moduleData->running.store(runModule, std::memory_order_relaxed);
 	sshsNodeAddAttributeListener(moduleData->moduleNode, moduleData, &caerModuleShutdownListener);
 
 	std::atomic_thread_fence(std::memory_order_release);
@@ -280,7 +283,7 @@ std::pair<ModuleLibrary, caerModuleInfo> caerLoadModuleLibrary(const std::string
 	catch (const std::exception &ex) {
 		// Failed to load shared library!
 		boost::format exMsg = boost::format("Failed to load library '%s', error: '%s'.") % modulePath.string()
-			% ex.what();
+		% ex.what();
 		throw std::runtime_error(exMsg.str());
 	}
 
@@ -292,7 +295,7 @@ std::pair<ModuleLibrary, caerModuleInfo> caerLoadModuleLibrary(const std::string
 		// Failed to find symbol in shared library!
 		caerUnloadModuleLibrary(moduleLibrary);
 		boost::format exMsg = boost::format("Failed to find symbol in library '%s', error: '%s'.") % modulePath.string()
-			% ex.what();
+		% ex.what();
 		throw std::runtime_error(exMsg.str());
 	}
 #else
@@ -300,7 +303,7 @@ std::pair<ModuleLibrary, caerModuleInfo> caerLoadModuleLibrary(const std::string
 	if (moduleLibrary == nullptr) {
 		// Failed to load shared library!
 		boost::format exMsg = boost::format("Failed to load library '%s', error: '%s'.") % modulePath.string()
-		% dlerror();
+			% dlerror();
 		throw std::runtime_error(exMsg.str());
 	}
 
@@ -309,7 +312,7 @@ std::pair<ModuleLibrary, caerModuleInfo> caerLoadModuleLibrary(const std::string
 		// Failed to find symbol in shared library!
 		caerUnloadModuleLibrary(moduleLibrary);
 		boost::format exMsg = boost::format("Failed to find symbol in library '%s', error: '%s'.") % modulePath.string()
-		% dlerror();
+			% dlerror();
 		throw std::runtime_error(exMsg.str());
 	}
 #endif
