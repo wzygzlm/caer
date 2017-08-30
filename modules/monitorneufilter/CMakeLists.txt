@@ -1,12 +1,12 @@
-IF (NOT MONITORNEURONFILTER)
-	SET(MONITORNEURONFILTER 0 CACHE BOOL "Enable the monitor neuron filter")
+IF (NOT MONITORNEUFILTER)
+	SET(MONITORNEUFILTER 0 CACHE BOOL "Enable the monitor neuron filter")
 ENDIF()
 
-IF (MONITORNEURONFILTER)
-    ADD_LIBRARY(monitoneuronfilter SHARED monitorneufilter.c)
+IF (MONITORNEUFILTER)
+    ADD_LIBRARY(monitorneufilter SHARED monitorneufilter.c)
 
-    TARGET_LINK_LIBRARIES(monitoneuronfilter ${CAER_C_LIBS})
+    TARGET_LINK_LIBRARIES(monitorneufilter ${CAER_C_LIBS})
 
-	INSTALL(TARGETS monitorneufilter DESTINATION ${CM_SHARE_DIR})
+    INSTALL(TARGETS monitorneufilter DESTINATION ${CM_SHARE_DIR})
 ENDIF()
 
