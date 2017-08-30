@@ -42,67 +42,22 @@ static void caerVisualizerEventHandlerNeuronMonitor(caerVisualizerPublicState st
 			positionY = floorf(positionY * currentZoomFactor);
 		}
 
-		// Select chip. DYNAPSE_CONFIG_DYNAPSE_U0 default, doesn't need check.
-		uint8_t chipId = DYNAPSE_CONFIG_DYNAPSE_U0;
+		// Transform into chip ID, core ID and neuron ID.
+		const struct caer_spike_event val = caerDynapseSpikeEventFromXY(U16T(positionX), U16T(positionY));
 
-		if (positionX >= DYNAPSE_CONFIG_XCHIPSIZE && positionY >= DYNAPSE_CONFIG_YCHIPSIZE) {
-			chipId = DYNAPSE_CONFIG_DYNAPSE_U3;
-		}
-		else if (positionX < DYNAPSE_CONFIG_XCHIPSIZE && positionY >= DYNAPSE_CONFIG_YCHIPSIZE) {
-			chipId = DYNAPSE_CONFIG_DYNAPSE_U2;
-		}
-		else if (positionX >= DYNAPSE_CONFIG_XCHIPSIZE && positionY < DYNAPSE_CONFIG_YCHIPSIZE) {
-			chipId = DYNAPSE_CONFIG_DYNAPSE_U1;
-		}
-
-		// Adjust coordinates for chip.
-		if (chipId == DYNAPSE_CONFIG_DYNAPSE_U3) {
-			positionX -= DYNAPSE_CONFIG_XCHIPSIZE;
-			positionY -= DYNAPSE_CONFIG_YCHIPSIZE;
-		}
-		else if (chipId == DYNAPSE_CONFIG_DYNAPSE_U2) {
-			positionY -= DYNAPSE_CONFIG_YCHIPSIZE;
-		}
-		else if (chipId == DYNAPSE_CONFIG_DYNAPSE_U1) {
-			positionX -= DYNAPSE_CONFIG_XCHIPSIZE;
-		}
-
-		// Select core. Core ID 0 default, doesn't need check.
-		uint8_t coreId = 0;
-
-		if (positionX < DYNAPSE_CONFIG_NEUCOL && positionY >= DYNAPSE_CONFIG_NEUROW) {
-			coreId = 1;
-		}
-		else if (positionX >= DYNAPSE_CONFIG_NEUCOL && positionY < DYNAPSE_CONFIG_NEUROW) {
-			coreId = 2;
-		}
-		else if (positionX >= DYNAPSE_CONFIG_NEUCOL && positionY >= DYNAPSE_CONFIG_NEUROW) {
-			coreId = 3;
-		}
-
-		// Adjust coordinates for core.
-		if (coreId == 1) {
-			positionY -= DYNAPSE_CONFIG_NEUROW;
-		}
-		else if (coreId == 2) {
-			positionX -= DYNAPSE_CONFIG_NEUCOL;
-		}
-		else if (coreId == 3) {
-			positionX -= DYNAPSE_CONFIG_NEUCOL;
-			positionY -= DYNAPSE_CONFIG_NEUROW;
-		}
-
-		// linear index
-		uint32_t linearIndex = (U32T(positionY) * DYNAPSE_CONFIG_NEUCOL) + U32T(positionX);
+		uint8_t chipId = caerSpikeEventGetChipID(&val);
+		uint8_t coreId = caerSpikeEventGetSourceCoreID(&val);
+		uint32_t neuronId = caerSpikeEventGetNeuronID(&val);
 
 		// TODO: switch to using SSHS fully, move monitorneu filter into device config.
 		int16_t sourceId = sshsNodeGetShort(state->eventSourceConfigNode, "moduleId");
 		caerDeviceHandle *sourceState = (caerDeviceHandle *) caerMainloopGetSourceState(sourceId);
+
 		caerDeviceConfigSet(*sourceState, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, U32T(chipId));
-		caerDeviceConfigSet(*sourceState, DYNAPSE_CONFIG_MONITOR_NEU, coreId, linearIndex);
+		caerDeviceConfigSet(*sourceState, DYNAPSE_CONFIG_MONITOR_NEU, coreId, neuronId);
 
 		caerLog(CAER_LOG_NOTICE, "Visualizer", "Monitoring neuron - chip ID: %d, core ID: %d, neuron ID: %d.", chipId,
-			coreId, linearIndex);
+			coreId, neuronId);
 	}
 }
 
