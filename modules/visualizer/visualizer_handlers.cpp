@@ -101,7 +101,7 @@ static void caerVisualizerEventHandlerNeuronMonitor(caerVisualizerPublicState st
 		caerDeviceConfigSet(*sourceState, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, U32T(chipId));
 		caerDeviceConfigSet(*sourceState, DYNAPSE_CONFIG_MONITOR_NEU, coreId, linearIndex);
 
-		caerLog(CAER_LOG_DEBUG, "Visualizer", "Monitoring neuron - chip ID: %d, core ID: %d, neuron ID: %d.", chipId,
+		caerLog(CAER_LOG_NOTICE, "Visualizer", "Monitoring neuron - chip ID: %d, core ID: %d, neuron ID: %d.", chipId,
 			coreId, linearIndex);
 	}
 }
