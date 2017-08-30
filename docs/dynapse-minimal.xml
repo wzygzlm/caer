@@ -18,7 +18,7 @@
             <attr key="moduleInput" type="string">1[12]</attr>
             <attr key="moduleLibrary" type="string">caer_visualizer</attr>
             <attr key="renderer" type="string">Spikes</attr>
-			<attr key="handler" type="string">Spikes</attr>
+			<attr key="eventHandler" type="string">Neuron_Monitor</attr>
         </node>
     </node>
 </sshs>
