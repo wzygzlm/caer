@@ -638,6 +638,8 @@ This ensures that a valid value is present, and avoids having to specify a defau
 
 Listeners can be added to nodes to react to changes to both the node's children and to its attributes.
 
+Listeners must refer the same memory and function when being added and removed!
+
 FLAGS
 
 Create() does not force update the attribute value if it already exists and is within range,
