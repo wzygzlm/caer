@@ -81,26 +81,24 @@ Windows, MacOS X and other Linux distribution users, please follow the 'Manual I
 \section{Manual Installation} \label{sec:manual_installation}
 
 To enhance portability, we have tried to keep dependencies to a minimum.
-The following software is currently required to successfully compile cAER:
+The following software is currently required to successfully compile the base of the cAER framework:
 \begin{itemize}
-\item A C/C++ compiler supporting the C11 and C++14 language standards. GCC 5.2 and newer, as well as LLVM/Clang 3.6 and newer satisfy that requirement.
-\item cmake >= 2.6 for easy build management and cross-platform compilation support.
-\item boost >= 1.50 (with system, filesystem and program\_options modules) for cross-platform file-access and networking support, as well as advanced C++ algorithms.
-\item Mini-XML >= 2.7 for XML file parsing, used for the XML configuration file import and export features.
-\item libcaer >= 2.4.0 for event definitions and USB/serial device access.
+\item A C/C++ compiler supporting the C11 and C++14 language standards. \href{https://gcc.gnu.org/}{GCC} 5.2 and newer, as well as \href{https://clang.llvm.org/}{LLVM/Clang} 3.6 and newer satisfy that requirement.
+\item \href{https://cmake.org/}{cmake} >= 2.6 for easy build management and cross-platform compilation support.
+\item \href{http://www.boost.org/}{boost} >= 1.50 (with system, filesystem and program\_options modules) for cross-platform file-access and networking support, as well as advanced C++ algorithms.
+\item \href{https://michaelrsweet.github.io/mxml/}{Mini-XML} >= 2.7 for XML file parsing, used for the XML configuration file import and export features.
+\item \href{https://github.com/inilabs/libcaer}{libcaer} >= 2.4.0 for event definitions and USB/serial device access.
+\item Optional: \href{https://github.com/gperftools/gperftools}{tcmalloc} >= 2.2 for faster memory allocation.
 \end{itemize}
 
-The installation procedure, once all dependencies are satisfied, is composed of four simple steps:
-\begin{enumerate}
-\item Get program sources
-\item cmake .
-\item Edit the main.c source-code file, to adjust the \emph{main()} function and define a custom Mainloop (further information can be found in sections \ref{subsec:main_definition} and \ref{subsec:mainloop_definition})
-\item make
-\end{enumerate}
+All the dependencies are usually available through your operating system's package manager.
+On MacOS X, we recommend using \href{https://brew.sh/}{Homebrew}.
+On Windows, \href{http://www.msys2.org/}{MSYS2} provides a good package management software.
 
-At this point, the \emph{caer} executable, as well as its helper utilities, are ready for deployment and execution.
+For detailed installation instructions on libcaer, please visit \href{https://inilabs.com/support/software/libcaer/}{this website}.
 
-\section{Automatic Installation} \label{sec:automatic_installation}
+For more details on the installation procedure, please refer to the main \href{https://raw.githubusercontent.com/inilabs/caer/master/README.md}{README} file.
+Windows users must also look at \href{https://raw.githubusercontent.com/inilabs/caer/master/README.Windows}{README.Windows} for detailed installation instructions.
 
 \chapter{Architecture} \label{chap:architecture}
 
