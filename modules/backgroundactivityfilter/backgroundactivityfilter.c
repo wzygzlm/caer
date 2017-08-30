@@ -9,7 +9,6 @@ struct BAFilter_state {
 	simple2DBufferLong timestampMap;
 	int32_t deltaT;
 	int8_t subSampleBy;
-	int64_t invalidPointNum;
 };
 
 typedef struct BAFilter_state *BAFilterState;
@@ -57,11 +56,6 @@ static bool caerBackgroundActivityFilterInit(caerModuleData moduleData) {
 	int16_t sourceID = inputs[0];
 	free(inputs);
 
-	// Always initialize to zero at init.
-	// Corresponding variable is already zero in state memory.
-	sshsNodeCreateLong(moduleData->moduleNode, "invalidPointNum", 0, 0, INT64_MAX,
-		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Number of events filtered out by this module.");
-
 	BAFilterState state = moduleData->moduleState;
 
 	// Allocate map using info from sourceInfo.
@@ -105,7 +99,7 @@ static void caerBackgroundActivityFilterRun(caerModuleData moduleData, caerEvent
 	// Iterate over events and filter out ones that are not supported by other
 	// events within a certain region in the specified timeframe.
 	CAER_POLARITY_ITERATOR_VALID_START(polarity)
-	// Get values on which to operate.
+		// Get values on which to operate.
 		int64_t ts = caerPolarityEventGetTimestamp64(caerPolarityIteratorElement, polarity);
 		uint16_t x = caerPolarityEventGetX(caerPolarityIteratorElement);
 		uint16_t y = caerPolarityEventGetY(caerPolarityIteratorElement);
@@ -120,7 +114,6 @@ static void caerBackgroundActivityFilterRun(caerModuleData moduleData, caerEvent
 		if ((I64T(ts - lastTS) >= I64T(state->deltaT)) || (lastTS == 0)) {
 			// Filter out invalid.
 			caerPolarityEventInvalidate(caerPolarityIteratorElement, polarity);
-			state->invalidPointNum++;
 		}
 
 		// Update neighboring region.
@@ -153,11 +146,8 @@ static void caerBackgroundActivityFilterRun(caerModuleData moduleData, caerEvent
 		}
 		if (x < sizeMaxX && y > 0) {
 			state->timestampMap->buffer2d[x + 1][y - 1] = ts;
-		}CAER_POLARITY_ITERATOR_VALID_END
-
-	// Only update SSHS once per packet (expensive call).
-	sshsNodeUpdateReadOnlyAttribute(moduleData->moduleNode, "invalidPointNum", SSHS_LONG,
-		(union sshs_node_attr_value ) { .ilong = state->invalidPointNum });
+		}
+	}
 }
 
 static void caerBackgroundActivityFilterConfig(caerModuleData moduleData) {
@@ -173,9 +163,6 @@ static void caerBackgroundActivityFilterExit(caerModuleData moduleData) {
 	// Remove listener, which can reference invalid memory in userData.
 	sshsNodeRemoveAttributeListener(moduleData->moduleNode, moduleData, &caerModuleConfigDefaultListener);
 
-	// Remove informative attribute.
-	sshsNodeRemoveAttribute(moduleData->moduleNode, "invalidPointNum", SSHS_LONG);
-
 	BAFilterState state = moduleData->moduleState;
 
 	// Ensure map is freed.
@@ -189,9 +176,4 @@ static void caerBackgroundActivityFilterReset(caerModuleData moduleData, int16_t
 
 	// Reset timestamp map to all zeros (startup state).
 	simple2DBufferResetLong(state->timestampMap);
-
-	// Reset invalid points counters to zero (startup state).
-	state->invalidPointNum = 0;
-	sshsNodeUpdateReadOnlyAttribute(moduleData->moduleNode, "invalidPointNum", SSHS_LONG,
-		(union sshs_node_attr_value ) { .ilong = 0 });
 }
