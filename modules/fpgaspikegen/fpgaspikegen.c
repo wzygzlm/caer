@@ -85,13 +85,12 @@ static bool caerFpgaSpikeGenModuleInit(caerModuleData moduleData) {
 	sshsNodeCreateInt(moduleData->moduleNode, "ISI", 10, 0, 1000, SSHS_FLAGS_NORMAL, "Inter Spike Interval, in terms of ISIbase (ISIBase*ISI)");
 	sshsNodeCreateInt(moduleData->moduleNode, "ISIBase", 1, 0, 1000, SSHS_FLAGS_NORMAL, "Inter Spike Interval in us");
 	sshsNodeCreateBool(moduleData->moduleNode, "Run", false, SSHS_FLAGS_NORMAL, "Start/Stop changing biases for reaching target frequency");
-	sshsNodeCreateInt(moduleData->moduleNode, "StimBount", 1, 0, 1000, SSHS_FLAGS_NORMAL, "");
 	sshsNodeCreateInt(moduleData->moduleNode, "BaseAddress", 0, 0, 1024, SSHS_FLAGS_NORMAL, "");
 	sshsNodeCreateBool(moduleData->moduleNode, "VariableISI", false, SSHS_FLAGS_NORMAL, "Use variable interspike intervals");
 	sshsNodeCreateBool(moduleData->moduleNode, "WriteSRAM", false, SSHS_FLAGS_NORMAL, "Write Sram content");
 	sshsNodeCreateString(moduleData->moduleNode, "StimFile", "default.txt", 1, 2048, SSHS_FLAGS_NORMAL, "File containing the stimuli");
 	sshsNodeCreateBool(moduleData->moduleNode, "Repeat", false, SSHS_FLAGS_NORMAL, "Repeat");
-	sshsNodeCreateInt(moduleData->moduleNode, "StimCount", 0, 0, 1000, SSHS_FLAGS_NORMAL, "Number of stimulations");
+	sshsNodeCreateInt(moduleData->moduleNode, "StimCount", 1, 1, 32000, SSHS_FLAGS_NORMAL, "Number of stimulations, max is 32k as SRAM lines");
 
 	// update node state
 	state->ChipID = (uint32_t)sshsNodeGetInt(moduleData->moduleNode, "ChipID");
@@ -192,6 +191,8 @@ static void caerFpgaSpikeGenModuleConfig(caerModuleData moduleData) {
 		if ( retval == 0 ) {
 			caerLog(CAER_LOG_NOTICE, __func__, "Base address failed to update");
 		}
+		caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_SPIKEGEN, DYNAPSE_CONFIG_SPIKEGEN_REPEAT, state->repeat);
+
 		retval = caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_SPIKEGEN, DYNAPSE_CONFIG_SPIKEGEN_STIMCOUNT, state->stimCount - 1);
 		if ( retval == 0 ) {
 			caerLog(CAER_LOG_NOTICE, __func__, "stimcount failed to update");
@@ -201,7 +202,6 @@ static void caerFpgaSpikeGenModuleConfig(caerModuleData moduleData) {
 			caerLog(CAER_LOG_NOTICE, __func__, "run status failed to update");
 		}
 
-		caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_SPIKEGEN, DYNAPSE_CONFIG_SPIKEGEN_REPEAT, state->repeat);
 	}
 	else if (!newRun && state->run) {
 		state->run = false;

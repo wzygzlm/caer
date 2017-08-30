@@ -193,59 +193,57 @@ static void caerReservoirRun(caerModuleData moduleData, caerEventPacketContainer
 		caerLog(CAER_LOG_NOTICE, __func__, "exc num: %i", num_exc);
 
 		// load biases
-		for (size_t coreid = 0; coreid < 4; coreid++) {
-			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_DC_P", 7, 200,
-				"High");
-			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_AHTAU_N", 7, 35,
-				"Low");
-			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_AHTHR_N", 7, 1,
-				"High");
-			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_AHW_P", 7, 1,
-				"High");
-			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_BUF_P", 3, 80,
-				"High");
-			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_CASC_N", 7, 1,
-				"High");
-			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_NMDA_N", 7, 1,
-				"High");
-			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_RFR_N", 3, 248,
-				"High");
-			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_RFR_N", 0, 248,
-				"High");
-			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_TAU1_N", 7, 0,
-				"Low");
-			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_TAU2_N", 7, 15,
-				"High");
-			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_THR_N", coreid,
-				250, "High");
-			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "NPDPIE_TAU_F_P", 2,
-				53, "High");
-			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "NPDPIE_TAU_S_P", 2,
-				40, "High");
-			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "NPDPIE_THR_F_P", 2,
-				200, "High");
-			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "NPDPIE_THR_S_P", 7,
-				0, "High");
-			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "NPDPII_TAU_F_P", 2,
-				40, "High");
-			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "NPDPII_TAU_S_P", 2,
-				40, "High");
-			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "NPDPII_THR_F_P", 7,
-				40, "High");
-			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "NPDPII_THR_S_P", 7,
-				40, "High");
-			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "PS_WEIGHT_EXC_F_N",
-				1, 90, "High");
-			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "PS_WEIGHT_EXC_S_N",
-				0, 255, "High");
-			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "PS_WEIGHT_INH_F_N",
-				0, 100, "High");
-			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "PS_WEIGHT_INH_S_N",
-				0, 100, "High");
-			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "PULSE_PWLK_P", 0,
-				43, "High");
-			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "R2R_P", 4, 85,
-				"High");
+		for (size_t coreId = 0; coreId < 4; coreId++) {
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreId, "IF_AHTAU_N", 7, 34, "Low");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreId, "IF_AHTAU_N", 7, 35, "Low");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreId, "IF_AHTHR_N", 7, 0, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreId, "IF_AHTHR_N", 7, 1, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreId, "IF_AHW_P", 7, 0, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreId, "IF_AHW_P", 7, 1, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreId, "IF_BUF_P", 3, 79, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreId, "IF_BUF_P", 3, 80, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreId, "IF_CASC_N", 7, 0, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreId, "IF_CASC_N", 7, 1, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreId, "IF_DC_P", 5, 1, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreId, "IF_DC_P", 5, 2, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreId, "IF_NMDA_N", 7, 0, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreId, "IF_NMDA_N", 7, 1, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreId, "IF_RFR_N", 2, 179, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreId, "IF_RFR_N", 2, 180, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreId, "IF_TAU1_N", 4, 224, "Low");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreId, "IF_TAU1_N", 4, 225, "Low");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreId, "IF_TAU2_N", 4, 224, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreId, "IF_TAU2_N", 4, 225, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreId, "IF_THR_N", 2, 179, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreId, "IF_THR_N", 2, 180, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreId, "NPDPIE_TAU_F_P", 6, 149, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreId, "NPDPIE_TAU_F_P", 6, 150, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreId, "NPDPIE_TAU_S_P", 7, 39, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreId, "NPDPIE_TAU_S_P", 7, 40, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreId, "NPDPIE_THR_F_P", 0, 199, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreId, "NPDPIE_THR_F_P", 0, 200, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreId, "NPDPIE_THR_S_P", 7, 1, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreId, "NPDPIE_THR_S_P", 7, 0, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreId, "NPDPII_TAU_F_P", 7, 39, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreId, "NPDPII_TAU_F_P", 7, 40, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreId, "NPDPII_TAU_S_P", 7, 39, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreId, "NPDPII_TAU_S_P", 7, 40, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreId, "NPDPII_THR_F_P", 7, 39, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreId, "NPDPII_THR_F_P", 7, 40, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreId, "NPDPII_THR_S_P", 7, 39, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreId, "NPDPII_THR_S_P", 7, 40, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreId, "PS_WEIGHT_EXC_F_N", 0, 251, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreId, "PS_WEIGHT_EXC_F_N", 0, 250, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreId, "PS_WEIGHT_EXC_S_N", 7, 0, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreId, "PS_WEIGHT_EXC_S_N", 7, 1, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreId, "PS_WEIGHT_INH_F_N", 7, 0, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreId, "PS_WEIGHT_INH_F_N", 7, 1, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreId, "PS_WEIGHT_INH_S_N", 7, 1, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreId, "PS_WEIGHT_INH_S_N", 7, 0, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreId, "PULSE_PWLK_P", 3, 49, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreId, "PULSE_PWLK_P", 3, 50, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreId, "R2R_P", 4, 84, "High");
+			caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreId, "R2R_P", 4, 85, "High");
 
 		}
 
@@ -264,7 +262,7 @@ static void caerReservoirRun(caerModuleData moduleData, caerEventPacketContainer
 		portable_clock_gettime_monotonic(&ttot);
 		int tt = (int) ((sin((double) (6.2832 / state->period) * (ttot.tv_sec + 1.0e-9 * ttot.tv_nsec)) + 1.0) * 50);
 
-		caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, 0, "C0_IF_DC_P", 5, tt, "High");
+		//caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, 0, "C0_IF_DC_P", 5, tt, "High");
 		//updateCoarseFineBiasSetting(moduleData, "C0_IF_DC_P", 5, tt, "HighBias", "Normal", "PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
 		//generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode,
 		//	"C0_IF_DC_P", 5, tt, "HighBias", "Normal", "PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
