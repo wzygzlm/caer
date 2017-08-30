@@ -713,7 +713,7 @@ static void renderScreen(caerModuleData moduleData) {
 	if (container != nullptr) {
 		// Update render window with new content. (0, 0) is upper left corner.
 		// NULL renderer is supported and simply does nothing (black screen).
-		if (state->renderer != nullptr) {
+		if (state->renderer->renderer != nullptr) {
 			drewSomething = (*state->renderer->renderer)((caerVisualizerPublicState) state, container);
 		}
 
