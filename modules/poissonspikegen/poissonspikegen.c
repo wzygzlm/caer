@@ -24,6 +24,7 @@ struct HWFilter_state {
 	// usb utils
 	caerInputDynapseState eventSourceModuleState;
 	sshsNode eventSourceConfigNode;
+	int16_t sourceID;
 };
 
 typedef struct HWFilter_state *HWFilterState;
@@ -79,12 +80,14 @@ static bool caerPoissonSpikeGenModuleInit(caerModuleData moduleData) {
 
 	// Filter State
 	HWFilterState state = moduleData->moduleState;
+	state->sourceID = sourceID;
 
 	// Update all settings.
-	state->eventSourceConfigNode = caerMainloopGetSourceNode(sourceID);
+	state->eventSourceConfigNode = caerMainloopGetSourceNode(state->sourceID);
 	if (state->eventSourceConfigNode == NULL) {
 		return (false);
 	}
+	state->eventSourceModuleState = caerMainloopGetSourceState(U16T(state->sourceID));
 
 	// create parameters
 	//sshsNodePutBoolIfAbsent(moduleData->moduleNode, "loadBiases", false);
@@ -112,7 +115,6 @@ static bool caerPoissonSpikeGenModuleInit(caerModuleData moduleData) {
 	if (caerStrEquals(state->rateFile, "")) {
 		free(state->rateFile);
 	}
-
 
 	// Add config listeners last - let's the user interact with the parameter -
 	sshsNodeAddAttributeListener(moduleData->moduleNode, moduleData, &caerModuleConfigDefaultListener);
@@ -146,8 +148,7 @@ static void caerPoissonSpikeGenModuleConfig(caerModuleData moduleData) {
 	// Change run state if necessary
 	if (newRun && !state->run) {
 		state->run = true;
-		caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_POISSONSPIKEGEN, DYNAPSE_CONFIG_POISSONSPIKEGEN_RUN,
-				    1);
+		caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_POISSONSPIKEGEN, DYNAPSE_CONFIG_POISSONSPIKEGEN_RUN, 1);
 		state->chipID = sshsNodeGetInt(moduleData->moduleNode, "Chip_ID");
 		switch (state->chipID) {
 		case 0:
