@@ -11,4 +11,6 @@ IF (DYNAMICRECTANGULARTRACKER)
 	)
 
 	TARGET_LINK_LIBRARIES(dynamic_rectangulartracker ${CAER_C_LIBS})
+
+	INSTALL(TARGETS dynamic_rectangulartracker DESTINATION ${CM_SHARE_DIR})
 ENDIF()

@@ -13,7 +13,7 @@ IF (ENABLE_ACTIVITYINDICATOR)
 		SET(OPENCVD_C_LIBS ${OPENCVD_C_LIBS} ${OpenCV_LIBRARIES})
 	ENDIF()
 
-	SET(CAER_AI_FILES modules/activityindicator/activityindicator.c)	
+	SET(CAER_AI_FILES modules/activityindicator/activityindicator.c)
 	SET(OPENCVD_C_SRC_FILES ${OPENCVD_C_SRC_FILES} modules/activityindicator/activityindicator.c)
 
 	SET(OPENCVD_CXX_LIBS ${OPENCVD_CXX_LIBS} ${OPENCVD_C_LIBS})

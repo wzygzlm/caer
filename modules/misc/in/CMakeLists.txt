@@ -15,6 +15,8 @@ IF (INPUT_FILE)
 	)
 
 	TARGET_LINK_LIBRARIES(input_file ${CAER_C_LIBS})
+
+	INSTALL(TARGETS input_file DESTINATION ${CM_SHARE_DIR})
 ENDIF()
 
 IF (INPUT_NETWORK)
@@ -28,6 +30,8 @@ IF (INPUT_NETWORK)
 
 	TARGET_LINK_LIBRARIES(input_net_tcp_client ${CAER_C_LIBS})
 
+	INSTALL(TARGETS input_net_tcp_client DESTINATION ${CM_SHARE_DIR})
+
 	# NET_SOCKET_CLIENT
 	ADD_LIBRARY(input_net_socket_client SHARED input_common.c unix_socket.c)
 
@@ -37,4 +41,6 @@ IF (INPUT_NETWORK)
 	)
 
 	TARGET_LINK_LIBRARIES(input_net_socket_client ${CAER_C_LIBS})
+
+	INSTALL(TARGETS input_net_socket_client DESTINATION ${CM_SHARE_DIR})
 ENDIF()

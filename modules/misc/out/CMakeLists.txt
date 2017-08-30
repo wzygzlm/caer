@@ -27,6 +27,8 @@ IF (OUTPUT_FILE)
 	)
 
 	TARGET_LINK_LIBRARIES(output_file ${OUTPUT_LIBS})
+
+	INSTALL(TARGETS output_file DESTINATION ${CM_SHARE_DIR})
 ENDIF()
 
 IF (OUTPUT_NETWORK)
@@ -40,6 +42,8 @@ IF (OUTPUT_NETWORK)
 
 	TARGET_LINK_LIBRARIES(output_net_tcp_server ${OUTPUT_LIBS})
 
+	INSTALL(TARGETS output_net_tcp_server DESTINATION ${CM_SHARE_DIR})
+
 	# NET_TCP_CLIENT
 	ADD_LIBRARY(output_net_tcp_client SHARED output_common.c net_tcp.c)
 
@@ -49,6 +53,8 @@ IF (OUTPUT_NETWORK)
 	)
 
 	TARGET_LINK_LIBRARIES(output_net_tcp_client ${OUTPUT_LIBS})
+
+	INSTALL(TARGETS output_net_tcp_client DESTINATION ${CM_SHARE_DIR})
 
 	# NET_UDP
 	ADD_LIBRARY(output_net_udp SHARED output_common.c net_udp.c)
@@ -60,6 +66,8 @@ IF (OUTPUT_NETWORK)
 
 	TARGET_LINK_LIBRARIES(output_net_udp ${OUTPUT_LIBS})
 
+	INSTALL(TARGETS output_net_udp DESTINATION ${CM_SHARE_DIR})
+
 	# NET_SOCKET_SERVER
 	ADD_LIBRARY(output_net_socket_server SHARED output_common.c unix_socket_server.c)
 
@@ -70,6 +78,8 @@ IF (OUTPUT_NETWORK)
 
 	TARGET_LINK_LIBRARIES(output_net_socket_server ${OUTPUT_LIBS})
 
+	INSTALL(TARGETS output_net_socket_server DESTINATION ${CM_SHARE_DIR})
+
 	# NET_SOCKET_CLIENT
 	ADD_LIBRARY(output_net_socket_client SHARED output_common.c unix_socket.c)
 
@@ -79,4 +89,6 @@ IF (OUTPUT_NETWORK)
 	)
 
 	TARGET_LINK_LIBRARIES(output_net_socket_client ${OUTPUT_LIBS})
+
+	INSTALL(TARGETS output_net_socket_client DESTINATION ${CM_SHARE_DIR})
 ENDIF()
