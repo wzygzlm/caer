@@ -852,25 +852,25 @@ void ResetBiases(void *spikeGenState) {
 		caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "IF_AHW_P", 7, 1, "High");
 		caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "IF_BUF_P", 3, 80, "High");
 		caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "IF_CASC_N", 7, 1, "High");
-		caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "IF_DC_P", 7, 2, "High");
+		caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "IF_DC_P", 5, 2, "High");
 		caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "IF_NMDA_N", 7, 1, "High");
-		caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "IF_RFR_N", 0, 108, "High");
-		caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "IF_TAU1_N", 5, 24, "Low");
-		caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "IF_TAU2_N", 4, 15, "High");
-		caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "IF_THR_N", 5, 120, "High");
-		caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "NPDPIE_TAU_F_P", 7, 12, "High");
+		caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "IF_RFR_N", 2, 180, "High");
+		caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "IF_TAU1_N", 4, 225, "Low");
+		caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "IF_TAU2_N", 4, 225, "High");
+		caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "IF_THR_N", 2, 180, "High");
+		caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "NPDPIE_TAU_F_P", 6, 150, "High");
 		caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "NPDPIE_TAU_S_P", 7, 40, "High");
-		caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "NPDPIE_THR_F_P", 2, 200, "High");
+		caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "NPDPIE_THR_F_P", 0, 200, "High");
 		caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "NPDPIE_THR_S_P", 7, 0, "High");
 		caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "NPDPII_TAU_F_P", 7, 40, "High");
 		caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "NPDPII_TAU_S_P", 7, 40, "High");
 		caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "NPDPII_THR_F_P", 7, 40, "High");
 		caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "NPDPII_THR_S_P", 7, 40, "High");
-		caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "PS_WEIGHT_EXC_F_N", 0, 255, "High");
+		caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "PS_WEIGHT_EXC_F_N", 0, 250, "High");
 		caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "PS_WEIGHT_EXC_S_N", 7, 1, "High");
 		caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "PS_WEIGHT_INH_F_N", 7, 1, "High");
 		caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "PS_WEIGHT_INH_S_N", 7, 1, "High");
-		caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "PULSE_PWLK_P", 2, 80, "High");
+		caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "PULSE_PWLK_P", 3, 50, "High");
 		caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "R2R_P", 4, 85, "High");
 	}
 }
