@@ -264,6 +264,7 @@ static void caerReservoirRun(caerModuleData moduleData, caerEventPacketContainer
 		portable_clock_gettime_monotonic(&ttot);
 		int tt = (int) ((sin((double) (6.2832 / state->period) * (ttot.tv_sec + 1.0e-9 * ttot.tv_nsec)) + 1.0) * 50);
 
+		caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, 0, "C0_IF_DC_P", 5, tt, "High");
 		//updateCoarseFineBiasSetting(moduleData, "C0_IF_DC_P", 5, tt, "HighBias", "Normal", "PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);
 		//generatesBitsCoarseFineBiasSetting(state->eventSourceConfigNode,
 		//	"C0_IF_DC_P", 5, tt, "HighBias", "Normal", "PBias", true, DYNAPSE_CONFIG_DYNAPSE_U0);

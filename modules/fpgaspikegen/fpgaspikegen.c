@@ -87,7 +87,7 @@ static bool caerFpgaSpikeGenModuleInit(caerModuleData moduleData) {
 	sshsNodeCreateInt(moduleData->moduleNode, "BaseAddress", 0, 0, 1024, SSHS_FLAGS_NORMAL, "");
 	sshsNodeCreateBool(moduleData->moduleNode, "VariableISI", false, SSHS_FLAGS_NORMAL, "Use variable interspike intervals");
 	sshsNodeCreateBool(moduleData->moduleNode, "WriteSRAM", false, SSHS_FLAGS_NORMAL, "Write Sram content");
-	sshsNodeCreateString(moduleData->moduleNode, "StimFile", "", 1, 2048, SSHS_FLAGS_NORMAL, "File containing the stimuli");
+	sshsNodeCreateString(moduleData->moduleNode, "StimFile", "default.txt", 1, 2048, SSHS_FLAGS_NORMAL, "File containing the stimuli");
 	sshsNodeCreateBool(moduleData->moduleNode, "Repeat", false, SSHS_FLAGS_NORMAL, "Repeat");
 	sshsNodeCreateInt(moduleData->moduleNode, "StimCount", 0, 0, 1000, SSHS_FLAGS_NORMAL, "Number of stimulations");
 

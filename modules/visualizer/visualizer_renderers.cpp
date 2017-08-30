@@ -336,7 +336,7 @@ static inline sf::Color dynapseCoreIdToColor(uint8_t coreId) {
 		return (sf::Color::Red);
 	}
 	else if (coreId == 1) {
-		return (sf::Color::Blue);
+		return (sf::Color::Magenta);
 	}
 
 	// Core ID 0 has default.
