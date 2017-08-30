@@ -26,6 +26,7 @@ struct HWFilter_state {
 	caerInputDynapseState eventSourceModuleState;
 	sshsNode eventSourceConfigNode;
 	int16_t sourceID;
+	int16_t ChipID;
 };
 
 typedef struct HWFilter_state *HWFilterState;
@@ -80,6 +81,7 @@ static bool caerFpgaSpikeGenModuleInit(caerModuleData moduleData) {
 	free(inputs);
 
 	// create parameters
+	sshsNodeCreateInt(moduleData->moduleNode, "ChipID", 0, 0, 12, SSHS_FLAGS_NORMAL, "Target Chip Id, where the spikes will be directed to");
 	sshsNodeCreateInt(moduleData->moduleNode, "ISI", 10, 0, 1000, SSHS_FLAGS_NORMAL, "Inter Spike Interval, in terms of ISIbase (ISIBase*ISI)");
 	sshsNodeCreateInt(moduleData->moduleNode, "ISIBase", 1, 0, 1000, SSHS_FLAGS_NORMAL, "Inter Spike Interval in us");
 	sshsNodeCreateBool(moduleData->moduleNode, "Run", false, SSHS_FLAGS_NORMAL, "Start/Stop changing biases for reaching target frequency");
@@ -92,6 +94,7 @@ static bool caerFpgaSpikeGenModuleInit(caerModuleData moduleData) {
 	sshsNodeCreateInt(moduleData->moduleNode, "StimCount", 0, 0, 1000, SSHS_FLAGS_NORMAL, "Number of stimulations");
 
 	// update node state
+	state->ChipID = (uint32_t)sshsNodeGetInt(moduleData->moduleNode, "ChipID");
 	state->isi = (uint32_t)sshsNodeGetInt(moduleData->moduleNode, "ISI");
 	state->run = sshsNodeGetBool(moduleData->moduleNode, "Run");
 	state->isiBase = (uint32_t)sshsNodeGetInt(moduleData->moduleNode, "ISIBase");
@@ -160,6 +163,7 @@ static void caerFpgaSpikeGenModuleConfig(caerModuleData moduleData) {
 
 	if (newRun && !state->run) {
 		state->run = true;
+		state->ChipID = (uint32_t)sshsNodeGetInt(moduleData->moduleNode, "ChipID");
 		state->isi = (uint32_t)sshsNodeGetInt(moduleData->moduleNode, "ISI");
 		state->isiBase = (uint32_t)sshsNodeGetInt(moduleData->moduleNode, "ISIBase");
 		state->varMode = sshsNodeGetBool(moduleData->moduleNode, "VariableISI");
@@ -168,6 +172,10 @@ static void caerFpgaSpikeGenModuleConfig(caerModuleData moduleData) {
 		state->repeat = sshsNodeGetBool(moduleData->moduleNode, "Repeat");
 
 		int retval;
+		retval = caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_SPIKEGEN, DYNAPSE_CONFIG_SPIKEGEN, state->isi);
+		if ( retval == 0 ) {
+			caerLog(CAER_LOG_NOTICE, __func__, "ISI failed to update");
+		}
 		retval = caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_SPIKEGEN, DYNAPSE_CONFIG_SPIKEGEN_ISI, state->isi);
 		if ( retval == 0 ) {
 			caerLog(CAER_LOG_NOTICE, __func__, "ISI failed to update");
