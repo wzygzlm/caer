@@ -740,11 +740,9 @@ void sshsNodeRemoveNode(sshsNode node) {
 	// If this is the root node (parent == NULL), it isn't fully removed.
 	if (sshsNodeGetParent(node) != NULL) {
 		// Unlink this node from the parent.
-		sshsNodeRemoveChild(sshsNodeGetParent(node), sshsNodeGetName(node));
-
-		// And finally destroy the current node memory.
+		// This also destroys the memory associated with the node.
 		// Any later access is illegal!
-		sshsNodeDestroy(node);
+		sshsNodeRemoveChild(sshsNodeGetParent(node), sshsNodeGetName(node));
 	}
 }
 
