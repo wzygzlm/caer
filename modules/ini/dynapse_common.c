@@ -1191,7 +1191,7 @@ void caerInputDYNAPSEExit(caerModuleData moduleData) {
 	sshsNodePutBool(spikeNode, "doStim", false);
 	sshsNodePutBool(spikeNode, "doStimPrimitiveBias", false);
 	sshsNodePutBool(spikeNode, "doStimPrimitiveCam", false);
-	sshsNodeRemoveAttributeListener(spikeNode, moduleData, &spikeConfigListener);
+	sshsNodeRemoveAttributeListener(spikeNode, (caerInputDynapseState) moduleData->moduleState, &spikeConfigListener);
 
 	// Remove USB config listener for biases
 	//DYNAPSE_CONFIG_DYNAPSE_U0
