@@ -7,16 +7,16 @@ AER event-based framework, written in C, targeting embedded systems.<br />
 # Dependencies:
 
 Linux, MacOS X or Windows (for Windows build instructions see README.Windows) <br />
-cmake >= 2.6 <br />
 gcc >= 5.2 or clang >= 3.6 <br />
-libcaer >= 2.4.0 <br />
-mini-xml (mxml) >= 2.7 <br />
-libuv >= 1.7.5 <br />
+cmake >= 2.6 <br />
 Boost >= 1.50 (with system, filesystem, program_options) <br />
-Optional: libpng >= 1.6 (input/output frame PNG compression) <br />
+mini-xml (mxml) >= 2.7 <br />
+libcaer >= 2.4.0 <br />
 Optional: tcmalloc >= 2.2 (faster memory allocation) <br />
 Optional: SFML >= 2.3.0 (visualizer module) <br />
 Optional: OpenCV >= 3.1 (cameracalibration, poseestimation modules) <br />
+Optional: libpng >= 1.6 (input/output frame PNG compression) <br />
+Optional: libuv >= 1.7.5 (output module) <br />
 
 # Installation
 
