@@ -102,28 +102,17 @@ Windows users must also look at \href{https://raw.githubusercontent.com/inilabs/
 
 \chapter{Architecture} \label{chap:architecture}
 
-A work pattern of getting events from an input, the \emph{source}, then processing and filtering them, and finally moving them to an output, the \emph{drain}, and repeating those steps again and again (usually in a loop), is common to most event-based processing software, and also forms the basis for the architecture described here.
-
-The choice of an appropriate programming language is central to any software project.
-As discussed in chapter \ref{chap:introduction}, the Java programming language was found to be ill suited for the task at hand. In fact, any kind of interpreted or virtual machine based language would add similar overhead.
-In the end, the C programming language was selected, for a number of reasons:
-\begin{enumerate}
-\item it's a minimal, low-overhead, low-level language.
-\item wide support for it is available on all kinds of hardware; indeed many embedded systems or micro-controllers only have a C compiler and environment available.
-\item it is well supported by all manners of different tools, from integrated development environments (IDEs) to static code analyzers.
-\item it enjoys an enormous ecosystem of libraries, providing access to a large range of software and hardware functionality, many of clear interest for computational workloads (OpenCL, CUDA) or computer vision ones (OpenCV).
-\end{enumerate}
+A work pattern of getting events from an input, then processing and filtering them, and finally moving them to an output, and repeating those steps again and again (usually in a loop), is common to most event-based processing software, and also forms the basis for the architecture of cAER.
 
 \section{Framework} \label{sec:framework}
 
-The stated goal of this work is to develop a new event-driven data processing framework suitable for low-power applications and high-speed sensors.
-Such a framework should provide common functionality such as configuration management and logging, as well as handling all the data processing setup, such as starting up threads, processes, inputs and outputs.
+The idea behind a framework is to provide easy access and abstractions to common tasks, in this case tasks such as configuration management, logging, process/thread set-up, device management and so on.
 It should offer the user a simple, well-defined way to put together the parts of the framework he needs for his application, and be easy to deploy across various systems.
 It should further be easily possible to extend the functionality of the framework with self-written, application-specific code.
 
-To this end it was decided to implement cAER as a collection of basic framework functionality and modules, which could easily be plugged and extended by the user.
+To this end it was decided to implement cAER as a collection of basic framework functionality and loadable modules, which could easily be plugged and extended by the user.
 
-A broad overview of the resulting architecture is shown in Figure \ref{fig:caer_architecture}. The various components will be explained in detail in the following sections, first from a high-level architectural point of view, and then from a more implementation-minded point of view in chapter \ref{chap:implementation}.
+A broad overview of the resulting architecture is shown in Figure \ref{fig:caer_architecture}. The various components will be explained in detail in the following sections.
 
 \begin{figure}[H]
 \begin{center}
@@ -133,17 +122,16 @@ A broad overview of the resulting architecture is shown in Figure \ref{fig:caer_
 \end{center}
 \end{figure}
 
-The main program thread is responsible for setting up configuration and logging, and then start the rest of the framework. 
-As such, each data processing loop runs inside its own thread, as well as each input.
-A further thread is started for the run-time configuration system, to allow users to modify system settings at any time, while the other parts of the program are running.
+\section{Threads} \label{sec:threads}
 
-The total number of running system threads is 2 (main thread + config thread).
+The main program thread is responsible for setting up configuration and logging, and then start handling data in a continuous loop we call the \emph{mainloop}. The \emph{mainloop} runs all the modules that a user specifies, which may in turn start their own threads as needed (for example to handle asynchronous inputs or outputs).
+A further thread is started for the run-time configuration system, to allow users to modify system settings at any time, while other parts of the program are running.
+The total number of always running system threads is thus two (main thread + configuration thread).
 
 \section{Events} \label{sec:events}
 
-What an event represents, how to access it, the format of the data it contains, its storage requirements and memory layout, are all fundamental questions for any event-based processing software.
-
-Events need to have several characteristics to meet the requirements determined before in section \ref{sec:requirements}:
+Data is exchanged between modules in the form of events.
+The event format was designed to fulfil the following requirements:
 \begin{itemize}
 \item low memory consumption
 \item fast data access
@@ -152,29 +140,22 @@ Events need to have several characteristics to meet the requirements determined 
 \item low deletion overhead
 \end{itemize}
 
-When defining the new event format, a careful balance had to be maintained between memory consumption and amount of information that could be stored regarding future extensions. While it might be tempting to just use two 4-byte integers to encode the X and Y dimensions of an event coming from a camera pixel, to support devices with up to 4 GigaPixels per axis in theory, such sensors don't exist and won't exist for years to come, and this is even more true for the sensors developed at the Institute of Neuroinformatics, which have a reduced resolution due to increased pixel size and other factors. It then makes more sense to put both the X and Y values in one 4-byte integer, allocating each a fixed amount of bits, to conserve memory and especially storage bandwidth and capacity when transmitting events over the network or storing them to disk. With this method, it's possible to really minimize memory usage for each type of event individually.
+Low memory consumption is achieved by correctly sizing each data type and compressing multiple pieces of data into integers; when the particular data type would not use all 32 bits available to it, but can make do with just a fraction of those. For example, with a quantity with range [0,15] just four bits are enough, and other data can be squeezed into the remaining 28 bits. A 32 bit integer is taken as the base size, since accessing it is efficient on all supported architectures, regardless of the use of 32 or 64 bit processors.
 
-Fast data access is still guaranteed, since, at most, accessing data stored with the above method would require an integer shift and AND operation, while storing data an integer shift and OR operation. Sometimes just an AND or OR operation, when the shift amount is zero. Such bit-wise operations are extremely fast on modern CPU architectures, usually taking just 1 CPU cycle. Intel for example reports latency values of 1 cycle for AND/OR instructions and 1 cycle for shifts (SHL/SHR instructions) for modern Haswell processors and for its Silvermont architecture (successor to Atom for low-power scenarios) \cite{intel_manual}.
+Fast data access is still guaranteed, since, at most, accessing data stored with the above method would require an integer shift and AND operation, while storing data an integer shift and OR operation. Sometimes just an AND or OR operation, when the shift amount is zero. Such bit-wise operations are extremely fast on modern CPU architectures, usually taking just 1 CPU cycle. Intel for example reports latency values of 1 cycle for AND/OR instructions and 1 cycle for shifts (SHL/SHR instructions) for modern Haswell processors and for its Silvermont architecture (successor to Atom for low-power scenarios) in \href{https://software.intel.com/en-us/articles/intel-sdm}{its manuals}.
 
 To enhance iteration performance, and generally reduce the load that moving events from one processing stage to the other incurs; events are always grouped together into packets, and kept adjacent in memory. Going from event to event just requires a pointer increment, and moving a packet between processing stages just involves passing around a pointer to it.
 
 A further benefit of grouping events into packets is that a packet header can be defined and used to store useful information about the events it contains, such as their type or source, in a non-redundant way, instead of putting that information with each event separately, further saving memory.
 
-Finally, concerning the low deletion overhead, instead of implementing the removal of events by copying only the valid ones to a new packet, or shifting them around inside the current packet, a 1-bit boolean flag has been made a mandatory part of each event, indicating if the event is to be considered valid (flag is 1) or invalid (flag is 0). A side-benefit of this approach is that it is still possible for later processing stages to examine invalidated events, which might be interesting for example for statistics.
+Finally, concerning the low deletion overhead, instead of implementing the removal of events by copying only the valid ones to a new packet, or shifting them around inside the current packet, a 1-bit boolean flag has been made a mandatory part of each event, indicating if the event is to be considered valid (flag is 1) or invalid (flag is 0). A side-benefit of this approach is that it is still possible for later processing stages to examine invalidated events, which can be useful for statistics for example.
 
-\url{https://inilabs.com/support/software/fileformat/#h.oqxw4mby5yg2}
-
-The \emph{eventType} field stores the type of event that is contained in the packet.
-Currently the following event types are defined:
-
-The \emph{eventSource} field encodes a unique numeric ID that represents the input from which the event originates.
-The ID is unique inside a data processing loop and can be used to retrieve information on the input in later processing stages that work on a particular packet.
-
-getTimestamp/getTimestamp64
+The full definition of each supported event type, as well as how those events are treated in the context of files and network streams, can be found in the \href{https://inilabs.com/support/software/fileformat/#h.oqxw4mby5yg2}{AEDAT File Format} document. cAER internally uses the event formats defined in libcaer, which in turn follows the \emph{AEDAT 3.1} specification.
 
 \section{XML Configuration} \label{sec:xml_configuration}
 
-To this end, the Super Simple Hierarchical Storage (SSHS, \ref{subsec:sshs}) library was written and then employed. A configuration file from which to load the initial settings is also part of this system.
+An external XML file holds all the configuration that gets applied to cAER at start-up and loaded into memory. At shut-down, the file is updated with any changes made to the configuration.
+While the , the Super Simple Hierarchical Storage (SSHS, \ref{subsec:sshs}) library was written and then employed. A configuration file from which to load the initial settings is also part of this system.
 
 On the first execution of the \emph{caer} program, all configuration will be initialized to its default values.
 
@@ -797,6 +778,16 @@ else if (moduleStatus == RUNNING && running == NO) {
 \end{lstlisting}
 
 \subsection{Modules API}
+
+\subsection{Accessing Event Data}
+
+The \emph{eventType} field stores the type of event that is contained in the packet.
+Currently the following event types are defined:
+
+The \emph{eventSource} field encodes a unique numeric ID that represents the input from which the event originates.
+The ID is unique inside a data processing loop and can be used to retrieve information on the input in later processing stages that work on a particular packet.
+
+getTimestamp/getTimestamp64
 
 \section{Writing a new module}
 
