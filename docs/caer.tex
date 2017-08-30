@@ -574,7 +574,8 @@ Each input module defines a configuration sub-node called \emph{/sourceInfo/}, w
 
 One limitation exists: the same input module accessing the same underlying event producer (hardware device, network stream, file, ...) cannot exist more than once across all Mainloops. Sharing the same input over multiple Mainloops would require expensive copying and distribution of data, which is best avoided in resource constrained environments.
 Hardware device access modules usually try to get exclusive access to their device, rendering this kind of error impossible: a second instance of the same module accessing the same device would simply not be able to open it.
-\clearpage
+
+Must define sourceInfo node, must clear it on exit.
 
 
 \section{Processing modules} \label{sec:processing_modules}
@@ -614,6 +615,9 @@ This ensures that a valid value is present, and avoids having to specify a defau
 Listeners can be added to nodes to react to changes to both the node's children and to its attributes.
 
 FLAGS
+
+Create() does not force update the attribute value if it already exists and is within range,
+so if you want to make sure a value is set, call Put() or updateRO() after Create().
 
 \section{Remote configuration} \label{subsec:remote_configuration}
 
@@ -778,5 +782,8 @@ allocated with malloc/free.
 \section{Porting old modules}
 
 \section{Visualizer: Renderer and Event Handlers}
+
+return value indicates something was drawn.
+state memory allocation, how to set custom size.
 
 \end{document}
