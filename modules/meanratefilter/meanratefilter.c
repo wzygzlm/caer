@@ -228,51 +228,27 @@ static void caerMeanRateFilterRun(caerModuleData moduleData, caerEventPacketCont
 						(int) corex, (int) corey, (double)mean[corex][corey], (int) corex, (int) corey, (double) var[corex][corey], chipid, coreid);
 
 					// current dc settings
-					sshsNode chipNode = sshsGetRelativeNode(state->eventSourceConfigNode,chipIDToName((int16_t)chipid, true));
-				    sshsNode biasNode = sshsGetRelativeNode(chipNode, "bias/");
-
-				    // select right bias name
-				    char biasName[] = "C0_IF_DC_P"; // "CX_IF_DC_P" max bias name length is 10
-					if(coreid == 0){
-						memcpy(biasName, "C0_IF_DC_P", 10);
-					}else if(coreid == 1){
-						memcpy(biasName, "C1_IF_DC_P", 10);
-					}else if(coreid == 2){
-						memcpy(biasName, "C2_IF_DC_P", 10);
-					}else if(coreid == 3){
-						memcpy(biasName, "C3_IF_DC_P", 10);
-					}
-					// Add trailing slash to node name (required!).
-					size_t biasNameLength = strlen(biasName);
-					char biasNameFull[biasNameLength + 2];
-					memcpy(biasNameFull, biasName, biasNameLength);
-					biasNameFull[biasNameLength] = '/';
-					biasNameFull[biasNameLength + 1] = '\0';
-
-					// Get biasConfNode for this particular bias.
-					sshsNode biasConfigNode = sshsGetRelativeNode(biasNode, biasNameFull);
-
-					// Read current coarse and fine settings.
-					uint8_t coarseValue = (uint8_t) sshsNodeGetByte(biasConfigNode, "coarseValue");
-					uint16_t fineValue =  (uint16_t) sshsNodeGetShort(biasConfigNode, "fineValue");
+					uint8_t coarseValue ;
+					uint8_t fineValue;
+					caerDynapseGetBiasCore(state->eventSourceConfigNode, chipid, coreid, "IF_DC_P", &coarseValue, &fineValue, NULL);
 
 					caerLog(CAER_LOG_NOTICE, moduleData->moduleSubSystemString,
-											"\n BIAS %s coarse %d fine %d\n",
-											biasNameFull, coarseValue, fineValue );
+											"\n BIAS C%d_IF_DC_P coarse %d fine %d\n",
+											coreid, coarseValue, fineValue );
 
 					bool changed = false;
-					int step = 15; // fine step value
+					uint8_t step = 15; // fine step value
 					// compare current frequency with target
 					if( (state->targetFreq - mean[corex][corey]) > 0 ){
 						// we need to increase freq.. increase fine
-						if(fineValue < (255-step)){
-							fineValue = (unsigned short ) fineValue + (unsigned short) step;
+						if((I16T(fineValue) + step) <= UINT8_MAX){
+							fineValue = fineValue + step;
 							changed = true;
 						}else{
 							// if we did not reach the max value
 							if(coarseValue != 0){
-								fineValue = (unsigned short) step;
-								coarseValue += -1; // coarse 0 is max 7 is min
+								fineValue = step;
+								coarseValue -= 1; // coarse 0 is max 7 is min
 								changed = true;
 							}else{
 								caerLog(CAER_LOG_NOTICE, moduleData->moduleSubSystemString,
@@ -281,14 +257,14 @@ static void caerMeanRateFilterRun(caerModuleData moduleData, caerEventPacketCont
 						}
 					}else if( (state->targetFreq - mean[corex][corey]) < 0){
 						// we need to reduce freq
-						if( (fineValue - step) > 0){
-							fineValue = (unsigned short) fineValue - (unsigned short) step;
+						if((I16T(fineValue) - step) >= 0){
+							fineValue = fineValue - step;
 							changed = true;
 						}else{
 							// if we did not reach the max value
 							if(coarseValue != 7){
-								fineValue = (unsigned short) step;
-								coarseValue += +1; // coarse 0 is max 7 is min
+								fineValue = step;
+								coarseValue += 1; // coarse 0 is max 7 is min
 								changed = true;
 							}else{
 								caerLog(CAER_LOG_NOTICE, moduleData->moduleSubSystemString,
