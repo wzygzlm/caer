@@ -26,6 +26,7 @@ static bool caerImageGeneratorInit(caerModuleData moduleData);
 static void caerImageGeneratorRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out);
 static void caerImageGeneratorExit(caerModuleData moduleData);
 static void caerImageGeneratorConfig(caerModuleData moduleData);
+static bool normalize_image_map_sigma(imagegeneratorState state);
 
 static struct caer_module_functions caerImageGeneratorFunctions = { .moduleInit = &caerImageGeneratorInit, .moduleRun =
 	&caerImageGeneratorRun, .moduleConfig = &caerImageGeneratorConfig, .moduleExit = &caerImageGeneratorExit };
@@ -128,6 +129,81 @@ static void caerImageGeneratorExit(caerModuleData moduleData) {
 	simple2DBufferFreeLong(state->outputFrame);
 }
 
+//This function implement 3sigma normalization and converts the image in nullhop format
+static bool normalize_image_map_sigma(imagegeneratorState state) {
+
+	int sum = 0, count = 0;
+	for (int i = 0; i < state->outputFrame->sizeX; i++) {
+		for (int j = 0; j < state->outputFrame->sizeY; j++) {
+			if (state->outputFrame->buffer2d[i][j] != 0) {
+				sum += state->outputFrame->buffer2d[i][j];
+				count++;
+			}
+		}
+	}
+
+	float mean = sum / count;
+
+	float var = 0;
+	for (int i = 0; i < state->outputFrame->sizeX; i++) {
+		for (int j = 0; j < state->outputFrame->sizeY; j++) {
+			if (state->outputFrame->buffer2d[i][j] != 0) {
+				float f = state->outputFrame->buffer2d[i][j] - mean;
+				var += f * f;
+			}
+		}
+	}
+
+	float sig = sqrt(var / count);
+	if (sig < (0.1f / 255.0f)) {
+		sig = 0.1f / 255.0f;
+	}
+
+	float numSDevs = 3;
+	float mean_png_gray, range, halfrange;
+
+	if (state->rectifyPolarities) {
+		mean_png_gray = 0; // rectified
+	}
+	else {
+		mean_png_gray = (127.0 / 255.0) * 256.0f; //256 included here for nullhop reshift
+	}
+	if (state->rectifyPolarities) {
+		range = numSDevs * sig * (1.0f / 256.0f); //256 included here for nullhop reshift
+		halfrange = 0;
+	}
+	else {
+		range = numSDevs * sig * 2 * (1.0f / 256.0f); //256 included here for nullhop reshift
+		halfrange = numSDevs * sig;
+	}
+
+	for (int col_idx = 0; col_idx < state->outputFrame->sizeX; col_idx++) {
+		for (int row_idx = 0; row_idx < state->outputFrame->sizeY; row_idx++) {
+
+			if (state->outputFrame->buffer2d[col_idx][row_idx] == 0) {
+
+				state->outputFrame->buffer2d[col_idx][row_idx] = mean_png_gray;
+
+			}
+			else {
+				float f = (state->outputFrame->buffer2d[col_idx][row_idx] + halfrange) / range;
+
+				if (f > 256) {
+					f = 255; //256 included here for nullhop reshift
+				}
+				else if (f < 0) {
+					f = 0;
+				}
+
+				state->outputFrame->buffer2d[col_idx][row_idx] = floor(f); //shift by 256 included in previous computations
+			}
+		}
+	}
+
+	return (true);
+
+}
+
 static void caerImageGeneratorRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out) {
 	caerPolarityEventPacketConst polarity =
 		(caerPolarityEventPacketConst) caerEventPacketContainerFindEventPacketByTypeConst(in, POLARITY_EVENT);
@@ -139,6 +215,7 @@ static void caerImageGeneratorRun(caerModuleData moduleData, caerEventPacketCont
 
 	imagegeneratorState state = moduleData->moduleState;
 
+	int counterFrame = 0;
 	float res_x = (float) state->outputFrame->sizeX / state->polaritySizeX;
 	float res_y = (float) state->outputFrame->sizeY / state->polaritySizeY;
 
@@ -200,11 +277,54 @@ static void caerImageGeneratorRun(caerModuleData moduleData, caerEventPacketCont
 		else if (state->outputFrame->buffer2d[pos_x][pos_y] < -state->colorScale) {
 			state->outputFrame->buffer2d[pos_x][pos_y] = -state->colorScale;
 		}
-
 		state->spikeCounter += 1;
 
 		// If we saw enough spikes, generate Image from ImageMap.
 		if (state->spikeCounter >= state->numSpikes) {
+
+			normalize_image_map_sigma(state);
+
+			// Generate Image
+			// Allocate packet container for result packet.
+			caerFrameEventPacket frameOut;
+			if (*out == NULL) {
+				int numMaxFrames = (int)(caerEventPacketHeaderGetEventNumber(polarity)/state->numSpikes)+1;
+				*out = caerEventPacketContainerAllocate(1);
+				if (*out == NULL) {
+					return; // Error.
+				}
+
+				// everything that is in the out packet container will be automatically be free after main loop
+				frameOut = caerFrameEventPacketAllocate(numMaxFrames, moduleData->moduleID,
+					caerEventPacketHeaderGetEventTSOverflow(&polarity->packetHeader), I32T(state->outputFrame->sizeX),
+					I32T(state->outputFrame->sizeY), 3);
+				if (frameOut == NULL) {
+					return; // Error.
+				}
+				else {
+					// Add output packet to packet container.
+					caerEventPacketContainerSetEventPacket(*out, 0, (caerEventPacketHeader) frameOut);
+				}
+			}else{
+				frameOut = caerEventPacketContainerGetEventPacket(*out,0);
+			}
+
+			caerFrameEvent singleplot = caerFrameEventPacketGetEvent(frameOut, counterFrame++);
+
+			uint32_t counter = 0;
+			for (size_t y = 0; y < state->outputFrame->sizeY; y++) {
+				for (size_t x = 0; x < state->outputFrame->sizeX; x++) {
+					singleplot->pixels[counter] = U16T(state->outputFrame->buffer2d[x][y] * 256); // red
+					singleplot->pixels[counter + 1] = U16T(state->outputFrame->buffer2d[x][y] * 256); // green
+					singleplot->pixels[counter + 2] = U16T(state->outputFrame->buffer2d[x][y] * 256); // blue
+					counter += 3;
+				}
+			}
+
+			caerFrameEventSetLengthXLengthYChannelNumber(singleplot, I32T(state->outputFrame->sizeX),
+				I32T(state->outputFrame->sizeY), 3, frameOut);
+			caerFrameEventValidate(singleplot, frameOut);
+
 			// reset values
 			simple2DBufferResetLong(state->outputFrame);
 
@@ -212,38 +332,4 @@ static void caerImageGeneratorRun(caerModuleData moduleData, caerEventPacketCont
 		}
 	}
 
-	// Generate output frame.
-	// Allocate packet container for result packet.
-	*out = caerEventPacketContainerAllocate(1);
-	if (*out == NULL) {
-		return; // Error.
-	}
-
-	// everything that is in the out packet container will be automatically be free after main loop
-	caerFrameEventPacket frameOut = caerFrameEventPacketAllocate(1, moduleData->moduleID,
-		caerEventPacketHeaderGetEventTSOverflow(&polarity->packetHeader), I32T(state->outputFrame->sizeX),
-		I32T(state->outputFrame->sizeY), 3);
-	if (frameOut == NULL) {
-		return; // Error.
-	}
-	else {
-		// Add output packet to packet container.
-		caerEventPacketContainerSetEventPacket(*out, 0, (caerEventPacketHeader) frameOut);
-	}
-
-	caerFrameEvent singleplot = caerFrameEventPacketGetEvent(frameOut, 0);
-
-	uint32_t counter = 0;
-	for (size_t y = 0; y < state->outputFrame->sizeY; y++) {
-		for (size_t x = 0; x < state->outputFrame->sizeX; x++) {
-			singleplot->pixels[counter] = U16T(state->outputFrame->buffer2d[x][y] * 14); // red
-			singleplot->pixels[counter + 1] = U16T(state->outputFrame->buffer2d[x][y] * 14); // green
-			singleplot->pixels[counter + 2] = U16T(state->outputFrame->buffer2d[x][y] * 14); // blue
-			counter += 3;
-		}
-	}
-
-	caerFrameEventSetLengthXLengthYChannelNumber(singleplot, I32T(state->outputFrame->sizeX),
-		I32T(state->outputFrame->sizeY), 3, frameOut);
-	caerFrameEventValidate(singleplot, frameOut);
 }

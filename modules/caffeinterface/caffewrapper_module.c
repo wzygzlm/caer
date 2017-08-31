@@ -90,26 +90,9 @@ static void caerCaffeWrapperRun(caerModuleData moduleData, caerEventPacketContai
 	state->doShowActivations = sshsNodeGetBool(moduleData->moduleNode, "doShowActivations");
 	state->doNormInputImages = sshsNodeGetBool(moduleData->moduleNode, "doNormInputImages");
 
-
-	MyCaffe_file_set(state->cpp_class, frameIn, state->detThreshold, state->doPrintOutputs,
-		state->doShowActivations, state->doNormInputImages);
-
-	/*networkActivity = caerFrameEventPacketAllocate(1, I16T(moduleData->moduleID), 0, frame_x, frame_y, 1);
-	caerMainloopFreeAfterLoop(&free, *networkActivity);
-	if (*networkActivity != NULL) {
-		caerFrameEvent single_frame = caerFrameEventPacketGetEvent(*networkActivity, 0);
-		//add info to the frame
-		caerFrameEventSetLengthXLengthYChannelNumber(single_frame, frame_x, frame_y, 1, *networkActivity); // to do remove hard coded size
-		MyCaffe_file_set(state->cpp_class, hist, size, classificationResults, classificationResultsId, state->detThreshold,
-			state->doPrintOutputs, &single_frame, state->doShowActivations, state->doNormInputImages);
-		// validate frame
-		if (single_frame != NULL) {
-			caerFrameEventValidate(single_frame, *networkActivity);
-		}
-		else {
-			*networkActivity = NULL;
-		}
-
+	if(frameIn != NULL){
+		MyCaffe_file_set(state->cpp_class, frameIn, state->detThreshold, state->doPrintOutputs,
+			state->doShowActivations, state->doNormInputImages);
 	}
-	return;*/
+
 }

@@ -10,6 +10,7 @@ using std::string;
 void MyCaffe::file_set(caerFrameEventPacketConst frameIn, bool thr, bool printOut,
 	bool showactivations, bool norminput) {
 
+	// only classify first
 	caerFrameEventConst f = caerFrameEventPacketGetEventConst(frameIn,0);
 
 	// Initialize OpenCV Mat based on caerFrameEvent data directly (no image copy).
@@ -19,7 +20,6 @@ void MyCaffe::file_set(caerFrameEventPacketConst frameIn, bool thr, bool printOu
 	cv::Mat img;
 	orig.convertTo(img,CV_8UC1,1);
 
-
 	// Convert img to float for Caffe
 	cv::Mat img2;
 	img.convertTo(img2, CV_32FC1);
@@ -28,7 +28,7 @@ void MyCaffe::file_set(caerFrameEventPacketConst frameIn, bool thr, bool printOu
 	}
 
 	CHECK(!img2.empty()) << "Unable to decode image " << file_i;
-	showactivations = false; // TODO
+	showactivations = false; // TODO, the show activation will generate a frameOutput showing the activations.
 	std::vector<Prediction> predictions = MyCaffe::Classify(img2, 5, NULL, showactivations);
 
 	/* Print the top N predictions. */
@@ -40,35 +40,6 @@ void MyCaffe::file_set(caerFrameEventPacketConst frameIn, bool thr, bool printOu
 	std::ifstream infile(filename);
 
 	caerLog(CAER_LOG_NOTICE, __func__, "Classification Result is %s" , predictions[0].first.c_str());
-
-
-	/*for (size_t i = 0; i < predictions.size(); ++i) {
-		p = predictions[i];
-		if (i == 0) {
-			std::strcpy(b, p.first.c_str());
-			cv::putText(img, p.first.c_str(), cv::Point(2, 10), CV_FONT_HERSHEY_PLAIN, 0.6, cv::Scalar(255));
-			//resId[0] =
-			//NET_VAL
-			if (infile.fail()) {
-				caerLog(CAER_LOG_ERROR, __func__, "failed to open NET_VAL file");
-				infile.clear();
-			}
-			else {
-				while (!infile.eof()) {
-					getline(infile, filer);
-					if(	!filer.compare(p.first) ){
-						resId[0] = c;
-						//std::cout << "results is " << c << std::endl;
-					}
-					c++;
-				}
-			}
-		}
-		if (printoutputs) {
-			std::cout << "\n" << std::fixed << std::setprecision(4) << p.second << " - \"" << p.first << "\""
-				<< std::endl;
-		}
-	}*/
 
 	//cv::imshow("debug",img2);
 	//cv::waitKey(1);
