@@ -296,5 +296,5 @@ static void caerMediantrackerExit(caerModuleData moduleData) {
 
 	// Clear sourceInfo node.
 	sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
-	sshsNodeRemoveAllAttributes(sourceInfoNode);
+	sshsNodeClearSubTree(sourceInfoNode, true);
 }
