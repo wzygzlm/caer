@@ -25,8 +25,8 @@ def make_stim_linear(neuronAddress, coreDest, virtualSourceChip, freqStart, freq
     times = []
     for i in periods_base:
         num_entry_this_freq = one_sec / i                                   #one second duration for each phase                      
-        addresses.append(np.repeat(address, num_entry_this_freq))           #addresses that needs to be stimulated
-        times.append(np.repeat(i, num_entry_this_freq))                     #times differences between spikes
+        addresses.append(np.repeat(address, num_entry_this_freq))           #addresses that will be stimulated
+        times.append(np.repeat(i, num_entry_this_freq))                     #time difference between spikes
     
     times = np.transpose(flattern_(times))
     addresses = np.transpose(flattern_(addresses))
