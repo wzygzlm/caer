@@ -12,15 +12,13 @@
             <attr key="runAtStartup" type="bool">true</attr>
             <attr key="showStatistics" type="bool">false</attr>
             <attr key="subsampleRendering" type="int">1</attr>
-            <attr key="windowPositionX" type="int">613</attr>
-            <attr key="windowPositionY" type="int">53</attr>
-            <attr key="zoomFactor" type="float">1</attr>
+            <attr key="windowPositionX" type="int">559</attr>
+            <attr key="windowPositionY" type="int">76</attr>
+            <attr key="zoomFactor" type="float">0.75</attr>
         </node>
         <node name="caer" path="/caer/">
             <node name="logger" path="/caer/logger/">
                 <attr key="logLevel" type="byte">5</attr>
-            </node>
-            <node name="modules" path="/caer/modules/">
             </node>
             <node name="server" path="/caer/server/">
                 <attr key="ipAddress" type="string">127.0.0.1</attr>
@@ -183,7 +181,7 @@
                         <attr key="coarseValue" type="byte">2</attr>
                         <attr key="currentLevel" type="string">High</attr>
                         <attr key="enabled" type="bool">true</attr>
-                        <attr key="fineValue" type="short">180</attr>
+                        <attr key="fineValue" type="short">200</attr>
                         <attr key="sex" type="string">N</attr>
                         <attr key="type" type="string">Normal</attr>
                     </node>
@@ -458,7 +456,7 @@
                         <attr key="coarseValue" type="byte">2</attr>
                         <attr key="currentLevel" type="string">High</attr>
                         <attr key="enabled" type="bool">true</attr>
-                        <attr key="fineValue" type="short">180</attr>
+                        <attr key="fineValue" type="short">200</attr>
                         <attr key="sex" type="string">N</attr>
                         <attr key="type" type="string">Normal</attr>
                     </node>
@@ -733,7 +731,7 @@
                         <attr key="coarseValue" type="byte">2</attr>
                         <attr key="currentLevel" type="string">High</attr>
                         <attr key="enabled" type="bool">true</attr>
-                        <attr key="fineValue" type="short">180</attr>
+                        <attr key="fineValue" type="short">200</attr>
                         <attr key="sex" type="string">N</attr>
                         <attr key="type" type="string">Normal</attr>
                     </node>
@@ -1008,7 +1006,7 @@
                         <attr key="coarseValue" type="byte">2</attr>
                         <attr key="currentLevel" type="string">High</attr>
                         <attr key="enabled" type="bool">true</attr>
-                        <attr key="fineValue" type="short">180</attr>
+                        <attr key="fineValue" type="short">200</attr>
                         <attr key="sex" type="string">N</attr>
                         <attr key="type" type="string">Normal</attr>
                     </node>
@@ -4777,8 +4775,9 @@
             <attr key="ChipID" type="int">0</attr>
             <attr key="ISI" type="int">100</attr>
             <attr key="ISIBase" type="int">90</attr>
-            <attr key="Repeat" type="bool">false</attr>
+            <attr key="Repeat" type="bool">true</attr>
             <attr key="Run" type="bool">true</attr>
+            <attr key="StimFile" type="string">stimulus.txt</attr>
             <attr key="VariableISI" type="bool">true</attr>
             <attr key="WriteSRAM" type="bool">true</attr>
             <attr key="logLevel" type="byte">5</attr>
@@ -4786,6 +4785,34 @@
             <attr key="moduleInput" type="string">1[12]</attr>
             <attr key="moduleLibrary" type="string">libfpgaspikegen</attr>
             <attr key="runAtStartup" type="bool">true</attr>
+        </node>
+        <node name="meanRateView" path="/meanRateView/">
+            <attr key="eventHandlerListOptions" type="string">None,Neuron_Monitor,Input</attr>
+            <attr key="rendererListOptions" type="string">None,Polarity,Frame,IMU_6-axes,2D_Points,Spikes,Spikes_Raster_Plot,ETF4D,Polarity_and_Frames</attr>
+            <attr key="eventHandler" type="string">None</attr>
+            <attr key="logLevel" type="byte">5</attr>
+            <attr key="moduleId" type="short">7</attr>
+            <attr key="moduleInput" type="string">4[2]</attr>
+            <attr key="moduleLibrary" type="string">caer_visualizer</attr>
+            <attr key="renderer" type="string">Frame</attr>
+            <attr key="runAtStartup" type="bool">true</attr>
+            <attr key="showStatistics" type="bool">false</attr>
+            <attr key="subsampleRendering" type="int">1</attr>
+            <attr key="windowPositionX" type="int">1314</attr>
+            <attr key="windowPositionY" type="int">82</attr>
+            <attr key="zoomFactor" type="float">7.75</attr>
+        </node>
+        <node name="meanrate" path="/meanrate/">
+            <attr key="colorscaleMax" type="int">500</attr>
+            <attr key="colorscaleMin" type="int">0</attr>
+            <attr key="doSetFreq" type="bool">false</attr>
+            <attr key="logLevel" type="byte">5</attr>
+            <attr key="measureMinTime" type="float">3</attr>
+            <attr key="moduleId" type="short">4</attr>
+            <attr key="moduleInput" type="string">1[12]</attr>
+            <attr key="moduleLibrary" type="string">libmeanratefilter</attr>
+            <attr key="runAtStartup" type="bool">true</attr>
+            <attr key="targetFreq" type="float">100</attr>
         </node>
         <node name="reservoir" path="/reservoir/">
             <attr key="ieratio" type="float">5</attr>
