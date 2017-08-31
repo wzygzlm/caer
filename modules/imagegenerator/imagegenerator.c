@@ -16,8 +16,8 @@ struct imagegenerator_state {
 	simple2DBufferLong outputFrame; // Image matrix.
 	int32_t numSpikes; // After how many spikes will we generate an image.
 	int32_t spikeCounter; // Actual number of spikes seen so far, in range [0, numSpikes].
-	int16_t polaritySizeX;
-	int16_t polaritySizeY;
+	float resolutionX;
+	float resolutionY;
 };
 
 typedef struct imagegenerator_state *imagegeneratorState;
@@ -26,7 +26,7 @@ static bool caerImageGeneratorInit(caerModuleData moduleData);
 static void caerImageGeneratorRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out);
 static void caerImageGeneratorExit(caerModuleData moduleData);
 static void caerImageGeneratorConfig(caerModuleData moduleData);
-static bool normalize_image_map_sigma(imagegeneratorState state);
+static void normalize_image_map_sigma(imagegeneratorState state);
 
 static struct caer_module_functions caerImageGeneratorFunctions = { .moduleInit = &caerImageGeneratorInit, .moduleRun =
 	&caerImageGeneratorRun, .moduleConfig = &caerImageGeneratorConfig, .moduleExit = &caerImageGeneratorExit };
@@ -62,9 +62,9 @@ static bool caerImageGeneratorInit(caerModuleData moduleData) {
 		"Consider ON/OFF polarities the same.");
 	sshsNodeCreateShort(moduleData->moduleNode, "colorScale", 200, 0, 255, SSHS_FLAGS_NORMAL, "Color scale.");
 	sshsNodeCreateShort(moduleData->moduleNode, "outputFrameSizeX", 32, 1, 1024, SSHS_FLAGS_NORMAL,
-		"Output frame width.");
+		"Output frame width. Must restart to take effect.");
 	sshsNodeCreateShort(moduleData->moduleNode, "outputFrameSizeY", 32, 1, 1024, SSHS_FLAGS_NORMAL,
-		"Output frame height.");
+		"Output frame height. Must restart to take effect.");
 
 	imagegeneratorState state = moduleData->moduleState;
 
@@ -75,10 +75,8 @@ static bool caerImageGeneratorInit(caerModuleData moduleData) {
 		return (false);
 	}
 
-	state->polaritySizeX = sshsNodeGetShort(sourceInfo, "polaritySizeX");
-	state->polaritySizeY = sshsNodeGetShort(sourceInfo, "polaritySizeY");
-
-	caerImageGeneratorConfig(moduleData);
+	int16_t polaritySizeX = sshsNodeGetShort(sourceInfo, "polaritySizeX");
+	int16_t polaritySizeY = sshsNodeGetShort(sourceInfo, "polaritySizeY");
 
 	int16_t outputFrameSizeX = sshsNodeGetShort(moduleData->moduleNode, "outputFrameSizeX");
 	int16_t outputFrameSizeY = sshsNodeGetShort(moduleData->moduleNode, "outputFrameSizeY");
@@ -89,6 +87,9 @@ static bool caerImageGeneratorInit(caerModuleData moduleData) {
 		return (false);
 	}
 
+	state->resolutionX = (float) state->outputFrame->sizeX / (float) polaritySizeX;
+	state->resolutionY = (float) state->outputFrame->sizeY / (float) polaritySizeY;
+
 	sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
 	sshsNodeCreateShort(sourceInfoNode, "frameSizeX", outputFrameSizeX, 1, 1024,
 		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Output frame width.");
@@ -98,6 +99,8 @@ static bool caerImageGeneratorInit(caerModuleData moduleData) {
 		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Output data width.");
 	sshsNodeCreateShort(sourceInfoNode, "dataSizeY", outputFrameSizeY, 1, 1024,
 		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Output data height.");
+
+	caerImageGeneratorConfig(moduleData);
 
 	// Add config listeners last, to avoid having them dangling if Init doesn't succeed.
 	sshsNodeAddAttributeListener(moduleData->moduleNode, moduleData, &caerModuleConfigDefaultListener);
@@ -121,7 +124,7 @@ static void caerImageGeneratorExit(caerModuleData moduleData) {
 
 	// Clear sourceInfo node.
 	sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
-	sshsNodeRemoveAllAttributes(sourceInfoNode);
+	sshsNodeClearSubTree(sourceInfoNode, true);
 
 	imagegeneratorState state = moduleData->moduleState;
 
@@ -129,32 +132,32 @@ static void caerImageGeneratorExit(caerModuleData moduleData) {
 	simple2DBufferFreeLong(state->outputFrame);
 }
 
-//This function implement 3sigma normalization and converts the image in nullhop format
-static bool normalize_image_map_sigma(imagegeneratorState state) {
+// This function implements 3sigma normalization and converts the image in nullhop format
+static void normalize_image_map_sigma(imagegeneratorState state) {
 
-	int sum = 0, count = 0;
-	for (int i = 0; i < state->outputFrame->sizeX; i++) {
-		for (int j = 0; j < state->outputFrame->sizeY; j++) {
-			if (state->outputFrame->buffer2d[i][j] != 0) {
-				sum += state->outputFrame->buffer2d[i][j];
+	long sum = 0, count = 0;
+	for (size_t x = 0; x < state->outputFrame->sizeX; x++) {
+		for (size_t y = 0; y < state->outputFrame->sizeY; y++) {
+			if (state->outputFrame->buffer2d[x][y] != 0) {
+				sum += state->outputFrame->buffer2d[x][y];
 				count++;
 			}
 		}
 	}
 
-	float mean = sum / count;
+	float mean = (float) sum / (float) count;
 
 	float var = 0;
-	for (int i = 0; i < state->outputFrame->sizeX; i++) {
-		for (int j = 0; j < state->outputFrame->sizeY; j++) {
-			if (state->outputFrame->buffer2d[i][j] != 0) {
-				float f = state->outputFrame->buffer2d[i][j] - mean;
+	for (size_t x = 0; x < state->outputFrame->sizeX; x++) {
+		for (size_t y = 0; y < state->outputFrame->sizeY; y++) {
+			if (state->outputFrame->buffer2d[x][y] != 0) {
+				float f = (float) state->outputFrame->buffer2d[x][y] - mean;
 				var += f * f;
 			}
 		}
 	}
 
-	float sig = sqrt(var / count);
+	float sig = sqrtf(var / (float) count);
 	if (sig < (0.1f / 255.0f)) {
 		sig = 0.1f / 255.0f;
 	}
@@ -166,42 +169,37 @@ static bool normalize_image_map_sigma(imagegeneratorState state) {
 		mean_png_gray = 0; // rectified
 	}
 	else {
-		mean_png_gray = (127.0 / 255.0) * 256.0f; //256 included here for nullhop reshift
+		mean_png_gray = (float) UINT16_MAX / 2.0f;
 	}
+
 	if (state->rectifyPolarities) {
-		range = numSDevs * sig * (1.0f / 256.0f); //256 included here for nullhop reshift
+		range = numSDevs * sig * (1.0f / (float) UINT16_MAX);
 		halfrange = 0;
 	}
 	else {
-		range = numSDevs * sig * 2 * (1.0f / 256.0f); //256 included here for nullhop reshift
+		range = numSDevs * sig * 2 * (1.0f / (float) UINT16_MAX);
 		halfrange = numSDevs * sig;
 	}
 
-	for (int col_idx = 0; col_idx < state->outputFrame->sizeX; col_idx++) {
-		for (int row_idx = 0; row_idx < state->outputFrame->sizeY; row_idx++) {
-
-			if (state->outputFrame->buffer2d[col_idx][row_idx] == 0) {
-
-				state->outputFrame->buffer2d[col_idx][row_idx] = mean_png_gray;
-
+	for (size_t x = 0; x < state->outputFrame->sizeX; x++) {
+		for (size_t y = 0; y < state->outputFrame->sizeY; y++) {
+			if (state->outputFrame->buffer2d[x][y] == 0) {
+				state->outputFrame->buffer2d[x][y] = U16T(mean_png_gray);
 			}
 			else {
-				float f = (state->outputFrame->buffer2d[col_idx][row_idx] + halfrange) / range;
+				float f = ((float) state->outputFrame->buffer2d[x][y] + halfrange) / range;
 
-				if (f > 256) {
-					f = 255; //256 included here for nullhop reshift
+				if (f > UINT16_MAX) {
+					f = UINT16_MAX;
 				}
 				else if (f < 0) {
 					f = 0;
 				}
 
-				state->outputFrame->buffer2d[col_idx][row_idx] = floor(f); //shift by 256 included in previous computations
+				state->outputFrame->buffer2d[x][y] = U16T(floorf(f));
 			}
 		}
 	}
-
-	return (true);
-
 }
 
 static void caerImageGeneratorRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out) {
@@ -215,30 +213,28 @@ static void caerImageGeneratorRun(caerModuleData moduleData, caerEventPacketCont
 
 	imagegeneratorState state = moduleData->moduleState;
 
-	int counterFrame = 0;
-	float res_x = (float) state->outputFrame->sizeX / state->polaritySizeX;
-	float res_y = (float) state->outputFrame->sizeY / state->polaritySizeY;
+	int32_t counterFrame = 0;
 
-	int32_t numtotevs = caerEventPacketHeaderGetEventValid(&polarity->packetHeader);
+	int32_t totalEventNumber = caerEventPacketHeaderGetEventValid(&polarity->packetHeader);
 
 	// Default is all events
 	int numevs_start = 0;
-	int numevs_end = numtotevs;
+	int numevs_end = totalEventNumber;
 
-	if (numtotevs >= state->numSpikes) {
+	if (totalEventNumber >= state->numSpikes) {
 		//get rid of accumulated spikes
 		simple2DBufferResetLong(state->outputFrame);
 
 		state->spikeCounter = 0;
 		//takes only the last 2000
-		numevs_start = numtotevs - state->numSpikes;
-		numevs_end = numtotevs;
+		numevs_start = totalEventNumber - state->numSpikes;
+		numevs_end = totalEventNumber;
 
 	}
-	else if ((numtotevs + state->spikeCounter) >= state->numSpikes) {
+	else if ((totalEventNumber + state->spikeCounter) >= state->numSpikes) {
 		//takes only the last 2000
-		numevs_start = numtotevs - (state->numSpikes - state->spikeCounter);
-		numevs_end = numtotevs;
+		numevs_start = totalEventNumber - (state->numSpikes - state->spikeCounter);
+		numevs_end = totalEventNumber;
 	}
 
 	for (int32_t caerPolarityIteratorCounter = numevs_start; caerPolarityIteratorCounter < numevs_end;
@@ -251,12 +247,12 @@ static void caerImageGeneratorRun(caerModuleData moduleData, caerEventPacketCont
 		} // Skip invalid polarity events.
 
 		// Get coordinates and polarity (0 or 1) of latest spike.
-		uint16_t x = caerPolarityEventGetX(caerPolarityIteratorElement);
-		uint16_t y = caerPolarityEventGetY(caerPolarityIteratorElement);
+		uint16_t polarityX = caerPolarityEventGetX(caerPolarityIteratorElement);
+		uint16_t polarityY = caerPolarityEventGetY(caerPolarityIteratorElement);
 		bool pol = caerPolarityEventGetPolarity(caerPolarityIteratorElement);
 
-		uint16_t pos_x = U16T(floorf(res_x * (float ) x));
-		uint16_t pos_y = U16T(floorf(res_y * (float ) y));
+		uint16_t pos_x = U16T(floorf(state->resolutionX * (float ) polarityX));
+		uint16_t pos_y = U16T(floorf(state->resolutionY * (float ) polarityY));
 
 		// Update image Map
 		if (state->rectifyPolarities) {
@@ -277,27 +273,31 @@ static void caerImageGeneratorRun(caerModuleData moduleData, caerEventPacketCont
 		else if (state->outputFrame->buffer2d[pos_x][pos_y] < -state->colorScale) {
 			state->outputFrame->buffer2d[pos_x][pos_y] = -state->colorScale;
 		}
+
 		state->spikeCounter += 1;
 
 		// If we saw enough spikes, generate Image from ImageMap.
 		if (state->spikeCounter >= state->numSpikes) {
-
+			// Normalize image.
 			normalize_image_map_sigma(state);
 
-			// Generate Image
-			// Allocate packet container for result packet.
-			caerFrameEventPacket frameOut;
+			// Generate image.
+			caerFrameEventPacket frameOut = NULL;
+
 			if (*out == NULL) {
-				int numMaxFrames = (int)(caerEventPacketHeaderGetEventNumber(polarity)/state->numSpikes)+1;
+				// Allocate packet container for result packet.
 				*out = caerEventPacketContainerAllocate(1);
 				if (*out == NULL) {
 					return; // Error.
 				}
 
+				int32_t numMaxFrames = (caerEventPacketHeaderGetEventValid(&polarity->packetHeader) / state->numSpikes)
+					+ 1;
+
 				// everything that is in the out packet container will be automatically be free after main loop
 				frameOut = caerFrameEventPacketAllocate(numMaxFrames, moduleData->moduleID,
 					caerEventPacketHeaderGetEventTSOverflow(&polarity->packetHeader), I32T(state->outputFrame->sizeX),
-					I32T(state->outputFrame->sizeY), 3);
+					I32T(state->outputFrame->sizeY), GRAYSCALE);
 				if (frameOut == NULL) {
 					return; // Error.
 				}
@@ -305,8 +305,9 @@ static void caerImageGeneratorRun(caerModuleData moduleData, caerEventPacketCont
 					// Add output packet to packet container.
 					caerEventPacketContainerSetEventPacket(*out, 0, (caerEventPacketHeader) frameOut);
 				}
-			}else{
-				frameOut = caerEventPacketContainerGetEventPacket(*out,0);
+			}
+			else {
+				frameOut = (caerFrameEventPacket) caerEventPacketContainerGetEventPacket(*out, 0);
 			}
 
 			caerFrameEvent singleplot = caerFrameEventPacketGetEvent(frameOut, counterFrame++);
@@ -314,15 +315,13 @@ static void caerImageGeneratorRun(caerModuleData moduleData, caerEventPacketCont
 			uint32_t counter = 0;
 			for (size_t y = 0; y < state->outputFrame->sizeY; y++) {
 				for (size_t x = 0; x < state->outputFrame->sizeX; x++) {
-					singleplot->pixels[counter] = U16T(state->outputFrame->buffer2d[x][y] * 256); // red
-					singleplot->pixels[counter + 1] = U16T(state->outputFrame->buffer2d[x][y] * 256); // green
-					singleplot->pixels[counter + 2] = U16T(state->outputFrame->buffer2d[x][y] * 256); // blue
-					counter += 3;
+					singleplot->pixels[counter] = U16T(state->outputFrame->buffer2d[x][y]); // greyscale
+					counter += GRAYSCALE;
 				}
 			}
 
 			caerFrameEventSetLengthXLengthYChannelNumber(singleplot, I32T(state->outputFrame->sizeX),
-				I32T(state->outputFrame->sizeY), 3, frameOut);
+				I32T(state->outputFrame->sizeY), GRAYSCALE, frameOut);
 			caerFrameEventValidate(singleplot, frameOut);
 
 			// reset values
@@ -331,5 +330,4 @@ static void caerImageGeneratorRun(caerModuleData moduleData, caerEventPacketCont
 			state->spikeCounter = 0;
 		}
 	}
-
 }
