@@ -59,6 +59,7 @@ if __name__ == '__main__':
     freqSteps = 10
     freqPhaseDuration = 1 # sec
     
+    # returns address and inter spike interval 
     times, addresses = make_stim_linear(neuronAddress, coreDest, virtualSourceChip, freqStart, freqStop, freqSteps, freqPhaseDuration)
     write_to_file(times,addresses)
     

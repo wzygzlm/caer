@@ -81,16 +81,15 @@ static bool caerFpgaSpikeGenModuleInit(caerModuleData moduleData) {
 	free(inputs);
 
 	// create parameters
-	sshsNodeCreateInt(moduleData->moduleNode, "ChipID", 0, 0, 12, SSHS_FLAGS_NORMAL, "Target Chip Id, where the spikes will be directed to");
-	sshsNodeCreateInt(moduleData->moduleNode, "ISI", 10, 0, 1000, SSHS_FLAGS_NORMAL, "Inter Spike Interval, in terms of ISIbase (ISIBase*ISI)");
-	sshsNodeCreateInt(moduleData->moduleNode, "ISIBase", 1, 0, 1000, SSHS_FLAGS_NORMAL, "Inter Spike Interval in us");
-	sshsNodeCreateBool(moduleData->moduleNode, "Run", false, SSHS_FLAGS_NORMAL, "Start/Stop changing biases for reaching target frequency");
+	sshsNodeCreateInt(moduleData->moduleNode, "ChipID", 0, 0, 12, SSHS_FLAGS_NORMAL, "Target Chip Id, where the spikes will be directed to, not yet implemented (chipID is always = U0)");
+	sshsNodeCreateInt(moduleData->moduleNode, "ISI", 10, 0, 1000, SSHS_FLAGS_NORMAL, "Inter Spike Interval, in terms of ISIbase (ISIBase*ISI), only used if Variable ISI is not selected");
+	sshsNodeCreateInt(moduleData->moduleNode, "ISIBase", 1, 0, 1000, SSHS_FLAGS_NORMAL, "Inter Spike Interval multiplier in us");
+	sshsNodeCreateBool(moduleData->moduleNode, "Run", false, SSHS_FLAGS_NORMAL, "Start/Stop Stimulation. It will finish a complete stimulation before ending.");
 	sshsNodeCreateInt(moduleData->moduleNode, "BaseAddress", 0, 0, 1024, SSHS_FLAGS_NORMAL, "");
 	sshsNodeCreateBool(moduleData->moduleNode, "VariableISI", false, SSHS_FLAGS_NORMAL, "Use variable interspike intervals");
-	sshsNodeCreateBool(moduleData->moduleNode, "WriteSRAM", false, SSHS_FLAGS_NORMAL, "Write Sram content");
-	sshsNodeCreateString(moduleData->moduleNode, "StimFile", "default.txt", 1, 2048, SSHS_FLAGS_NORMAL, "File containing the stimuli");
-	sshsNodeCreateBool(moduleData->moduleNode, "Repeat", false, SSHS_FLAGS_NORMAL, "Repeat");
-	//sshsNodeCreateInt(moduleData->moduleNode, "StimCount", 1, 1, 32000, SSHS_FLAGS_NORMAL, "Number of stimulations, max is 32k as SRAM lines");
+	sshsNodeCreateBool(moduleData->moduleNode, "WriteSRAM", false, SSHS_FLAGS_NORMAL, "Write Sram content from file");
+	sshsNodeCreateString(moduleData->moduleNode, "StimFile", "default.txt", 1, 2048, SSHS_FLAGS_NORMAL, "File containing the stimuli, see manual for file format, example in modules/fpgaspikegenerator/data/generate_input.py");
+	sshsNodeCreateBool(moduleData->moduleNode, "Repeat", false, SSHS_FLAGS_NORMAL, "Repeat stimulation once finished");
 
 	// update node state
 	state->ChipID = (uint32_t)sshsNodeGetInt(moduleData->moduleNode, "ChipID");
@@ -245,7 +244,7 @@ void fixedIsiFileToSram(caerModuleData moduleData, char* fileName) {
 	}
 	fclose(fp);
 
-	/*update stim count whith lenght of file*/
+	/* update stim count with lenght of lines */
 	state->stimCount = lines - 1;
 	int retval = caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_SPIKEGEN, DYNAPSE_CONFIG_SPIKEGEN_STIMCOUNT, state->stimCount);
 	if ( retval == 0 ) {
@@ -303,7 +302,7 @@ void variableIsiFileToSram(caerModuleData moduleData, char* fileName) {
 	}
 	fclose(fp);
 
-	/*update stim count whith lenght of file*/
+	/* update stim count with lenght from file */
 	state->stimCount = lines - 1;
 	int retval = caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_SPIKEGEN, DYNAPSE_CONFIG_SPIKEGEN_STIMCOUNT, state->stimCount);
 	if ( retval == 0 ) {
@@ -325,8 +324,6 @@ static void caerFpgaSpikeGenModuleExit(caerModuleData moduleData) {
 	sshsNodeRemoveAttributeListener(moduleData->moduleNode, moduleData, &caerModuleConfigDefaultListener);
 
 	HWFilterState state = moduleData->moduleState;
-
-	// here we should free memory and other shutdown procedures if needed
 
 }
 
