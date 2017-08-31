@@ -4,19 +4,18 @@
  *      Author: federico.corradi@inilabs.com
  */
 
-#include <time.h>
 #include "base/mainloop.h"
 #include "base/module.h"
 #include "ext/buffers.h"
 #include "ext/portable_time.h"
-#include "libcaer/devices/dynapse.h"
 #include "ext/colorjet/colorjet.h"
 #include "modules/ini/dynapse_common.h"
+#include <time.h>
+#include <libcaer/devices/dynapse.h>
 #include <libcaer/events/spike.h>
 #include <libcaer/events/frame.h> //display
 
 struct MRFilter_state {
-	caerInputDynapseState eventSourceModuleState;
 	sshsNode eventSourceConfigNode;
 	simple2DBufferFloat frequencyMap;
 	simple2DBufferLong spikeCountMap;
@@ -299,7 +298,7 @@ static void caerMeanRateFilterRun(caerModuleData moduleData, caerEventPacketCont
 					}
 					if(changed){
 						//generate bits to send
-						caerDynapseSetBiasCore(state->eventSourceConfigNode, chipid, coreid, "IF_DC_P", coarseValue, fineValue, "High");
+						caerDynapseSetBiasCore(state->eventSourceConfigNode, chipid, coreid, "IF_DC_P", coarseValue, fineValue, true);
 					}
 
 				}
