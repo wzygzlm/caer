@@ -16,63 +16,47 @@
 #include <libcaer/events/frame.h> //display
 
 struct MRFilter_state {
-	sshsNode eventSourceConfigNode;
+	sshsNode dynapseConfigNode;
 	simple2DBufferFloat frequencyMap;
 	simple2DBufferLong spikeCountMap;
-	int8_t subSampleBy;
 	int32_t colorscaleMax;
 	int32_t colorscaleMin;
 	float targetFreq;
 	float measureMinTime;
-	double measureStartedAt;
-	bool startedMeas;
 	bool doSetFreq;
-	struct timespec tstart;			//struct is defined in gen_spike.c
-	struct timespec tend;
-	int16_t sourceID;
+	bool startedMeasure;
+	double measureStartedAt;
 };
 
 typedef struct MRFilter_state *MRFilterState;
 
 static bool caerMeanRateFilterInit(caerModuleData moduleData);
-static void caerMeanRateFilterRun(caerModuleData moduleData, caerEventPacketContainer in,
-    caerEventPacketContainer *out);
+static void caerMeanRateFilterRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out);
 static void caerMeanRateFilterConfig(caerModuleData moduleData);
 static void caerMeanRateFilterExit(caerModuleData moduleData);
 static void caerMeanRateFilterReset(caerModuleData moduleData, int16_t resetCallSourceID);
-static bool allocateFrequencyMap(MRFilterState state, int16_t sourceID);
-static bool allocateSpikeCountMap(MRFilterState state, int16_t sourceID);
+static void generateOutputFrame(caerEventPacketContainer *out, MRFilterState state, int16_t moduleId,
+	int32_t tsOverflow);
 
-static struct caer_module_functions caerMeanRateFilterFunctions = { .moduleInit =
-	&caerMeanRateFilterInit, .moduleRun = &caerMeanRateFilterRun, .moduleConfig =
-	&caerMeanRateFilterConfig, .moduleExit = &caerMeanRateFilterExit, .moduleReset =
-	&caerMeanRateFilterReset };
+static struct caer_module_functions caerMeanRateFilterFunctions = { .moduleInit = &caerMeanRateFilterInit, .moduleRun =
+	&caerMeanRateFilterRun, .moduleConfig = &caerMeanRateFilterConfig, .moduleExit = &caerMeanRateFilterExit,
+	.moduleReset = &caerMeanRateFilterReset };
 
-static const struct caer_event_stream_in moduleInputs[] = {
-    { .type = SPIKE_EVENT, .number = 1, .readOnly = true }
-};
+static const struct caer_event_stream_in moduleInputs[] = { { .type = SPIKE_EVENT, .number = 1, .readOnly = true } };
 
 static const struct caer_event_stream_out moduleOutputs[] = { { .type = FRAME_EVENT } };
 
-static const struct caer_module_info moduleInfo = {
-	.version = 1, .name = "MeanRate",
-	.description = "Measure mean rate activity of neurons",
-	.type = CAER_MODULE_PROCESSOR,
-	.memSize = sizeof(struct MRFilter_state),
-	.functions = &caerMeanRateFilterFunctions,
-	.inputStreams = moduleInputs,
-	.inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(moduleInputs),
-	.outputStreams = moduleOutputs,
-	.outputStreamsSize = CAER_EVENT_STREAM_OUT_SIZE(moduleOutputs)
-};
+static const struct caer_module_info moduleInfo = { .version = 1, .name = "MeanRate", .description =
+	"Measure mean rate activity of neurons and adjust chip biases accordingly.", .type = CAER_MODULE_PROCESSOR,
+	.memSize = sizeof(struct MRFilter_state), .functions = &caerMeanRateFilterFunctions, .inputStreams = moduleInputs,
+	.inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(moduleInputs), .outputStreams = moduleOutputs, .outputStreamsSize =
+		CAER_EVENT_STREAM_OUT_SIZE(moduleOutputs) };
 
 caerModuleInfo caerModuleGetInfo(void) {
-    return (&moduleInfo);
+	return (&moduleInfo);
 }
 
-
 static bool caerMeanRateFilterInit(caerModuleData moduleData) {
-
 	MRFilterState state = moduleData->moduleState;
 
 	// Wait for input to be ready. All inputs, once they are up and running, will
@@ -82,41 +66,62 @@ static bool caerMeanRateFilterInit(caerModuleData moduleData) {
 		return (false);
 	}
 
-	state->sourceID = inputs[0];
+	int16_t sourceID = inputs[0];
 	free(inputs);
 
-	sshsNodeCreateInt(moduleData->moduleNode, "colorscaleMax", 500, 0, 1000, SSHS_FLAGS_NORMAL, "Color Scale, i.e. Max Frequency (Hz)");
-	sshsNodeCreateInt(moduleData->moduleNode, "colorscaleMin", 0, 0, 1000, SSHS_FLAGS_NORMAL, "Color Scale, i.e. Min Frequency (Hz)");
-	sshsNodeCreateFloat(moduleData->moduleNode, "targetFreq", 100, 0, 250, SSHS_FLAGS_NORMAL, "Target frequency for neurons");
-	sshsNodeCreateFloat(moduleData->moduleNode, "measureMinTime", 3.0, 0, 360, SSHS_FLAGS_NORMAL, "Measure time before updating the mean");
-	sshsNodeCreateBool(moduleData->moduleNode, "doSetFreq", false, SSHS_FLAGS_NORMAL, "Start/Stop changing biases for reaching target frequency");
+	sshsNodeCreateInt(moduleData->moduleNode, "colorscaleMax", 500, 0, 1000, SSHS_FLAGS_NORMAL,
+		"Color Scale, i.e. Max Frequency (Hz).");
+	sshsNodeCreateInt(moduleData->moduleNode, "colorscaleMin", 0, 0, 1000, SSHS_FLAGS_NORMAL,
+		"Color Scale, i.e. Min Frequency (Hz).");
+	sshsNodeCreateFloat(moduleData->moduleNode, "targetFreq", 100, 0, 250, SSHS_FLAGS_NORMAL,
+		"Target frequency for neurons.");
+	sshsNodeCreateFloat(moduleData->moduleNode, "measureMinTime", 3, 0.001f, 300, SSHS_FLAGS_NORMAL,
+		"Measure time before updating the mean (in seconds).");
+	sshsNodeCreateBool(moduleData->moduleNode, "doSetFreq", false, SSHS_FLAGS_NORMAL,
+		"Start/Stop changing biases for reaching target frequency.");
+
+	sshsNode sourceInfoSource = caerMainloopGetSourceInfo(sourceID);
+	if (sourceInfoSource == NULL) {
+		return (false);
+	}
+
+	int16_t sizeX = sshsNodeGetShort(sourceInfoSource, "dataSizeX");
+	int16_t sizeY = sshsNodeGetShort(sourceInfoSource, "dataSizeY");
+
+	state->frequencyMap = simple2DBufferInitFloat((size_t) sizeX, (size_t) sizeY);
+	if (state->frequencyMap == NULL) {
+		return (false);
+	}
+
+	state->spikeCountMap = simple2DBufferInitLong((size_t) sizeX, (size_t) sizeY);
+	if (state->spikeCountMap == NULL) {
+		return (false);
+	}
+
+	sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
+	sshsNodeCreateShort(sourceInfoNode, "frameSizeX", sizeX, 1, 1024, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT,
+		"Output frame width.");
+	sshsNodeCreateShort(sourceInfoNode, "frameSizeY", sizeY, 1, 1024, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT,
+		"Output frame height.");
+	sshsNodeCreateShort(sourceInfoNode, "dataSizeX", sizeX, 1, 1024, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT,
+		"Output data width.");
+	sshsNodeCreateShort(sourceInfoNode, "dataSizeY", sizeY, 1, 1024, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT,
+		"Output data height.");
+
+	caerMeanRateFilterConfig(moduleData);
+
+	state->dynapseConfigNode = caerMainloopGetSourceNode(sourceID);
 
 	// Add config listeners last, to avoid having them dangling if Init doesn't succeed.
 	sshsNodeAddAttributeListener(moduleData->moduleNode, moduleData, &caerModuleConfigDefaultListener);
-
-	sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
-	if (!sshsNodeAttributeExists(sourceInfoNode, "dataSizeX", SSHS_SHORT)) { //to do for visualizer change name of field to a more generic one
-		sshsNodeCreateShort(sourceInfoNode, "dataSizeX", DYNAPSE_X4BOARD_NEUX, DYNAPSE_X4BOARD_NEUX, DYNAPSE_X4BOARD_NEUX*16, SSHS_FLAGS_NORMAL, "number of neurons in X");
-		sshsNodeCreateShort(sourceInfoNode, "dataSizeY", DYNAPSE_X4BOARD_NEUY, DYNAPSE_X4BOARD_NEUY, DYNAPSE_X4BOARD_NEUY*16, SSHS_FLAGS_NORMAL, "number of neurons in Y");
-	}
-
-	// internals
-	state->startedMeas = false;
-	state->measureStartedAt = 0.0;
-	state->measureMinTime = sshsNodeGetFloat(moduleData->moduleNode, "measureMinTime");
-
-	allocateFrequencyMap(state, state->sourceID);
-	allocateSpikeCountMap(state, state->sourceID);
-
-	state->eventSourceConfigNode = caerMainloopGetSourceNode(U16T(state->sourceID));
 
 	// Nothing that can fail here.
 	return (true);
 }
 
 static void caerMeanRateFilterRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out) {
-	caerSpikeEventPacketConst spike =
-		(caerSpikeEventPacketConst) caerEventPacketContainerFindEventPacketByTypeConst(in, SPIKE_EVENT);
+	caerSpikeEventPacketConst spike = (caerSpikeEventPacketConst) caerEventPacketContainerFindEventPacketByTypeConst(in,
+		SPIKE_EVENT);
 
 	// Only process packets with content.
 	if (spike == NULL) {
@@ -125,179 +130,176 @@ static void caerMeanRateFilterRun(caerModuleData moduleData, caerEventPacketCont
 
 	MRFilterState state = moduleData->moduleState;
 
+	// Iterate over events and update count
+	CAER_SPIKE_CONST_ITERATOR_VALID_START(spike)
+		uint16_t x = caerDynapseSpikeEventGetX(caerSpikeIteratorElement);
+		uint16_t y = caerDynapseSpikeEventGetY(caerSpikeIteratorElement);
+
+		state->spikeCountMap->buffer2d[x][y] += 1;
+	CAER_SPIKE_ITERATOR_VALID_END
+
 	// if not measuring, let's start
-	if( state->startedMeas == false ){
-		portable_clock_gettime_monotonic(&state->tstart);
-		state->measureStartedAt = (double) state->tstart.tv_sec + 1.0e-9 * state->tstart.tv_nsec;
-		state->startedMeas = true;
+	if (!state->startedMeasure) {
+		struct timespec tStart;
+		portable_clock_gettime_monotonic(&tStart);
+		state->measureStartedAt = (double) tStart.tv_sec + 1.0e-9 * (double) tStart.tv_nsec;
+		state->startedMeasure = true;
 	}
 
-	sshsNode sourceInfoNode = caerMainloopGetSourceInfo((uint16_t)caerEventPacketHeaderGetEventSource(&spike->packetHeader));
-
-	int16_t sizeX = sshsNodeGetShort(sourceInfoNode, "dataSizeX");
-	int16_t sizeY = sshsNodeGetShort(sourceInfoNode, "dataSizeY");
-
 	// get current time
-	portable_clock_gettime_monotonic(&state->tend);
-	double now = ((double) state->tend.tv_sec + 1.0e-9 * state->tend.tv_nsec);
+	struct timespec tEnd;
+	portable_clock_gettime_monotonic(&tEnd);
+	double now = (double) tEnd.tv_sec + 1.0e-9 * (double) tEnd.tv_nsec;
+
 	// if we measured for enough time..
-	if( (double) state->measureMinTime <= (double) (now - state->measureStartedAt) ){
+	if ((now - state->measureStartedAt) >= (double) state->measureMinTime) {
+		state->startedMeasure = false;
 
-		//caerLog(CAER_LOG_NOTICE, moduleData->moduleSubSystemString, "\nfreq measurement completed.\n");
-		state->startedMeas = false;
+		// update frequencyMap
+		for (size_t x = 0; x < state->frequencyMap->sizeX; x++) {
+			for (size_t y = 0; y < state->frequencyMap->sizeY; y++) {
+				state->frequencyMap->buffer2d[x][y] = (float) state->spikeCountMap->buffer2d[x][y]
+					/ state->measureMinTime;
 
-		//update frequencyMap
-		for (int16_t x = 0; x < sizeX; x++) {
-			for (int16_t y = 0; y < sizeY; y++) {
-				if(state->measureMinTime > 0){
-					state->frequencyMap->buffer2d[x][y] = (float)state->spikeCountMap->buffer2d[x][y]/(float)state->measureMinTime;
-				}
-				//reset
+				// reset count
 				state->spikeCountMap->buffer2d[x][y] = 0;
 			}
 		}
 
-		// set the biases if asked
-		if(state->doSetFreq){
+		// Generate output frame, after frequency map has been updated.
+		generateOutputFrame(out, state, moduleData->moduleID,
+			caerEventPacketHeaderGetEventTSOverflow(&spike->packetHeader));
 
-			//collect data for all cores
-			float sum[DYNAPSE_X4BOARD_COREX][DYNAPSE_X4BOARD_COREY];
-			float mean[DYNAPSE_X4BOARD_COREX][DYNAPSE_X4BOARD_COREY];
-			float var[DYNAPSE_X4BOARD_COREX][DYNAPSE_X4BOARD_COREY];
-			// init
-			for(size_t x=0; x<DYNAPSE_X4BOARD_COREX; x++){
-				for(size_t y=0; y<DYNAPSE_X4BOARD_COREY; y++){
-					sum[x][y] = 0.0f;
-					mean[x][y] = 0.0f;
-					var[x][y] = 0.0f;
-				}
-			}
-			float max_freq = 0.0f;
-			//loop over all cores
-			for(size_t corex=0; corex<DYNAPSE_X4BOARD_COREX; corex++){
-				for(size_t corey=0; corey<DYNAPSE_X4BOARD_COREY; corey++){
-					max_freq = 0.0f;
-					//get sum from core
-					for(size_t x=0+(corex*DYNAPSE_CONFIG_NEUROW);x<DYNAPSE_CONFIG_NEUROW+(corex*DYNAPSE_CONFIG_NEUROW);x++){
-						for(size_t y=0+(corey*DYNAPSE_CONFIG_NEUCOL);y<DYNAPSE_CONFIG_NEUCOL+(corey*DYNAPSE_CONFIG_NEUCOL);y++){
-							sum[corex][corey] += state->frequencyMap->buffer2d[x][y]; //Hz
-							if(max_freq < state->frequencyMap->buffer2d[x][y]){
-								max_freq = state->frequencyMap->buffer2d[x][y];
+		// set the biases if asked
+		if (state->doSetFreq) {
+			// collect data for all chips and cores
+			float sum[DYNAPSE_X4BOARD_NUMCHIPS][DYNAPSE_CONFIG_NUMCORES] = { 0 };
+			float mean[DYNAPSE_X4BOARD_NUMCHIPS][DYNAPSE_CONFIG_NUMCORES] = { 0 };
+			float var[DYNAPSE_X4BOARD_NUMCHIPS][DYNAPSE_CONFIG_NUMCORES] = { 0 };
+
+			// loop over all chips and cores
+			for (size_t chip = 0; chip < DYNAPSE_X4BOARD_NUMCHIPS; chip++) {
+				for (size_t core = 0; core < DYNAPSE_CONFIG_NUMCORES; core++) {
+					float maxFrequency = 0;
+
+					// Calculate X/Y region of interest.
+					size_t startX = ((core & 0x01) * DYNAPSE_CONFIG_NEUCOL)
+						+ ((chip & 0x01) * DYNAPSE_CONFIG_XCHIPSIZE);
+					size_t startY = ((core & 0x02) * DYNAPSE_CONFIG_NEUROW)
+						+ ((chip & 0x02) * DYNAPSE_CONFIG_YCHIPSIZE);
+
+					// get sum for core
+					for (size_t x = startX; x < (startX + DYNAPSE_CONFIG_NEUCOL); x++) {
+						for (size_t y = startY; y < (startY + DYNAPSE_CONFIG_NEUROW); y++) {
+							sum[chip][core] += state->frequencyMap->buffer2d[x][y];
+
+							if (maxFrequency < state->frequencyMap->buffer2d[x][y]) {
+								maxFrequency = state->frequencyMap->buffer2d[x][y];
 							}
 						}
 					}
-					//calculate mean
-					mean[corex][corey] = sum[corex][corey]/(float)DYNAPSE_CONFIG_NUMNEURONS_CORE;
-					//calculate variance
-					for(size_t x=0+(corex*DYNAPSE_CONFIG_NEUROW);x<DYNAPSE_CONFIG_NEUROW+(corex*DYNAPSE_CONFIG_NEUROW);x++){
-						for(size_t y=0+(corey*DYNAPSE_CONFIG_NEUCOL);y<DYNAPSE_CONFIG_NEUCOL+(corey*DYNAPSE_CONFIG_NEUCOL);y++){
-							float f = (state->frequencyMap->buffer2d[x][y]) - mean[corex][corey];
-							var[corex][corey] += f*f;
+
+					// calculate mean
+					mean[chip][core] = sum[chip][core] / (float) DYNAPSE_CONFIG_NUMNEURONS_CORE;
+
+					// calculate variance
+					for (size_t x = startX; x < (startX + DYNAPSE_CONFIG_NEUCOL); x++) {
+						for (size_t y = startY; y < (startY + DYNAPSE_CONFIG_NEUROW); y++) {
+							float f = state->frequencyMap->buffer2d[x][y] - mean[chip][core];
+							var[chip][core] += f * f;
 						}
 					}
-					caerLog(CAER_LOG_NOTICE, moduleData->moduleSubSystemString,
-							"\nmean[%d][%d] = %f Hz var[%d][%d] = %f  max_freq %f\n",
-							(int) corex, (int) corey, (double)mean[corex][corey], (int) corex, (int) corey, (double) var[corex][corey], (double) max_freq);
+
+					caerModuleLog(moduleData, CAER_LOG_NOTICE,
+						"mean[%zu][%zu] = %f Hz var[%zu][%zu] = %f maxFrequency %f.", chip, core,
+						(double) mean[chip][core], chip, core, (double) var[chip][core], (double) maxFrequency);
 				}
 			}
 
 			// now decide how to change the bias setting
-			for(uint32_t corex=0; corex<DYNAPSE_X4BOARD_COREX; corex++){
-				for(uint32_t corey=0; corey<DYNAPSE_X4BOARD_COREY; corey++){
+			for (size_t chip = 0; chip < DYNAPSE_X4BOARD_NUMCHIPS; chip++) {
+				for (size_t core = 0; core < DYNAPSE_CONFIG_NUMCORES; core++) {
+					uint8_t chipId = DYNAPSE_CONFIG_DYNAPSE_U0;
+					uint8_t coreId = U8T(core);
 
-					uint32_t chipid = 0;
-					uint32_t coreid = 0;
-
-					// which chip/core should we address ?
-					if(corex < 2 && corey < 2 ){
-						chipid = DYNAPSE_CONFIG_DYNAPSE_U0;
-						coreid = corex << 1 | corey;
-					}else if(corex < 2 && corey >= 2 ){
-						chipid = DYNAPSE_CONFIG_DYNAPSE_U2;
-						coreid = corex << 1 | (corey-2);
-					}else if(corex >= 2 && corey < 2){
-						chipid = DYNAPSE_CONFIG_DYNAPSE_U1;
-						coreid = (corex-2) << 1 | corey;
-					}else if(corex >= 2 && corey >= 2){
-						chipid = DYNAPSE_CONFIG_DYNAPSE_U3;
-						coreid = (corex-2) << 1 | (corey-2) ;
+					// Chip ID needs adjustment, is not range 0-3 like core ID.
+					if (chip == 1) {
+						chipId = DYNAPSE_CONFIG_DYNAPSE_U1;
+					}
+					else if (chip == 2) {
+						chipId = DYNAPSE_CONFIG_DYNAPSE_U2;
+					}
+					else if (chip == 3) {
+						chipId = DYNAPSE_CONFIG_DYNAPSE_U3;
 					}
 
-					caerLog(CAER_LOG_NOTICE, moduleData->moduleSubSystemString,
-						"\nmean[%d][%d] = %f Hz var[%d][%d] = %f chipid = %d coreid %d\n",
-						(int) corex, (int) corey, (double)mean[corex][corey], (int) corex, (int) corey, (double) var[corex][corey], chipid, coreid);
+					caerModuleLog(moduleData, CAER_LOG_NOTICE,
+						"mean[%zu][%zu] = %f Hz var[%zu][%zu] = %f chipId = %d coreId %d.", chip, core,
+						(double) mean[chip][core], chip, core, (double) var[chip][core], chipId, coreId);
 
 					// current dc settings
-					uint8_t coarseValue ;
+					uint8_t coarseValue;
 					uint8_t fineValue;
-					caerDynapseGetBiasCore(state->eventSourceConfigNode, chipid, coreid, "IF_DC_P", &coarseValue, &fineValue, NULL);
+					caerDynapseGetBiasCore(state->dynapseConfigNode, chipId, coreId, "IF_DC_P", &coarseValue,
+						&fineValue, NULL);
 
-					caerLog(CAER_LOG_NOTICE, moduleData->moduleSubSystemString,
-											"\n BIAS C%d_IF_DC_P coarse %d fine %d\n",
-											coreid, coarseValue, fineValue );
+					caerModuleLog(moduleData, CAER_LOG_NOTICE, "BIAS U%zu C%zu_IF_DC_P coarse %d fine %d.", chip, core,
+						coarseValue, fineValue);
 
 					bool changed = false;
 					uint8_t step = 15; // fine step value
+
 					// compare current frequency with target
-					if( (state->targetFreq - mean[corex][corey]) > 0 ){
-						// we need to increase freq.. increase fine
-						if((I16T(fineValue) + step) <= UINT8_MAX){
-							fineValue = fineValue + step;
+					if ((state->targetFreq - mean[chip][core]) > 0) {
+						// we need to increase freq -> increase fine
+						if ((I16T(fineValue) + step) <= UINT8_MAX) {
+							fineValue = U8T(fineValue + step);
 							changed = true;
-						}else{
-							// if we did not reach the max value
-							if(coarseValue != 0){
-								fineValue = step;
-								coarseValue -= 1; // coarse 0 is max 7 is min
-								changed = true;
-							}else{
-								caerLog(CAER_LOG_NOTICE, moduleData->moduleSubSystemString,
-										"\n Reached Limit for Bias\n");
-							}
 						}
-					}else if( (state->targetFreq - mean[corex][corey]) < 0){
-						// we need to reduce freq
-						if((I16T(fineValue) - step) >= 0){
-							fineValue = fineValue - step;
-							changed = true;
-						}else{
+						else {
 							// if we did not reach the max value
-							if(coarseValue != 7){
+							if (coarseValue != 0) {
 								fineValue = step;
-								coarseValue += 1; // coarse 0 is max 7 is min
+								coarseValue = U8T(coarseValue - 1); // coarse 0 is max 7 is min
 								changed = true;
-							}else{
-								caerLog(CAER_LOG_NOTICE, moduleData->moduleSubSystemString,
-										"\n Reached Limit for Bias\n");
+							}
+							else {
+								caerModuleLog(moduleData, CAER_LOG_NOTICE, "Reached Maximum Limit for Bias.");
 							}
 						}
 					}
-					if(changed){
-						//generate bits to send
-						caerDynapseSetBiasCore(state->eventSourceConfigNode, chipid, coreid, "IF_DC_P", coarseValue, fineValue, true);
+					else if ((state->targetFreq - mean[chip][core]) < 0) {
+						// we need to reduce freq -> decrease fine
+						if ((I16T(fineValue) - step) >= 0) {
+							fineValue = U8T(fineValue - step);
+							changed = true;
+						}
+						else {
+							// if we did not reach the max value
+							if (coarseValue != 7) {
+								fineValue = step;
+								coarseValue = U8T(coarseValue + 1); // coarse 0 is max 7 is min
+								changed = true;
+							}
+							else {
+								caerModuleLog(moduleData, CAER_LOG_NOTICE, "Reached Minimum Limit for Bias.");
+							}
+						}
 					}
 
+					if (changed) {
+						// send new bias value
+						caerDynapseSetBiasCore(state->dynapseConfigNode, chipId, coreId, "IF_DC_P", coarseValue,
+							fineValue, true);
+					}
 				}
 			}
 		}
 	}
+}
 
-	// update filter parameters
-	caerMeanRateFilterConfig(moduleData);
-
-	// Iterate over events and update frequency
-	CAER_SPIKE_CONST_ITERATOR_VALID_START(spike)
-		// Get values on which to operate.
-		//int64_t ts = caerSpikeEventGetTimestamp64(caerSpikeIteratorElement, spike);
-		uint16_t x = caerDynapseSpikeEventGetX(caerSpikeIteratorElement);
-		uint16_t y = caerDynapseSpikeEventGetY(caerSpikeIteratorElement);
-
-		// Update value into maps 
-		state->spikeCountMap->buffer2d[x][y] += 1;
-
-	CAER_SPIKE_ITERATOR_VALID_END
-
-	// Generate output frame.
+static void generateOutputFrame(caerEventPacketContainer *out, MRFilterState state, int16_t moduleId,
+	int32_t tsOverflow) {
 	// Allocate packet container for result packet.
 	*out = caerEventPacketContainerAllocate(1);
 	if (*out == NULL) {
@@ -305,9 +307,8 @@ static void caerMeanRateFilterRun(caerModuleData moduleData, caerEventPacketCont
 	}
 
 	// Everything that is in the out packet container will be automatically freed after main loop.
-	caerFrameEventPacket frameOut = caerFrameEventPacketAllocate(1, moduleData->moduleID,
-		caerEventPacketHeaderGetEventTSOverflow(&spike->packetHeader), I32T(sizeX),
-		I32T(sizeY), 3);
+	caerFrameEventPacket frameOut = caerFrameEventPacketAllocate(1, moduleId, tsOverflow,
+		I32T(state->frequencyMap->sizeX), I32T(state->frequencyMap->sizeY), RGB);
 	if (frameOut == NULL) {
 		return; // Error.
 	}
@@ -317,26 +318,25 @@ static void caerMeanRateFilterRun(caerModuleData moduleData, caerEventPacketCont
 	}
 
 	// Make image.
-	caerFrameEvent singleplot = caerFrameEventPacketGetEvent(frameOut, 0);
+	caerFrameEvent frequencyPlot = caerFrameEventPacketGetEvent(frameOut, 0);
 
 	size_t counter = 0;
-	for (size_t x = 0; x < sizeX; x++) {
-		for (size_t y = 0; y < sizeY; y++) {
-			//uint16_t colorValue = U16T(state->surfaceMap->buffer2d[x][y] * UINT16_MAX);
-			COLOUR col  = GetColour((double) state->frequencyMap->buffer2d[y][x], state->colorscaleMin, state->colorscaleMax);
-			singleplot->pixels[counter] = (int) (col.r*65535); // red
-			singleplot->pixels[counter + 1] = (int) (col.g*65535); // green
-			singleplot->pixels[counter + 2] = (int) (col.b*65535); // blue
+	for (size_t y = 0; y < state->frequencyMap->sizeY; y++) {
+		for (size_t x = 0; x < state->frequencyMap->sizeX; x++) {
+			COLOUR color = GetColour(state->frequencyMap->buffer2d[x][y], state->colorscaleMin, state->colorscaleMax);
+			frequencyPlot->pixels[counter] = U16T(color.r * UINT16_MAX); // red
+			frequencyPlot->pixels[counter + 1] = U16T(color.g * UINT16_MAX); // green
+			frequencyPlot->pixels[counter + 2] = U16T(color.b * UINT16_MAX); // blue
 			counter += 3;
 		}
 	}
 
 	// Add info to frame.
-	caerFrameEventSetLengthXLengthYChannelNumber(singleplot, I32T(sizeX),
-		I32T(sizeY), 3, frameOut);
-	// Validate frame.
-	caerFrameEventValidate(singleplot, frameOut);
+	caerFrameEventSetLengthXLengthYChannelNumber(frequencyPlot, I32T(state->frequencyMap->sizeX),
+		I32T(state->frequencyMap->sizeY), RGB, frameOut);
 
+	// Validate frame.
+	caerFrameEventValidate(frequencyPlot, frameOut);
 }
 
 static void caerMeanRateFilterConfig(caerModuleData moduleData) {
@@ -353,13 +353,13 @@ static void caerMeanRateFilterConfig(caerModuleData moduleData) {
 }
 
 static void caerMeanRateFilterExit(caerModuleData moduleData) {
+	MRFilterState state = moduleData->moduleState;
+
 	// Remove listener, which can reference invalid memory in userData.
 	sshsNodeRemoveAttributeListener(moduleData->moduleNode, moduleData, &caerModuleConfigDefaultListener);
 
-	MRFilterState state = moduleData->moduleState;
-
 	sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
-	sshsNodeClearSubTree(sourceInfoNode,true);
+	sshsNodeClearSubTree(sourceInfoNode, true);
 
 	// Ensure maps are freed.
 	simple2DBufferFreeFloat(state->frequencyMap);
@@ -372,59 +372,6 @@ static void caerMeanRateFilterReset(caerModuleData moduleData, int16_t resetCall
 	MRFilterState state = moduleData->moduleState;
 
 	// Reset maps to all zeros (startup state).
-	simple2DBufferResetLong(state->spikeCountMap);
 	simple2DBufferResetFloat(state->frequencyMap);
+	simple2DBufferResetLong(state->spikeCountMap);
 }
-
-static bool allocateSpikeCountMap(MRFilterState state, int16_t sourceID) {
-	// Get size information from source.
-	sshsNode sourceInfoNode = caerMainloopGetSourceInfo(U16T(sourceID));
-	if (sourceInfoNode == NULL) {
-		// This should never happen, but we handle it gracefully.
-		caerLog(CAER_LOG_ERROR, __func__, "Failed to get source info to allocate map.");
-		return (false);
-	}
-
-	int16_t sizeX = sshsNodeGetShort(sourceInfoNode, "dataSizeX");
-	int16_t sizeY = sshsNodeGetShort(sourceInfoNode, "dataSizeY");
-
-	state->spikeCountMap = simple2DBufferInitLong((size_t) sizeX, (size_t) sizeY);
-	if (state->spikeCountMap == NULL) {
-		return (false);
-	}
-
-	for(int16_t x=0; x<sizeX; x++){
-		for(int16_t y=0; y<sizeY; y++){
-			state->spikeCountMap->buffer2d[x][y] = 0; // init to zero
-		}
-	}
-
-	return (true);
-}
-
-static bool allocateFrequencyMap(MRFilterState state, int16_t sourceID) {
-	// Get size information from source.
-	sshsNode sourceInfoNode = caerMainloopGetSourceInfo(U16T(sourceID));
-	if (sourceInfoNode == NULL) {
-		// This should never happen, but we handle it gracefully.
-		caerLog(CAER_LOG_ERROR, __func__, "Failed to get source info to allocate map.");
-		return (false);
-	}
-
-	int16_t sizeX = sshsNodeGetShort(sourceInfoNode, "dataSizeX");
-	int16_t sizeY = sshsNodeGetShort(sourceInfoNode, "dataSizeY");
-
-	state->frequencyMap = simple2DBufferInitFloat((size_t) sizeX, (size_t) sizeY);
-	if (state->frequencyMap == NULL) {
-		return (false);
-	}
-
-	for(int16_t x=0; x<sizeX; x++){
-		for(int16_t y=0; y<sizeY; y++){
-			state->frequencyMap->buffer2d[x][y] = 0.0f; // init to zero
-		}
-	}
-
-	return (true);
-}
-
