@@ -33,5 +33,10 @@ example
 143,123
 ..
 
+=
+For an example of generation of a linearly increasing spike stimulus see the generate_input.py python script.
+Note that the base address for the stimulus.txt must be set manually to 90 (as defined in the generate_input.py script).
+
+
 
 
