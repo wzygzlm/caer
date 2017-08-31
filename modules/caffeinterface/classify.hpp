@@ -45,8 +45,8 @@ public:
 			const string& mean_file, const string& label_file);
 	std::vector<Prediction> Classify(const cv::Mat& img, int N,
 			caerFrameEvent *single_frame, bool showactivations);
-	void file_set(int * i, int size, char *b, int * resID, double thr,
-			bool printoutputs, caerFrameEvent *single_frame, bool showactivations, bool norminput);
+	void file_set(caerFrameEventPacketConst frameIn, bool thr, bool printOut,
+		bool showactivations, bool norminput);
 	void init_network();
 };
 

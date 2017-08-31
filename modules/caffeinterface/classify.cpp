@@ -7,25 +7,18 @@
 using namespace caffe;
 using std::string;
 
-void MyCaffe::file_set(int * inim, int size, char *b, int * resId, double thr, bool printoutputs,
-	caerFrameEvent *single_frame, bool showactivations, bool norminput) {
+void MyCaffe::file_set(caerFrameEventPacketConst frameIn, bool thr, bool printOut,
+	bool showactivations, bool norminput) {
 
-	/*for (size_t x = 0; x < size; x++) {
-	 for (size_t y = 0; y < size; y++) {
-	 int linindex = x * size + y;
-	 if (inim[linindex] == 256) {
-	 inim[linindex] = 255; // [0,255] is png
-	 }
-	 }
-	 }*/
+	caerFrameEventConst f = caerFrameEventPacketGetEventConst(frameIn,0);
 
-	// Loading img
-	cv::Mat img = cv::Mat(size, size, CV_8UC1);
-	for (size_t i = 0; i < size; i++) {
-		for (size_t j = 0; j < size; j++) {
-			img.data[i * size + j] = inim[i * size + j];
-		}
-	}
+	// Initialize OpenCV Mat based on caerFrameEvent data directly (no image copy).
+	cv::Size frameSize(caerFrameEventGetLengthX(f), caerFrameEventGetLengthY(f));
+	cv::Mat orig(frameSize, CV_16UC(caerFrameEventGetChannelNumber(f)), (uint16_t *)(caerFrameEventGetPixelArrayUnsafeConst(f)));
+
+	cv::Mat img;
+	orig.convertTo(img,CV_8UC1,1);
+
 
 	// Convert img to float for Caffe
 	cv::Mat img2;
@@ -35,7 +28,8 @@ void MyCaffe::file_set(int * inim, int size, char *b, int * resId, double thr, b
 	}
 
 	CHECK(!img2.empty()) << "Unable to decode image " << file_i;
-	std::vector<Prediction> predictions = MyCaffe::Classify(img2, 5, single_frame, showactivations);
+	showactivations = false; // TODO
+	std::vector<Prediction> predictions = MyCaffe::Classify(img2, 5, NULL, showactivations);
 
 	/* Print the top N predictions. */
 	Prediction p;
@@ -45,7 +39,10 @@ void MyCaffe::file_set(int * inim, int size, char *b, int * resId, double thr, b
 	const std::string filename = NET_VAL;
 	std::ifstream infile(filename);
 
-	for (size_t i = 0; i < predictions.size(); ++i) {
+	caerLog(CAER_LOG_NOTICE, __func__, "Classification Result is %s" , predictions[0].first.c_str());
+
+
+	/*for (size_t i = 0; i < predictions.size(); ++i) {
 		p = predictions[i];
 		if (i == 0) {
 			std::strcpy(b, p.first.c_str());
@@ -71,15 +68,8 @@ void MyCaffe::file_set(int * inim, int size, char *b, int * resId, double thr, b
 			std::cout << "\n" << std::fixed << std::setprecision(4) << p.second << " - \"" << p.first << "\""
 				<< std::endl;
 		}
-	}
+	}*/
 
-	for (int j = 0; j < size; j++) {
-		for (int i = 0; i < size; i++) {
-			uchar& uxy = img.at<uchar>(i, j);
-			int color = (int) uxy;
-			inim[i * size + j] = color;
-		}
-	}
 	//cv::imshow("debug",img2);
 	//cv::waitKey(1);
 

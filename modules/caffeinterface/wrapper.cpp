@@ -10,10 +10,9 @@ MyCaffe* newMyCaffe() {
 	return new MyCaffe();
 }
 
-void MyCaffe_file_set(MyCaffe* v, int * i, int size, char *b, int *resId, double thr,
-		bool printoutputs, caerFrameEvent *single_frame,
-		bool showactivations, bool norminput) {
-	v->file_set(i, size, b, resId, thr, printoutputs, single_frame, showactivations, norminput);
+void MyCaffe_file_set(MyCaffe* v, caerFrameEventPacketConst frameIn, bool thr, bool printOut,
+	bool showactivations, bool norminput) {
+	v->file_set(frameIn, thr, printOut, showactivations, norminput);
 }
 
 void MyCaffe_init_network(MyCaffe *v) {

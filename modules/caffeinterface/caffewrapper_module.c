@@ -19,34 +19,44 @@ struct caffewrapper_state {
 typedef struct caffewrapper_state *caffewrapperState;
 
 static bool caerCaffeWrapperInit(caerModuleData moduleData);
-static void caerCaffeWrapperRun(caerModuleData moduleData, size_t argsNumber, va_list args);
+static void caerCaffeWrapperRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out);
 static void caerCaffeWrapperExit(caerModuleData moduleData);
 
 static struct caer_module_functions caerCaffeWrapperFunctions = { .moduleInit = &caerCaffeWrapperInit, .moduleRun =
 	&caerCaffeWrapperRun, .moduleConfig =
 NULL, .moduleExit = &caerCaffeWrapperExit };
 
-const char * caerCaffeWrapper(uint16_t moduleID, int * classifyhist, int size, char *classificationResults, int *classificationResultsId,
-	caerFrameEventPacket *networkActivity, int sizeDisplay) {
-	caerModuleData moduleData = caerMainloopFindModule(moduleID, "caerCaffeWrapper", CAER_MODULE_PROCESSOR);
-	if (moduleData == NULL) {
-		return (NULL);
-	}
 
-	caerModuleSM(&caerCaffeWrapperFunctions, moduleData, sizeof(struct caffewrapper_state), 6, classifyhist, size,
-		classificationResults, classificationResultsId, networkActivity, sizeDisplay);
+static const struct caer_event_stream_in moduleInputs[] = {
+    { .type = FRAME_EVENT, .number = 1, .readOnly = true }
+};
 
-	return (NULL);
+static const struct caer_module_info moduleInfo = {
+	.version = 1, .name = "CaffeInterface",
+	.description = "Caffe Deep Learning Interface",
+	.type = CAER_MODULE_OUTPUT,
+	.memSize = sizeof(struct caffewrapper_state),
+	.functions = &caerCaffeWrapperFunctions,
+	.inputStreams = moduleInputs,
+	.inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(moduleInputs),
+	.outputStreams = NULL,
+	.outputStreamsSize = 0
+};
+
+// init
+
+caerModuleInfo caerModuleGetInfo(void) {
+    return (&moduleInfo);
 }
 
 static bool caerCaffeWrapperInit(caerModuleData moduleData) {
 	caffewrapperState state = moduleData->moduleState;
 
-	sshsNodeCreateDouble(moduleData->moduleNode, "detThreshold", 0.96, 0.1, 1.0, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateBool(moduleData->moduleNode, "doPrintOutputs", false, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateBool(moduleData->moduleNode, "doShowActivations", false, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateBool(moduleData->moduleNode, "doNormInputImages", true, SSHS_FLAGS_NORMAL);
-	sshsNodeCreateInt(moduleData->moduleNode, "sizeDisplay", 1024, 128, 10240, SSHS_FLAGS_NORMAL);
+	sshsNodeCreateDouble(moduleData->moduleNode, "detThreshold", 0.96, 0.1, 1.0, SSHS_FLAGS_NORMAL, "Detection Threshold");
+	sshsNodeCreateBool(moduleData->moduleNode, "doPrintOutputs", false, SSHS_FLAGS_NORMAL, "Print Outputs");
+	sshsNodeCreateBool(moduleData->moduleNode, "doShowActivations", false, SSHS_FLAGS_NORMAL, "TODO");
+	sshsNodeCreateBool(moduleData->moduleNode, "doNormInputImages", true, SSHS_FLAGS_NORMAL, "Normalize input images, before inputting them into caffe range [0,1]");
+	sshsNodeCreateInt(moduleData->moduleNode, "sizeDisplay", 1024, 128, 10240, SSHS_FLAGS_NORMAL, "Display Size Set");
 
 	state->detThreshold = sshsNodeGetDouble(moduleData->moduleNode, "detThreshold");
 	state->doPrintOutputs = sshsNodeGetBool(moduleData->moduleNode, "doPrintOutputs");
@@ -57,6 +67,8 @@ static bool caerCaffeWrapperInit(caerModuleData moduleData) {
 	state->cpp_class = newMyCaffe();
 	MyCaffe_init_network(state->cpp_class);
 
+	//allocate single frame
+
 	return (true);
 }
 
@@ -65,14 +77,10 @@ static void caerCaffeWrapperExit(caerModuleData moduleData) {
 	deleteMyCaffe(state->cpp_class); //free memory block
 }
 
-static void caerCaffeWrapperRun(caerModuleData moduleData, size_t argsNumber, va_list args) {
-	UNUSED_ARGUMENT(argsNumber);
+static void caerCaffeWrapperRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out) {
 
-	int * hist = va_arg(args, int *);
-	int size = va_arg(args, int);
-	char * classificationResults = va_arg(args, char*);
-	int * classificationResultsId = va_arg(args, int*);
-	caerFrameEventPacket *networkActivity = va_arg(args, caerFrameEventPacket*);
+	caerFrameEventPacketConst frameIn =
+			(caerFrameEventPacketConst) caerEventPacketContainerFindEventPacketByTypeConst(in, FRAME_EVENT);
 
 	caffewrapperState state = moduleData->moduleState;
 
@@ -82,19 +90,11 @@ static void caerCaffeWrapperRun(caerModuleData moduleData, size_t argsNumber, va
 	state->doShowActivations = sshsNodeGetBool(moduleData->moduleNode, "doShowActivations");
 	state->doNormInputImages = sshsNodeGetBool(moduleData->moduleNode, "doNormInputImages");
 
-	//allocate single frame
-	int sizeDisplay = sshsNodeGetInt(moduleData->moduleNode, "sizeDisplay");
-	int frame_x = sizeDisplay;
-	int frame_y = sizeDisplay;
 
-	// set source info for this module if not yet defined
-	sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
-	if (!sshsNodeAttributeExists(sourceInfoNode, "visualizerSizeX", SSHS_SHORT)) {
-		sshsNodePutShort(sourceInfoNode, "visualizerSizeX", (uint16_t) frame_x);
-		sshsNodePutShort(sourceInfoNode, "visualizerSizeY", (uint16_t) frame_y);
-	}
+	MyCaffe_file_set(state->cpp_class, frameIn, state->detThreshold, state->doPrintOutputs,
+		state->doShowActivations, state->doNormInputImages);
 
-	*networkActivity = caerFrameEventPacketAllocate(1, I16T(moduleData->moduleID), 0, frame_x, frame_y, 1);
+	/*networkActivity = caerFrameEventPacketAllocate(1, I16T(moduleData->moduleID), 0, frame_x, frame_y, 1);
 	caerMainloopFreeAfterLoop(&free, *networkActivity);
 	if (*networkActivity != NULL) {
 		caerFrameEvent single_frame = caerFrameEventPacketGetEvent(*networkActivity, 0);
@@ -111,5 +111,5 @@ static void caerCaffeWrapperRun(caerModuleData moduleData, size_t argsNumber, va
 		}
 
 	}
-	return;
+	return;*/
 }

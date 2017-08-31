@@ -234,8 +234,8 @@ static void caerImageGeneratorRun(caerModuleData moduleData, caerEventPacketCont
 	caerFrameEvent singleplot = caerFrameEventPacketGetEvent(frameOut, 0);
 
 	uint32_t counter = 0;
-	for (size_t x = 0; x < state->outputFrame->sizeX; x++) {
-		for (size_t y = 0; y < state->outputFrame->sizeY; y++) {
+	for (size_t y = 0; y < state->outputFrame->sizeY; y++) {
+		for (size_t x = 0; x < state->outputFrame->sizeX; x++) {
 			singleplot->pixels[counter] = U16T(state->outputFrame->buffer2d[x][y] * 14); // red
 			singleplot->pixels[counter + 1] = U16T(state->outputFrame->buffer2d[x][y] * 14); // green
 			singleplot->pixels[counter + 2] = U16T(state->outputFrame->buffer2d[x][y] * 14); // blue
