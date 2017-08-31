@@ -21,7 +21,7 @@ typedef struct simple_buffer *simpleBuffer;
 
 static inline simpleBuffer simpleBufferInit(size_t size) {
 	// Allocate new buffer.
-	simpleBuffer newBuffer = malloc(sizeof(*newBuffer) + (size * sizeof(uint8_t)));
+	simpleBuffer newBuffer = calloc(1, sizeof(*newBuffer) + (size * sizeof(uint8_t)));
 	if (newBuffer == NULL) {
 		return (NULL);
 	}
