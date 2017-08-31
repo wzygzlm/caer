@@ -90,7 +90,7 @@ static bool caerFpgaSpikeGenModuleInit(caerModuleData moduleData) {
 	sshsNodeCreateBool(moduleData->moduleNode, "WriteSRAM", false, SSHS_FLAGS_NORMAL, "Write Sram content");
 	sshsNodeCreateString(moduleData->moduleNode, "StimFile", "default.txt", 1, 2048, SSHS_FLAGS_NORMAL, "File containing the stimuli");
 	sshsNodeCreateBool(moduleData->moduleNode, "Repeat", false, SSHS_FLAGS_NORMAL, "Repeat");
-	sshsNodeCreateInt(moduleData->moduleNode, "StimCount", 1, 1, 32000, SSHS_FLAGS_NORMAL, "Number of stimulations, max is 32k as SRAM lines");
+	//sshsNodeCreateInt(moduleData->moduleNode, "StimCount", 1, 1, 32000, SSHS_FLAGS_NORMAL, "Number of stimulations, max is 32k as SRAM lines");
 
 	// update node state
 	state->ChipID = (uint32_t)sshsNodeGetInt(moduleData->moduleNode, "ChipID");
@@ -100,7 +100,7 @@ static bool caerFpgaSpikeGenModuleInit(caerModuleData moduleData) {
 	state->varMode = sshsNodeGetBool(moduleData->moduleNode, "VariableISI");
 	state->baseAddr = (uint32_t)sshsNodeGetInt(moduleData->moduleNode, "BaseAddress");
 	state->stimFile = sshsNodeGetString(moduleData->moduleNode, "StimFile");
-	state->stimCount = (uint32_t)sshsNodeGetInt(moduleData->moduleNode, "StimCount");
+	state->stimCount = 0;
 	state->writeSram = sshsNodeGetBool(moduleData->moduleNode, "WriteSRAM");
 	state->repeat = sshsNodeGetBool(moduleData->moduleNode, "Repeat");
 
@@ -167,7 +167,6 @@ static void caerFpgaSpikeGenModuleConfig(caerModuleData moduleData) {
 		state->isiBase = (uint32_t)sshsNodeGetInt(moduleData->moduleNode, "ISIBase");
 		state->varMode = sshsNodeGetBool(moduleData->moduleNode, "VariableISI");
 		state->baseAddr = (uint32_t)sshsNodeGetInt(moduleData->moduleNode, "BaseAddress");
-		state->stimCount = (uint32_t)sshsNodeGetInt(moduleData->moduleNode, "StimCount");
 		state->repeat = sshsNodeGetBool(moduleData->moduleNode, "Repeat");
 
 		int retval;
@@ -193,10 +192,6 @@ static void caerFpgaSpikeGenModuleConfig(caerModuleData moduleData) {
 		}
 		caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_SPIKEGEN, DYNAPSE_CONFIG_SPIKEGEN_REPEAT, state->repeat);
 
-		retval = caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_SPIKEGEN, DYNAPSE_CONFIG_SPIKEGEN_STIMCOUNT, state->stimCount - 1);
-		if ( retval == 0 ) {
-			caerLog(CAER_LOG_NOTICE, __func__, "stimcount failed to update");
-		}
 		retval = caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_SPIKEGEN, DYNAPSE_CONFIG_SPIKEGEN_RUN, state->run);
 		if ( retval == 0 ) {
 			caerLog(CAER_LOG_NOTICE, __func__, "run status failed to update");
@@ -250,6 +245,13 @@ void fixedIsiFileToSram(caerModuleData moduleData, char* fileName) {
 	}
 	fclose(fp);
 
+	/*update stim count whith lenght of file*/
+	state->stimCount = lines - 1;
+	int retval = caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_SPIKEGEN, DYNAPSE_CONFIG_SPIKEGEN_STIMCOUNT, state->stimCount);
+	if ( retval == 0 ) {
+		caerLog(CAER_LOG_NOTICE, __func__, "stimcount failed to update");
+	}
+
 	caerLog(CAER_LOG_NOTICE, __func__, "Wrote spike train of length %u to memory with base address %u\n", lines, state->baseAddr);
 
 	// write them to the dynapse
@@ -300,6 +302,13 @@ void variableIsiFileToSram(caerModuleData moduleData, char* fileName) {
 		fscanf(fp, "%hu, %hu\n", (uint16_t*)(spikeTrain + i), (uint16_t*)(spikeTrain + i + 1));
 	}
 	fclose(fp);
+
+	/*update stim count whith lenght of file*/
+	state->stimCount = lines - 1;
+	int retval = caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_SPIKEGEN, DYNAPSE_CONFIG_SPIKEGEN_STIMCOUNT, state->stimCount);
+	if ( retval == 0 ) {
+		caerLog(CAER_LOG_NOTICE, __func__, "stimcount failed to update");
+	}
 
 	caerLog(CAER_LOG_NOTICE, __func__, "Wrote spike train of length %u to memory with base address %u\n", lines, state->baseAddr);
 
