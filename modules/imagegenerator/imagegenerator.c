@@ -169,15 +169,15 @@ static void normalize_image_map_sigma(imagegeneratorState state) {
 		mean_png_gray = 0; // rectified
 	}
 	else {
-		mean_png_gray = (float) UINT16_MAX / 2.0f;
+		mean_png_gray = 127.5f;
 	}
 
 	if (state->rectifyPolarities) {
-		range = numSDevs * sig * (1.0f / (float) UINT16_MAX);
+		range = numSDevs * sig * (1.0f / 255.0f);
 		halfrange = 0;
 	}
 	else {
-		range = numSDevs * sig * 2 * (1.0f / (float) UINT16_MAX);
+		range = numSDevs * sig * 2 * (1.0f / 255.0f);
 		halfrange = numSDevs * sig;
 	}
 
@@ -189,8 +189,8 @@ static void normalize_image_map_sigma(imagegeneratorState state) {
 			else {
 				float f = ((float) state->outputFrame->buffer2d[x][y] + halfrange) / range;
 
-				if (f > UINT16_MAX) {
-					f = UINT16_MAX;
+				if (f > 255.0f) {
+					f = 255.0f;
 				}
 				else if (f < 0) {
 					f = 0;
@@ -315,7 +315,7 @@ static void caerImageGeneratorRun(caerModuleData moduleData, caerEventPacketCont
 			uint32_t counter = 0;
 			for (size_t y = 0; y < state->outputFrame->sizeY; y++) {
 				for (size_t x = 0; x < state->outputFrame->sizeX; x++) {
-					singleplot->pixels[counter] = U16T(state->outputFrame->buffer2d[x][y]); // greyscale
+					singleplot->pixels[counter] = U16T(state->outputFrame->buffer2d[x][y] * 256); // greyscale
 					counter += GRAYSCALE;
 				}
 			}
