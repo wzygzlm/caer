@@ -327,7 +327,7 @@ static void generateOutputFrame(caerEventPacketContainer *out, MRFilterState sta
 			frequencyPlot->pixels[counter] = U16T(color.r * UINT16_MAX); // red
 			frequencyPlot->pixels[counter + 1] = U16T(color.g * UINT16_MAX); // green
 			frequencyPlot->pixels[counter + 2] = U16T(color.b * UINT16_MAX); // blue
-			counter += 3;
+			counter += RGB;
 		}
 	}
 

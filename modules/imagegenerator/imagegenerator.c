@@ -56,11 +56,11 @@ static bool caerImageGeneratorInit(caerModuleData moduleData) {
 	int16_t sourceID = inputs[0];
 	free(inputs);
 
-	sshsNodeCreateInt(moduleData->moduleNode, "numSpikes", 2000, 0, 200000, SSHS_FLAGS_NORMAL,
+	sshsNodeCreateInt(moduleData->moduleNode, "numSpikes", 2000, 1, 1000000, SSHS_FLAGS_NORMAL,
 		"Number of spikes to accumulate.");
 	sshsNodeCreateBool(moduleData->moduleNode, "rectifyPolarities", true, SSHS_FLAGS_NORMAL,
 		"Consider ON/OFF polarities the same.");
-	sshsNodeCreateShort(moduleData->moduleNode, "colorScale", 200, 0, 255, SSHS_FLAGS_NORMAL, "Color scale.");
+	sshsNodeCreateShort(moduleData->moduleNode, "colorScale", 200, 1, 255, SSHS_FLAGS_NORMAL, "Color scale.");
 	sshsNodeCreateShort(moduleData->moduleNode, "outputFrameSizeX", 32, 1, 1024, SSHS_FLAGS_NORMAL,
 		"Output frame width. Must restart to take effect.");
 	sshsNodeCreateShort(moduleData->moduleNode, "outputFrameSizeY", 32, 1, 1024, SSHS_FLAGS_NORMAL,
@@ -215,37 +215,7 @@ static void caerImageGeneratorRun(caerModuleData moduleData, caerEventPacketCont
 
 	int32_t counterFrame = 0;
 
-	int32_t totalEventNumber = caerEventPacketHeaderGetEventValid(&polarity->packetHeader);
-
-	// Default is all events
-	int numevs_start = 0;
-	int numevs_end = totalEventNumber;
-
-	if (totalEventNumber >= state->numSpikes) {
-		//get rid of accumulated spikes
-		simple2DBufferResetLong(state->outputFrame);
-
-		state->spikeCounter = 0;
-		//takes only the last 2000
-		numevs_start = totalEventNumber - state->numSpikes;
-		numevs_end = totalEventNumber;
-
-	}
-	else if ((totalEventNumber + state->spikeCounter) >= state->numSpikes) {
-		//takes only the last 2000
-		numevs_start = totalEventNumber - (state->numSpikes - state->spikeCounter);
-		numevs_end = totalEventNumber;
-	}
-
-	for (int32_t caerPolarityIteratorCounter = numevs_start; caerPolarityIteratorCounter < numevs_end;
-		caerPolarityIteratorCounter++) {
-		caerPolarityEventConst caerPolarityIteratorElement = caerPolarityEventPacketGetEventConst(polarity,
-			caerPolarityIteratorCounter);
-
-		if (!caerPolarityEventIsValid(caerPolarityIteratorElement)) {
-			continue;
-		} // Skip invalid polarity events.
-
+	CAER_POLARITY_CONST_ITERATOR_VALID_START(polarity)
 		// Get coordinates and polarity (0 or 1) of latest spike.
 		uint16_t polarityX = caerPolarityEventGetX(caerPolarityIteratorElement);
 		uint16_t polarityY = caerPolarityEventGetY(caerPolarityIteratorElement);
@@ -254,9 +224,10 @@ static void caerImageGeneratorRun(caerModuleData moduleData, caerEventPacketCont
 		uint16_t pos_x = U16T(floorf(state->resolutionX * (float ) polarityX));
 		uint16_t pos_y = U16T(floorf(state->resolutionY * (float ) polarityY));
 
-		// Update image Map
+		// Update image map.
 		if (state->rectifyPolarities) {
-			state->outputFrame->buffer2d[pos_x][pos_y] = state->outputFrame->buffer2d[pos_x][pos_y] + 1; //rectify events
+			// Rectify events, both polarities are considered to be the same.
+			state->outputFrame->buffer2d[pos_x][pos_y] = state->outputFrame->buffer2d[pos_x][pos_y] + 1;
 		}
 		else {
 			if (pol) {
@@ -315,7 +286,7 @@ static void caerImageGeneratorRun(caerModuleData moduleData, caerEventPacketCont
 			uint32_t counter = 0;
 			for (size_t y = 0; y < state->outputFrame->sizeY; y++) {
 				for (size_t x = 0; x < state->outputFrame->sizeX; x++) {
-					singleplot->pixels[counter] = U16T(state->outputFrame->buffer2d[x][y] * 256); // greyscale
+					singleplot->pixels[counter] = U16T(state->outputFrame->buffer2d[x][y] * 256); // grayscale
 					counter += GRAYSCALE;
 				}
 			}
