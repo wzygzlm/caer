@@ -390,8 +390,7 @@ static bool initRenderSize(caerModuleData moduleData, int16_t *inputs, size_t in
 		uint32_t packetSizeY = 0;
 
 		// Get sizes from sourceInfo node. visualizer prefix takes precedence,
-		// for APS and DVS images, alternative prefixes are provided, as well
-		// as for generic data visualization.
+		// then generic data visualization size.
 		if (sshsNodeAttributeExists(sourceInfoNode, "visualizerSizeX", SSHS_SHORT)) {
 			packetSizeX = U32T(sshsNodeGetShort(sourceInfoNode, "visualizerSizeX"));
 			packetSizeY = U32T(sshsNodeGetShort(sourceInfoNode, "visualizerSizeY"));
