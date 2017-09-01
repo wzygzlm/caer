@@ -98,7 +98,7 @@ static bool caerSynapseReconfigModuleInit(caerModuleData moduleData) {
 	sshsNodeCreateBool(moduleData->moduleNode, "runDVS", false, SSHS_FLAGS_NORMAL, "Start/Stop mapping");
 	sshsNodeCreateBool(moduleData->moduleNode, "useSRAMKernels", false, SSHS_FLAGS_NORMAL, "Use Sram Kernel file");
 	sshsNodeCreateInt(moduleData->moduleNode, "SRAMBaseAddress", 0, 0, 1, SSHS_FLAGS_NORMAL, "Sram base address");
-	sshsNodeCreateInt(moduleData->moduleNode, "targetChipID", 0, 0, 12, SSHS_FLAGS_NORMAL, "Sram base address");
+	sshsNodeCreateInt(moduleData->moduleNode, "targetChipID", 0, 0, 3, SSHS_FLAGS_NORMAL, "Sram base address");
 	sshsNodeCreateString(moduleData->moduleNode, "globalKernelFilePath", "", 0, 2048, SSHS_FLAGS_NORMAL, "Global Sram kernel file path, relative from the folder in which caer is started");
 	sshsNodeCreateString(moduleData->moduleNode, "SRAMKernelFilePath", "", 0, 2048, SSHS_FLAGS_NORMAL, "Sram kernels file path, relative from the folder in which caer is started");
 	sshsNodeCreateBool(moduleData->moduleNode, "updateSRAMKernels", false, SSHS_FLAGS_NORMAL, "Perform update of Sram content from file");
@@ -252,32 +252,9 @@ void updateChipSelect(caerModuleData moduleData) {
 	SynapseReconfigState state = moduleData->moduleState;
 	caerInputDynapseState eventSource = caerMainloopGetSourceState(U16T(state->sourceID));
 
-	switch ( state->chipSelect ) {
-	case DYNAPSE_CONFIG_DYNAPSE_U0:
-		caerLog(CAER_LOG_NOTICE, moduleData->moduleSubSystemString, "Selecting chip U0\n");
-		caerDeviceConfigSet(eventSource->deviceState, DYNAPSE_CONFIG_SYNAPSERECONFIG, DYNAPSE_CONFIG_SYNAPSERECONFIG_CHIPSELECT,
-				    DYNAPSE_CONFIG_DYNAPSE_U0);
-		break;
-	case DYNAPSE_CONFIG_DYNAPSE_U1:
-		caerLog(CAER_LOG_NOTICE, moduleData->moduleSubSystemString, "Selecting chip U1\n");
-		caerDeviceConfigSet(eventSource->deviceState, DYNAPSE_CONFIG_SYNAPSERECONFIG, DYNAPSE_CONFIG_SYNAPSERECONFIG_CHIPSELECT,
-				    DYNAPSE_CONFIG_DYNAPSE_U1);
-		break;
-	case DYNAPSE_CONFIG_DYNAPSE_U2:
-		caerLog(CAER_LOG_NOTICE, moduleData->moduleSubSystemString, "Selecting chip U2\n");
-		caerDeviceConfigSet(eventSource->deviceState, DYNAPSE_CONFIG_SYNAPSERECONFIG, DYNAPSE_CONFIG_SYNAPSERECONFIG_CHIPSELECT,
-				    DYNAPSE_CONFIG_DYNAPSE_U2);
-		break;
-	case DYNAPSE_CONFIG_DYNAPSE_U3:
-		caerLog(CAER_LOG_NOTICE, moduleData->moduleSubSystemString, "Selecting chip U3\n");
-		caerDeviceConfigSet(eventSource->deviceState, DYNAPSE_CONFIG_SYNAPSERECONFIG, DYNAPSE_CONFIG_SYNAPSERECONFIG_CHIPSELECT,
-				    DYNAPSE_CONFIG_DYNAPSE_U3);
-		break;
-	default:
-		caerLog(CAER_LOG_ERROR, moduleData->moduleSubSystemString, "Chip select invalid\n");
-		break;
-	}
-
+	caerLog(CAER_LOG_NOTICE, moduleData->moduleSubSystemString, "Selecting chip U%d.", state->chipSelect);
+	caerDeviceConfigSet(eventSource->deviceState, DYNAPSE_CONFIG_SYNAPSERECONFIG,
+		DYNAPSE_CONFIG_SYNAPSERECONFIG_CHIPSELECT, state->chipSelect);
 }
 void updateGlobalKernelData(caerModuleData moduleData) {
 	SynapseReconfigState state = moduleData->moduleState;

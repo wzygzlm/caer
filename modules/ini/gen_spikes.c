@@ -141,7 +141,7 @@ bool caerGenSpikeInit(caerModuleData moduleData) {
 	sshsNodeCreateInt(spikeNode, "dy", 0, 0, 1024, SSHS_FLAGS_NORMAL, "TODO.");
 	atomic_store(&state->genSpikeState.dy, sshsNodeGetInt(spikeNode, "dy"));
 
-	sshsNodeCreateInt(spikeNode, "chip_id", DYNAPSE_CONFIG_DYNAPSE_U0, 0, 1024, SSHS_FLAGS_NORMAL, "TODO."); //4
+	sshsNodeCreateInt(spikeNode, "chip_id", DYNAPSE_CONFIG_DYNAPSE_U0, 0, 3, SSHS_FLAGS_NORMAL, "TODO."); //4
 	atomic_store(&state->genSpikeState.chip_id, sshsNodeGetInt(spikeNode, "chip_id"));
 
 	return (true);

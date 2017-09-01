@@ -81,7 +81,7 @@ static bool caerFpgaSpikeGenModuleInit(caerModuleData moduleData) {
 	free(inputs);
 
 	// create parameters
-	sshsNodeCreateInt(moduleData->moduleNode, "ChipID", 0, 0, 12, SSHS_FLAGS_NORMAL, "Target Chip Id, where the spikes will be directed to, not yet implemented (chipID is always = U0)");
+	sshsNodeCreateInt(moduleData->moduleNode, "ChipID", 0, 0, 3, SSHS_FLAGS_NORMAL, "Target Chip Id, where the spikes will be directed to, not yet implemented (chipID is always = U0)");
 	sshsNodeCreateInt(moduleData->moduleNode, "ISI", 10, 0, 1000, SSHS_FLAGS_NORMAL, "Inter Spike Interval, in terms of ISIbase (ISIBase*ISI), only used if Variable ISI is not selected");
 	sshsNodeCreateInt(moduleData->moduleNode, "ISIBase", 1, 0, 1000, SSHS_FLAGS_NORMAL, "Inter Spike Interval multiplier in us");
 	sshsNodeCreateBool(moduleData->moduleNode, "Run", false, SSHS_FLAGS_NORMAL, "Start/Stop Stimulation. It will finish a complete stimulation before ending.");
