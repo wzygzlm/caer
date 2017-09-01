@@ -266,6 +266,11 @@ int spikeGenThread(void *spikeGenState) {
 
 	while (atomic_load_explicit(&state->genSpikeState.running, // the loop
 		memory_order_acquire)) {
+		if (!atomic_load(&state->genSpikeState.doStim)) {
+			struct timespec noStimSleep = { .tv_sec = 0, .tv_nsec = 1000000 };
+			thrd_sleep(&noStimSleep, NULL);
+			continue;
+		}
 
 		if (state->genSpikeState.setCam == true && CamSeted == 0) {
 			SetCam(state);
