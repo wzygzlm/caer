@@ -217,33 +217,19 @@ static void caerMeanRateFilterRun(caerModuleData moduleData, caerEventPacketCont
 			}
 
 			// now decide how to change the bias setting
-			for (size_t chip = 0; chip < DYNAPSE_X4BOARD_NUMCHIPS; chip++) {
-				for (size_t core = 0; core < DYNAPSE_CONFIG_NUMCORES; core++) {
-					uint8_t chipId = DYNAPSE_CONFIG_DYNAPSE_U0;
-					uint8_t coreId = U8T(core);
-
-					// Chip ID needs adjustment, is not range 0-3 like core ID.
-					if (chip == 1) {
-						chipId = DYNAPSE_CONFIG_DYNAPSE_U1;
-					}
-					else if (chip == 2) {
-						chipId = DYNAPSE_CONFIG_DYNAPSE_U2;
-					}
-					else if (chip == 3) {
-						chipId = DYNAPSE_CONFIG_DYNAPSE_U3;
-					}
-
+			for (uint8_t chip = 0; chip < DYNAPSE_X4BOARD_NUMCHIPS; chip++) {
+				for (uint8_t core = 0; core < DYNAPSE_CONFIG_NUMCORES; core++) {
 					caerModuleLog(moduleData, CAER_LOG_NOTICE,
-						"mean[%zu][%zu] = %f Hz var[%zu][%zu] = %f chipId = %d coreId %d.", chip, core,
-						(double) mean[chip][core], chip, core, (double) var[chip][core], chipId, coreId);
+						"mean[%d][%d] = %f Hz var[%d][%d] = %f chipId = %d coreId %d.", chip, core,
+						(double) mean[chip][core], chip, core, (double) var[chip][core], chip, core);
 
 					// current dc settings
 					uint8_t coarseValue;
 					uint8_t fineValue;
-					caerDynapseGetBiasCore(state->dynapseConfigNode, chipId, coreId, "IF_DC_P", &coarseValue,
-						&fineValue, NULL);
+					caerDynapseGetBiasCore(state->dynapseConfigNode, chip, core, "IF_DC_P", &coarseValue, &fineValue,
+						NULL);
 
-					caerModuleLog(moduleData, CAER_LOG_NOTICE, "BIAS U%zu C%zu_IF_DC_P coarse %d fine %d.", chip, core,
+					caerModuleLog(moduleData, CAER_LOG_NOTICE, "BIAS U%d C%d_IF_DC_P coarse %d fine %d.", chip, core,
 						coarseValue, fineValue);
 
 					bool changed = false;
@@ -289,8 +275,8 @@ static void caerMeanRateFilterRun(caerModuleData moduleData, caerEventPacketCont
 
 					if (changed) {
 						// send new bias value
-						caerDynapseSetBiasCore(state->dynapseConfigNode, chipId, coreId, "IF_DC_P", coarseValue,
-							fineValue, true);
+						caerDynapseSetBiasCore(state->dynapseConfigNode, chip, core, "IF_DC_P", coarseValue, fineValue,
+							true);
 					}
 				}
 			}

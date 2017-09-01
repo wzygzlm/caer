@@ -115,8 +115,7 @@ static inline void caerDynapseSetBiasCore(sshsNode dynapseNode, uint8_t chipId, 
 		return;
 	}
 
-	if (chipId != DYNAPSE_CONFIG_DYNAPSE_U0 && chipId != DYNAPSE_CONFIG_DYNAPSE_U1
-		&& chipId != DYNAPSE_CONFIG_DYNAPSE_U2 && chipId != DYNAPSE_CONFIG_DYNAPSE_U3) {
+	if (chipId >= 4) {
 		caerLog(CAER_LOG_ERROR, __func__, "Chip ID %d is invalid.", chipId);
 		return;
 	}
@@ -178,8 +177,7 @@ static inline void caerDynapseGetBiasCore(sshsNode dynapseNode, uint8_t chipId, 
 		return;
 	}
 
-	if (chipId != DYNAPSE_CONFIG_DYNAPSE_U0 && chipId != DYNAPSE_CONFIG_DYNAPSE_U1
-		&& chipId != DYNAPSE_CONFIG_DYNAPSE_U2 && chipId != DYNAPSE_CONFIG_DYNAPSE_U3) {
+	if (chipId >= 4) {
 		caerLog(CAER_LOG_ERROR, __func__, "Chip ID %d is invalid.", chipId);
 		return;
 	}
