@@ -99,7 +99,7 @@ static bool caerPoissonSpikeGenModuleInit(caerModuleData moduleData) {
 	sshsNodeCreateString(moduleData->moduleNode, "Rate_file", "", 0, 1024, SSHS_FLAGS_NORMAL, "input file name");
 	sshsNodeCreateInt(moduleData->moduleNode, "Target_neuron_address", 0, 0,255, SSHS_FLAGS_NORMAL, "target neuron id");
 	sshsNodeCreateDouble(moduleData->moduleNode, "Rate_Hz", 0, 0, 1000, SSHS_FLAGS_NORMAL, "mean rate of stimulation");
-	sshsNodeCreateInt(moduleData->moduleNode, "Chip_ID", 0, 0, 12, SSHS_FLAGS_NORMAL, "destination chip id [0,4,8,12]");
+	sshsNodeCreateInt(moduleData->moduleNode, "Chip_ID", 0, 0, 3, SSHS_FLAGS_NORMAL, "destination chip id");
 	sshsNodeCreateBool(moduleData->moduleNode, "Program_test_pattern", false, SSHS_FLAGS_NORMAL, "test pattern");
 
 	// update node state
@@ -150,20 +150,7 @@ static void caerPoissonSpikeGenModuleConfig(caerModuleData moduleData) {
 		state->run = true;
 		caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_POISSONSPIKEGEN, DYNAPSE_CONFIG_POISSONSPIKEGEN_RUN, 1);
 		state->chipID = sshsNodeGetInt(moduleData->moduleNode, "Chip_ID");
-		switch (state->chipID) {
-		case 0:
-		    caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_POISSONSPIKEGEN, DYNAPSE_CONFIG_POISSONSPIKEGEN_CHIPID, DYNAPSE_CONFIG_DYNAPSE_U0 );
-		    break;
-		case 1:
-		    caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_POISSONSPIKEGEN, DYNAPSE_CONFIG_POISSONSPIKEGEN_CHIPID, DYNAPSE_CONFIG_DYNAPSE_U1 );
-		    break;
-		case 2:
-		    caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_POISSONSPIKEGEN, DYNAPSE_CONFIG_POISSONSPIKEGEN_CHIPID, DYNAPSE_CONFIG_DYNAPSE_U2 );
-		    break;
-		case 3:
-		    caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_POISSONSPIKEGEN, DYNAPSE_CONFIG_POISSONSPIKEGEN_CHIPID, DYNAPSE_CONFIG_DYNAPSE_U3 );
-		    break;
-		}
+		caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_POISSONSPIKEGEN, DYNAPSE_CONFIG_POISSONSPIKEGEN_CHIPID, state->chipID);
 	}
 	else if (!newRun && state->run) {
 		state->run = false;
@@ -205,20 +192,8 @@ void loadProgramTestPattern(caerModuleData moduleData) {
 	caerInputDynapseState stateSource = state->eventSourceModuleState;
 
 	state->chipID = sshsNodeGetInt(moduleData->moduleNode, "Chip_ID");
-	switch (state->chipID) {
-	case 0:
-	    caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_POISSONSPIKEGEN, DYNAPSE_CONFIG_POISSONSPIKEGEN_CHIPID, DYNAPSE_CONFIG_DYNAPSE_U0 );
-	    break;
-	case 1:
-	    caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_POISSONSPIKEGEN, DYNAPSE_CONFIG_POISSONSPIKEGEN_CHIPID, DYNAPSE_CONFIG_DYNAPSE_U1 );
-	    break;
-	case 2:
-	    caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_POISSONSPIKEGEN, DYNAPSE_CONFIG_POISSONSPIKEGEN_CHIPID, DYNAPSE_CONFIG_DYNAPSE_U2 );
-	    break;
-	case 3:
-	    caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_POISSONSPIKEGEN, DYNAPSE_CONFIG_POISSONSPIKEGEN_CHIPID, DYNAPSE_CONFIG_DYNAPSE_U3 );
-	    break;
-	}
+	caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_POISSONSPIKEGEN, DYNAPSE_CONFIG_POISSONSPIKEGEN_CHIPID, state->chipID);
+
 
 	for (uint32_t i = 0; i < DYNAPSE_CONFIG_NUMNEURONS; i++) {
 		caerDynapseWriteCam(stateSource->deviceState, 0, i, 0, DYNAPSE_CONFIG_CAMTYPE_F_EXC );
