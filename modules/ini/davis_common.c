@@ -714,7 +714,7 @@ static void createDefaultConfiguration(caerModuleData moduleData, struct caer_da
 	sshsNodeCreateShort(apsNode, "RowSettle", (devInfo->adcClock / 3), 0, devInfo->adcClock, SSHS_FLAGS_NORMAL,
 		"Set row settle time (in cycles).");
 	sshsNodeCreateBool(apsNode, "TakeSnapShot", false, SSHS_FLAGS_NOTIFY_ONLY, "Take a single frame capture.");
-	sshsNodeCreateBool(apsNode, "AutoExposure", false, SSHS_FLAGS_NORMAL,
+	sshsNodeCreateBool(apsNode, "AutoExposure", true, SSHS_FLAGS_NORMAL,
 		"Enable automatic exposure control, to react to changes in lighting conditions.");
 
 	// Not supported on DAVIS RGB.
