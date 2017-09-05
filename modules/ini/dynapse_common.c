@@ -117,6 +117,7 @@ static void spikeConfigListener(sshsNode node, void *userData, enum sshs_node_at
 
 	if (event == SSHS_ATTRIBUTE_MODIFIED) {
 		if (changeType == SSHS_BOOL && caerStrEquals(changeKey, "doStim")) { // && caerStrEquals(changeKey, "doStimBias")
+			atomic_store(&state->genSpikeState.doStim, changeValue.boolean);
 		//atomic_load(&state->genSpikeState.doStim);
 			if (changeValue.boolean) {
 				//caerModuleLog(CAER_LOG_NOTICE, "spikeGen", "stimulation started.");
