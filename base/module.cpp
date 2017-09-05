@@ -283,7 +283,7 @@ std::pair<ModuleLibrary, caerModuleInfo> caerLoadModuleLibrary(const std::string
 	catch (const std::exception &ex) {
 		// Failed to load shared library!
 		boost::format exMsg = boost::format("Failed to load library '%s', error: '%s'.") % modulePath.string()
-		% ex.what();
+			% ex.what();
 		throw std::runtime_error(exMsg.str());
 	}
 
@@ -295,7 +295,7 @@ std::pair<ModuleLibrary, caerModuleInfo> caerLoadModuleLibrary(const std::string
 		// Failed to find symbol in shared library!
 		caerUnloadModuleLibrary(moduleLibrary);
 		boost::format exMsg = boost::format("Failed to find symbol in library '%s', error: '%s'.") % modulePath.string()
-		% ex.what();
+			% ex.what();
 		throw std::runtime_error(exMsg.str());
 	}
 #else
@@ -303,7 +303,7 @@ std::pair<ModuleLibrary, caerModuleInfo> caerLoadModuleLibrary(const std::string
 	if (moduleLibrary == nullptr) {
 		// Failed to load shared library!
 		boost::format exMsg = boost::format("Failed to load library '%s', error: '%s'.") % modulePath.string()
-			% dlerror();
+		% dlerror();
 		throw std::runtime_error(exMsg.str());
 	}
 
@@ -312,7 +312,7 @@ std::pair<ModuleLibrary, caerModuleInfo> caerLoadModuleLibrary(const std::string
 		// Failed to find symbol in shared library!
 		caerUnloadModuleLibrary(moduleLibrary);
 		boost::format exMsg = boost::format("Failed to find symbol in library '%s', error: '%s'.") % modulePath.string()
-			% dlerror();
+		% dlerror();
 		throw std::runtime_error(exMsg.str());
 	}
 #endif
@@ -377,10 +377,17 @@ void caerUpdateModulesInformation() {
 		throw std::runtime_error(exMsg.str());
 	}
 
-	// Got all available modules, expose them as list.
-	std::string modulesList;
+	// Got all available modules, expose them as a sorted list.
+	std::vector<std::string> modulePathsSorted;
 	for (const auto &modulePath : glModuleData.modulePaths) {
-		modulesList += modulePath.stem().string() + ",";
+		modulePathsSorted.push_back(modulePath.stem().string());
+	}
+
+	std::sort(modulePathsSorted.begin(), modulePathsSorted.end());
+
+	std::string modulesList;
+	for (const auto &modulePath : modulePathsSorted) {
+		modulesList += (modulePath + ",");
 	}
 	modulesList.pop_back(); // Remove trailing comma.
 
