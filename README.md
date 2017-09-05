@@ -76,12 +76,13 @@ an explanation of the modules system and its configuration syntax.
 $ caer-bin (see docs/ for more info on how to use cAER) <br />
 $ caer-ctl (command-line run-time control program, optional) <br />
 
-# HELP
+# Help
 
 Please use our GitHub bug tracker to report issues and bugs, or
 our Google Groups mailing list for discussions and announcements.
 
-BUG TRACKER: https://github.com/inilabs/libcaer/issues/
+BUG TRACKER: https://github.com/inilabs/caer/issues/
+
 MAILING LIST: https://groups.google.com/d/forum/caer-users/
 
 # Ubuntu 16.04, dependencies installation
