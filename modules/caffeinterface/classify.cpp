@@ -29,7 +29,7 @@ void MyCaffe::file_set(caerFrameEventPacketConst frameIn, bool thr, bool printOu
 
 	CHECK(!img2.empty()) << "Unable to decode image " << file_i;
 	showactivations = false; // TODO, the show activation will generate a frameOutput showing the activations.
-	std::vector<Prediction> predictions = MyCaffe::Classify(img2, 5, NULL, showactivations);
+	std::vector<Prediction> predictions = MyCaffe::Classify(img2, 5, showactivations);
 
 	/* Print the top N predictions. */
 	Prediction p;
@@ -39,9 +39,13 @@ void MyCaffe::file_set(caerFrameEventPacketConst frameIn, bool thr, bool printOu
 	const std::string filename = NET_VAL;
 	std::ifstream infile(filename);
 
-	caerLog(CAER_LOG_NOTICE, __func__, "Classification Result is %s" , predictions[0].first.c_str());
+	//caerLog(CAER_LOG_NOTICE, __func__, "Classification Result is %s" , predictions[0].first.c_str());
 
-	//cv::imshow("debug",img2);
+	// Write text on a window
+	cv::Mat ImageText(240, 240, CV_8UC3, cv::Scalar(0,0,0));
+	cv::putText(ImageText,  predictions[0].first.c_str(), cvPoint(30,30),
+	    cv::FONT_HERSHEY_COMPLEX_SMALL, 0.8, cvScalar(200,200,250), 1, CV_AA);
+	cv::imshow("Results",ImageText);
 	//cv::waitKey(1);
 
 }
@@ -58,7 +62,8 @@ void MyCaffe::init_network() {
 	;
 	MyCaffe::Classifier(model_file, trained_file, mean_file, label_file);
 
-	//cv::namedWindow("debug",0);
+	cv::namedWindow("Results",0);
+	cv::namedWindow("Activations",1);
 	return;
 
 }
@@ -118,9 +123,9 @@ static std::vector<int> Argmax(const std::vector<float>& v, int N) {
 }
 
 /* Return the top N predictions. */
-std::vector<Prediction> MyCaffe::Classify(const cv::Mat& img, int N, caerFrameEvent *single_frame,
+std::vector<Prediction> MyCaffe::Classify(const cv::Mat& img, int N,
 	bool showactivations) {
-	std::vector<float> output = Predict(img, single_frame, showactivations);
+	std::vector<float> output = Predict(img, showactivations);
 
 	N = std::min<int>(labels_.size(), N);
 	std::vector<int> maxN = Argmax(output, N);
@@ -168,7 +173,7 @@ void MyCaffe::SetMean(const string& mean_file) {
 
 }
 
-std::vector<float> MyCaffe::Predict(const cv::Mat& img, caerFrameEvent *single_frame, bool showactivations) {
+std::vector<float> MyCaffe::Predict(const cv::Mat& img, bool showactivations) {
 
 	Blob<float>* input_layer = net_->input_blobs()[0];
 	input_layer->Reshape(1, num_channels_, input_geometry_.height, input_geometry_.width);
@@ -259,12 +264,14 @@ std::vector<float> MyCaffe::Predict(const cv::Mat& img, caerFrameEvent *single_f
 		int counter_y = -1, counter_x = -1;
 
 		// now use a copy of the frame and then copy it back
-		caerFrameEvent tmp_frame;
-		tmp_frame = *single_frame;
+		//caerFrameEvent tmp_frame;
+		//tmp_frame = *single_frame;
 
 		// mat final Frame of activations
-		cv::Mat1f frame_activity(tmp_frame->lengthX, tmp_frame->lengthY);
-		int size_y_single_image = floor(tmp_frame->lengthY / layersVector.size()); // num layers
+		int sizeX = 640;
+		int sizeY = 480;
+		cv::Mat1f frame_activity(sizeX, sizeY);
+		int size_y_single_image = floor(sizeY / layersVector.size()); // num layers
 		for (int layer_num = 0; layer_num < layersVector.size(); layer_num++) { //layersVector.size()
 			counter_y += 1; // count y position of image (layers)
 			counter_x = -1; // reset counter_x
@@ -274,12 +281,11 @@ std::vector<float> MyCaffe::Predict(const cv::Mat& img, caerFrameEvent *single_f
 
 				counter_x += 1; // count number of images on x (filters)
 
-				int size_x_single_image = floor(tmp_frame->lengthX / layersVector[layer_num].size());
+				int size_x_single_image = floor(sizeX / layersVector[layer_num].size());
 
 				if (size_x_single_image <= 0) {
 					caerLog(CAER_LOG_ERROR, __func__,
 						"Please check your: CAFFEVISUALIZERSIZE constant. Display size too small. Not displaying activations.");
-					goto error_in_plotting;
 				}
 				cv::Size sizeI(size_x_single_image, size_y_single_image);
 				cv::Mat1f rescaled; //rescaled image
@@ -301,6 +307,8 @@ std::vector<float> MyCaffe::Predict(const cv::Mat& img, caerFrameEvent *single_f
 		CV_16UC3);
 		cv::transpose(frame_activity, data_frame);
 
+		cv::imshow("Results",data_frame);
+
 		// normalize output into [0,65535]
 		//cv::normalize(data_frame, data_frame, 0.0, 65535, cv::NORM_MINMAX, -1);
 
@@ -311,15 +319,16 @@ std::vector<float> MyCaffe::Predict(const cv::Mat& img, caerFrameEvent *single_f
 		 data_frame.convertTo(image_32f,CV_32F,1/sdv.val[0],-avg.val[0]/sdv.val[0]);*/
 
 		// copy activations image into frame
-		for (int y = 0; y < tmp_frame->lengthY; y++) {
-			for (int x = 0; x < tmp_frame->lengthX; x++) {
+		/*for (int y = 0; y < sizeY; y++) {
+			for (int x = 0; x < sizeX; x++) {
 				caerFrameEventSetPixel(tmp_frame, x, y, (uint16_t) data_frame.at<float>(y, x));
 			}
-		}
-		*single_frame = tmp_frame;
+		}*/
+		//*single_frame = tmp_frame;
 	}	    //if show activations
 	else {
-		error_in_plotting: single_frame = NULL;
+		//error_in_plotting: single_frame = NULL;
+		;
 	}
 
 	/* Copy the output layer to a std::vector */

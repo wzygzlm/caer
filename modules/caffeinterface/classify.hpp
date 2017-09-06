@@ -30,7 +30,7 @@ class MyCaffe {
 private:
 	char * file_i;
 	void SetMean(const string& mean_file);
-	std::vector<float> Predict(const cv::Mat& img, caerFrameEvent *single_frame,
+	std::vector<float> Predict(const cv::Mat& img,
 			bool showactivations);
 	void WrapInputLayer(std::vector<cv::Mat>* input_channels);
 	void Preprocess(const cv::Mat& img, std::vector<cv::Mat>* input_channels);
@@ -44,7 +44,7 @@ public:
 	void Classifier(const string& model_file, const string& trained_file,
 			const string& mean_file, const string& label_file);
 	std::vector<Prediction> Classify(const cv::Mat& img, int N,
-			caerFrameEvent *single_frame, bool showactivations);
+			 bool showactivations);
 	void file_set(caerFrameEventPacketConst frameIn, bool thr, bool printOut,
 		bool showactivations, bool norminput);
 	void init_network();
