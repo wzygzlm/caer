@@ -91,6 +91,10 @@ static void caerReservoirRun(caerModuleData moduleData, caerEventPacketContainer
 
 	RSFilterState state = moduleData->moduleState;
 
+	if(spike == NULL){
+		return;
+	}
+
 	// now we can do crazy processing etc..
 	// first find out which one is the module producing the spikes. and get usb handle
 	// --- start  usb handle / from spike event source id
