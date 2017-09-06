@@ -28,14 +28,13 @@ struct sshs_node_attr {
 };
 
 struct sshs_node_listener {
-	void (*node_changed)(sshsNode node, void *userData, enum sshs_node_node_events event, const char *changeNode);
+	sshsNodeChangeListener node_changed;
 	void *userData;
 	sshsNodeListener next;
 };
 
 struct sshs_node_attr_listener {
-	void (*attribute_changed)(sshsNode node, void *userData, enum sshs_node_attribute_events event,
-		const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
+	sshsAttributeChangeListener attribute_changed;
 	void *userData;
 	sshsNodeAttrListener next;
 };
@@ -223,8 +222,7 @@ sshsNode *sshsNodeGetChildren(sshsNode node, size_t *numChildren) {
 	return (children);
 }
 
-void sshsNodeAddNodeListener(sshsNode node, void *userData,
-	void (*node_changed)(sshsNode node, void *userData, enum sshs_node_node_events event, const char *changeNode)) {
+void sshsNodeAddNodeListener(sshsNode node, void *userData, sshsNodeChangeListener node_changed) {
 	sshsNodeListener listener = malloc(sizeof(*listener));
 	SSHS_MALLOC_CHECK_EXIT(listener);
 
@@ -254,8 +252,7 @@ void sshsNodeAddNodeListener(sshsNode node, void *userData,
 	mtx_unlock(&node->node_lock);
 }
 
-void sshsNodeRemoveNodeListener(sshsNode node, void *userData,
-	void (*node_changed)(sshsNode node, void *userData, enum sshs_node_node_events event, const char *changeNode)) {
+void sshsNodeRemoveNodeListener(sshsNode node, void *userData, sshsNodeChangeListener node_changed) {
 	mtx_lock(&node->node_lock);
 
 	sshsNodeListener curr, curr_tmp;
@@ -283,9 +280,7 @@ void sshsNodeRemoveAllNodeListeners(sshsNode node) {
 	mtx_unlock(&node->node_lock);
 }
 
-void sshsNodeAddAttributeListener(sshsNode node, void *userData,
-	void (*attribute_changed)(sshsNode node, void *userData, enum sshs_node_attribute_events event,
-		const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue)) {
+void sshsNodeAddAttributeListener(sshsNode node, void *userData, sshsAttributeChangeListener attribute_changed) {
 	sshsNodeAttrListener listener = malloc(sizeof(*listener));
 	SSHS_MALLOC_CHECK_EXIT(listener);
 
@@ -315,9 +310,7 @@ void sshsNodeAddAttributeListener(sshsNode node, void *userData,
 	mtx_unlock(&node->node_lock);
 }
 
-void sshsNodeRemoveAttributeListener(sshsNode node, void *userData,
-	void (*attribute_changed)(sshsNode node, void *userData, enum sshs_node_attribute_events event,
-		const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue)) {
+void sshsNodeRemoveAttributeListener(sshsNode node, void *userData, sshsAttributeChangeListener attribute_changed) {
 	mtx_lock(&node->node_lock);
 
 	sshsNodeAttrListener curr, curr_tmp;
