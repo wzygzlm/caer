@@ -2169,6 +2169,15 @@ void *caerMainloopGetSourceState(int16_t sourceID) {
 	return (moduleData->moduleState);
 }
 
+sshsNode caerMainloopGetModuleNode(int16_t sourceID) {
+	caerModuleData moduleData = glMainloopData.modules.at(sourceID).runtimeData;
+	if (moduleData == nullptr) {
+		return (nullptr);
+	}
+
+	return (moduleData->moduleNode);
+}
+
 void caerMainloopResetInputs(int16_t sourceID) {
 	for (auto &m : glMainloopData.globalExecution) {
 		if (m.get().libraryInfo->type == CAER_MODULE_INPUT) {

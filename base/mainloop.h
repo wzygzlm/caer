@@ -28,6 +28,7 @@ int16_t *caerMainloopGetModuleInputIDs(int16_t id, size_t *inputsSize) CAER_SYMB
 sshsNode caerMainloopGetSourceNode(int16_t sourceID) CAER_SYMBOL_EXPORT;
 sshsNode caerMainloopGetSourceInfo(int16_t sourceID) CAER_SYMBOL_EXPORT;
 void *caerMainloopGetSourceState(int16_t sourceID) CAER_SYMBOL_EXPORT;
+sshsNode caerMainloopGetModuleNode(int16_t sourceID) CAER_SYMBOL_EXPORT;
 
 void caerMainloopResetInputs(int16_t sourceID) CAER_SYMBOL_EXPORT;
 void caerMainloopResetOutputs(int16_t sourceID) CAER_SYMBOL_EXPORT;
