@@ -7,18 +7,19 @@
 using namespace caffe;
 using std::string;
 
-void MyCaffe::file_set(caerFrameEventPacketConst frameIn, bool thr, bool printOut,
-	bool showactivations, bool norminput) {
+void MyCaffe::file_set(caerFrameEventPacketConst frameIn, bool thr, bool printOut, bool showactivations,
+	bool norminput) {
 
 	// only classify first
-	caerFrameEventConst f = caerFrameEventPacketGetEventConst(frameIn,0);
+	caerFrameEventConst f = caerFrameEventPacketGetEventConst(frameIn, 0);
 
 	// Initialize OpenCV Mat based on caerFrameEvent data directly (no image copy).
 	cv::Size frameSize(caerFrameEventGetLengthX(f), caerFrameEventGetLengthY(f));
-	cv::Mat orig(frameSize, CV_16UC(caerFrameEventGetChannelNumber(f)), (uint16_t *)(caerFrameEventGetPixelArrayUnsafeConst(f)));
+	cv::Mat orig(frameSize, CV_16UC(caerFrameEventGetChannelNumber(f)),
+		(uint16_t *) (caerFrameEventGetPixelArrayUnsafeConst(f)));
 
 	cv::Mat img;
-	orig.convertTo(img,CV_8UC1,1);
+	orig.convertTo(img, CV_8UC1, 1);
 
 	// Convert img to float for Caffe
 	cv::Mat img2;
@@ -28,7 +29,7 @@ void MyCaffe::file_set(caerFrameEventPacketConst frameIn, bool thr, bool printOu
 	}
 
 	CHECK(!img2.empty()) << "Unable to decode image " << file_i;
-	showactivations = false; // TODO, the show activation will generate a frameOutput showing the activations.
+	//showactivations = true; // TODO, the show activation will generate a frameOutput showing the activations.
 	std::vector<Prediction> predictions = MyCaffe::Classify(img2, 5, showactivations);
 
 	/* Print the top N predictions. */
@@ -36,17 +37,17 @@ void MyCaffe::file_set(caerFrameEventPacketConst frameIn, bool thr, bool printOu
 
 	int c = 0;
 	string filer = "";
-	const std::string filename = NET_VAL;
+	const std::string filename = NET_VAL
+	;
 	std::ifstream infile(filename);
 
 	//caerLog(CAER_LOG_NOTICE, __func__, "Classification Result is %s" , predictions[0].first.c_str());
 
 	// Write text on a window
-	cv::Mat ImageText(240, 240, CV_8UC3, cv::Scalar(0,0,0));
-	cv::putText(ImageText,  predictions[0].first.c_str(), cvPoint(30,30),
-	    cv::FONT_HERSHEY_COMPLEX_SMALL, 0.8, cvScalar(200,200,250), 1, CV_AA);
-	cv::imshow("Results",ImageText);
-	//cv::waitKey(1);
+	cv::Mat ImageText(240, 240, CV_8UC3, cv::Scalar(0, 0, 0));
+	cv::putText(ImageText, predictions[0].first.c_str(), cvPoint(30, 30), cv::FONT_HERSHEY_COMPLEX_SMALL, 0.8,
+		cvScalar(200, 200, 250), 1, CV_AA);
+	cv::imshow("Results", ImageText);
 
 }
 
@@ -62,8 +63,8 @@ void MyCaffe::init_network() {
 	;
 	MyCaffe::Classifier(model_file, trained_file, mean_file, label_file);
 
-	cv::namedWindow("Results",0);
-	cv::namedWindow("Activations",1);
+	cv::namedWindow("Results", 0);
+	cv::namedWindow("Activations", 1);
 	return;
 
 }
@@ -123,8 +124,7 @@ static std::vector<int> Argmax(const std::vector<float>& v, int N) {
 }
 
 /* Return the top N predictions. */
-std::vector<Prediction> MyCaffe::Classify(const cv::Mat& img, int N,
-	bool showactivations) {
+std::vector<Prediction> MyCaffe::Classify(const cv::Mat& img, int N, bool showactivations) {
 	std::vector<float> output = Predict(img, showactivations);
 
 	N = std::min<int>(labels_.size(), N);
@@ -186,13 +186,13 @@ std::vector<float> MyCaffe::Predict(const cv::Mat& img, bool showactivations) {
 	Preprocess(img, &input_channels);
 	net_->ForwardPrefilled(); //Prefilled();
 
-	//IF WE ENABLE VISUALIZATION IN REAL TIME
+	//IF WE ENABLE VISUALIZATION IN REAL TIME (showactivations)
+	//NB: this might slow down computation
 	if (showactivations) {
 		const vector<shared_ptr<Layer<float> > >& layers = net_->layers();
 
 		//image vector containing all layer activations
 		vector < vector<cv::Mat> > layersVector;
-
 		std::vector<int> ntot, ctot, htot, wtot, n_image_per_layer;
 
 		// net blobs
@@ -238,20 +238,21 @@ std::vector<float> MyCaffe::Predict(const cv::Mat& img, bool showactivations) {
 					}
 					//std::cout << layers[i]->type() << std::endl;
 					//cv::normalize(newImage, newImage, 0.0, 65535, cv::NORM_MINMAX, -1);
-					/*if(strcmp(layers[i]->type(),"Convolution") == 0){
-					 cv::normalize(newImage, newImage, 0.0, 65535, cv::NORM_MINMAX, -1);
-					 }
-					 if(strcmp(layers[i]->type(),"ReLU") == 0){
-					 cv::normalize(newImage, newImage, 0.0, 65535, cv::NORM_MINMAX, -1);
-					 }
-					 if(strcmp(layers[i]->type(),"Pooling") == 0){
-					 cv::normalize(newImage, newImage, 0.0, 65535, cv::NORM_MINMAX, -1);
-					 }*/
-					//if(strcmp(layers[i]->type(),"InnerProduct") == 0){
-					//	;
-					//}else{
-					cv::normalize(newImage, newImage, 0.0, 65535, cv::NORM_MINMAX, -1);
-					//}
+					if (strcmp(layers[i]->type(), "Convolution") == 0) {
+						cv::normalize(newImage, newImage, 0.0, 255, cv::NORM_MINMAX, -1);
+					}
+					if (strcmp(layers[i]->type(), "ReLU") == 0) {
+						cv::normalize(newImage, newImage, 0.0, 255, cv::NORM_MINMAX, -1);
+					}
+					if (strcmp(layers[i]->type(), "Pooling") == 0) {
+						cv::normalize(newImage, newImage, 0.0, 255, cv::NORM_MINMAX, -1);
+					}
+					if (strcmp(layers[i]->type(), "InnerProduct") == 0) {
+						;
+					}
+					else {
+						cv::normalize(newImage, newImage, 0.0, 255, cv::NORM_MINMAX, -1);
+					}
 					//cv::normalize(newImage, newImage, 0.0, 65535, cv::NORM_MINMAX, -1);
 					imageVector.push_back(newImage);
 				}
@@ -262,10 +263,6 @@ std::vector<float> MyCaffe::Predict(const cv::Mat& img, bool showactivations) {
 		//do the graphics only plot convolutional layers
 		//divide the y in equal parts , one row per layer
 		int counter_y = -1, counter_x = -1;
-
-		// now use a copy of the frame and then copy it back
-		//caerFrameEvent tmp_frame;
-		//tmp_frame = *single_frame;
 
 		// mat final Frame of activations
 		int sizeX = 640;
@@ -291,7 +288,7 @@ std::vector<float> MyCaffe::Predict(const cv::Mat& img, bool showactivations) {
 				cv::Mat1f rescaled; //rescaled image
 
 				cv::resize(layersVector[layer_num][img_num], rescaled, sizeI); //resize image
-				cv::Mat data_tp = cv::Mat(rescaled.cols, rescaled.rows, CV_32F);
+				cv::Mat data_tp = cv::Mat(rescaled.cols, rescaled.rows, CV_8UC1);
 				cv::transpose(rescaled, data_tp);
 
 				int xloc, yloc;
@@ -303,33 +300,12 @@ std::vector<float> MyCaffe::Predict(const cv::Mat& img, bool showactivations) {
 			}
 		}
 
-		cv::Mat data_frame = cv::Mat(frame_activity.cols, frame_activity.rows,
-		CV_16UC3);
+		cv::Mat data_frame = cv::Mat(frame_activity.cols, frame_activity.rows, CV_32F);
 		cv::transpose(frame_activity, data_frame);
 
-		cv::imshow("Results",data_frame);
+		cv::imshow("Activations", data_frame);
 
-		// normalize output into [0,65535]
-		//cv::normalize(data_frame, data_frame, 0.0, 65535, cv::NORM_MINMAX, -1);
-
-		/*cv::Scalar avg,sdv;
-		 cv::meanStdDev(data_frame, avg, sdv);
-		 sdv.val[0] = sqrt(data_frame.cols*data_frame.rows*sdv.val[0]*sdv.val[0]);
-		 cv::Mat image_32f;
-		 data_frame.convertTo(image_32f,CV_32F,1/sdv.val[0],-avg.val[0]/sdv.val[0]);*/
-
-		// copy activations image into frame
-		/*for (int y = 0; y < sizeY; y++) {
-			for (int x = 0; x < sizeX; x++) {
-				caerFrameEventSetPixel(tmp_frame, x, y, (uint16_t) data_frame.at<float>(y, x));
-			}
-		}*/
-		//*single_frame = tmp_frame;
 	}	    //if show activations
-	else {
-		//error_in_plotting: single_frame = NULL;
-		;
-	}
 
 	/* Copy the output layer to a std::vector */
 	Blob<float>* output_layer = net_->output_blobs()[0];
