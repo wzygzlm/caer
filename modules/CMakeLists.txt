@@ -31,6 +31,7 @@ ADD_SUBDIRECTORY(rotatefilter)
 #ADD_SUBDIRECTORY(spiralview)
 ADD_SUBDIRECTORY(spikefeatures)
 ADD_SUBDIRECTORY(reservoir)
+ADD_SUBDIRECTORY(netparser)
 
 # Support private modules that don't get considered for commit,
 # by reserving a directory called PrivateModules with its own
