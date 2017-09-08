@@ -66,7 +66,7 @@ static bool caerNetParserInit(caerModuleData moduleData) {
     caerLog(CAER_LOG_NOTICE, __func__, "NET PARSER: INIT - LOAD");
     std::string filePath = sshsNodeGetString(moduleData->moduleNode, "file");
 	ConnectionManager manager(handle);
-	manager.Connect(new Neuron(2,2,2),new Neuron(2,2,6),1,1);
+	//manager.Connect(new Neuron(2,2,2),new Neuron(2,2,6),1,1);
     ReadNet(manager, filePath);
 
 	// Nothing that can fail here.
