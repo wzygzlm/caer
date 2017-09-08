@@ -56,6 +56,20 @@ void Neuron::PrintSRAM() {
     }
 }
 
+
+string Neuron::GetSRAMString() {
+    stringstream ss;
+
+    if (this->SRAM.size() > 0) {
+        for (vector<Neuron *>::iterator i = this->SRAM.begin(); i != this->SRAM.end(); ++i) {
+            ss << (*i)->GetLocString() << " ";
+        }
+    }else{
+        ss << "empty SRAM";
+    }
+    return ss.str();
+}
+
 void Neuron::PrintCAM() {
     if (this->CAM.size() > 0) {
         for (vector<Neuron *>::iterator i = this->CAM.begin(); i != this->CAM.end(); ++i){
@@ -64,6 +78,19 @@ void Neuron::PrintCAM() {
     }else{
         cout << "empty CAM" <<endl;
     }
+}
+
+string Neuron::GetCAMString() {
+    stringstream ss;
+
+    if (this->CAM.size() > 0) {
+        for (vector<Neuron *>::iterator i = this->CAM.begin(); i != this->CAM.end(); ++i) {
+            ss << (*i)->GetLocString() << " ";
+        }
+    }else{
+        ss << "empty CAM";
+    }
+    return ss.str();
 }
 
 vector<Neuron *>::iterator Neuron::FindCamClash(Neuron * n){
@@ -166,11 +193,36 @@ void ConnectionManager::MakeConnection( Neuron * pre, Neuron * post, uint8_t syn
 
     vector<uint8_t> dirBits = CalculateBits(pre->chip, post->chip);
 
+    // print SRAM command
+    string message = "SRAM Settings: "+
+    to_string(pre->chip)+ ", " + 
+    to_string(pre->core)+ ", " + 
+    to_string(pre->neuron)+ ", " +   
+    to_string(pre->core)+ ", " +
+    to_string((bool)dirBits[0])+ ", " +
+    to_string(dirBits[1])+ ", " +
+    to_string((bool)dirBits[2])+ ", " +
+    to_string(dirBits[3])+ ", " +
+    to_string(pre->SRAM.size())+ ", " +
+    string(to_string(GetDestinationCore(post->core)));
+
+    caerLog(CAER_LOG_NOTICE, __func__, message.c_str());
+
+
     // Program SRAM
     caerDeviceConfigSet(handle, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, pre->chip);
     caerDynapseWriteSram(handle, pre->core, pre->neuron, pre->core, (bool)dirBits[0],
                          dirBits[1], (bool)dirBits[2], dirBits[3], (uint16_t) pre->SRAM.size()-1, GetDestinationCore(post->core));
 
+
+    message = "CAM Settings: "+ 
+    to_string(post->chip)+ ", " +
+    to_string(NeuronCamAddress(pre->neuron,pre->core))+ ", " +
+    to_string(NeuronCamAddress(post->neuron,post->core))+ ", " +
+    to_string(post->CAM.size())+ ", " +
+    to_string(DYNAPSE_CONFIG_CAMTYPE_F_EXC);
+
+    caerLog(CAER_LOG_NOTICE, __func__, message.c_str());
 
     // Program CAM
     // TODO: Allow multiple CAM id per connection
@@ -178,9 +230,14 @@ void ConnectionManager::MakeConnection( Neuron * pre, Neuron * post, uint8_t syn
     caerDynapseWriteCam(handle, NeuronCamAddress(pre->neuron,pre->core), NeuronCamAddress(post->neuron,post->core),
                         (uint32_t) post->CAM.size()-1, DYNAPSE_CONFIG_CAMTYPE_F_EXC);
 
+
+
 }
 
 void ConnectionManager::CheckAndConnect(Neuron * pre, Neuron * post, uint8_t syn_strength, uint8_t connection_type ){
+    string message = string("Attempting to connect " + pre->GetLocString() + "->" + post->GetLocString());
+    caerLog(CAER_LOG_NOTICE, __func__, message.c_str());
+
     if(!(*pre == *post)) {
         if (pre->SRAM.size() < 4) {
             if (post->CAM.size() > 0) {
@@ -191,27 +248,34 @@ void ConnectionManager::CheckAndConnect(Neuron * pre, Neuron * post, uint8_t syn
 
                     //if no clashes, connect
                     if (it == post->CAM.end()) {
-
+                        caerLog(CAER_LOG_NOTICE, __func__, "Passed tests");
                         MakeConnection(pre, post, syn_strength, connection_type);
 
                     } else {
-                        string message = string("CAM Clash at " + post->GetLocString() + " between " + (*it)->GetLocString() + " and " + pre->GetLocString());
-                        throw message;
+                        message = string("CAM Clash at " + post->GetLocString() + " between " + (*it)->GetLocString() + " and " + pre->GetLocString());
                         caerLog(CAER_LOG_NOTICE, __func__, message.c_str());
+                        //throw message;
+                        
                     }
 
                 } else {
-                    throw "CAM Size Limit (64) Reached: " + post->GetLocString();
+                    message = "CAM Size Limit (64) Reached for: " + post->GetLocString();
+                    caerLog(CAER_LOG_NOTICE, __func__, message.c_str());
+                    //throw "CAM Size Limit (64) Reached: " + post->GetLocString();
                 }
             } else {
                 //If CAM is empty, connect
                 MakeConnection(pre, post, syn_strength, connection_type);
             };
         } else {
-            throw "SRAM Size Limit (4) Reached: " + pre->GetLocString();
+            message = "SRAM Size Limit (4) Reached: " + pre->GetLocString();
+            caerLog(CAER_LOG_NOTICE, __func__, message.c_str());
+            //throw "SRAM Size Limit (4) Reached: " + pre->GetLocString();
         }
     } else{
-        throw "Cannot connect a neuron to itself";
+        message = "Cannot connect a neuron to itself";
+        caerLog(CAER_LOG_NOTICE, __func__, message.c_str());
+        //throw "Cannot connect a neuron to itself";
     }
 }
 
@@ -222,6 +286,22 @@ ConnectionManager::ConnectionManager(caerDeviceHandle h){
 
 map<Neuron,Neuron*> * ConnectionManager::GetNeuronMap(){
     return &(this->neuronMap_);
+}
+
+void ConnectionManager::PrintNeuronMap(){
+    stringstream ss;
+    
+    
+    for(auto it = neuronMap_.cbegin(); it != neuronMap_.cend(); ++it)
+    {
+        Neuron * entry = it->second; 
+        ss << "\n";
+        ss << entry->GetLocString() << 
+        " -- SRAM: " << entry->GetSRAMString() <<
+        " -- CAM: " << entry->GetCAMString();  
+    }
+
+    caerLog(CAER_LOG_NOTICE, __func__, ss.str().c_str());
 }
 
 vector <Neuron *> ConnectionManager::GetNeuron(Neuron * pre){
@@ -236,7 +316,7 @@ void ConnectionManager::Connect(Neuron * pre, Neuron * post, uint8_t syn_strengt
         neuronMap_[*pre] = pre;
     } else {
         // Already instantiated, delete and re-reference
-        delete pre;
+        //delete pre;
         pre = neuronMap_[*pre];
     }
     if ( neuronMap_.find(*post) == neuronMap_.end() ) {
@@ -244,17 +324,19 @@ void ConnectionManager::Connect(Neuron * pre, Neuron * post, uint8_t syn_strengt
         neuronMap_[*post] = post;
     } else {
         // Already instantiated, delete and re-reference
-        delete post;
+        //delete post;
         post = neuronMap_[*post];
     }
 
     // Attempt to connect
     try{
         CheckAndConnect(pre, post, syn_strength, connection_type);
-        cout << "Connected " + pre->GetLocString() + "->" + post->GetLocString() << endl;
+        string message = string("Connected " + pre->GetLocString() + "->" + post->GetLocString());
+        caerLog(CAER_LOG_NOTICE, __func__, message.c_str());
+        //cout << "Connected " + pre->GetLocString() + "->" + post->GetLocString() << endl;
     }
     catch (const string e){
-        cout << e << endl;
+        caerLog(CAER_LOG_NOTICE, __func__, e.c_str());
     }
 
 }
@@ -263,6 +345,7 @@ void ConnectionManager::Connect(Neuron * pre, Neuron * post, uint8_t syn_strengt
 
 void ReadNet (ConnectionManager manager, string filepath) {
 
+    caerLog(CAER_LOG_NOTICE, __func__, ("attempting to read net found at: " + filepath).c_str());
     ifstream netFile (filepath);
     string connection;
     if (netFile.is_open())
@@ -285,9 +368,10 @@ void ReadNet (ConnectionManager manager, string filepath) {
             cv.clear();
         }
         netFile.close();
+        manager.PrintNeuronMap();
 
     }
-    else cout << "Unable to open file";
+    else caerLog(CAER_LOG_NOTICE, __func__, ("unable to open file: " + filepath).c_str());
 
 }
 

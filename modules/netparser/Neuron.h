@@ -40,6 +40,8 @@ struct  Neuron {
     void Print() const;
     void PrintSRAM();
     void PrintCAM();
+    string GetSRAMString();
+    string GetCAMString();
     vector<Neuron *>::iterator FindCamClash(Neuron * n);
 };
 
@@ -82,6 +84,8 @@ public:
     ConnectionManager(caerDeviceHandle h);
 
     map<Neuron, Neuron *> *GetNeuronMap();
+
+    void PrintNeuronMap();
 
     vector<Neuron *> GetNeuron(Neuron *pre);
 
