@@ -184,7 +184,7 @@ uint32_t ConnectionManager::NeuronCamAddress(int neuron, int core){
 // involved in a connection (sparse). Since there is no real way to access the
 // registers themselves in order for this to work you must piping all connection settings through
 // pipe all your connection settings through this manager (don't call caerDynapseWriteSram/Cam directly)
-void ConnectionManager::MakeConnection( Neuron * pre, Neuron * post, uint8_t syn_strength, uint8_t connection_type ){
+void ConnectionManager::MakeConnection( Neuron * pre, Neuron * post, uint8_t cam_slots_number, uint8_t connection_type ){
 
     // In internal map
     pre->SRAM.push_back(post);
@@ -195,7 +195,7 @@ void ConnectionManager::MakeConnection( Neuron * pre, Neuron * post, uint8_t syn
 
     // print SRAM command
     string message = "SRAM Settings: "+
-    to_string(pre->chip)+ ", " + 
+    to_string(pre->chip)+ "  (" + 
     to_string(pre->core)+ ", " + 
     to_string(pre->neuron)+ ", " +   
     to_string(pre->core)+ ", " +
@@ -204,7 +204,7 @@ void ConnectionManager::MakeConnection( Neuron * pre, Neuron * post, uint8_t syn
     to_string((bool)dirBits[2])+ ", " +
     to_string(dirBits[3])+ ", " +
     to_string(pre->SRAM.size())+ ", " +
-    string(to_string(GetDestinationCore(post->core)));
+    string(to_string(GetDestinationCore(post->core)))+ ") ";
 
     caerLog(CAER_LOG_NOTICE, __func__, message.c_str());
 
@@ -217,10 +217,11 @@ void ConnectionManager::MakeConnection( Neuron * pre, Neuron * post, uint8_t syn
 
     message = "CAM Settings: "+ 
     to_string(post->chip)+ ", " +
+    to_string(cam_slots_number)+ " (" +
     to_string(NeuronCamAddress(pre->neuron,pre->core))+ ", " +
     to_string(NeuronCamAddress(post->neuron,post->core))+ ", " +
     to_string(post->CAM.size())+ ", " +
-    to_string(DYNAPSE_CONFIG_CAMTYPE_F_EXC);
+    to_string(DYNAPSE_CONFIG_CAMTYPE_F_EXC)+ ") ";
 
     caerLog(CAER_LOG_NOTICE, __func__, message.c_str());
 
@@ -234,14 +235,15 @@ void ConnectionManager::MakeConnection( Neuron * pre, Neuron * post, uint8_t syn
 
 }
 
-void ConnectionManager::CheckAndConnect(Neuron * pre, Neuron * post, uint8_t syn_strength, uint8_t connection_type ){
-    string message = string("Attempting to connect " + pre->GetLocString() + "->" + post->GetLocString());
+bool ConnectionManager::CheckAndConnect(Neuron * pre, Neuron * post, uint8_t cam_slots_number, uint8_t connection_type ){
+    string message = string("Attempting to connect " + pre->GetLocString() + "-" + to_string(cam_slots_number)
+            + "->" + post->GetLocString());
     caerLog(CAER_LOG_NOTICE, __func__, message.c_str());
 
     if(!(*pre == *post)) {
         if (pre->SRAM.size() < 4) {
             if (post->CAM.size() > 0) {
-                if (post->CAM.size() < 64) {
+                if (64 - post->CAM.size() > cam_slots_number) {
 
                     //find instances where contents in the cam will clash with the new element being added
                     auto it = post->FindCamClash(pre);
@@ -249,7 +251,8 @@ void ConnectionManager::CheckAndConnect(Neuron * pre, Neuron * post, uint8_t syn
                     //if no clashes, connect
                     if (it == post->CAM.end()) {
                         caerLog(CAER_LOG_NOTICE, __func__, "Passed tests");
-                        MakeConnection(pre, post, syn_strength, connection_type);
+                        MakeConnection(pre, post, cam_slots_number, connection_type);
+                        return true;
 
                     } else {
                         message = string("CAM Clash at " + post->GetLocString() + " between " + (*it)->GetLocString() + " and " + pre->GetLocString());
@@ -259,14 +262,17 @@ void ConnectionManager::CheckAndConnect(Neuron * pre, Neuron * post, uint8_t syn
                     }
 
                 } else {
-                    message = "CAM Size Limit (64) Reached for: " + post->GetLocString();
+                    message = "CAM Overflow for " + post->GetLocString() + ".\nCAM slot number requested (" + to_string(cam_slots_number)+ 
+                    ") exceeds number of cam slot left (" + to_string(64 - post->CAM.size()) + ")";
                     caerLog(CAER_LOG_NOTICE, __func__, message.c_str());
                     //throw "CAM Size Limit (64) Reached: " + post->GetLocString();
                 }
             } else {
                 //If CAM is empty, connect
-                MakeConnection(pre, post, syn_strength, connection_type);
-            };
+                caerLog(CAER_LOG_NOTICE, __func__, "Passed tests");
+                MakeConnection(pre, post, cam_slots_number, connection_type);
+                return true;
+            }
         } else {
             message = "SRAM Size Limit (4) Reached: " + pre->GetLocString();
             caerLog(CAER_LOG_NOTICE, __func__, message.c_str());
@@ -277,6 +283,7 @@ void ConnectionManager::CheckAndConnect(Neuron * pre, Neuron * post, uint8_t syn
         caerLog(CAER_LOG_NOTICE, __func__, message.c_str());
         //throw "Cannot connect a neuron to itself";
     }
+    return false;
 }
 
 
@@ -308,7 +315,7 @@ vector <Neuron *> ConnectionManager::GetNeuron(Neuron * pre){
     neuronMap_.find(*pre);
 }
 
-void ConnectionManager::Connect(Neuron * pre, Neuron * post, uint8_t syn_strength, uint8_t connection_type){
+void ConnectionManager::Connect(Neuron * pre, Neuron * post, uint8_t cam_slots_number, uint8_t connection_type){
 
     // If already instanciated neuron, use that, otherwise make new entry
     if ( neuronMap_.find(*pre) == neuronMap_.end() ) {
@@ -330,9 +337,16 @@ void ConnectionManager::Connect(Neuron * pre, Neuron * post, uint8_t syn_strengt
 
     // Attempt to connect
     try{
-        CheckAndConnect(pre, post, syn_strength, connection_type);
-        string message = string("Connected " + pre->GetLocString() + "->" + post->GetLocString());
+        if(CheckAndConnect(pre, post, cam_slots_number, connection_type)){
+            string message = string("+++ Connected " + pre->GetLocString() + "-" + to_string(cam_slots_number)
+            + "->" + post->GetLocString());
         caerLog(CAER_LOG_NOTICE, __func__, message.c_str());
+        } else{
+             string message = string("XXX Did not connect " + pre->GetLocString() + "-" + to_string(cam_slots_number)
+            + "->" + post->GetLocString());
+        caerLog(CAER_LOG_NOTICE, __func__, message.c_str());
+        }
+        
         //cout << "Connected " + pre->GetLocString() + "->" + post->GetLocString() << endl;
     }
     catch (const string e){
@@ -352,20 +366,33 @@ void ReadNet (ConnectionManager manager, string filepath) {
     {
         caerLog(CAER_LOG_NOTICE, __func__, ("parsing net found at: " + filepath).c_str());
         vector<uint8_t > cv;
-        while ( getline (netFile,connection) )
+        while ( getline (netFile, connection) )
         {
-            size_t prev = 0, pos;
-            while ((pos = connection.find_first_of("UCN->", prev)) != string::npos)
-            {
-                if (pos > prev)
-                    cv.push_back((unsigned char &&) stoi(connection.substr(prev, pos - prev)));
-                prev = pos+1;
-            }
+            if(!connection.empty()){
+                // Ignore comments (#)
+                if(connection[0] != '#'){
+                    size_t prev = 0, pos;
+                    // Expected structure is:
+                    //     pre_addrss   -cam_slots_number   ->  post_addrss 
+                    // ex: U00-C01-N001 -32                 ->  U02-C01-N001 (without tabs)
+                    while ((pos = connection.find_first_of("UCN->", prev)) != string::npos)
+                    {
+                        if (pos > prev)
+                            cv.push_back((unsigned char &&) stoi(connection.substr(prev, pos - prev)));
+                        prev = pos+1;
+                    }
 
-            if (prev < connection.length())
-                cv.push_back((unsigned char &&) stoi(connection.substr(prev, string::npos)));
-            manager.Connect(new Neuron(cv[0],cv[1],cv[2]),new Neuron(cv[3],cv[4],cv[5]),1,1);
-            cv.clear();
+                    if (prev < connection.length())
+                        cv.push_back((unsigned char &&) stoi(connection.substr(prev, string::npos)));
+                    manager.Connect(new Neuron(cv[0],cv[1],cv[2]),new Neuron(cv[4],cv[5],cv[6]),cv[3],1);
+                    cv.clear();
+                } else{
+                    // Print comments in network file that start with #! for debbuging
+                    if(connection[1] == '!'){
+                        caerLog(CAER_LOG_NOTICE, __func__, ("Printing comment: " + connection).c_str());
+                    }
+                }
+            }
         }
         netFile.close();
         manager.PrintNeuronMap();

@@ -75,7 +75,7 @@ private:
     uint32_t NeuronCamAddress(int neuron, int core);
 
     // Checks for valid connection and calls MakeConnection
-    void CheckAndConnect(Neuron *pre, Neuron *post, uint8_t syn_strength, uint8_t connection_type);
+    bool CheckAndConnect(Neuron *pre, Neuron *post, uint8_t syn_strength, uint8_t connection_type);
 
     // Appends connection to software SRAM and CAM and calls caerDynapseWriteSram and caerDynapseWriteCam
     void MakeConnection(Neuron *pre, Neuron *post, uint8_t syn_strength, uint8_t connection_type);
