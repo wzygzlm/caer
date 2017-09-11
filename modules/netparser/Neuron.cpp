@@ -188,7 +188,6 @@ void ConnectionManager::MakeConnection( Neuron * pre, Neuron * post, uint8_t cam
 
     // In internal map
     pre->SRAM.push_back(post);
-    post->CAM.push_back(pre);
 
 
     vector<uint8_t> dirBits = CalculateBits(pre->chip, post->chip);
@@ -211,8 +210,10 @@ void ConnectionManager::MakeConnection( Neuron * pre, Neuron * post, uint8_t cam
 
     // Program SRAM
     caerDeviceConfigSet(handle, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, pre->chip);
+
     caerDynapseWriteSram(handle, pre->core, pre->neuron, pre->core, (bool)dirBits[0],
-                         dirBits[1], (bool)dirBits[2], dirBits[3], (uint16_t) pre->SRAM.size(), GetDestinationCore(post->core));
+                         dirBits[1], (bool)dirBits[2], dirBits[3], (uint16_t) pre->SRAM.size()+1, //first SRAM is for debbugging
+                         GetDestinationCore(post->core));
 
 
     message = "CAM Settings: "+ 
@@ -226,11 +227,16 @@ void ConnectionManager::MakeConnection( Neuron * pre, Neuron * post, uint8_t cam
     caerLog(CAER_LOG_NOTICE, __func__, message.c_str());
 
     // Program CAM
-    // TODO: Allow multiple CAM id per connection
     caerDeviceConfigSet(handle, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, post->chip);
-    caerDynapseWriteCam(handle, NeuronCamAddress(pre->neuron,pre->core), NeuronCamAddress(post->neuron,post->core),
-                        (uint32_t) post->CAM.size(), DYNAPSE_CONFIG_CAMTYPE_F_EXC);
 
+    // For each cam in cam_slot_num
+    int curr_cam_size = post->CAM.size();
+    for (int n=post->CAM.size(); n < curr_cam_size + cam_slots_number; n++) {
+        post->CAM.push_back(pre);
+        caerDynapseWriteCam(handle, NeuronCamAddress(pre->neuron,pre->core), NeuronCamAddress(post->neuron,post->core),
+                        (uint32_t) n, DYNAPSE_CONFIG_CAMTYPE_F_EXC);
+    }
+    
 
 
 }
@@ -241,9 +247,9 @@ bool ConnectionManager::CheckAndConnect(Neuron * pre, Neuron * post, uint8_t cam
     caerLog(CAER_LOG_NOTICE, __func__, message.c_str());
 
     if(!(*pre == *post)) {
-        if (pre->SRAM.size() < 4) {
+        if (pre->SRAM.size() < 3) {
             if (post->CAM.size() > 0) {
-                if (64 - post->CAM.size() > cam_slots_number) {
+                if (64 - post->CAM.size() >= cam_slots_number) {
 
                     //find instances where contents in the cam will clash with the new element being added
                     auto it = post->FindCamClash(pre);
@@ -274,7 +280,7 @@ bool ConnectionManager::CheckAndConnect(Neuron * pre, Neuron * post, uint8_t cam
                 return true;
             }
         } else {
-            message = "SRAM Size Limit (4) Reached: " + pre->GetLocString();
+            message = "SRAM Size Limit (3) Reached: " + pre->GetLocString();
             caerLog(CAER_LOG_NOTICE, __func__, message.c_str());
             //throw "SRAM Size Limit (4) Reached: " + pre->GetLocString();
         }
@@ -339,11 +345,11 @@ void ConnectionManager::Connect(Neuron * pre, Neuron * post, uint8_t cam_slots_n
     try{
         if(CheckAndConnect(pre, post, cam_slots_number, connection_type)){
             string message = string("+++ Connected " + pre->GetLocString() + "-" + to_string(cam_slots_number)
-            + "->" + post->GetLocString());
+            + "->" + post->GetLocString()+ "\n");
         caerLog(CAER_LOG_NOTICE, __func__, message.c_str());
         } else{
              string message = string("XXX Did not connect " + pre->GetLocString() + "-" + to_string(cam_slots_number)
-            + "->" + post->GetLocString());
+            + "->" + post->GetLocString() + "\n");
         caerLog(CAER_LOG_NOTICE, __func__, message.c_str());
         }
         
@@ -374,7 +380,8 @@ void ReadNet (ConnectionManager manager, string filepath) {
                     size_t prev = 0, pos;
                     // Expected structure is:
                     //     pre_addrss   -cam_slots_number   ->  post_addrss 
-                    // ex: U00-C01-N001 -32                 ->  U02-C01-N001 (without tabs)
+                    // ex: U00-C01-N001 -32                 ->  U02-C01-N001 
+                    // without tabs: U00-C01-N001-32->U02-C01-N001
                     while ((pos = connection.find_first_of("UCN->", prev)) != string::npos)
                     {
                         if (pos > prev)
@@ -389,7 +396,7 @@ void ReadNet (ConnectionManager manager, string filepath) {
                 } else{
                     // Print comments in network file that start with #! for debbuging
                     if(connection[1] == '!'){
-                        caerLog(CAER_LOG_NOTICE, __func__, ("Printing comment: " + connection).c_str());
+                        caerLog(CAER_LOG_NOTICE, __func__, ("Printing comment: " + connection + "\n").c_str());
                     }
                 }
             }
