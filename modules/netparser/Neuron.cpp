@@ -212,7 +212,7 @@ void ConnectionManager::MakeConnection( Neuron * pre, Neuron * post, uint8_t syn
     // Program SRAM
     caerDeviceConfigSet(handle, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, pre->chip);
     caerDynapseWriteSram(handle, pre->core, pre->neuron, pre->core, (bool)dirBits[0],
-                         dirBits[1], (bool)dirBits[2], dirBits[3], (uint16_t) pre->SRAM.size()-1, GetDestinationCore(post->core));
+                         dirBits[1], (bool)dirBits[2], dirBits[3], (uint16_t) pre->SRAM.size(), GetDestinationCore(post->core));
 
 
     message = "CAM Settings: "+ 
@@ -228,7 +228,7 @@ void ConnectionManager::MakeConnection( Neuron * pre, Neuron * post, uint8_t syn
     // TODO: Allow multiple CAM id per connection
     caerDeviceConfigSet(handle, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, post->chip);
     caerDynapseWriteCam(handle, NeuronCamAddress(pre->neuron,pre->core), NeuronCamAddress(post->neuron,post->core),
-                        (uint32_t) post->CAM.size()-1, DYNAPSE_CONFIG_CAMTYPE_F_EXC);
+                        (uint32_t) post->CAM.size(), DYNAPSE_CONFIG_CAMTYPE_F_EXC);
 
 
 
