@@ -222,7 +222,7 @@ void ConnectionManager::MakeConnection( Neuron * pre, Neuron * post, uint8_t cam
     to_string(NeuronCamAddress(pre->neuron,pre->core))+ ", " +
     to_string(NeuronCamAddress(post->neuron,post->core))+ ", " +
     to_string(post->CAM.size())+ ", " +
-    to_string(DYNAPSE_CONFIG_CAMTYPE_F_EXC)+ ") ";
+    to_string(connection_type)+ ") ";
 
     caerLog(CAER_LOG_NOTICE, __func__, message.c_str());
 
@@ -234,7 +234,7 @@ void ConnectionManager::MakeConnection( Neuron * pre, Neuron * post, uint8_t cam
     for (int n=post->CAM.size(); n < curr_cam_size + cam_slots_number; n++) {
         post->CAM.push_back(pre);
         caerDynapseWriteCam(handle, NeuronCamAddress(pre->neuron, pre->core), NeuronCamAddress(post->neuron,post->core),
-                        (uint32_t) n, DYNAPSE_CONFIG_CAMTYPE_F_EXC);
+                        (uint32_t) n, connection_type);
     }
     
 
@@ -242,47 +242,52 @@ void ConnectionManager::MakeConnection( Neuron * pre, Neuron * post, uint8_t cam
 }
 
 bool ConnectionManager::CheckAndConnect(Neuron * pre, Neuron * post, uint8_t cam_slots_number, uint8_t connection_type ){
-    string message = string("Attempting to connect " + pre->GetLocString() + "-" + to_string(cam_slots_number)
-            + "->" + post->GetLocString());
+    string message = string("Attempting to connect " + pre->GetLocString() + "-" + to_string(connection_type)
+            + "-" + to_string(cam_slots_number) + "->" + post->GetLocString());
     caerLog(CAER_LOG_NOTICE, __func__, message.c_str());
 
     if(!(*pre == *post)) {
-        if (pre->SRAM.size() < 3) {
-            if (post->CAM.size() > 0) {
-                if (64 - post->CAM.size() >= cam_slots_number) {
+        if(connection_type >= 0 & connection_type < 4)
+            if (pre->SRAM.size() < 3) {
+                if (post->CAM.size() > 0) {
+                    if (64 - post->CAM.size() >= cam_slots_number) {
 
-                    //find instances where contents in the cam will clash with the new element being added
-                    auto it = post->FindCamClash(pre);
+                        //find instances where contents in the cam will clash with the new element being added
+                        auto it = post->FindCamClash(pre);
 
-                    //if no clashes, connect
-                    if (it == post->CAM.end()) {
-                        caerLog(CAER_LOG_NOTICE, __func__, "Passed tests");
-                        MakeConnection(pre, post, cam_slots_number, connection_type);
-                        return true;
+                        //if no clashes, connect
+                        if (it == post->CAM.end()) {
+                            caerLog(CAER_LOG_NOTICE, __func__, "Passed tests");
+                            MakeConnection(pre, post, cam_slots_number, connection_type);
+                            return true;
+
+                        } else {
+                            message = string("CAM Clash at " + post->GetLocString() + " between " + (*it)->GetLocString() + " and " + pre->GetLocString());
+                            caerLog(CAER_LOG_NOTICE, __func__, message.c_str());
+                            //throw message;
+                            
+                        }
 
                     } else {
-                        message = string("CAM Clash at " + post->GetLocString() + " between " + (*it)->GetLocString() + " and " + pre->GetLocString());
+                        message = "CAM Overflow for " + post->GetLocString() + ".\nCAM slot number requested (" + to_string(cam_slots_number)+ 
+                        ") exceeds number of cam slot left (" + to_string(64 - post->CAM.size()) + ")";
                         caerLog(CAER_LOG_NOTICE, __func__, message.c_str());
-                        //throw message;
-                        
+                        //throw "CAM Size Limit (64) Reached: " + post->GetLocString();
                     }
-
                 } else {
-                    message = "CAM Overflow for " + post->GetLocString() + ".\nCAM slot number requested (" + to_string(cam_slots_number)+ 
-                    ") exceeds number of cam slot left (" + to_string(64 - post->CAM.size()) + ")";
-                    caerLog(CAER_LOG_NOTICE, __func__, message.c_str());
-                    //throw "CAM Size Limit (64) Reached: " + post->GetLocString();
+                    //If CAM is empty, connect
+                    caerLog(CAER_LOG_NOTICE, __func__, "Passed tests");
+                    MakeConnection(pre, post, cam_slots_number, connection_type);
+                    return true;
                 }
             } else {
-                //If CAM is empty, connect
-                caerLog(CAER_LOG_NOTICE, __func__, "Passed tests");
-                MakeConnection(pre, post, cam_slots_number, connection_type);
-                return true;
+                message = "SRAM Size Limit (3) Reached: " + pre->GetLocString();
+                caerLog(CAER_LOG_NOTICE, __func__, message.c_str());
+                //throw "SRAM Size Limit (4) Reached: " + pre->GetLocString();
             }
-        } else {
-            message = "SRAM Size Limit (3) Reached: " + pre->GetLocString();
-            caerLog(CAER_LOG_NOTICE, __func__, message.c_str());
-            //throw "SRAM Size Limit (4) Reached: " + pre->GetLocString();
+        else {
+            message = "Invalid Connection Type: " + connection_type;
+                caerLog(CAER_LOG_NOTICE, __func__, message.c_str());
         }
     } else{
         message = "Cannot connect a neuron to itself";
@@ -391,7 +396,7 @@ void ReadNet (ConnectionManager manager, string filepath) {
 
                     if (prev < connection.length())
                         cv.push_back((unsigned char &&) stoi(connection.substr(prev, string::npos)));
-                    manager.Connect(new Neuron(cv[0],cv[1],cv[2]),new Neuron(cv[4],cv[5],cv[6]),cv[3],1);
+                    manager.Connect(new Neuron(cv[0],cv[1],cv[2]),new Neuron(cv[5],cv[6],cv[7]),cv[4],cv[3]);
                     cv.clear();
                 } else{
                     // Print comments in network file that start with #! for debbuging
