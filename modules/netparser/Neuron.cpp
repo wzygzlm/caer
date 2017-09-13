@@ -175,7 +175,7 @@ uint16_t ConnectionManager::GetDestinationCore(int core){
 }
 
 // For CAM
-uint32_t ConnectionManager::NeuronCamAddress(int core,int neuron){
+uint32_t ConnectionManager::NeuronCamAddress(int neuron, int core){
     return (uint32_t) neuron + core*256;
 }
 
@@ -233,7 +233,7 @@ void ConnectionManager::MakeConnection( Neuron * pre, Neuron * post, uint8_t cam
     int curr_cam_size = post->CAM.size();
     for (int n=post->CAM.size(); n < curr_cam_size + cam_slots_number; n++) {
         post->CAM.push_back(pre);
-        caerDynapseWriteCam(handle, NeuronCamAddress(pre->core, pre->neuron), NeuronCamAddress(post->neuron,post->core),
+        caerDynapseWriteCam(handle, NeuronCamAddress(pre->neuron, pre->core), NeuronCamAddress(post->neuron,post->core),
                         (uint32_t) n, DYNAPSE_CONFIG_CAMTYPE_F_EXC);
     }
     
