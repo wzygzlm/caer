@@ -133,26 +133,26 @@ vector<uint8_t> ConnectionManager::CalculateBits(int chip_from, int chip_to){
     vector<uint8_t> bits;
     if (chip_from == 0){
         if (chip_to == 0){return bits = {0,0,0,0};}
-        else if (chip_to == 1){return bits = {1,1,0,0};}
-        else if (chip_to == 2){return bits = {0,0,0,1};}
-        else if (chip_to == 3){return bits = {1,1,0,1};}
+        else if (chip_to == 1){return bits = {0,1,0,0};}
+        else if (chip_to == 2){return bits = {0,0,1,1};}
+        else if (chip_to == 3){return bits = {0,1,1,1};}
     }
     else if (chip_from == 1){
-        if (chip_to == 0){return bits = {0,1,0,0};}
+        if (chip_to == 0){return bits = {1,1,0,0};}
         else if (chip_to == 1){return bits = {0,0,0,0};}
-        else if (chip_to == 2){return bits = {0,1,0,1};}
-        else if (chip_to == 3){return bits = {0,0,0,1};}
+        else if (chip_to == 2){return bits = {1,1,1,1};}
+        else if (chip_to == 3){return bits = {0,0,1,1};}
     }
     else if (chip_from == 2){
-        if (chip_to == 0){return bits = {0,0,1,1};}
-        else if (chip_to == 1){return bits = {1,1,1,1};}
+        if (chip_to == 0){return bits = {0,0,0,1};}
+        else if (chip_to == 1){return bits = {0,1,0,1};}
         else if (chip_to == 2){return bits = {0,0,0,0};}
-        else if (chip_to == 3){return bits = {1,1,0,0};}
+        else if (chip_to == 3){return bits = {0,1,0,0};}
     }
     else if (chip_from == 3){
-        if (chip_to == 0){return bits = {0,1,1,1};}
-        else if (chip_to == 1){return bits = {0,0,1,1};}
-        else if (chip_to == 2){return bits = {0,1,0,0};}
+        if (chip_to == 0){return bits = {1,1,0,1};}
+        else if (chip_to == 1){return bits = {0,0,0,1};}
+        else if (chip_to == 2){return bits = {1,1,0,0};}
         else if (chip_to == 3){return bits = {0,0,0,0};}
     }
 }
@@ -175,7 +175,7 @@ uint16_t ConnectionManager::GetDestinationCore(int core){
 }
 
 // For CAM
-uint32_t ConnectionManager::NeuronCamAddress(int neuron, int core){
+uint32_t ConnectionManager::NeuronCamAddress(int core,int neuron){
     return (uint32_t) neuron + core*256;
 }
 
@@ -233,7 +233,7 @@ void ConnectionManager::MakeConnection( Neuron * pre, Neuron * post, uint8_t cam
     int curr_cam_size = post->CAM.size();
     for (int n=post->CAM.size(); n < curr_cam_size + cam_slots_number; n++) {
         post->CAM.push_back(pre);
-        caerDynapseWriteCam(handle, NeuronCamAddress(pre->neuron,pre->core), NeuronCamAddress(post->neuron,post->core),
+        caerDynapseWriteCam(handle, NeuronCamAddress(pre->core, pre->neuron), NeuronCamAddress(post->neuron,post->core),
                         (uint32_t) n, DYNAPSE_CONFIG_CAMTYPE_F_EXC);
     }
     
