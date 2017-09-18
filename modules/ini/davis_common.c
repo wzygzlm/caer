@@ -1787,7 +1787,7 @@ static void dvsConfigSend(sshsNode node, caerModuleData moduleData, struct caer_
 		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_DVS, DAVIS_CONFIG_DVS_FILTER_BACKGROUND_ACTIVITY,
 			sshsNodeGetBool(node, "FilterBackgroundActivity"));
 		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_DVS,
-		DAVIS_CONFIG_DVS_FILTER_BACKGROUND_ACTIVITY_DELTAT,
+		DAVIS_CONFIG_DVS_FILTER_BACKGROUND_ACTIVITY_TIME,
 			U32T(sshsNodeGetInt(node, "FilterBackgroundActivityDeltaTime")));
 	}
 
@@ -1904,7 +1904,7 @@ static void dvsConfigListener(sshsNode node, void *userData, enum sshs_node_attr
 		}
 		else if (changeType == SSHS_INT && caerStrEquals(changeKey, "FilterBackgroundActivityDeltaTime")) {
 			caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_DVS,
-			DAVIS_CONFIG_DVS_FILTER_BACKGROUND_ACTIVITY_DELTAT, U32T(changeValue.iint));
+				DAVIS_CONFIG_DVS_FILTER_BACKGROUND_ACTIVITY_TIME, U32T(changeValue.iint));
 		}
 		else if (changeType == SSHS_BOOL && caerStrEquals(changeKey, "TestEventGeneratorEnable")) {
 			caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_DVS, DAVIS_CONFIG_DVS_TEST_EVENT_GENERATOR_ENABLE,
