@@ -675,10 +675,14 @@ static void createDefaultConfiguration(caerModuleData moduleData, struct caer_da
 	}
 
 	if (devInfo->dvsHasBackgroundActivityFilter) {
-		sshsNodeCreateBool(dvsNode, "FilterBackgroundActivity", true, SSHS_FLAGS_NORMAL,
+		sshsNodeCreateBool(dvsNode, "FilterBackgroundActivity", false, SSHS_FLAGS_NORMAL,
 			"Filter background events using hardware filter on FPGA.");
-		sshsNodeCreateInt(dvsNode, "FilterBackgroundActivityDeltaTime", 20000, 0, (0x01 << 16) - 1, SSHS_FLAGS_NORMAL,
+		sshsNodeCreateInt(dvsNode, "FilterBackgroundActivityTime", 20000, 0, (0x01 << 16) - 1, SSHS_FLAGS_NORMAL,
 			"Hardware background events filter delta time (in µs).");
+		sshsNodeCreateBool(dvsNode, "FilterRefractoryPeriod", false, SSHS_FLAGS_NORMAL,
+			"Limit pixel firing rate using hardware filter on FPGA.");
+		sshsNodeCreateInt(dvsNode, "FilterRefractoryPeriodTime", 200, 0, (0x01 << 16) - 1, SSHS_FLAGS_NORMAL,
+			"Hardware refractory period time (in µs).");
 	}
 
 	if (devInfo->dvsHasTestEventGenerator) {
@@ -1787,8 +1791,13 @@ static void dvsConfigSend(sshsNode node, caerModuleData moduleData, struct caer_
 		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_DVS, DAVIS_CONFIG_DVS_FILTER_BACKGROUND_ACTIVITY,
 			sshsNodeGetBool(node, "FilterBackgroundActivity"));
 		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_DVS,
-		DAVIS_CONFIG_DVS_FILTER_BACKGROUND_ACTIVITY_TIME,
-			U32T(sshsNodeGetInt(node, "FilterBackgroundActivityDeltaTime")));
+			DAVIS_CONFIG_DVS_FILTER_BACKGROUND_ACTIVITY_TIME,
+			U32T(sshsNodeGetInt(node, "FilterBackgroundActivityTime")));
+		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_DVS, DAVIS_CONFIG_DVS_FILTER_REFRACTORY_PERIOD,
+			sshsNodeGetBool(node, "FilterRefractoryPeriod"));
+		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_DVS,
+			DAVIS_CONFIG_DVS_FILTER_REFRACTORY_PERIOD_TIME,
+			U32T(sshsNodeGetInt(node, "FilterRefractoryPeriodTime")));
 	}
 
 	if (devInfo->dvsHasTestEventGenerator) {
@@ -1902,9 +1911,17 @@ static void dvsConfigListener(sshsNode node, void *userData, enum sshs_node_attr
 			caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_DVS, DAVIS_CONFIG_DVS_FILTER_BACKGROUND_ACTIVITY,
 				changeValue.boolean);
 		}
-		else if (changeType == SSHS_INT && caerStrEquals(changeKey, "FilterBackgroundActivityDeltaTime")) {
+		else if (changeType == SSHS_INT && caerStrEquals(changeKey, "FilterBackgroundActivityTime")) {
 			caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_DVS,
 				DAVIS_CONFIG_DVS_FILTER_BACKGROUND_ACTIVITY_TIME, U32T(changeValue.iint));
+		}
+		else if (changeType == SSHS_BOOL && caerStrEquals(changeKey, "FilterRefractoryPeriod")) {
+			caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_DVS, DAVIS_CONFIG_DVS_FILTER_REFRACTORY_PERIOD,
+				changeValue.boolean);
+		}
+		else if (changeType == SSHS_INT && caerStrEquals(changeKey, "FilterRefractoryPeriodTime")) {
+			caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_DVS,
+				DAVIS_CONFIG_DVS_FILTER_REFRACTORY_PERIOD_TIME, U32T(changeValue.iint));
 		}
 		else if (changeType == SSHS_BOOL && caerStrEquals(changeKey, "TestEventGeneratorEnable")) {
 			caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_DVS, DAVIS_CONFIG_DVS_TEST_EVENT_GENERATOR_ENABLE,
