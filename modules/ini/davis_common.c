@@ -720,9 +720,9 @@ static void createDefaultConfiguration(caerModuleData moduleData, struct caer_da
 		"Column/X address of ROI 0 start point.");
 	sshsNodeCreateShort(apsNode, "StartRow0", 0, 0, devInfo->apsSizeY, SSHS_FLAGS_NORMAL,
 		"Row/Y address of ROI 0 start point.");
-	sshsNodeCreateShort(apsNode, "EndColumn0", I16T(devInfo->apsSizeX - 1), 0, devInfo->apsSizeX, SSHS_FLAGS_NORMAL,
+	sshsNodeCreateShort(apsNode, "EndColumn0", I16T(devInfo->apsSizeX - 1), 0, I16T(devInfo->apsSizeX - 1), SSHS_FLAGS_NORMAL,
 		"Column/X address of ROI 0 end point.");
-	sshsNodeCreateShort(apsNode, "EndRow0", I16T(devInfo->apsSizeY - 1), 0, devInfo->apsSizeY, SSHS_FLAGS_NORMAL,
+	sshsNodeCreateShort(apsNode, "EndRow0", I16T(devInfo->apsSizeY - 1), 0, I16T(devInfo->apsSizeY - 1), SSHS_FLAGS_NORMAL,
 		"Row/Y address of ROI 0 end point.");
 	sshsNodeCreateInt(apsNode, "Exposure", 4000, 0, (0x01 << 20) - 1, SSHS_FLAGS_NORMAL, "Set exposure time (in µs).");
 	sshsNodeCreateInt(apsNode, "FrameDelay", 1000, 0, (0x01 << 20) - 1, SSHS_FLAGS_NORMAL,
@@ -748,25 +748,25 @@ static void createDefaultConfiguration(caerModuleData moduleData, struct caer_da
 			"Column/X address of ROI 1 start point.");
 		sshsNodeCreateShort(apsNode, "StartRow1", devInfo->apsSizeY, 0, devInfo->apsSizeY, SSHS_FLAGS_NORMAL,
 			"Row/Y address of ROI 1 start point.");
-		sshsNodeCreateShort(apsNode, "EndColumn1", devInfo->apsSizeX, 0, devInfo->apsSizeX, SSHS_FLAGS_NORMAL,
+		sshsNodeCreateShort(apsNode, "EndColumn1", I16T(devInfo->apsSizeX - 1), 0, I16T(devInfo->apsSizeX - 1), SSHS_FLAGS_NORMAL,
 			"Column/X address of ROI 1 end point.");
-		sshsNodeCreateShort(apsNode, "EndRow1", devInfo->apsSizeY, 0, devInfo->apsSizeY, SSHS_FLAGS_NORMAL,
+		sshsNodeCreateShort(apsNode, "EndRow1", I16T(devInfo->apsSizeY - 1), 0, I16T(devInfo->apsSizeY - 1), SSHS_FLAGS_NORMAL,
 			"Row/Y address of ROI 1 end point.");
 		sshsNodeCreateShort(apsNode, "StartColumn2", devInfo->apsSizeX, 0, devInfo->apsSizeX, SSHS_FLAGS_NORMAL,
 			"Column/X address of ROI 2 start point.");
 		sshsNodeCreateShort(apsNode, "StartRow2", devInfo->apsSizeY, 0, devInfo->apsSizeY, SSHS_FLAGS_NORMAL,
 			"Row/Y address of ROI 2 start point.");
-		sshsNodeCreateShort(apsNode, "EndColumn2", devInfo->apsSizeX, 0, devInfo->apsSizeX, SSHS_FLAGS_NORMAL,
+		sshsNodeCreateShort(apsNode, "EndColumn2", I16T(devInfo->apsSizeX - 1), 0, I16T(devInfo->apsSizeX - 1), SSHS_FLAGS_NORMAL,
 			"Column/X address of ROI 2 end point.");
-		sshsNodeCreateShort(apsNode, "EndRow2", devInfo->apsSizeY, 0, devInfo->apsSizeY, SSHS_FLAGS_NORMAL,
+		sshsNodeCreateShort(apsNode, "EndRow2", I16T(devInfo->apsSizeY - 1), 0, I16T(devInfo->apsSizeY - 1), SSHS_FLAGS_NORMAL,
 			"Row/Y address of ROI 2 end point.");
 		sshsNodeCreateShort(apsNode, "StartColumn3", devInfo->apsSizeX, 0, devInfo->apsSizeX, SSHS_FLAGS_NORMAL,
 			"Column/X address of ROI 3 start point.");
 		sshsNodeCreateShort(apsNode, "StartRow3", devInfo->apsSizeY, 0, devInfo->apsSizeY, SSHS_FLAGS_NORMAL,
 			"Row/Y address of ROI 3 start point.");
-		sshsNodeCreateShort(apsNode, "EndColumn3", devInfo->apsSizeX, 0, devInfo->apsSizeX, SSHS_FLAGS_NORMAL,
+		sshsNodeCreateShort(apsNode, "EndColumn3", I16T(devInfo->apsSizeX - 1), 0, I16T(devInfo->apsSizeX - 1), SSHS_FLAGS_NORMAL,
 			"Column/X address of ROI 3 end point.");
-		sshsNodeCreateShort(apsNode, "EndRow3", devInfo->apsSizeY, 0, devInfo->apsSizeY, SSHS_FLAGS_NORMAL,
+		sshsNodeCreateShort(apsNode, "EndRow3", I16T(devInfo->apsSizeY - 1), 0, I16T(devInfo->apsSizeY - 1), SSHS_FLAGS_NORMAL,
 			"Row/Y address of ROI 3 end point.");
 	}
 
