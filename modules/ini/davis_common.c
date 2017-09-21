@@ -716,9 +716,9 @@ static void createDefaultConfiguration(caerModuleData moduleData, struct caer_da
 		"Do the reset read in addition to the signal read.");
 	sshsNodeCreateBool(apsNode, "WaitOnTransferStall", true, SSHS_FLAGS_NORMAL,
 		"On event FIFO full, pause and wait for free space. This ensures no APS pixels are dropped.");
-	sshsNodeCreateShort(apsNode, "StartColumn0", 0, 0, devInfo->apsSizeX, SSHS_FLAGS_NORMAL,
+	sshsNodeCreateShort(apsNode, "StartColumn0", 0, 0, I16T(devInfo->apsSizeX - 1), SSHS_FLAGS_NORMAL,
 		"Column/X address of ROI 0 start point.");
-	sshsNodeCreateShort(apsNode, "StartRow0", 0, 0, devInfo->apsSizeY, SSHS_FLAGS_NORMAL,
+	sshsNodeCreateShort(apsNode, "StartRow0", 0, 0, I16T(devInfo->apsSizeY - 1), SSHS_FLAGS_NORMAL,
 		"Row/Y address of ROI 0 start point.");
 	sshsNodeCreateShort(apsNode, "EndColumn0", I16T(devInfo->apsSizeX - 1), 0, I16T(devInfo->apsSizeX - 1), SSHS_FLAGS_NORMAL,
 		"Column/X address of ROI 0 end point.");
@@ -744,30 +744,35 @@ static void createDefaultConfiguration(caerModuleData moduleData, struct caer_da
 	}
 
 	if (devInfo->apsHasQuadROI) {
-		sshsNodeCreateShort(apsNode, "StartColumn1", devInfo->apsSizeX, 0, devInfo->apsSizeX, SSHS_FLAGS_NORMAL,
+		sshsNodeCreateShort(apsNode, "StartColumn1", 0, 0, I16T(devInfo->apsSizeX - 1), SSHS_FLAGS_NORMAL,
 			"Column/X address of ROI 1 start point.");
-		sshsNodeCreateShort(apsNode, "StartRow1", devInfo->apsSizeY, 0, devInfo->apsSizeY, SSHS_FLAGS_NORMAL,
+		sshsNodeCreateShort(apsNode, "StartRow1", 0, 0, I16T(devInfo->apsSizeY - 1), SSHS_FLAGS_NORMAL,
 			"Row/Y address of ROI 1 start point.");
 		sshsNodeCreateShort(apsNode, "EndColumn1", I16T(devInfo->apsSizeX - 1), 0, I16T(devInfo->apsSizeX - 1), SSHS_FLAGS_NORMAL,
 			"Column/X address of ROI 1 end point.");
 		sshsNodeCreateShort(apsNode, "EndRow1", I16T(devInfo->apsSizeY - 1), 0, I16T(devInfo->apsSizeY - 1), SSHS_FLAGS_NORMAL,
 			"Row/Y address of ROI 1 end point.");
-		sshsNodeCreateShort(apsNode, "StartColumn2", devInfo->apsSizeX, 0, devInfo->apsSizeX, SSHS_FLAGS_NORMAL,
+		sshsNodeCreateShort(apsNode, "StartColumn2", 0, 0, I16T(devInfo->apsSizeX - 1), SSHS_FLAGS_NORMAL,
 			"Column/X address of ROI 2 start point.");
-		sshsNodeCreateShort(apsNode, "StartRow2", devInfo->apsSizeY, 0, devInfo->apsSizeY, SSHS_FLAGS_NORMAL,
+		sshsNodeCreateShort(apsNode, "StartRow2", 0, 0, I16T(devInfo->apsSizeY - 1), SSHS_FLAGS_NORMAL,
 			"Row/Y address of ROI 2 start point.");
 		sshsNodeCreateShort(apsNode, "EndColumn2", I16T(devInfo->apsSizeX - 1), 0, I16T(devInfo->apsSizeX - 1), SSHS_FLAGS_NORMAL,
 			"Column/X address of ROI 2 end point.");
 		sshsNodeCreateShort(apsNode, "EndRow2", I16T(devInfo->apsSizeY - 1), 0, I16T(devInfo->apsSizeY - 1), SSHS_FLAGS_NORMAL,
 			"Row/Y address of ROI 2 end point.");
-		sshsNodeCreateShort(apsNode, "StartColumn3", devInfo->apsSizeX, 0, devInfo->apsSizeX, SSHS_FLAGS_NORMAL,
+		sshsNodeCreateShort(apsNode, "StartColumn3", 0, 0, I16T(devInfo->apsSizeX - 1), SSHS_FLAGS_NORMAL,
 			"Column/X address of ROI 3 start point.");
-		sshsNodeCreateShort(apsNode, "StartRow3", devInfo->apsSizeY, 0, devInfo->apsSizeY, SSHS_FLAGS_NORMAL,
+		sshsNodeCreateShort(apsNode, "StartRow3", 0, 0, I16T(devInfo->apsSizeY - 1), SSHS_FLAGS_NORMAL,
 			"Row/Y address of ROI 3 start point.");
 		sshsNodeCreateShort(apsNode, "EndColumn3", I16T(devInfo->apsSizeX - 1), 0, I16T(devInfo->apsSizeX - 1), SSHS_FLAGS_NORMAL,
 			"Column/X address of ROI 3 end point.");
 		sshsNodeCreateShort(apsNode, "EndRow3", I16T(devInfo->apsSizeY - 1), 0, I16T(devInfo->apsSizeY - 1), SSHS_FLAGS_NORMAL,
 			"Row/Y address of ROI 3 end point.");
+
+		sshsNodeCreateBool(apsNode, "ROI0Enabled", true, SSHS_FLAGS_NORMAL, "Enable ROI region 0.");
+		sshsNodeCreateBool(apsNode, "ROI1Enabled", false, SSHS_FLAGS_NORMAL, "Enable ROI region 1.");
+		sshsNodeCreateBool(apsNode, "ROI2Enabled", false, SSHS_FLAGS_NORMAL, "Enable ROI region 2.");
+		sshsNodeCreateBool(apsNode, "ROI3Enabled", false, SSHS_FLAGS_NORMAL, "Enable ROI region 3.");
 	}
 
 	if (devInfo->apsHasInternalADC) {
@@ -2034,6 +2039,15 @@ static void apsConfigSend(sshsNode node, caerModuleData moduleData, struct caer_
 			U32T(sshsNodeGetShort(node, "EndColumn3")));
 		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_END_ROW_3,
 			U32T(sshsNodeGetShort(node, "EndRow3")));
+
+		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_ROI0_ENABLED,
+			sshsNodeGetBool(node, "ROI0Enabled"));
+		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_ROI1_ENABLED,
+			sshsNodeGetBool(node, "ROI1Enabled"));
+		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_ROI2_ENABLED,
+			sshsNodeGetBool(node, "ROI2Enabled"));
+		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_ROI3_ENABLED,
+			sshsNodeGetBool(node, "ROI3Enabled"));
 	}
 
 	if (devInfo->apsHasInternalADC) {
@@ -2176,6 +2190,22 @@ static void apsConfigListener(sshsNode node, void *userData, enum sshs_node_attr
 		else if (changeType == SSHS_SHORT && caerStrEquals(changeKey, "EndRow3")) {
 			caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_END_ROW_3,
 				U32T(changeValue.ishort));
+		}
+		else if (changeType == SSHS_BOOL && caerStrEquals(changeKey, "ROI0Enabled")) {
+			caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_ROI0_ENABLED,
+				changeValue.boolean);
+		}
+		else if (changeType == SSHS_BOOL && caerStrEquals(changeKey, "ROI1Enabled")) {
+			caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_ROI1_ENABLED,
+				changeValue.boolean);
+		}
+		else if (changeType == SSHS_BOOL && caerStrEquals(changeKey, "ROI2Enabled")) {
+			caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_ROI2_ENABLED,
+				changeValue.boolean);
+		}
+		else if (changeType == SSHS_BOOL && caerStrEquals(changeKey, "ROI3Enabled")) {
+			caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_ROI3_ENABLED,
+				changeValue.boolean);
 		}
 		else if (changeType == SSHS_BOOL && caerStrEquals(changeKey, "UseInternalADC")) {
 			caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_USE_INTERNAL_ADC,
