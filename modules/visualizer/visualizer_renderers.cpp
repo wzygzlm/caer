@@ -9,6 +9,7 @@
 #include <libcaercpp/events/point2d.hpp>
 #include <libcaercpp/events/point4d.hpp>
 #include <libcaercpp/events/spike.hpp>
+#include <libcaercpp/devices/davis.hpp> // Only for constants.
 #include <libcaercpp/devices/dynapse.hpp> // Only for constants.
 
 static bool caerVisualizerRendererPolarityEvents(caerVisualizerPublicState state, caerEventPacketContainer container);
@@ -87,9 +88,9 @@ static bool caerVisualizerRendererPolarityEvents(caerVisualizerPublicState state
 }
 
 struct renderer_frame_events_state {
-	sf::Sprite sprite;
-	sf::Texture texture;
-	std::vector<uint8_t> pixels;
+	sf::Sprite sprite[DAVIS_APS_ROI_REGIONS_MAX];
+	sf::Texture texture[DAVIS_APS_ROI_REGIONS_MAX];
+	std::vector<uint8_t> pixels[DAVIS_APS_ROI_REGIONS_MAX];
 };
 
 typedef struct renderer_frame_events_state *rendererFrameEventsState;
@@ -98,15 +99,17 @@ static void *caerVisualizerRendererFrameEventsStateInit(caerVisualizerPublicStat
 	// Allocate memory via C++ for renderer state, since we use C++ objects directly.
 	rendererFrameEventsState renderState = new renderer_frame_events_state();
 
-	// Create texture representing frame, set smoothing.
-	renderState->texture.create(state->renderSizeX, state->renderSizeY);
-	renderState->texture.setSmooth(false);
+	for (size_t i = 0; i < DAVIS_APS_ROI_REGIONS_MAX; i++) {
+		// Create texture representing frame, set smoothing.
+		renderState->texture[i].create(state->renderSizeX, state->renderSizeY);
+		renderState->texture[i].setSmooth(false);
 
-	// Assign texture to sprite.
-	renderState->sprite.setTexture(renderState->texture);
+		// Assign texture to sprite.
+		renderState->sprite[i].setTexture(renderState->texture[i]);
 
-	// 32-bit RGBA pixels (8-bit per channel), standard CG layout.
-	renderState->pixels.reserve(state->renderSizeX * state->renderSizeY * 4);
+		// 32-bit RGBA pixels (8-bit per channel), standard CG layout.
+		renderState->pixels[i].reserve(state->renderSizeX * state->renderSizeY * 4);
+	}
 
 	return (renderState);
 }
@@ -118,7 +121,7 @@ static void caerVisualizerRendererFrameEventsStateExit(caerVisualizerPublicState
 }
 
 static bool caerVisualizerRendererFrameEvents(caerVisualizerPublicState state, caerEventPacketContainer container) {
-	UNUSED_ARGUMENT(state);
+	rendererFrameEventsState renderState = (rendererFrameEventsState) state->renderState;
 
 	caerEventPacketHeader framePacketHeader = caerEventPacketContainerFindEventPacketByType(container, FRAME_EVENT);
 
@@ -129,64 +132,66 @@ static bool caerVisualizerRendererFrameEvents(caerVisualizerPublicState state, c
 
 	const libcaer::events::FrameEventPacket framePacket(framePacketHeader, false);
 
-	// Render only the last, valid frame.
-	auto rIter = framePacket.crbegin();
-	while (rIter != framePacket.crend()) {
-		if (rIter->isValid()) {
-			break;
-		}
+	// Get last valid frame for each possible ROI region.
+	const libcaer::events::FrameEvent *frames[DAVIS_APS_ROI_REGIONS_MAX] = { nullptr };
 
-		rIter++;
-	}
-
-	// Only operate on the last, valid frame. At least one must exist (see check above).
-	const libcaer::events::FrameEvent &frameEvent = *rIter;
-
-	rendererFrameEventsState renderState = (rendererFrameEventsState) state->renderState;
-
-	// 32-bit RGBA pixels (8-bit per channel), standard CG layout.
-	switch (frameEvent.getChannelNumber()) {
-		case libcaer::events::FrameEvent::colorChannels::GRAYSCALE: {
-			for (size_t srcIdx = 0, dstIdx = 0; srcIdx < frameEvent.getPixelsMaxIndex();) {
-				uint8_t greyValue = frameEvent.getPixelArrayUnsafe()[srcIdx++] >> 8;
-				renderState->pixels[dstIdx++] = greyValue; // R
-				renderState->pixels[dstIdx++] = greyValue; // G
-				renderState->pixels[dstIdx++] = greyValue; // B
-				renderState->pixels[dstIdx++] = UINT8_MAX; // A
-			}
-			break;
-		}
-
-		case libcaer::events::FrameEvent::colorChannels::RGB: {
-			for (size_t srcIdx = 0, dstIdx = 0; srcIdx < frameEvent.getPixelsMaxIndex();) {
-				renderState->pixels[dstIdx++] = frameEvent.getPixelArrayUnsafe()[srcIdx++] >> 8; // R
-				renderState->pixels[dstIdx++] = frameEvent.getPixelArrayUnsafe()[srcIdx++] >> 8; // G
-				renderState->pixels[dstIdx++] = frameEvent.getPixelArrayUnsafe()[srcIdx++] >> 8; // B
-				renderState->pixels[dstIdx++] = UINT8_MAX; // A
-			}
-			break;
-		}
-
-		case libcaer::events::FrameEvent::colorChannels::RGBA: {
-			for (size_t srcIdx = 0, dstIdx = 0; srcIdx < frameEvent.getPixelsMaxIndex();) {
-				renderState->pixels[dstIdx++] = frameEvent.getPixelArrayUnsafe()[srcIdx++] >> 8; // R
-				renderState->pixels[dstIdx++] = frameEvent.getPixelArrayUnsafe()[srcIdx++] >> 8; // G
-				renderState->pixels[dstIdx++] = frameEvent.getPixelArrayUnsafe()[srcIdx++] >> 8; // B
-				renderState->pixels[dstIdx++] = frameEvent.getPixelArrayUnsafe()[srcIdx++] >> 8; // A
-			}
-			break;
+	for (const auto &frame : framePacket) {
+		if (frame.isValid()) {
+			frames[frame.getROIIdentifier()] = &frame;
 		}
 	}
 
-	renderState->texture.update(renderState->pixels.data(), U32T(frameEvent.getLengthX()),
-		U32T(frameEvent.getLengthY()), U32T(frameEvent.getPositionX()), U32T(frameEvent.getPositionY()));
+	// Only operate on the last, valid frame for each ROI region. At least one must exist (see check above).
+	for (size_t i = 0; i < DAVIS_APS_ROI_REGIONS_MAX; i++) {
+		// Skip non existent ROI regions.
+		if (frames[i] == nullptr) {
+			continue;
+		}
 
-	renderState->sprite.setTextureRect(
-		sf::IntRect(frameEvent.getPositionX(), frameEvent.getPositionY(), frameEvent.getLengthX(),
-			frameEvent.getLengthY()));
-	renderState->sprite.setPosition(frameEvent.getPositionX(), frameEvent.getPositionY());
+		// 32-bit RGBA pixels (8-bit per channel), standard CG layout.
+		switch (frames[i]->getChannelNumber()) {
+			case libcaer::events::FrameEvent::colorChannels::GRAYSCALE: {
+				for (size_t srcIdx = 0, dstIdx = 0; srcIdx < frames[i]->getPixelsMaxIndex();) {
+					uint8_t greyValue = U8T(frames[i]->getPixelArrayUnsafe()[srcIdx++] >> 8);
+					renderState->pixels[i][dstIdx++] = greyValue; // R
+					renderState->pixels[i][dstIdx++] = greyValue; // G
+					renderState->pixels[i][dstIdx++] = greyValue; // B
+					renderState->pixels[i][dstIdx++] = UINT8_MAX; // A
+				}
+				break;
+			}
 
-	state->renderWindow->draw(renderState->sprite);
+			case libcaer::events::FrameEvent::colorChannels::RGB: {
+				for (size_t srcIdx = 0, dstIdx = 0; srcIdx < frames[i]->getPixelsMaxIndex();) {
+					renderState->pixels[i][dstIdx++] = U8T(frames[i]->getPixelArrayUnsafe()[srcIdx++] >> 8); // R
+					renderState->pixels[i][dstIdx++] = U8T(frames[i]->getPixelArrayUnsafe()[srcIdx++] >> 8); // G
+					renderState->pixels[i][dstIdx++] = U8T(frames[i]->getPixelArrayUnsafe()[srcIdx++] >> 8); // B
+					renderState->pixels[i][dstIdx++] = UINT8_MAX; // A
+				}
+				break;
+			}
+
+			case libcaer::events::FrameEvent::colorChannels::RGBA: {
+				for (size_t srcIdx = 0, dstIdx = 0; srcIdx < frames[i]->getPixelsMaxIndex();) {
+					renderState->pixels[i][dstIdx++] = U8T(frames[i]->getPixelArrayUnsafe()[srcIdx++] >> 8); // R
+					renderState->pixels[i][dstIdx++] = U8T(frames[i]->getPixelArrayUnsafe()[srcIdx++] >> 8); // G
+					renderState->pixels[i][dstIdx++] = U8T(frames[i]->getPixelArrayUnsafe()[srcIdx++] >> 8); // B
+					renderState->pixels[i][dstIdx++] = U8T(frames[i]->getPixelArrayUnsafe()[srcIdx++] >> 8); // A
+				}
+				break;
+			}
+		}
+
+		renderState->texture[i].update(renderState->pixels[i].data(), U32T(frames[i]->getLengthX()),
+			U32T(frames[i]->getLengthY()), U32T(frames[i]->getPositionX()), U32T(frames[i]->getPositionY()));
+
+		renderState->sprite[i].setTextureRect(
+			sf::IntRect(frames[i]->getPositionX(), frames[i]->getPositionY(), frames[i]->getLengthX(),
+				frames[i]->getLengthY()));
+		renderState->sprite[i].setPosition((float) frames[i]->getPositionX(), (float) frames[i]->getPositionY());
+
+		state->renderWindow->draw(renderState->sprite[i]);
+	}
 
 	return (true);
 }
