@@ -10,47 +10,69 @@ using std::string;
 void MyCaffe::file_set(caerFrameEventPacketConst frameIn, bool thr, bool printOut, bool showactivations,
 	bool norminput) {
 
-	// only classify first
+	// only classify first frame, drop other for latency reasons
 	caerFrameEventConst f = caerFrameEventPacketGetEventConst(frameIn, 0);
 
 	// Initialize OpenCV Mat based on caerFrameEvent data directly (no image copy).
 	cv::Size frameSize(caerFrameEventGetLengthX(f), caerFrameEventGetLengthY(f));
 	cv::Mat orig(frameSize, CV_16UC(caerFrameEventGetChannelNumber(f)),
 		(uint16_t *) (caerFrameEventGetPixelArrayUnsafeConst(f)));
-
 	cv::Mat img;
-	orig.convertTo(img, CV_8UC1, 1);
+	orig.convertTo(img, CV_8UC1, 1);	// convert image to gray level
 
 	// Convert img to float for Caffe
 	cv::Mat img2;
 	img.convertTo(img2, CV_32FC1);
 	if (norminput) {
-		img2 = img2 * 0.00390625; // normalize 0,255 to 1
+		img2 = img2 * 0.00390625; // force normalization 0,255 to 0,1 range
 	}
-
+	// check input image
 	CHECK(!img2.empty()) << "Unable to decode image " << file_i;
 	std::vector<Prediction> predictions = MyCaffe::Classify(img2, 5, showactivations);
 
-	/* Print the top N predictions. */
-	Prediction p;
+	// save predictions for low-passing decision
+	lowpassed.push_back(predictions[0]);
+	// decide classification result based on low-passed decision
+	std::vector<int> lastDec;
+	for (Prediction i : lowpassed){
+		 int counter = 0;
+		 for(string l : labels_){
+			 if(i.first == l){
+				 //caerLog(CAER_LOG_NOTICE, __func__, "item %d " , counter );
+				 lastDec.push_back(counter);
+			 }else{
+				 counter++;
+			 }
+		 }
+	}
+	//decision index is majority vote among lasts n results, o(n^2)
+    int max=0, mostvalue=lastDec[0];
+    for(int i=0;i<lastDec.size();i++)
+    {
+        int co = (int)std::count(lastDec.begin(), lastDec.end(), lastDec[i]);
+        if(co > max)
+        {       max = co;
+                mostvalue = lastDec[i];
+        }
+    }
+	//caerLog(CAER_LOG_NOTICE, __func__, "mostvalue %d " , mostvalue );
 
-	int c = 0;
-	string filer = "";
-	const std::string filename = NET_VAL
-	;
-	std::ifstream infile(filename);
-
-	//caerLog(CAER_LOG_NOTICE, __func__, "Classification Result is %s" , predictions[0].first.c_str());
+	if(printOut){
+		caerLog(CAER_LOG_NOTICE, __func__, "Classification Result is %s" , labels_[mostvalue].c_str());
+	}
 
 	// Write text on a window
 	cv::Mat ImageText(240, 240, CV_8UC3, cv::Scalar(0, 0, 0));
-	cv::putText(ImageText, predictions[0].first.c_str(), cvPoint(30, 30), cv::FONT_HERSHEY_COMPLEX_SMALL, 0.8,
+	cv::putText(ImageText, labels_[mostvalue], cvPoint(30, 30), cv::FONT_HERSHEY_COMPLEX_SMALL, 0.8,
 		cvScalar(200, 200, 250), 1, CV_AA);
 	cv::imshow("Results", ImageText);
+	cv::waitKey(3);
 
 }
 
-void MyCaffe::init_network() {
+void MyCaffe::init_network(int lowPass) {
+
+	lowpassed.set_capacity(lowPass);  // init circular buffer for average decision
 
 	string model_file = NET_MODEL
 	;

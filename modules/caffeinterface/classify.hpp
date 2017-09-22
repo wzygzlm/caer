@@ -18,6 +18,7 @@
 #include <libcaer/events/frame.h>
 #include <fstream>
 #include <string>
+#include <boost/circular_buffer.hpp>
 
 using namespace caffe;
 // NOLINT(build/namespaces)
@@ -39,6 +40,7 @@ private:
 	int num_channels_;
 	cv::Mat mean_;
 	std::vector<string> labels_;
+	boost::circular_buffer<Prediction> lowpassed;
 public:
 
 	void Classifier(const string& model_file, const string& trained_file,
@@ -47,7 +49,7 @@ public:
 			 bool showactivations);
 	void file_set(caerFrameEventPacketConst frameIn, bool thr, bool printOut,
 		bool showactivations, bool norminput);
-	void init_network();
+	void init_network(int lowPassNum);
 };
 
 #endif
