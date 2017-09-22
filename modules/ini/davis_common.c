@@ -776,8 +776,6 @@ static void createDefaultConfiguration(caerModuleData moduleData, struct caer_da
 	}
 
 	if (devInfo->apsHasInternalADC) {
-		sshsNodeCreateBool(apsNode, "UseInternalADC", true, SSHS_FLAGS_NORMAL,
-			"Use the on-chip ADC instead of the external ADC chip.");
 		sshsNodeCreateBool(apsNode, "SampleEnable", true, SSHS_FLAGS_NORMAL, "Enable Sample&Hold circuitry.");
 		sshsNodeCreateShort(apsNode, "SampleSettle", devInfo->adcClock, 0, I16T(devInfo->adcClock * 2),
 			SSHS_FLAGS_NORMAL, "Sample hold time (in cycles).");
@@ -2051,8 +2049,6 @@ static void apsConfigSend(sshsNode node, caerModuleData moduleData, struct caer_
 	}
 
 	if (devInfo->apsHasInternalADC) {
-		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_USE_INTERNAL_ADC,
-			sshsNodeGetBool(node, "UseInternalADC"));
 		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_SAMPLE_ENABLE,
 			sshsNodeGetBool(node, "SampleEnable"));
 		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_SAMPLE_SETTLE,
@@ -2205,10 +2201,6 @@ static void apsConfigListener(sshsNode node, void *userData, enum sshs_node_attr
 		}
 		else if (changeType == SSHS_BOOL && caerStrEquals(changeKey, "ROI3Enabled")) {
 			caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_ROI3_ENABLED,
-				changeValue.boolean);
-		}
-		else if (changeType == SSHS_BOOL && caerStrEquals(changeKey, "UseInternalADC")) {
-			caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_USE_INTERNAL_ADC,
 				changeValue.boolean);
 		}
 		else if (changeType == SSHS_BOOL && caerStrEquals(changeKey, "SampleEnable")) {
