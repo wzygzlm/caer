@@ -21,6 +21,7 @@ typedef struct caffewrapper_state *caffewrapperState;
 static bool caerCaffeWrapperInit(caerModuleData moduleData);
 static void caerCaffeWrapperRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out);
 static void caerCaffeWrapperExit(caerModuleData moduleData);
+static void caerCaffeWrapperUpdateConfigs(caerModuleData moduleData);
 
 static struct caer_module_functions caerCaffeWrapperFunctions = { .moduleInit = &caerCaffeWrapperInit, .moduleRun =
 	&caerCaffeWrapperRun, .moduleConfig =
@@ -77,10 +78,7 @@ static void caerCaffeWrapperExit(caerModuleData moduleData) {
 	deleteMyCaffe(state->cpp_class); //free memory block
 }
 
-static void caerCaffeWrapperRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out) {
-
-	caerFrameEventPacketConst frameIn =
-			(caerFrameEventPacketConst) caerEventPacketContainerFindEventPacketByTypeConst(in, FRAME_EVENT);
+static void caerCaffeWrapperUpdateConfigs(caerModuleData moduleData){
 
 	caffewrapperState state = moduleData->moduleState;
 
@@ -89,6 +87,17 @@ static void caerCaffeWrapperRun(caerModuleData moduleData, caerEventPacketContai
 	state->doPrintOutputs = sshsNodeGetBool(moduleData->moduleNode, "doPrintOutputs");
 	state->doShowActivations = sshsNodeGetBool(moduleData->moduleNode, "doShowActivations");
 	state->doNormInputImages = sshsNodeGetBool(moduleData->moduleNode, "doNormInputImages");
+
+}
+
+static void caerCaffeWrapperRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out) {
+
+	caerFrameEventPacketConst frameIn =
+			(caerFrameEventPacketConst) caerEventPacketContainerFindEventPacketByTypeConst(in, FRAME_EVENT);
+
+	caffewrapperState state = moduleData->moduleState;
+
+	caerCaffeWrapperUpdateConfigs(moduleData);
 
 	if(frameIn != NULL){
 		MyCaffe_file_set(state->cpp_class, frameIn, state->detThreshold, state->doPrintOutputs,
