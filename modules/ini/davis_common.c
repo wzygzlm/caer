@@ -724,6 +724,7 @@ static void createDefaultConfiguration(caerModuleData moduleData, struct caer_da
 		"Column/X address of ROI 0 end point.");
 	sshsNodeCreateShort(apsNode, "EndRow0", I16T(devInfo->apsSizeY - 1), 0, I16T(devInfo->apsSizeY - 1), SSHS_FLAGS_NORMAL,
 		"Row/Y address of ROI 0 end point.");
+	sshsNodeCreateBool(apsNode, "ROI0Enabled", true, SSHS_FLAGS_NORMAL, "Enable ROI region 0.");
 	sshsNodeCreateInt(apsNode, "Exposure", 4000, 0, (0x01 << 20) - 1, SSHS_FLAGS_NORMAL, "Set exposure time (in µs).");
 	sshsNodeCreateInt(apsNode, "FrameDelay", 1000, 0, (0x01 << 20) - 1, SSHS_FLAGS_NORMAL,
 		"Set delay time between frames (in µs).");
@@ -769,7 +770,6 @@ static void createDefaultConfiguration(caerModuleData moduleData, struct caer_da
 		sshsNodeCreateShort(apsNode, "EndRow3", I16T(devInfo->apsSizeY - 1), 0, I16T(devInfo->apsSizeY - 1), SSHS_FLAGS_NORMAL,
 			"Row/Y address of ROI 3 end point.");
 
-		sshsNodeCreateBool(apsNode, "ROI0Enabled", true, SSHS_FLAGS_NORMAL, "Enable ROI region 0.");
 		sshsNodeCreateBool(apsNode, "ROI1Enabled", false, SSHS_FLAGS_NORMAL, "Enable ROI region 1.");
 		sshsNodeCreateBool(apsNode, "ROI2Enabled", false, SSHS_FLAGS_NORMAL, "Enable ROI region 2.");
 		sshsNodeCreateBool(apsNode, "ROI3Enabled", false, SSHS_FLAGS_NORMAL, "Enable ROI region 3.");
@@ -1995,6 +1995,8 @@ static void apsConfigSend(sshsNode node, caerModuleData moduleData, struct caer_
 		U32T(sshsNodeGetShort(node, "EndColumn0")));
 	caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_END_ROW_0,
 		U32T(sshsNodeGetShort(node, "EndRow0")));
+	caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_ROI0_ENABLED,
+		sshsNodeGetBool(node, "ROI0Enabled"));
 	caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_EXPOSURE,
 		U32T(sshsNodeGetInt(node, "Exposure")));
 	caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_FRAME_DELAY,
@@ -2040,8 +2042,6 @@ static void apsConfigSend(sshsNode node, caerModuleData moduleData, struct caer_
 		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_END_ROW_3,
 			U32T(sshsNodeGetShort(node, "EndRow3")));
 
-		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_ROI0_ENABLED,
-			sshsNodeGetBool(node, "ROI0Enabled"));
 		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_ROI1_ENABLED,
 			sshsNodeGetBool(node, "ROI1Enabled"));
 		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_ROI2_ENABLED,
