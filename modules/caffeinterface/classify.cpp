@@ -29,7 +29,6 @@ void MyCaffe::file_set(caerFrameEventPacketConst frameIn, bool thr, bool printOu
 	}
 
 	CHECK(!img2.empty()) << "Unable to decode image " << file_i;
-	//showactivations = true; // TODO, the show activation will generate a frameOutput showing the activations.
 	std::vector<Prediction> predictions = MyCaffe::Classify(img2, 5, showactivations);
 
 	/* Print the top N predictions. */
