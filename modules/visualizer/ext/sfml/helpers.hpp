@@ -10,20 +10,27 @@ public:
 		shape.setOrigin(sf::Vector2f(shape.getLocalBounds().width / 2.0f, shape.getLocalBounds().height / 2.0f));
 	}
 
-	static void addPixelVertices(std::vector<sf::Vertex> &vec, const sf::Vector2f &position, const sf::Color &color =
-		sf::Color::White) {
-		sf::Vertex vtx(position);
+	static void addPixelVertices(std::vector<sf::Vertex> &vec, float x, float y, float zoomFactor,
+		const sf::Color &color = sf::Color::White, bool scaleInitialPosition = true) {
+		sf::Vector2f pos(x, y);
+
+		if (scaleInitialPosition) {
+			pos.x *= zoomFactor;
+			pos.y *= zoomFactor;
+		}
+
+		sf::Vertex vtx(pos);
 
 		vtx.color = color;
 
 		// Quads need four vertices. Color stays the same.
 		// Position changes by one in the clockwise sense.
 		vec.push_back(vtx);
-		vtx.position.x++;
+		vtx.position.x += zoomFactor;
 		vec.push_back(vtx);
-		vtx.position.y++;
+		vtx.position.y += zoomFactor;
 		vec.push_back(vtx);
-		vtx.position.x--;
+		vtx.position.x -= zoomFactor;
 		vec.push_back(vtx);
 	}
 

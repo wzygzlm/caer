@@ -10,7 +10,6 @@
 #include "visualizer_handlers.hpp"
 #include "visualizer_renderers.hpp"
 
-#include <atomic>
 #include <thread>
 #include <mutex>
 
@@ -48,6 +47,7 @@ struct caer_visualizer_state {
 	sshsNode visualizerConfigNode;
 	uint32_t renderSizeX;
 	uint32_t renderSizeY;
+	std::atomic<float> renderZoomFactor;
 	void *renderState; // Reserved for renderers to put their internal state into.
 	sf::RenderWindow *renderWindow;
 	sf::Font *font;
@@ -479,6 +479,9 @@ static bool initGraphics(caerModuleData moduleData) {
 		return (false);
 	}
 
+	// Default zoom factor for above window would be 1.
+	state->renderZoomFactor.store(1.0f);
+
 	// Set scale transform for display window, update sizes.
 	updateDisplaySize(state);
 
@@ -523,6 +526,10 @@ static void updateDisplaySize(caerVisualizerState state) {
 
 	sf::Vector2u newRenderWindowSize(state->renderSizeX, state->renderSizeY);
 
+	// Apply zoom to rendered content only, not statistics.
+	newRenderWindowSize.x *= zoomFactor;
+	newRenderWindowSize.y *= zoomFactor;
+
 	// When statistics are turned on, we need to add some space to the
 	// X axis for displaying the whole line and the Y axis for spacing.
 	if (state->showStatistics) {
@@ -533,18 +540,17 @@ static void updateDisplaySize(caerVisualizerState state) {
 		newRenderWindowSize.y += STATISTICS_HEIGHT;
 	}
 
-	// Set view size to render area.
-	state->renderWindow->setView(sf::View(sf::FloatRect(0, 0, newRenderWindowSize.x, newRenderWindowSize.y)));
-
-	// Apply zoom to all content.
-	newRenderWindowSize.x *= zoomFactor;
-	newRenderWindowSize.y *= zoomFactor;
-
 	// Set window size to zoomed area (only if value changed!).
 	sf::Vector2u oldSize = state->renderWindow->getSize();
 
 	if ((newRenderWindowSize.x != oldSize.x) || (newRenderWindowSize.y != oldSize.y)) {
 		state->renderWindow->setSize(newRenderWindowSize);
+
+		// Update zoom factor.
+		state->renderZoomFactor.store(zoomFactor);
+
+		// Set view size to render area.
+		state->renderWindow->setView(sf::View(sf::FloatRect(0, 0, newRenderWindowSize.x, newRenderWindowSize.y)));
 	}
 }
 
@@ -692,6 +698,19 @@ static void handleEvents(caerModuleData moduleData) {
 static void renderScreen(caerModuleData moduleData) {
 	caerVisualizerState state = (caerVisualizerState) moduleData->moduleState;
 
+	// Handle resize and move first, so that when drawing the window is up-to-date.
+	// Handle display resize (zoom and statistics).
+	if (state->windowResize.exchange(false, std::memory_order_relaxed)) {
+		// Update statistics flag and resize display appropriately.
+		updateDisplaySize(state);
+	}
+
+	// Handle display move.
+	if (state->windowMove.exchange(false, std::memory_order_relaxed)) {
+		// Move display location appropriately.
+		updateDisplayLocation(state);
+	}
+
 	// TODO: rethink this, implement max FPS control, FPS count,
 	// and multiple render passes per displayed frame.
 	caerEventPacketContainer container = (caerEventPacketContainer) caerRingBufferGet(state->dataTransfer);
@@ -720,22 +739,6 @@ static void renderScreen(caerModuleData moduleData) {
 		caerEventPacketContainerFree(container);
 	}
 
-	// Handle display resize (zoom and statistics).
-	if (state->windowResize.load(std::memory_order_relaxed)) {
-		state->windowResize.store(false);
-
-		// Update statistics flag and resize display appropriately.
-		updateDisplaySize(state);
-	}
-
-	// Handle display move.
-	if (state->windowMove.load(std::memory_order_relaxed)) {
-		state->windowMove.store(false);
-
-		// Move display location appropriately.
-		updateDisplayLocation(state);
-	}
-
 	// Render content to display.
 	if (drewSomething) {
 		// Render statistics string.
@@ -749,13 +752,15 @@ static void renderScreen(caerModuleData moduleData) {
 			sf::Text totalEventsText(state->packetStatistics.currentStatisticsStringTotal, *state->font,
 			GLOBAL_FONT_SIZE);
 			sfml::Helpers::setTextColor(totalEventsText, sf::Color::White);
-			totalEventsText.setPosition(GLOBAL_FONT_SPACING, state->renderSizeY);
+			totalEventsText.setPosition(GLOBAL_FONT_SPACING,
+				state->renderSizeY * state->renderZoomFactor.load(std::memory_order_relaxed));
 			state->renderWindow->draw(totalEventsText);
 
 			sf::Text validEventsText(state->packetStatistics.currentStatisticsStringValid, *state->font,
 			GLOBAL_FONT_SIZE);
 			sfml::Helpers::setTextColor(validEventsText, sf::Color::White);
-			validEventsText.setPosition(GLOBAL_FONT_SPACING, state->renderSizeY + GLOBAL_FONT_SIZE);
+			validEventsText.setPosition(GLOBAL_FONT_SPACING,
+				(state->renderSizeY * state->renderZoomFactor.load(std::memory_order_relaxed)) + GLOBAL_FONT_SIZE);
 			state->renderWindow->draw(validEventsText);
 		}
 

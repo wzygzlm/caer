@@ -32,7 +32,7 @@ static void caerVisualizerEventHandlerNeuronMonitor(caerVisualizerPublicState st
 		float positionY = (float) event.mouseButton.y;
 
 		// Adjust coordinates according to zoom factor.
-		float currentZoomFactor = sshsNodeGetFloat(state->visualizerConfigNode, "zoomFactor");
+		float currentZoomFactor = state->renderZoomFactor.load();
 		if (currentZoomFactor > 1.0f) {
 			positionX = floorf(positionX / currentZoomFactor);
 			positionY = floorf(positionY / currentZoomFactor);

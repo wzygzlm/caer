@@ -38,20 +38,17 @@ static bool caerVisualizerRendererSpikeEventsRaster(caerVisualizerPublicState st
 static const struct caer_visualizer_renderer_info rendererSpikeEventsRaster("Spikes_Raster_Plot",
 	&caerVisualizerRendererSpikeEventsRaster, false, &caerVisualizerRendererSpikeEventsRasterStateInit, nullptr);
 
-static bool caerVisualizerRendererETF4D(caerVisualizerPublicState state, caerEventPacketContainer container);
-static const struct caer_visualizer_renderer_info rendererETF4D("ETF4D", &caerVisualizerRendererETF4D);
-
 static bool caerVisualizerRendererPolarityAndFrameEvents(caerVisualizerPublicState state,
 	caerEventPacketContainer container);
 static const struct caer_visualizer_renderer_info rendererPolarityAndFrameEvents("Polarity_and_Frames",
 	&caerVisualizerRendererPolarityAndFrameEvents);
 
 const std::string caerVisualizerRendererListOptionsString =
-	"None,Polarity,Frame,IMU_6-axes,2D_Points,Spikes,Spikes_Raster_Plot,ETF4D,Polarity_and_Frames";
+	"None,Polarity,Frame,IMU_6-axes,2D_Points,Spikes,Spikes_Raster_Plot,Polarity_and_Frames";
 
 const struct caer_visualizer_renderer_info caerVisualizerRendererList[] = { { "None", nullptr }, rendererPolarityEvents,
 	rendererFrameEvents, rendererIMU6Events, rendererPoint2DEvents, rendererSpikeEvents, rendererSpikeEventsRaster,
-	rendererETF4D, rendererPolarityAndFrameEvents };
+	rendererPolarityAndFrameEvents };
 
 const size_t caerVisualizerRendererListLength = (sizeof(caerVisualizerRendererList)
 	/ sizeof(struct caer_visualizer_renderer_info));
@@ -78,7 +75,8 @@ static bool caerVisualizerRendererPolarityEvents(caerVisualizerPublicState state
 		}
 
 		// ON polarity (green), OFF polarity (red).
-		sfml::Helpers::addPixelVertices(vertices, sf::Vector2f(polarityEvent.getX(), polarityEvent.getY()),
+		sfml::Helpers::addPixelVertices(vertices, polarityEvent.getX(), polarityEvent.getY(),
+			state->renderZoomFactor.load(std::memory_order_relaxed),
 			(polarityEvent.getPolarity()) ? (sf::Color::Green) : (sf::Color::Red));
 	}
 
@@ -188,7 +186,13 @@ static bool caerVisualizerRendererFrameEvents(caerVisualizerPublicState state, c
 		renderState->sprite[i].setTextureRect(
 			sf::IntRect(frames[i]->getPositionX(), frames[i]->getPositionY(), frames[i]->getLengthX(),
 				frames[i]->getLengthY()));
-		renderState->sprite[i].setPosition((float) frames[i]->getPositionX(), (float) frames[i]->getPositionY());
+
+		float zoomFactor = state->renderZoomFactor.load(std::memory_order_relaxed);
+
+		renderState->sprite[i].setPosition((float) frames[i]->getPositionX() * zoomFactor,
+			(float) frames[i]->getPositionY() * zoomFactor);
+
+		renderState->sprite[i].setScale(zoomFactor, zoomFactor);
 
 		state->renderWindow->draw(renderState->sprite[i]);
 	}
@@ -211,8 +215,9 @@ static bool caerVisualizerRendererIMU6Events(caerVisualizerPublicState state, ca
 	float scaleFactorAccel = 30;
 	float scaleFactorGyro = 15;
 	float lineThickness = 4;
-	float maxSizeX = (float) state->renderSizeX;
-	float maxSizeY = (float) state->renderSizeY;
+	float zoomFactor = state->renderZoomFactor.load(std::memory_order_relaxed);
+	float maxSizeX = (float) state->renderSizeX * zoomFactor;
+	float maxSizeY = (float) state->renderSizeY * zoomFactor;
 
 	sf::Color accelColor = sf::Color::Green;
 	sf::Color gyroColor = sf::Color::Magenta;
@@ -324,8 +329,8 @@ static bool caerVisualizerRendererPoint2DEvents(caerVisualizerPublicState state,
 		}
 
 		// Render points in color blue.
-		sfml::Helpers::addPixelVertices(vertices, sf::Vector2f(point2DEvent.getX(), point2DEvent.getY()),
-			sf::Color::Blue);
+		sfml::Helpers::addPixelVertices(vertices, point2DEvent.getX(), point2DEvent.getY(),
+			state->renderZoomFactor.load(std::memory_order_relaxed), sf::Color::Blue);
 	}
 
 	state->renderWindow->draw(vertices.data(), vertices.size(), sf::Quads);
@@ -369,9 +374,9 @@ static bool caerVisualizerRendererSpikeEvents(caerVisualizerPublicState state, c
 
 		// Render spikes with different colors based on core ID.
 		uint8_t coreId = spikeEvent.getSourceCoreID();
-		sfml::Helpers::addPixelVertices(vertices,
-			sf::Vector2f(libcaer::devices::dynapse::spikeEventGetX(spikeEvent),
-				libcaer::devices::dynapse::spikeEventGetY(spikeEvent)), dynapseCoreIdToColor(coreId));
+		sfml::Helpers::addPixelVertices(vertices, libcaer::devices::dynapse::spikeEventGetX(spikeEvent),
+			libcaer::devices::dynapse::spikeEventGetY(spikeEvent), state->renderZoomFactor.load(std::memory_order_relaxed),
+			dynapseCoreIdToColor(coreId));
 	}
 
 	state->renderWindow->draw(vertices.data(), vertices.size(), sf::Quads);
@@ -414,12 +419,14 @@ static bool caerVisualizerRendererSpikeEventsRaster(caerVisualizerPublicState st
 	uint32_t timeSpan = maxTimestamp - minTimestamp + 1;
 
 	// Get render sizes, subtract 2px for middle borders.
-	uint32_t sizeX = state->renderSizeX - 2;
-	uint32_t sizeY = state->renderSizeY - 2;
+	float zoomFactor = state->renderZoomFactor.load(std::memory_order_relaxed);
+
+	float sizeX = (float) (state->renderSizeX - 2) * zoomFactor;
+	float sizeY = (float) (state->renderSizeY - 2) * zoomFactor;
 
 	// Two plots in each of X and Y directions.
-	float scaleX = ((float) (sizeX / 2)) / ((float) timeSpan);
-	float scaleY = ((float) (sizeY / 2)) / ((float) DYNAPSE_CONFIG_NUMNEURONS);
+	float scaleX = (sizeX / 2.0f) / (float) timeSpan;
+	float scaleY = (sizeY / 2.0f) / (float) DYNAPSE_CONFIG_NUMNEURONS;
 
 	std::vector<sf::Vertex> vertices((size_t) spikePacket.getEventNumber() * 4);
 
@@ -455,94 +462,21 @@ static bool caerVisualizerRendererSpikeEventsRaster(caerVisualizerPublicState st
 		// DYNAPSE_CONFIG_DYNAPSE_U0 no changes.
 
 		// Draw pixels of raster plot (some neurons might be merged due to aliasing).
-		sfml::Helpers::addPixelVertices(vertices, sf::Vector2f(plotX, plotY), dynapseCoreIdToColor(coreId));
+		sfml::Helpers::addPixelVertices(vertices, plotX, plotY, zoomFactor, dynapseCoreIdToColor(coreId), false);
 	}
 
 	state->renderWindow->draw(vertices.data(), vertices.size(), sf::Quads);
 
 	// Draw middle borders, only once!
-	sfml::Line horizontalBorderLine(sf::Vector2f(0, state->renderSizeY / 2),
-		sf::Vector2f(state->renderSizeX, state->renderSizeY / 2), 2, sf::Color::White);
+	sfml::Line horizontalBorderLine(sf::Vector2f(0, (state->renderSizeY * zoomFactor) / 2),
+		sf::Vector2f((state->renderSizeX * zoomFactor), (state->renderSizeY * zoomFactor) / 2),
+		2 * zoomFactor, sf::Color::White);
 	state->renderWindow->draw(horizontalBorderLine);
 
-	sfml::Line verticalBorderLine(sf::Vector2f(state->renderSizeX / 2, 0),
-		sf::Vector2f(state->renderSizeX / 2, state->renderSizeY), 2, sf::Color::White);
+	sfml::Line verticalBorderLine(sf::Vector2f((state->renderSizeX * zoomFactor) / 2, 0),
+		sf::Vector2f((state->renderSizeX * zoomFactor) / 2, (state->renderSizeY * zoomFactor)),
+		2 * zoomFactor, sf::Color::White);
 	state->renderWindow->draw(verticalBorderLine);
-
-	return (true);
-}
-
-// TODO: what is this? Nowhere is a 4D event generated, nor is it needed as only X/Y/Z are used here.
-static bool caerVisualizerRendererETF4D(caerVisualizerPublicState state, caerEventPacketContainer container) {
-	UNUSED_ARGUMENT(state);
-
-	caerEventPacketHeader point4DPacketHeader = caerEventPacketContainerFindEventPacketByType(container, POINT4D_EVENT);
-
-	if (point4DPacketHeader == NULL || caerEventPacketHeaderGetEventValid(point4DPacketHeader) == 0) {
-		return (false);
-	}
-
-	const libcaer::events::Point4DEventPacket point4DPacket(point4DPacketHeader, false);
-
-	// get bitmap's size
-	uint32_t sizeX = state->renderSizeX;
-	uint32_t sizeY = state->renderSizeY;
-
-	float maxMean = 0;
-
-	for (const auto &point4DEvent : point4DPacket) {
-		if (!point4DEvent.isValid()) {
-			continue; // Skip invalid events.
-		}
-
-		float mean = point4DEvent.getZ();
-		if (mean > maxMean) {
-			maxMean = mean;
-		}
-	}
-
-	float scaleX = ((float) sizeX) / 5.0f;
-	float scaleY = ((float) sizeY) / maxMean;
-
-	std::vector<sf::Vertex> vertices((size_t) point4DPacket.getEventValid() * 4);
-
-	int counter = 0;
-	for (const auto &point4DEvent : point4DPacket) {
-		if (!point4DEvent.isValid()) {
-			continue; // Skip invalid events.
-		}
-
-		float coreX = point4DEvent.getX();
-		float coreY = point4DEvent.getY();
-		float mean = point4DEvent.getZ();
-
-		uint32_t plotY = U32T(floorf(mean * scaleY));
-
-		uint32_t plotX = U32T(roundf((float ) counter * scaleX));
-
-		uint8_t coreId = 0; // Core ID 0 is default, doesn't get checked.
-		if (coreX == 0.0f && coreY == 1.0f) {
-			coreId = 1;
-		}
-		else if (coreX == 1.0f && coreY == 0.0f) {
-			coreId = 2;
-		}
-		else if (coreX == 1.0f && coreY == 1.0f) {
-			coreId = 3;
-		}
-
-		sfml::Helpers::addPixelVertices(vertices, sf::Vector2f(sizeX - plotX, plotY), dynapseCoreIdToColor(coreId));
-
-		// Reset counter, must reset at -1 of value used in scale.
-		if (counter == 4) {
-			counter = 0;
-		}
-		else {
-			counter++;
-		}
-	}
-
-	state->renderWindow->draw(vertices.data(), vertices.size(), sf::Quads);
 
 	return (true);
 }
