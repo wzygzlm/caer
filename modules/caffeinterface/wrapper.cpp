@@ -15,8 +15,8 @@ void MyCaffe_file_set(MyCaffe* v, caerFrameEventPacketConst frameIn, bool thr, b
 	v->file_set(frameIn, thr, printOut, showactivations, norminput);
 }
 
-void MyCaffe_init_network(MyCaffe *v) {
-	return v->init_network();
+void MyCaffe_init_network(MyCaffe *v, int lowPass) {
+	return v->init_network(lowPass);
 }
 
 void deleteMyCaffe(MyCaffe* v) {
