@@ -20,9 +20,10 @@ static void caerNetParserModuleConfig(caerModuleData moduleData);
 struct NETPARSER_state {
 	sshsNode eventSourceConfigNode;
 	// user settings
-	bool program;
+    ConnectionManager manager;
+	bool programTXT;
+    bool programXML;
 	bool bias;
-	bool programmed;
 	int16_t sourceID;
 
 };
@@ -50,8 +51,9 @@ caerModuleInfo caerModuleGetInfo(void) {
 static bool caerNetParserInit(caerModuleData moduleData) {
 	NetParserState state = (NETPARSER_state*) moduleData->moduleState;
 	// create parameters
-	sshsNodeCreateBool(moduleData->moduleNode, "Program Network", false, SSHS_FLAGS_NORMAL, "def");
-	sshsNodeCreateBool(moduleData->moduleNode, "Set Biases", false, SSHS_FLAGS_NORMAL, "def");
+	sshsNodeCreateBool(moduleData->moduleNode, "Program Network from .txt", false, SSHS_FLAGS_NORMAL, "def");
+    sshsNodeCreateBool(moduleData->moduleNode, "Program Network from .xml", false, SSHS_FLAGS_NORMAL, "def");
+    sshsNodeCreateBool(moduleData->moduleNode, "Set Biases", false, SSHS_FLAGS_NORMAL, "def");
 	//sshsNodePutBoolIfAbsent(moduleData->moduleNode, "setSram", false);
 	//sshsNodePutBoolIfAbsent(moduleData->moduleNode, "setCam", false);
 
@@ -69,7 +71,8 @@ static bool caerNetParserInit(caerModuleData moduleData) {
 
 	caerLog(CAER_LOG_NOTICE, __func__, "NET PARSER: INIT - START1\n");
 
-    sshsNodeCreateString(moduleData->moduleNode, "file", "/modules/netparser/helloNet.txt", 1, 4096, SSHS_FLAGS_NORMAL, "File to load network connnectivity from.");
+    sshsNodeCreateString(moduleData->moduleNode, "txt_file", "/modules/netparser/n1.txt", 1, 4096, SSHS_FLAGS_NORMAL, "File to load network connnectivity from.");
+    sshsNodeCreateString(moduleData->moduleNode, "xml_file", "/modules/netparser/output2.xml", 1, 4096, SSHS_FLAGS_NORMAL, "File to load network connnectivity from.");
 
     // Makes sure subsequent code is only run once dynapse is initiliazed
     sshsNode sourceInfo = caerMainloopGetSourceInfo(state->sourceID);
@@ -83,7 +86,8 @@ static bool caerNetParserInit(caerModuleData moduleData) {
 	//state->loadBiases = sshsNodeGetBool(moduleData->moduleNode, "loadBiases");
 	//state->setSram = sshsNodeGetBool(moduleData->moduleNode, "setSram");
 	//state->setCam = sshsNodeGetBool(moduleData->moduleNode, "setCam");
-    state->program = sshsNodeGetBool(moduleData->moduleNode, "Program Network");
+    state->programTXT = sshsNodeGetBool(moduleData->moduleNode, "Program Network from .txt");
+    state->programXML = sshsNodeGetBool(moduleData->moduleNode, "Program Network from .xml");
     state->bias = sshsNodeGetBool(moduleData->moduleNode, "Set Biases");
 	sshsNodeAddAttributeListener(moduleData->moduleNode, moduleData, &caerModuleConfigDefaultListener);
     
@@ -91,6 +95,10 @@ static bool caerNetParserInit(caerModuleData moduleData) {
 	caerLog(CAER_LOG_NOTICE, __func__, "NET PARSER: INIT - DONE");
 	return (true);
 
+    //Instantiate manager
+    void *dynapseState = caerMainloopGetSourceState(state->sourceID);
+    caerDeviceHandle handle = *((caerDeviceHandle *) dynapseState);
+    state->manager = ConnectionManager(handle);
 
 
 }
@@ -221,27 +229,41 @@ static void caerNetParserModuleConfig(caerModuleData moduleData) {
 		caerModuleConfigUpdateReset(moduleData);
 		NetParserState state = (NETPARSER_state*) moduleData->moduleState;
 
-		bool newProgram = sshsNodeGetBool(moduleData->moduleNode, "Program Network");
+		bool newProgramTXT = sshsNodeGetBool(moduleData->moduleNode, "Program Network from .txt");
+        bool newProgramXML = sshsNodeGetBool(moduleData->moduleNode, "Program Network from .xml");
+
 		bool newBiases = sshsNodeGetBool(moduleData->moduleNode, "Set Biases");
 
 		caerLog(CAER_LOG_NOTICE, __func__, "Running Config Module");   	
     			
-		if (newProgram && !state->program) {
-				state->program = true;
-			    void *dynapseState = caerMainloopGetSourceState(state->sourceID);
-
-    			caerDeviceHandle handle = *((caerDeviceHandle *) dynapseState);
-			    caerLog(CAER_LOG_NOTICE, __func__, "Starting Board Connectivity Programming");
-    			std::string filePath = sshsNodeGetString(moduleData->moduleNode, "file");
-				ConnectionManager manager(handle);
+		if (newProgramTXT && !state->programTXT) {
+				state->programTXT = true;
+			    
+			    caerLog(CAER_LOG_NOTICE, __func__, "Starting Board Connectivity Programming with txt file");
+    			std::string filePath = sshsNodeGetString(moduleData->moduleNode, "txt_file");
 				//manager.Connect(new Neuron(2,2,2),new Neuron(2,2,6),1,1);
-    			ReadNet(manager, filePath);
-    			caerLog(CAER_LOG_NOTICE, __func__, "Finished Board Connectivity Programming");
+    			ReadNet(state->manager, filePath);
+    			caerLog(CAER_LOG_NOTICE, __func__, "Finished Board Connectivity Programming with txt file");
 
 		}
-		else if (!newProgram && state->program) {
-				state->program = false;
+		else if (!newProgramTXT && state->programTXT) {
+				state->programTXT = false;
 		}
+
+        if (newProgramXML && !state->programTXT) {
+                state->programTXT = true;
+                
+                caerLog(CAER_LOG_NOTICE, __func__, "Starting Board Connectivity Programming with xml file");
+                std::string filePath = sshsNodeGetString(moduleData->moduleNode, "xml_file");
+
+                //manager.Connect(new Neuron(2,2,2),new Neuron(2,2,6),1,1);
+                ReadXMLNet(state->manager, filePath);
+                caerLog(CAER_LOG_NOTICE, __func__, "Finished Board Connectivity Programming with xml file");
+
+        }
+        else if (!newProgramXML && state->programTXT) {
+                state->programTXT = false;
+        }
 
 		if (newBiases && !state->bias) {
 				state->bias = true;

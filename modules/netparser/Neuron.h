@@ -105,5 +105,5 @@ void ReadNet (ConnectionManager manager, string filepath) ;
 //     <POST CHIP="2" CORE="2" NEURON="2" />
 //  </CONNECTION>
 //</CONNECTIONS>
-void ReadXMLNet ( string filepath) ;
+void ReadXMLNet (ConnectionManager manager, string filepath) ;
 void ExampleXMLsave();

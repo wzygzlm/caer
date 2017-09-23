@@ -415,14 +415,34 @@ void ReadNet (ConnectionManager manager, string filepath) {
 }
 
 // TODO: Finish XML reader
-void ReadXMLNet ( string filepath) {
+void ReadXMLNet (ConnectionManager manager, string filepath) {
 
     FILE *fp;
     mxml_node_t *tree;
 
+    caerLog(CAER_LOG_NOTICE, __func__, ("opening file: " + filepath).c_str());
     fp = fopen(filepath.c_str(), "r");
-    cout << "opened xml file";
+    caerLog(CAER_LOG_NOTICE, __func__, ("Done"));
+
+    caerLog(CAER_LOG_NOTICE, __func__, ("Loading XML file: " + filepath).c_str());
     tree = mxmlLoadFile(NULL, fp, MXML_NO_CALLBACK);
+    caerLog(CAER_LOG_NOTICE, __func__, ("Done"));
+
+
+
+    // mxml_node_t *node;
+
+    // for (node = mxmlFindElement(tree, tree, "name", NULL, NULL,
+    //                             MXML_DESCEND);
+    //      node != NULL;
+    //      node = mxmlFindElement(node, tree, "name", NULL, NULL,
+    //                             MXML_DESCEND)
+    //      ) {
+    //   caerLog(CAER_LOG_NOTICE, __func__, (to_string(node->value)).c_str());
+    // }
+
+
+    // cout << "opened xml file";
     fclose(fp);
 
 
