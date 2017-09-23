@@ -212,10 +212,11 @@ static bool caerVisualizerRendererIMU6Events(caerVisualizerPublicState state, ca
 
 	const libcaer::events::IMU6EventPacket imu6Packet(imu6PacketHeader, false);
 
-	float scaleFactorAccel = 30;
-	float scaleFactorGyro = 15;
-	float lineThickness = 4;
 	float zoomFactor = state->renderZoomFactor.load(std::memory_order_relaxed);
+
+	float scaleFactorAccel = 30 * zoomFactor;
+	float scaleFactorGyro = 15 * zoomFactor;
+	float lineThickness = 4 * zoomFactor;
 	float maxSizeX = (float) state->renderSizeX * zoomFactor;
 	float maxSizeY = (float) state->renderSizeY * zoomFactor;
 
