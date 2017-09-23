@@ -228,6 +228,7 @@ static bool caerVisualizerRendererIMU6Events(caerVisualizerPublicState state, ca
 
 	float accelX = 0, accelY = 0, accelZ = 0;
 	float gyroX = 0, gyroY = 0, gyroZ = 0;
+	float temp = 0;
 
 	// Iterate over valid IMU events and average them.
 	// This somewhat smoothes out the rendering.
@@ -239,6 +240,8 @@ static bool caerVisualizerRendererIMU6Events(caerVisualizerPublicState state, ca
 		gyroX += imu6Event.getGyroX();
 		gyroY += imu6Event.getGyroY();
 		gyroZ += imu6Event.getGyroZ();
+
+		temp += imu6Event.getTemp();
 	}
 
 	// Normalize values.
@@ -251,6 +254,8 @@ static bool caerVisualizerRendererIMU6Events(caerVisualizerPublicState state, ca
 	gyroX /= (float) validEvents;
 	gyroY /= (float) validEvents;
 	gyroZ /= (float) validEvents;
+
+	temp /= (float) validEvents;
 
 	// Acceleration X, Y as lines. Z as a circle.
 	float accelXScaled = centerPointX - accelX * scaleFactorAccel;
@@ -276,18 +281,6 @@ static bool caerVisualizerRendererIMU6Events(caerVisualizerPublicState state, ca
 
 	state->renderWindow->draw(accelCircle);
 
-	// TODO: enhance IMU renderer with more text info.
-	if (state->font != nullptr) {
-		char valStr[128];
-		snprintf(valStr, 128, "%.2f,%.2f g", (double) accelX, (double) accelY);
-
-		sf::Text accelText(valStr, *state->font, 20);
-		sfml::Helpers::setTextColor(accelText, accelColor);
-		accelText.setPosition(sf::Vector2f(accelXScaled, accelYScaled));
-
-		state->renderWindow->draw(accelText);
-	}
-
 	// Gyroscope pitch(X), yaw(Y), roll(Z) as lines.
 	float gyroXScaled = centerPointY + gyroX * scaleFactorGyro;
 	RESET_LIMIT_POS(gyroXScaled, maxSizeY - 2 - lineThickness);
@@ -306,6 +299,29 @@ static bool caerVisualizerRendererIMU6Events(caerVisualizerPublicState state, ca
 	sfml::Line gyroLine2(sf::Vector2f(centerPointX, centerPointY - 20), sf::Vector2f(gyroZScaled, centerPointY - 20),
 		lineThickness, gyroColor);
 	state->renderWindow->draw(gyroLine2);
+
+	// TODO: enhance IMU renderer with more text info.
+	if (state->font != nullptr) {
+		char valStr[128];
+
+		// Acceleration X/Y.
+		snprintf(valStr, 128, "%.2f,%.2f g", (double) accelX, (double) accelY);
+
+		sf::Text accelText(valStr, *state->font, 30);
+		sfml::Helpers::setTextColor(accelText, accelColor);
+		accelText.setPosition(sf::Vector2f(accelXScaled, accelYScaled));
+
+		state->renderWindow->draw(accelText);
+
+		// Temperature.
+		snprintf(valStr, 128, "Temp: %.2f C", (double) temp);
+
+		sf::Text tempText(valStr, *state->font, 30);
+		sfml::Helpers::setTextColor(tempText, sf::Color::White);
+		tempText.setPosition(sf::Vector2f(0, 0));
+
+		state->renderWindow->draw(tempText);
+	}
 
 	return (true);
 }
