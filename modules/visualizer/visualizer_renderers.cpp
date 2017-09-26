@@ -94,6 +94,10 @@ struct renderer_frame_events_state {
 typedef struct renderer_frame_events_state *rendererFrameEventsState;
 
 static void *caerVisualizerRendererFrameEventsStateInit(caerVisualizerPublicState state) {
+	// Add configuration for ROI region.
+	sshsNodeCreate(state->visualizerConfigNode, "roiRegion", -1, -1, 7, SSHS_FLAGS_NORMAL,
+		"Selects which ROI region to display. '-1' disables this and renders all of [0,1,2,3].");
+
 	// Allocate memory via C++ for renderer state, since we use C++ objects directly.
 	rendererFrameEventsState renderState = new renderer_frame_events_state();
 
@@ -128,6 +132,8 @@ static bool caerVisualizerRendererFrameEvents(caerVisualizerPublicState state, c
 		return (false);
 	}
 
+	int roiRegionSelect = sshsNodeGetInt(state->visualizerConfigNode, "roiRegion");
+
 	const libcaer::events::FrameEventPacket framePacket(framePacketHeader, false);
 
 	// Get last valid frame for each possible ROI region.
@@ -135,7 +141,16 @@ static bool caerVisualizerRendererFrameEvents(caerVisualizerPublicState state, c
 
 	for (const auto &frame : framePacket) {
 		if (frame.isValid()) {
-			frames[frame.getROIIdentifier()] = &frame;
+			if (roiRegionSelect == -1) {
+				if (frame.getROIIdentifier() < DAVIS_APS_ROI_REGIONS_MAX) {
+					frames[frame.getROIIdentifier()] = &frame;
+				}
+			}
+			else {
+				if (frame.getROIIdentifier() == roiRegionSelect) {
+					frames[0] = &frame;
+				}
+			}
 		}
 	}
 
