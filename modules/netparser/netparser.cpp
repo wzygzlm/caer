@@ -15,8 +15,6 @@ static void caerNetParserModuleConfig(caerModuleData moduleData);
 //static void caerNetParserReset(caerModuleData moduleData);
 
 
-
-
 struct NETPARSER_state {
 	sshsNode eventSourceConfigNode;
 	// user settings
@@ -51,8 +49,8 @@ caerModuleInfo caerModuleGetInfo(void) {
 static bool caerNetParserInit(caerModuleData moduleData) {
 	NetParserState state = (NETPARSER_state*) moduleData->moduleState;
 	// create parameters
-	sshsNodeCreateBool(moduleData->moduleNode, "Program Network from .txt", false, SSHS_FLAGS_NORMAL, "def");
-    sshsNodeCreateBool(moduleData->moduleNode, "Program Network from .xml", false, SSHS_FLAGS_NORMAL, "def");
+	sshsNodeCreateBool(moduleData->moduleNode, "Import from .txt", false, SSHS_FLAGS_NORMAL, "def");
+    sshsNodeCreateBool(moduleData->moduleNode, "Import from .xml", false, SSHS_FLAGS_NORMAL, "def");
     sshsNodeCreateBool(moduleData->moduleNode, "Set Biases", false, SSHS_FLAGS_NORMAL, "def");
 	//sshsNodePutBoolIfAbsent(moduleData->moduleNode, "setSram", false);
 	//sshsNodePutBoolIfAbsent(moduleData->moduleNode, "setCam", false);
@@ -86,8 +84,8 @@ static bool caerNetParserInit(caerModuleData moduleData) {
 	//state->loadBiases = sshsNodeGetBool(moduleData->moduleNode, "loadBiases");
 	//state->setSram = sshsNodeGetBool(moduleData->moduleNode, "setSram");
 	//state->setCam = sshsNodeGetBool(moduleData->moduleNode, "setCam");
-    state->programTXT = sshsNodeGetBool(moduleData->moduleNode, "Program Network from .txt");
-    state->programXML = sshsNodeGetBool(moduleData->moduleNode, "Program Network from .xml");
+    state->programTXT = sshsNodeGetBool(moduleData->moduleNode, "ZZZfrom .txt");
+    state->programXML = sshsNodeGetBool(moduleData->moduleNode, "ZZZfrom .xml");
     state->bias = sshsNodeGetBool(moduleData->moduleNode, "Set Biases");
 	sshsNodeAddAttributeListener(moduleData->moduleNode, moduleData, &caerModuleConfigDefaultListener);
     
@@ -229,8 +227,8 @@ static void caerNetParserModuleConfig(caerModuleData moduleData) {
 		caerModuleConfigUpdateReset(moduleData);
 		NetParserState state = (NETPARSER_state*) moduleData->moduleState;
 
-		bool newProgramTXT = sshsNodeGetBool(moduleData->moduleNode, "Program Network from .txt");
-        bool newProgramXML = sshsNodeGetBool(moduleData->moduleNode, "Program Network from .xml");
+		bool newProgramTXT = sshsNodeGetBool(moduleData->moduleNode, "ZZZfrom .txt");
+        bool newProgramXML = sshsNodeGetBool(moduleData->moduleNode, "ZZZfrom .xml");
 
 		bool newBiases = sshsNodeGetBool(moduleData->moduleNode, "Set Biases");
 
