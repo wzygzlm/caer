@@ -359,9 +359,7 @@ void ConnectionManager::Connect(Neuron * pre, Neuron * post, uint8_t cam_slots_n
              string message = string("XXX Did not connect " + pre->GetLocString() + "-" + to_string(connection_type) +
             "-" + to_string(cam_slots_number) + "->" + post->GetLocString()+ "\n");
         caerLog(CAER_LOG_NOTICE, __func__, message.c_str());
-        }
-        
-        //cout << "Connected " + pre->GetLocString() + "->" + post->GetLocString() << endl;
+        }        
     }
     catch (const string e){
         caerLog(CAER_LOG_NOTICE, __func__, e.c_str());

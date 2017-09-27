@@ -15,6 +15,8 @@ static void caerNetParserModuleConfig(caerModuleData moduleData);
 //static void caerNetParserReset(caerModuleData moduleData);
 
 
+
+
 struct NETPARSER_state {
 	sshsNode eventSourceConfigNode;
 	// user settings
@@ -49,8 +51,8 @@ caerModuleInfo caerModuleGetInfo(void) {
 static bool caerNetParserInit(caerModuleData moduleData) {
 	NetParserState state = (NETPARSER_state*) moduleData->moduleState;
 	// create parameters
-	sshsNodeCreateBool(moduleData->moduleNode, "Import from .txt", false, SSHS_FLAGS_NORMAL, "def");
-    sshsNodeCreateBool(moduleData->moduleNode, "Import from .xml", false, SSHS_FLAGS_NORMAL, "def");
+	sshsNodeCreateBool(moduleData->moduleNode, "Program Network from .txt", false, SSHS_FLAGS_NORMAL, "def");
+    sshsNodeCreateBool(moduleData->moduleNode, "Program Network from .xml", false, SSHS_FLAGS_NORMAL, "def");
     sshsNodeCreateBool(moduleData->moduleNode, "Set Biases", false, SSHS_FLAGS_NORMAL, "def");
 	//sshsNodePutBoolIfAbsent(moduleData->moduleNode, "setSram", false);
 	//sshsNodePutBoolIfAbsent(moduleData->moduleNode, "setCam", false);
@@ -84,8 +86,8 @@ static bool caerNetParserInit(caerModuleData moduleData) {
 	//state->loadBiases = sshsNodeGetBool(moduleData->moduleNode, "loadBiases");
 	//state->setSram = sshsNodeGetBool(moduleData->moduleNode, "setSram");
 	//state->setCam = sshsNodeGetBool(moduleData->moduleNode, "setCam");
-    state->programTXT = sshsNodeGetBool(moduleData->moduleNode, "ZZZfrom .txt");
-    state->programXML = sshsNodeGetBool(moduleData->moduleNode, "ZZZfrom .xml");
+    state->programTXT = sshsNodeGetBool(moduleData->moduleNode, "Program Network from .txt");
+    state->programXML = sshsNodeGetBool(moduleData->moduleNode, "Program Network from .xml");
     state->bias = sshsNodeGetBool(moduleData->moduleNode, "Set Biases");
 	sshsNodeAddAttributeListener(moduleData->moduleNode, moduleData, &caerModuleConfigDefaultListener);
     
@@ -103,132 +105,226 @@ static bool caerNetParserInit(caerModuleData moduleData) {
 
 
 void caerNetParserSetBiases(caerModuleData moduleData){ 
- 
-  NetParserState state = (NETPARSER_state*) moduleData->moduleState; 
+    
+    NetParserState state = (NETPARSER_state*) moduleData->moduleState;
+    void *dynapseState = caerMainloopGetSourceState(state->sourceID);
+    caerDeviceHandle handle = *((caerDeviceHandle *) dynapseState);
 
-  	caerLog(CAER_LOG_NOTICE, __func__, "Biasing U0");
- 
-    for(size_t coreid=0; coreid<4; coreid++){ 
-      //caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_AHTAU_N", 7, 34, false); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_AHTAU_N",7, 35, false); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_AHTHR_N",7, 1, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_AHW_P",7, 1, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_BUF_P",3, 80, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_CASC_N",7, 1, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_DC_P",7, 1, true);  
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_NMDA_N",7, 0, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_RFR_N",0, 108, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_TAU1_N",6, 24, false); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_TAU2_N",5, 15, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_THR_N",4, 20, true);  
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "NPDPIE_TAU_F_P",4, 36, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "NPDPIE_TAU_S_P",5, 38,true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "NPDPIE_THR_F_P",2, 200, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "NPDPIE_THR_S_P",2, 200, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "NPDPII_TAU_F_P",5, 41, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "NPDPII_TAU_S_P",5, 41, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "NPDPII_THR_F_P",0, 150, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "NPDPII_THR_S_P",0, 150, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "PS_WEIGHT_EXC_F_N",0, 114, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "PS_WEIGHT_EXC_S_N",0, 100, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "PS_WEIGHT_INH_F_N",0, 100, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "PS_WEIGHT_INH_S_N",0, 114, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "PULSE_PWLK_P", 0, 43, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "R2R_P", 4, 85, true); 
-    } 
- 	caerLog(CAER_LOG_NOTICE, __func__, "Biasing U1");
-    for(size_t coreid=0; coreid<4; coreid++){ 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "IF_AHTAU_N",7, 35, false); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "IF_AHTHR_N",7, 1, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "IF_AHW_P",7, 1, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "IF_BUF_P",3, 80, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "IF_CASC_N",7, 1, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "IF_DC_P",7, 1, true);  
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "IF_NMDA_N",7, 0, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "IF_RFR_N",0, 108, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "IF_TAU1_N",6, 24, false); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "IF_TAU2_N",5, 15, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "IF_THR_N",4, 20, true);  
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "NPDPIE_TAU_F_P",4, 36, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "NPDPIE_TAU_S_P",5, 38,true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "NPDPIE_THR_F_P",2, 200, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "NPDPIE_THR_S_P",2, 200, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "NPDPII_TAU_F_P",5, 41, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "NPDPII_TAU_S_P",5, 41, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "NPDPII_THR_F_P",0, 150, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "NPDPII_THR_S_P",0, 150, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "PS_WEIGHT_EXC_F_N",0, 114, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "PS_WEIGHT_EXC_S_N",0, 100, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "PS_WEIGHT_INH_F_N",0, 100, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "PS_WEIGHT_INH_S_N",0, 114, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "PULSE_PWLK_P", 0, 43, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "R2R_P", 4, 85, true);
-    } 
- 	caerLog(CAER_LOG_NOTICE, __func__, "Biasing U2");
-    for(size_t coreid=0; coreid<4; coreid++){ 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "IF_AHTAU_N",7, 35, false); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "IF_AHTHR_N",7, 1, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "IF_AHW_P",7, 1, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "IF_BUF_P",3, 80, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "IF_CASC_N",7, 1, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "IF_DC_P",7, 1, true);  
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "IF_NMDA_N",7, 0, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "IF_RFR_N",0, 108, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "IF_TAU1_N",6, 24, false); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "IF_TAU2_N",5, 15, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "IF_THR_N",4, 20, true);  
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "NPDPIE_TAU_F_P",4, 36, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "NPDPIE_TAU_S_P",5, 38,true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "NPDPIE_THR_F_P",2, 200, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "NPDPIE_THR_S_P",2, 200, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "NPDPII_TAU_F_P",5, 41, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "NPDPII_TAU_S_P",5, 41, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "NPDPII_THR_F_P",0, 150, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "NPDPII_THR_S_P",0, 150, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "PS_WEIGHT_EXC_F_N",0, 114, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "PS_WEIGHT_EXC_S_N",0, 100, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "PS_WEIGHT_INH_F_N",0, 100, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "PS_WEIGHT_INH_S_N",0, 114, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "PULSE_PWLK_P", 0, 43, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "R2R_P", 4, 85, true);
-    } 
+    for (uint8_t chipId = 0; chipId < 4; chipId++) {
+        
+        caerDeviceConfigSet(handle, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, U32T(chipId));
+        
+        for (uint8_t coreId = 0; coreId < 4; coreId++) {
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "IF_AHTAU_N", 7, 34, false);
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "IF_AHTAU_N", 7, 35, false);
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "IF_AHTHR_N", 7, 0, true);
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "IF_AHTHR_N", 7, 1, true);
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "IF_AHW_P", 7, 0, true);
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "IF_AHW_P", 7, 1, true);
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "IF_BUF_P", 3, 79, true);
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "IF_BUF_P", 3, 80, true);
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "IF_CASC_N", 7, 0, true);
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "IF_CASC_N", 7, 1, true);
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "IF_DC_P", 5, 1, true);
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "IF_DC_P", 5, 2, true);
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "IF_NMDA_N", 7, 0, true);
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "IF_NMDA_N", 7, 1, true);
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "IF_RFR_N", 2, 179, true);
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "IF_RFR_N", 2, 180, true);
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "IF_TAU1_N", 4, 224, false);
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "IF_TAU1_N", 4, 225, false);
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "IF_TAU2_N", 4, 224, true);
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "IF_TAU2_N", 4, 225, true);
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "IF_THR_N", 2, 179, true);
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "IF_THR_N", 2, 180, true);
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "NPDPIE_TAU_F_P", 6, 149, true);
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "NPDPIE_TAU_F_P", 6, 150, true);
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "NPDPIE_TAU_S_P", 7, 39, true);
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "NPDPIE_TAU_S_P", 7, 40, true);
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "NPDPIE_THR_F_P", 0, 199, true);
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "NPDPIE_THR_F_P", 0, 200, true);
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "NPDPIE_THR_S_P", 7, 1, true);
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "NPDPIE_THR_S_P", 7, 0, true);
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "NPDPII_TAU_F_P", 7, 39, true);
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "NPDPII_TAU_F_P", 7, 40, true);
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "NPDPII_TAU_S_P", 7, 39, true);
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "NPDPII_TAU_S_P", 7, 40, true);
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "NPDPII_THR_F_P", 7, 39, true);
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "NPDPII_THR_F_P", 7, 40, true);
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "NPDPII_THR_S_P", 7, 39, true);
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "NPDPII_THR_S_P", 7, 40, true);
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "PS_WEIGHT_EXC_F_N", 0, 251, true);
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "PS_WEIGHT_EXC_F_N", 0, 250, true);
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "PS_WEIGHT_EXC_S_N", 7, 0, true);
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "PS_WEIGHT_EXC_S_N", 7, 1, true);
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "PS_WEIGHT_INH_F_N", 7, 0, true);
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "PS_WEIGHT_INH_F_N", 7, 1, true);
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "PS_WEIGHT_INH_S_N", 7, 1, true);
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "PS_WEIGHT_INH_S_N", 7, 0, true);
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "PULSE_PWLK_P", 3, 49, true);
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "PULSE_PWLK_P", 3, 50, true);
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "R2R_P", 4, 84, true);
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "R2R_P", 4, 85, true);
+        }
+    }
 
- 	caerLog(CAER_LOG_NOTICE, __func__, "Biasing U3");
-    for(size_t coreid=0; coreid<4; coreid++){ 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "IF_AHTAU_N",7, 35, false); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "IF_AHTHR_N",7, 1, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "IF_AHW_P",7, 1, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "IF_BUF_P",3, 80, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "IF_CASC_N",7, 1, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "IF_DC_P",7, 1, true);  
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "IF_NMDA_N",7, 0, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "IF_RFR_N",0, 108, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "IF_TAU1_N",6, 24, false); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "IF_TAU2_N",5, 15, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "IF_THR_N",4, 20, true);  
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "NPDPIE_TAU_F_P",4, 36, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "NPDPIE_TAU_S_P",5, 38,true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "NPDPIE_THR_F_P",2, 200, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "NPDPIE_THR_S_P",2, 200, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "NPDPII_TAU_F_P",5, 41, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "NPDPII_TAU_S_P",5, 41, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "NPDPII_THR_F_P",0, 150, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "NPDPII_THR_S_P",0, 150, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "PS_WEIGHT_EXC_F_N",0, 114, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "PS_WEIGHT_EXC_S_N",0, 100, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "PS_WEIGHT_INH_F_N",0, 100, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "PS_WEIGHT_INH_S_N",0, 114, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "PULSE_PWLK_P", 0, 43, true); 
-        caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "R2R_P", 4, 85, true);
-    } 
+     for (uint8_t chipId = 0; chipId < 4; chipId++) {
+        
+        caerDeviceConfigSet(handle, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, U32T(chipId));
+        
+        for (uint8_t coreId = 0; coreId < 4; coreId++) {
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "IF_AHTAU_N",7, 35, false); 
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "IF_AHTHR_N",7, 1, true); 
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "IF_AHW_P",7, 1, true); 
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "IF_BUF_P",3, 80, true); 
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "IF_CASC_N",7, 1, true); 
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "IF_DC_P",7, 1, true);  
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "IF_NMDA_N",7, 0, true); 
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "IF_RFR_N",0, 108, true); 
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "IF_TAU1_N",6, 24, false); 
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "IF_TAU2_N",5, 15, true); 
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "IF_THR_N",4, 20, true);  
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "NPDPIE_TAU_F_P",4, 36, true); 
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "NPDPIE_TAU_S_P",5, 38,true); 
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "NPDPIE_THR_F_P",2, 200, true); 
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "NPDPIE_THR_S_P",2, 200, true); 
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "NPDPII_TAU_F_P",5, 41, true); 
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "NPDPII_TAU_S_P",5, 41, true); 
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "NPDPII_THR_F_P",0, 150, true); 
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "NPDPII_THR_S_P",0, 150, true); 
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "PS_WEIGHT_EXC_F_N",0, 114, true); 
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "PS_WEIGHT_EXC_S_N",0, 100, true); 
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "PS_WEIGHT_INH_F_N",0, 100, true); 
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "PS_WEIGHT_INH_S_N",0, 114, true); 
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "PULSE_PWLK_P", 0, 43, true); 
+            caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "R2R_P", 4, 85, true); 
+        }
+    }
+ 
+
+  // 	caerLog(CAER_LOG_NOTICE, __func__, "Biasing U0");
+ 
+  //   for(size_t coreid=0; coreid<4; coreid++){ 
+  //     //caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_AHTAU_N", 7, 34, false); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_AHTAU_N",7, 35, false); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_AHTHR_N",7, 1, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_AHW_P",7, 1, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_BUF_P",3, 80, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_CASC_N",7, 1, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_DC_P",7, 1, true);  
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_NMDA_N",7, 0, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_RFR_N",0, 108, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_TAU1_N",6, 24, false); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_TAU2_N",5, 15, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "IF_THR_N",4, 20, true);  
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "NPDPIE_TAU_F_P",4, 36, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "NPDPIE_TAU_S_P",5, 38,true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "NPDPIE_THR_F_P",2, 200, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "NPDPIE_THR_S_P",2, 200, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "NPDPII_TAU_F_P",5, 41, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "NPDPII_TAU_S_P",5, 41, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "NPDPII_THR_F_P",0, 150, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "NPDPII_THR_S_P",0, 150, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "PS_WEIGHT_EXC_F_N",0, 114, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "PS_WEIGHT_EXC_S_N",0, 100, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "PS_WEIGHT_INH_F_N",0, 100, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "PS_WEIGHT_INH_S_N",0, 114, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "PULSE_PWLK_P", 0, 43, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U0, coreid, "R2R_P", 4, 85, true); 
+  //   } 
+ 	// caerLog(CAER_LOG_NOTICE, __func__, "Biasing U1");
+  //   for(size_t coreid=0; coreid<4; coreid++){ 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "IF_AHTAU_N",7, 35, false); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "IF_AHTHR_N",7, 1, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "IF_AHW_P",7, 1, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "IF_BUF_P",3, 80, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "IF_CASC_N",7, 1, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "IF_DC_P",7, 1, true);  
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "IF_NMDA_N",7, 0, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "IF_RFR_N",0, 108, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "IF_TAU1_N",6, 24, false); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "IF_TAU2_N",5, 15, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "IF_THR_N",4, 20, true);  
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "NPDPIE_TAU_F_P",4, 36, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "NPDPIE_TAU_S_P",5, 38,true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "NPDPIE_THR_F_P",2, 200, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "NPDPIE_THR_S_P",2, 200, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "NPDPII_TAU_F_P",5, 41, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "NPDPII_TAU_S_P",5, 41, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "NPDPII_THR_F_P",0, 150, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "NPDPII_THR_S_P",0, 150, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "PS_WEIGHT_EXC_F_N",0, 114, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "PS_WEIGHT_EXC_S_N",0, 100, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "PS_WEIGHT_INH_F_N",0, 100, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "PS_WEIGHT_INH_S_N",0, 114, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "PULSE_PWLK_P", 0, 43, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U1, coreid, "R2R_P", 4, 85, true);
+  //   } 
+ 	// caerLog(CAER_LOG_NOTICE, __func__, "Biasing U2");
+  //   for(size_t coreid=0; coreid<4; coreid++){ 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "IF_AHTAU_N",7, 35, false); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "IF_AHTHR_N",7, 1, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "IF_AHW_P",7, 1, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "IF_BUF_P",3, 80, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "IF_CASC_N",7, 1, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "IF_DC_P",7, 1, true);  
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "IF_NMDA_N",7, 0, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "IF_RFR_N",0, 108, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "IF_TAU1_N",6, 24, false); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "IF_TAU2_N",5, 15, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "IF_THR_N",4, 20, true);  
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "NPDPIE_TAU_F_P",4, 36, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "NPDPIE_TAU_S_P",5, 38,true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "NPDPIE_THR_F_P",2, 200, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "NPDPIE_THR_S_P",2, 200, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "NPDPII_TAU_F_P",5, 41, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "NPDPII_TAU_S_P",5, 41, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "NPDPII_THR_F_P",0, 150, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "NPDPII_THR_S_P",0, 150, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "PS_WEIGHT_EXC_F_N",0, 114, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "PS_WEIGHT_EXC_S_N",0, 100, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "PS_WEIGHT_INH_F_N",0, 100, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "PS_WEIGHT_INH_S_N",0, 114, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "PULSE_PWLK_P", 0, 43, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U2, coreid, "R2R_P", 4, 85, true);
+  //   } 
+
+ 	// caerLog(CAER_LOG_NOTICE, __func__, "Biasing U3");
+  //   for(size_t coreid=0; coreid<4; coreid++){ 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "IF_AHTAU_N",7, 35, false); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "IF_AHTHR_N",7, 1, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "IF_AHW_P",7, 1, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "IF_BUF_P",3, 80, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "IF_CASC_N",7, 1, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "IF_DC_P",7, 1, true);  
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "IF_NMDA_N",7, 0, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "IF_RFR_N",0, 108, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "IF_TAU1_N",6, 24, false); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "IF_TAU2_N",5, 15, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "IF_THR_N",4, 20, true);  
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "NPDPIE_TAU_F_P",4, 36, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "NPDPIE_TAU_S_P",5, 38,true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "NPDPIE_THR_F_P",2, 200, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "NPDPIE_THR_S_P",2, 200, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "NPDPII_TAU_F_P",5, 41, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "NPDPII_TAU_S_P",5, 41, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "NPDPII_THR_F_P",0, 150, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "NPDPII_THR_S_P",0, 150, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "PS_WEIGHT_EXC_F_N",0, 114, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "PS_WEIGHT_EXC_S_N",0, 100, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "PS_WEIGHT_INH_F_N",0, 100, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "PS_WEIGHT_INH_S_N",0, 114, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "PULSE_PWLK_P", 0, 43, true); 
+  //       caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, coreid, "R2R_P", 4, 85, true);
+    // } 
 }
 
 static void caerNetParserModuleConfig(caerModuleData moduleData) {
 		caerModuleConfigUpdateReset(moduleData);
 		NetParserState state = (NETPARSER_state*) moduleData->moduleState;
 
-		bool newProgramTXT = sshsNodeGetBool(moduleData->moduleNode, "ZZZfrom .txt");
-        bool newProgramXML = sshsNodeGetBool(moduleData->moduleNode, "ZZZfrom .xml");
+		bool newProgramTXT = sshsNodeGetBool(moduleData->moduleNode, "Program Network from .txt");
+        bool newProgramXML = sshsNodeGetBool(moduleData->moduleNode, "Program Network from .xml");
 
 		bool newBiases = sshsNodeGetBool(moduleData->moduleNode, "Set Biases");
 
