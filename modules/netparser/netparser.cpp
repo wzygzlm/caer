@@ -3,8 +3,10 @@
 #include "main.h"
 #include "base/mainloop.h"
 #include "base/module.h"
-#include "modules/ini/dynapse_utils.h"	// useful constants
+#include "modules/ini/dynapse_utils.h"  // useful constants
 #include "Neuron.h"
+#include <libcaer/devices/dynapse.h>
+
 
 // Define basic 
 
@@ -24,6 +26,7 @@ struct NETPARSER_state {
 	bool programTXT;
     bool programXML;
 	bool bias;
+    bool clear;
 	int16_t sourceID;
 
 };
@@ -49,12 +52,21 @@ caerModuleInfo caerModuleGetInfo(void) {
 }
 
 static bool caerNetParserInit(caerModuleData moduleData) {
+
+    caerLog(CAER_LOG_NOTICE, __func__, "NET PARSER: INIT\n");
+
+
 	NetParserState state = (NETPARSER_state*) moduleData->moduleState;
 	// create parameters
 	sshsNodeCreateBool(moduleData->moduleNode, "Program Network from .txt", false, SSHS_FLAGS_NORMAL, "def");
+    sshsNodeCreateString(moduleData->moduleNode, "txt_file", "./modules/netparser/networks/hellonet.txt", 1, 4096, SSHS_FLAGS_NORMAL, "File to load network connnectivity from.");
+    
+
     sshsNodeCreateBool(moduleData->moduleNode, "Program Network from .xml", false, SSHS_FLAGS_NORMAL, "def");
+    sshsNodeCreateString(moduleData->moduleNode, "xml_file", "./modules/netparser/networks/hellonet.xml", 1, 4096, SSHS_FLAGS_NORMAL, "File to load network connnectivity from.");
 
     sshsNodeCreateBool(moduleData->moduleNode, "Set Biases", false, SSHS_FLAGS_NORMAL, "def");
+    sshsNodeCreateBool(moduleData->moduleNode, "Clear Network", false, SSHS_FLAGS_NORMAL, "def");
 
 	//sshsNodePutBoolIfAbsent(moduleData->moduleNode, "setSram", false);
 	//sshsNodePutBoolIfAbsent(moduleData->moduleNode, "setCam", false);
@@ -71,10 +83,6 @@ static bool caerNetParserInit(caerModuleData moduleData) {
 
 	free(inputs);
 
-	caerLog(CAER_LOG_NOTICE, __func__, "NET PARSER: INIT - START1\n");
-
-    sshsNodeCreateString(moduleData->moduleNode, "txt_file", "/modules/netparser/n1.txt", 1, 4096, SSHS_FLAGS_NORMAL, "File to load network connnectivity from.");
-    sshsNodeCreateString(moduleData->moduleNode, "xml_file", "/modules/netparser/output2.xml", 1, 4096, SSHS_FLAGS_NORMAL, "File to load network connnectivity from.");
 
     // Makes sure subsequent code is only run once dynapse is initiliazed
     sshsNode sourceInfo = caerMainloopGetSourceInfo(state->sourceID);
@@ -82,15 +90,11 @@ static bool caerNetParserInit(caerModuleData moduleData) {
         return (false);
     }
 
-    //caerNetParserSetBiases(moduleData)
-
-	// update node state
-	//state->loadBiases = sshsNodeGetBool(moduleData->moduleNode, "loadBiases");
-	//state->setSram = sshsNodeGetBool(moduleData->moduleNode, "setSram");
-	//state->setCam = sshsNodeGetBool(moduleData->moduleNode, "setCam");
     state->programTXT = sshsNodeGetBool(moduleData->moduleNode, "Program Network from .txt");
     state->programXML = sshsNodeGetBool(moduleData->moduleNode, "Program Network from .xml");
     state->bias = sshsNodeGetBool(moduleData->moduleNode, "Set Biases");
+    state->clear = sshsNodeGetBool(moduleData->moduleNode, "Clear Network");
+
 	sshsNodeAddAttributeListener(moduleData->moduleNode, moduleData, &caerModuleConfigDefaultListener); 
 
     //Instantiate manager
@@ -98,8 +102,6 @@ static bool caerNetParserInit(caerModuleData moduleData) {
     caerDeviceHandle handle = *((caerDeviceHandle *) dynapseState);
     state->manager = ConnectionManager(handle);
 
-    // Nothing that can fail here.
-    caerLog(CAER_LOG_NOTICE, __func__, "NET PARSER: INIT - DONE");
     return (true);
 
 }
@@ -203,6 +205,40 @@ void caerNetParserSetBiases(caerModuleData moduleData){
     }
 }
 
+
+
+void caerClearConnections(caerModuleData moduleData){ 
+
+    NetParserState state = (NETPARSER_state*) moduleData->moduleState;
+    void *dynapseState = caerMainloopGetSourceState(state->sourceID);
+    caerDeviceHandle handle = *((caerDeviceHandle *) dynapseState);
+    
+    caerLog(CAER_LOG_NOTICE, __func__, "Clearing SRAMs and CAMs...");    
+    
+    caerDeviceConfigSet(handle, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, DYNAPSE_CONFIG_DYNAPSE_U0);
+    caerDeviceConfigSet(handle, DYNAPSE_CONFIG_DEFAULT_SRAM_EMPTY, 0, 0);
+    caerDeviceConfigSet(handle, DYNAPSE_CONFIG_DEFAULT_SRAM, DYNAPSE_CONFIG_DYNAPSE_U0, 0);
+    caerDeviceConfigSet(handle, DYNAPSE_CONFIG_CLEAR_CAM, 0, 0);
+
+    caerDeviceConfigSet(handle, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, DYNAPSE_CONFIG_DYNAPSE_U1);
+    caerDeviceConfigSet(handle, DYNAPSE_CONFIG_DEFAULT_SRAM_EMPTY, 0, 0);
+    caerDeviceConfigSet(handle, DYNAPSE_CONFIG_DEFAULT_SRAM, DYNAPSE_CONFIG_DYNAPSE_U1, 0);
+    caerDeviceConfigSet(handle, DYNAPSE_CONFIG_CLEAR_CAM, 0, 0);
+
+    caerDeviceConfigSet(handle, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, DYNAPSE_CONFIG_DYNAPSE_U2);
+    caerDeviceConfigSet(handle, DYNAPSE_CONFIG_DEFAULT_SRAM_EMPTY, 0, 0);
+    caerDeviceConfigSet(handle, DYNAPSE_CONFIG_DEFAULT_SRAM, DYNAPSE_CONFIG_DYNAPSE_U2, 0);
+    caerDeviceConfigSet(handle, DYNAPSE_CONFIG_CLEAR_CAM, 0, 0);
+
+    caerDeviceConfigSet(handle, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, DYNAPSE_CONFIG_DYNAPSE_U3);
+    caerDeviceConfigSet(handle, DYNAPSE_CONFIG_DEFAULT_SRAM_EMPTY, 0, 0);
+    caerDeviceConfigSet(handle, DYNAPSE_CONFIG_DEFAULT_SRAM, DYNAPSE_CONFIG_DYNAPSE_U3, 0);
+    caerDeviceConfigSet(handle, DYNAPSE_CONFIG_CLEAR_CAM, 0, 0);
+
+    caerLog(CAER_LOG_NOTICE, __func__, "Done Clearing Networks");    
+
+}
+
 static void caerNetParserModuleConfig(caerModuleData moduleData) {
 		caerModuleConfigUpdateReset(moduleData);
 		NetParserState state = (NETPARSER_state*) moduleData->moduleState;
@@ -211,6 +247,8 @@ static void caerNetParserModuleConfig(caerModuleData moduleData) {
         bool newProgramXML = sshsNodeGetBool(moduleData->moduleNode, "Program Network from .xml");
 
 		bool newBiases = sshsNodeGetBool(moduleData->moduleNode, "Set Biases");
+        bool newClearNetwork = sshsNodeGetBool(moduleData->moduleNode, "Clear Network");
+
 
 		caerLog(CAER_LOG_NOTICE, __func__, "Running Config Module");   	
     			
@@ -256,6 +294,20 @@ static void caerNetParserModuleConfig(caerModuleData moduleData) {
 		else if (!newBiases && state->bias) {
 				state->bias = false;
 		}
+
+        if (newClearNetwork && !state->clear) {
+                state->clear = true;
+                void *dynapseState = caerMainloopGetSourceState(state->sourceID);
+
+                caerDeviceHandle handle = *((caerDeviceHandle *) dynapseState);
+                caerLog(CAER_LOG_NOTICE, __func__, "Starting Network Clearning");
+                caerClearConnections(moduleData);
+                caerLog(CAER_LOG_NOTICE, __func__, "Finished Network Clearning");
+
+        }
+        else if (!newBiases && state->clear) {
+                state->clear = false;
+        }
 
 }
 

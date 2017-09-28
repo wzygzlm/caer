@@ -419,7 +419,7 @@ bool ReadNet (ConnectionManager * manager, string filepath) {
 }
 
 // TODO: Finish XML reader
-bool ReadXMLNet (ConnectionManager * manager_p, string filepath) {
+bool ReadXMLNet (ConnectionManager * manager, string filepath) {
 
     FILE *netFile;
     mxml_node_t *tree;
@@ -526,7 +526,7 @@ bool ReadXMLNet (ConnectionManager * manager_p, string filepath) {
         
         // Make connection
         if(correct_input){
-            manager_p->Connect(
+            manager->Connect(
             new Neuron(pre_chip, pre_core, pre_neuron),
             new Neuron(post_chip, post_core, post_neuron),
             cam_slots_number, connection_type);
