@@ -369,7 +369,7 @@ void ConnectionManager::Connect(Neuron * pre, Neuron * post, uint8_t cam_slots_n
 
 
 
-void ReadNet (ConnectionManager manager, string filepath) {
+bool ReadNet (ConnectionManager * manager, string filepath) {
 
     caerLog(CAER_LOG_NOTICE, __func__, ("attempting to read net found at: " + filepath).c_str());
     ifstream netFile (filepath);
@@ -397,7 +397,7 @@ void ReadNet (ConnectionManager manager, string filepath) {
 
                     if (prev < connection.length())
                         cv.push_back((unsigned char &&) stoi(connection.substr(prev, string::npos)));
-                    manager.Connect(new Neuron(cv[0],cv[1],cv[2]),new Neuron(cv[5],cv[6],cv[7]),cv[4],cv[3]);
+                    manager->Connect(new Neuron(cv[0],cv[1],cv[2]),new Neuron(cv[5],cv[6],cv[7]),cv[4],cv[3]);
                     cv.clear();
                 } else{
                     // Print comments in network file that start with #! for debbuging
@@ -408,28 +408,39 @@ void ReadNet (ConnectionManager manager, string filepath) {
             }
         }
         netFile.close();
-        manager.PrintNeuronMap();
+        return true;        
 
     }
-    else caerLog(CAER_LOG_NOTICE, __func__, ("unable to open file: " + filepath).c_str());
+    else{
+        caerLog(CAER_LOG_NOTICE, __func__, ("unable to open file: " + filepath).c_str());  
+        return false;
+    } 
 
 }
 
 // TODO: Finish XML reader
-void ReadXMLNet (ConnectionManager manager, string filepath) {
+bool ReadXMLNet (ConnectionManager * manager_p, string filepath) {
 
-    FILE *fp;
+    FILE *netFile;
     mxml_node_t *tree;
     string message = "";
     bool correct_input = true;
 
     caerLog(CAER_LOG_NOTICE, __func__, ("opening file: " + filepath).c_str());
-    fp = fopen(filepath.c_str(), "r");
-    caerLog(CAER_LOG_NOTICE, __func__, ("Done"));
+    netFile = fopen(filepath.c_str(), "r");
 
-    caerLog(CAER_LOG_NOTICE, __func__, ("Loading XML file: " + filepath).c_str());
-    tree = mxmlLoadFile(NULL, fp, MXML_NO_CALLBACK);
-    caerLog(CAER_LOG_NOTICE, __func__, ("Done"));
+    if (netFile == NULL){
+        caerLog(CAER_LOG_NOTICE, __func__, ("unable to open file: " + filepath).c_str());
+        return false;
+    }
+  
+
+    tree = mxmlLoadFile(NULL, netFile, MXML_NO_CALLBACK);
+
+    if (tree == NULL){
+        caerLog(CAER_LOG_NOTICE, __func__, ("Invalid XML file"));
+        return false;
+    }
 
     const char *name = mxmlGetElement(tree);
     size_t level = 0;
@@ -438,21 +449,12 @@ void ReadXMLNet (ConnectionManager manager, string filepath) {
     mxml_node_t *connections;
     connections = mxmlFindElement(tree, tree, "CONNECTIONS", NULL, NULL, MXML_DESCEND);
 
-    name = mxmlGetElement(connections);
-    caerLog(CAER_LOG_NOTICE, __func__, (name));
 
-    mxml_node_t *first_connection = mxmlGetFirstChild(connections);
-
-    mxml_node_t *current_connection = first_connection;
-
+    mxml_node_t *current_connection = mxmlGetFirstChild(connections);
     mxml_node_t *pre;
     mxml_node_t *post;
 
     current_connection = mxmlGetNextSibling(current_connection);
-    name = mxmlGetElement(current_connection);
-
-    caerLog(CAER_LOG_NOTICE, __func__, ("Connection: "));
-    caerLog(CAER_LOG_NOTICE, __func__, (name));
 
     while (name != NULL){
 
@@ -460,8 +462,7 @@ void ReadXMLNet (ConnectionManager manager, string filepath) {
         correct_input = true;
         
         auto connection_type = (uint8_t)atoi(mxmlElementGetAttr(current_connection, "connection_type"));
-        caerLog(CAER_LOG_NOTICE, __func__, ("type: "));
-        caerLog(CAER_LOG_NOTICE, __func__, to_string(connection_type).c_str());
+       
         
         if (connection_type < 0 || connection_type > 3){ 
             message = string(message + "Connection Type out of range (0-3): " + to_string(connection_type) + "\n");
@@ -469,9 +470,7 @@ void ReadXMLNet (ConnectionManager manager, string filepath) {
         }
         
         auto cam_slots_number = (uint8_t)atoi(mxmlElementGetAttr(current_connection, "cam_slots_number"));
-        caerLog(CAER_LOG_NOTICE, __func__, ("CAM slot number: "));
-        caerLog(CAER_LOG_NOTICE, __func__, to_string(cam_slots_number).c_str());
-
+       
         if (cam_slots_number < 0 || cam_slots_number > 64){ 
             message = string(message + "CAM slot number out of range (0-64): " + to_string(cam_slots_number) + "\n");
             correct_input = false;
@@ -485,8 +484,6 @@ void ReadXMLNet (ConnectionManager manager, string filepath) {
         }
 
         auto pre_chip = (uint8_t)atoi(mxmlElementGetAttr(pre, "CHIP"));
-        caerLog(CAER_LOG_NOTICE, __func__, ("CHIP: "));
-        caerLog(CAER_LOG_NOTICE, __func__, to_string(pre_chip).c_str());
         if (pre_chip < 0 || pre_chip > 3){ 
             message = string(message + "Pre-Synaptic chip out of range (0-3): " + to_string(pre_chip)+ "\n");
             correct_input = false;
@@ -494,16 +491,12 @@ void ReadXMLNet (ConnectionManager manager, string filepath) {
 
 
         auto pre_core = (uint8_t)atoi(mxmlElementGetAttr(pre, "CORE"));
-        caerLog(CAER_LOG_NOTICE, __func__, ("CORE: "));
-        caerLog(CAER_LOG_NOTICE, __func__, to_string(pre_core).c_str());
         if (pre_core < 0 || pre_core > 3){ 
             message = string(message + "Pre-Synaptic core out of range (0-3): " + to_string(pre_core)+ "\n");
             correct_input = false;
         }
 
         auto pre_neuron = (uint8_t)atoi(mxmlElementGetAttr(pre, "NEURON"));
-        caerLog(CAER_LOG_NOTICE, __func__, ("NEURON: "));
-        caerLog(CAER_LOG_NOTICE, __func__, to_string(pre_neuron).c_str());
         if (pre_neuron < 0 || pre_neuron > 255){ 
             message = string(message + "Pre-Synaptic neuron out of range (0-255): " + to_string(pre_neuron)+ "\n");
             correct_input = false;
@@ -512,8 +505,6 @@ void ReadXMLNet (ConnectionManager manager, string filepath) {
         post = mxmlFindElement(current_connection, current_connection, "POST", NULL, NULL, MXML_DESCEND);
 
         auto post_chip = (uint8_t)atoi(mxmlElementGetAttr(post, "CHIP"));
-        caerLog(CAER_LOG_NOTICE, __func__, ("CHIP: "));
-        caerLog(CAER_LOG_NOTICE, __func__, to_string(post_chip).c_str());
         if (post_chip < 0 || post_chip > 3){ 
             message = string(message + "Post-Synaptic chip out of range (0-3): " + to_string(post_chip)+ "\n");
             correct_input = false;
@@ -521,16 +512,12 @@ void ReadXMLNet (ConnectionManager manager, string filepath) {
 
 
         auto post_core = (uint8_t)atoi(mxmlElementGetAttr(post, "CORE"));
-        caerLog(CAER_LOG_NOTICE, __func__, ("CORE: "));
-        caerLog(CAER_LOG_NOTICE, __func__, to_string(post_core).c_str());
         if (post_core < 0 || post_core > 3){ 
             message = string(message + "Post-Synaptic core out of range (0-3): " + to_string(post_core)+ "\n");
             correct_input = false;
         }
 
         auto post_neuron = (uint8_t)atoi(mxmlElementGetAttr(post, "NEURON"));
-        caerLog(CAER_LOG_NOTICE, __func__, ("NEURON: "));
-        caerLog(CAER_LOG_NOTICE, __func__, to_string(post_neuron).c_str());
         if (post_neuron < 0 || post_neuron > 255){ 
             message = string(message + "Post-Synaptic neuron out of range (0-255): " + to_string(post_neuron)+ "\n");
             correct_input = false;
@@ -539,7 +526,7 @@ void ReadXMLNet (ConnectionManager manager, string filepath) {
         
         // Make connection
         if(correct_input){
-            manager.Connect(
+            manager_p->Connect(
             new Neuron(pre_chip, pre_core, pre_neuron),
             new Neuron(post_chip, post_core, post_neuron),
             cam_slots_number, connection_type);
@@ -549,14 +536,15 @@ void ReadXMLNet (ConnectionManager manager, string filepath) {
         }
        
 
-        // Loop to next connection TODO: figure out why I have to do this twice
+        // Loop to next connection 
+        // TODO: figure out why I have to do this twice
         current_connection = mxmlGetNextSibling(current_connection);
         current_connection = mxmlGetNextSibling(current_connection);
         name = mxmlGetElement(current_connection);
     }
 
  
-    fclose(fp);
+    fclose(netFile);
 
 }
 

@@ -96,7 +96,7 @@ public:
 };
 
 // Reads net from txt file in format U02-C02-N002->U02-C02-N006
-void ReadNet (ConnectionManager manager, string filepath) ;
+bool ReadNet (ConnectionManager * manager, string filepath) ;
 
 // Reads net from XML file in format
 //<CONNECTIONS num="5">
@@ -105,5 +105,4 @@ void ReadNet (ConnectionManager manager, string filepath) ;
 //     <POST CHIP="2" CORE="2" NEURON="2" />
 //  </CONNECTION>
 //</CONNECTIONS>
-void ReadXMLNet (ConnectionManager manager, string filepath) ;
-void ExampleXMLsave();
+bool ReadXMLNet (ConnectionManager * manager, string filepath) ;
