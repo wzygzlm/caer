@@ -53,7 +53,7 @@ caerModuleInfo caerModuleGetInfo(void) {
 
 static bool caerNetParserInit(caerModuleData moduleData) {
 
-    caerLog(CAER_LOG_NOTICE, __func__, "NET PARSER: INIT\n");
+    caerLog(CAER_LOG_DEBUG, __func__, "NET PARSER: INIT\n");
 
 
 	NetParserState state = (NETPARSER_state*) moduleData->moduleState;
@@ -65,8 +65,9 @@ static bool caerNetParserInit(caerModuleData moduleData) {
     sshsNodeCreateBool(moduleData->moduleNode, "Program Network from .xml", false, SSHS_FLAGS_NORMAL, "def");
     sshsNodeCreateString(moduleData->moduleNode, "xml_file", "./modules/netparser/networks/hellonet.xml", 1, 4096, SSHS_FLAGS_NORMAL, "File to load network connnectivity from.");
 
-    sshsNodeCreateBool(moduleData->moduleNode, "Set Biases", false, SSHS_FLAGS_NORMAL, "def");
-    sshsNodeCreateBool(moduleData->moduleNode, "Clear Network", false, SSHS_FLAGS_NORMAL, "def");
+    sshsNodeCreateBool(moduleData->moduleNode, "Set Default Spiking Biases", false, SSHS_FLAGS_NORMAL, "def");
+    sshsNodeCreateBool(moduleData->moduleNode, "Clear Network\n(this will take about a minute)",
+     false, SSHS_FLAGS_NORMAL, "def");
 
 	//sshsNodePutBoolIfAbsent(moduleData->moduleNode, "setSram", false);
 	//sshsNodePutBoolIfAbsent(moduleData->moduleNode, "setCam", false);
@@ -92,8 +93,8 @@ static bool caerNetParserInit(caerModuleData moduleData) {
 
     state->programTXT = sshsNodeGetBool(moduleData->moduleNode, "Program Network from .txt");
     state->programXML = sshsNodeGetBool(moduleData->moduleNode, "Program Network from .xml");
-    state->bias = sshsNodeGetBool(moduleData->moduleNode, "Set Biases");
-    state->clear = sshsNodeGetBool(moduleData->moduleNode, "Clear Network");
+    state->bias = sshsNodeGetBool(moduleData->moduleNode, "Set Default Spiking Biases");
+    state->clear = sshsNodeGetBool(moduleData->moduleNode, "Clear Network\n(this will take about a minute)");
 
 	sshsNodeAddAttributeListener(moduleData->moduleNode, moduleData, &caerModuleConfigDefaultListener); 
 
@@ -248,11 +249,12 @@ static void caerNetParserModuleConfig(caerModuleData moduleData) {
 		bool newProgramTXT = sshsNodeGetBool(moduleData->moduleNode, "Program Network from .txt");
         bool newProgramXML = sshsNodeGetBool(moduleData->moduleNode, "Program Network from .xml");
 
-		bool newBiases = sshsNodeGetBool(moduleData->moduleNode, "Set Biases");
-        bool newClearNetwork = sshsNodeGetBool(moduleData->moduleNode, "Clear Network");
+		bool newBiases = sshsNodeGetBool(moduleData->moduleNode, "Set Default Spiking Biases");
+        bool newClearNetwork = sshsNodeGetBool(moduleData->moduleNode, "Clear Network\n(this will take about a minute)");
 
+        bool operation_result = false;
 
-		caerLog(CAER_LOG_NOTICE, __func__, "Running Config Module");   	
+		caerLog(CAER_LOG_DEBUG, __func__, "Running Config Module");   	
     			
 		if (newProgramTXT && !state->programTXT) {
 				state->programTXT = true;
@@ -260,8 +262,13 @@ static void caerNetParserModuleConfig(caerModuleData moduleData) {
 			    caerLog(CAER_LOG_NOTICE, __func__, "Starting Board Connectivity Programming with txt file");
     			std::string filePath = sshsNodeGetString(moduleData->moduleNode, "txt_file");
 				//manager.Connect(new Neuron(2,2,2),new Neuron(2,2,6),1,1);
-    			ReadNet(&(state->manager), filePath);
-    			caerLog(CAER_LOG_NOTICE, __func__, "Finished Board Connectivity Programming with txt file");
+    			operation_result = ReadNet(&(state->manager), filePath);
+                if (operation_result){
+                    caerLog(CAER_LOG_NOTICE, __func__, ("Succesfully Finished Board Connectivity Programming from " + filePath).c_str());
+                } else {
+                    caerLog(CAER_LOG_ERROR, __func__, ("Did NOT Finish Board Connectivity Programming from " + filePath).c_str());
+
+                }
 
 		}
 		else if (!newProgramTXT && state->programTXT) {
@@ -275,9 +282,14 @@ static void caerNetParserModuleConfig(caerModuleData moduleData) {
                 std::string filePath = sshsNodeGetString(moduleData->moduleNode, "xml_file");
 
                 //manager.Connect(new Neuron(2,2,2),new Neuron(2,2,6),1,1);
-                ReadXMLNet(&(state->manager), filePath);
-                caerLog(CAER_LOG_NOTICE, __func__, "Finished Board Connectivity Programming with xml file");
+                operation_result = ReadXMLNet(&(state->manager), filePath);
 
+                 if (operation_result){
+                    caerLog(CAER_LOG_NOTICE, __func__, ("Succesfully Finished Board Connectivity Programming from " + filePath).c_str());
+                } else {
+                    caerLog(CAER_LOG_ERROR, __func__, ("Did NOT Finish Board Connectivity Programming from " + filePath).c_str());
+
+                }
         }
         else if (!newProgramXML && state->programTXT) {
                 state->programTXT = false;

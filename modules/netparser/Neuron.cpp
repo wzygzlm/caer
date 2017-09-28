@@ -208,7 +208,7 @@ void ConnectionManager::MakeConnection( Neuron * pre, Neuron * post, uint8_t cam
     to_string(pre->SRAM.size())+ ", " +
     string(to_string(GetDestinationCore(post->core)))+ ") ";
 
-    caerLog(CAER_LOG_NOTICE, __func__, message.c_str());
+    caerLog(CAER_LOG_DEBUG, __func__, message.c_str());
 
 
     // Program SRAM
@@ -227,7 +227,7 @@ void ConnectionManager::MakeConnection( Neuron * pre, Neuron * post, uint8_t cam
     to_string(post->CAM.size())+ ", " +
     to_string(connection_type)+ ") ";
 
-    caerLog(CAER_LOG_NOTICE, __func__, message.c_str());
+    caerLog(CAER_LOG_DEBUG, __func__, message.c_str());
 
     // Program CAM
     caerDeviceConfigSet(handle, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, post->chip);
@@ -247,7 +247,7 @@ void ConnectionManager::MakeConnection( Neuron * pre, Neuron * post, uint8_t cam
 bool ConnectionManager::CheckAndConnect(Neuron * pre, Neuron * post, uint8_t cam_slots_number, uint8_t connection_type ){
     string message = string("Attempting to connect " + pre->GetLocString() + "-" + to_string(connection_type)
             + "-" + to_string(cam_slots_number) + "->" + post->GetLocString());
-    caerLog(CAER_LOG_NOTICE, __func__, message.c_str());
+    caerLog(CAER_LOG_DEBUG, __func__, message.c_str());
 
     if(!(*pre == *post)) {
         if(connection_type >= 0 & connection_type < 4)
@@ -260,7 +260,7 @@ bool ConnectionManager::CheckAndConnect(Neuron * pre, Neuron * post, uint8_t cam
 
                         //if no clashes, connect
                         if (it == post->CAM.end()) {
-                            caerLog(CAER_LOG_NOTICE, __func__, "Passed tests");
+                            caerLog(CAER_LOG_DEBUG, __func__, "Passed tests");
                             MakeConnection(pre, post, cam_slots_number, connection_type);
                             return true;
 
@@ -279,7 +279,7 @@ bool ConnectionManager::CheckAndConnect(Neuron * pre, Neuron * post, uint8_t cam
                     }
                 } else {
                     //If CAM is empty, connect
-                    caerLog(CAER_LOG_NOTICE, __func__, "Passed tests");
+                    caerLog(CAER_LOG_DEBUG, __func__, "Passed tests");
                     MakeConnection(pre, post, cam_slots_number, connection_type);
                     return true;
                 }
@@ -314,7 +314,7 @@ void ConnectionManager::Clear(){
     this->neuronMap_.clear();
 }
 
-void ConnectionManager::PrintNeuronMap(){
+stringstream ConnectionManager::GetNeuronMapString(){
     stringstream ss;
     
     
@@ -359,7 +359,7 @@ void ConnectionManager::Connect(Neuron * pre, Neuron * post, uint8_t cam_slots_n
         if(CheckAndConnect(pre, post, cam_slots_number, connection_type)){
             string message = string("+++ Connected " + pre->GetLocString() + "-" + to_string(connection_type) +
             "-" + to_string(cam_slots_number) + "->" + post->GetLocString()+ "\n");
-        caerLog(CAER_LOG_NOTICE, __func__, message.c_str());
+        caerLog(CAER_LOG_DEBUG, __func__, message.c_str());
         } else{
              string message = string("XXX Did not connect " + pre->GetLocString() + "-" + to_string(connection_type) +
             "-" + to_string(cam_slots_number) + "->" + post->GetLocString()+ "\n");
@@ -374,7 +374,7 @@ void ConnectionManager::Connect(Neuron * pre, Neuron * post, uint8_t cam_slots_n
 
 bool ReadNet (ConnectionManager * manager, string filepath) {
 
-    caerLog(CAER_LOG_NOTICE, __func__, ("attempting to read net found at: " + filepath).c_str());
+    caerLog(CAER_LOG_DEBUG, __func__, ("attempting to read net found at: " + filepath).c_str());
     ifstream netFile (filepath);
     string connection;
     if (netFile.is_open())
@@ -415,7 +415,7 @@ bool ReadNet (ConnectionManager * manager, string filepath) {
 
     }
     else{
-        caerLog(CAER_LOG_NOTICE, __func__, ("unable to open file: " + filepath).c_str());  
+        caerLog(CAER_LOG_ERROR, __func__, ("unable to open file: " + filepath).c_str());  
         return false;
     } 
 
@@ -429,11 +429,11 @@ bool ReadXMLNet (ConnectionManager * manager, string filepath) {
     string message = "";
     bool correct_input = true;
 
-    caerLog(CAER_LOG_NOTICE, __func__, ("opening file: " + filepath).c_str());
+    caerLog(CAER_LOG_DEBUG, __func__, ("opening file: " + filepath).c_str());
     netFile = fopen(filepath.c_str(), "r");
 
     if (netFile == NULL){
-        caerLog(CAER_LOG_NOTICE, __func__, ("unable to open file: " + filepath).c_str());
+        caerLog(CAER_LOG_ERROR, __func__, ("unable to open file: " + filepath).c_str());
         return false;
     }
   
@@ -441,13 +441,13 @@ bool ReadXMLNet (ConnectionManager * manager, string filepath) {
     tree = mxmlLoadFile(NULL, netFile, MXML_NO_CALLBACK);
 
     if (tree == NULL){
-        caerLog(CAER_LOG_NOTICE, __func__, ("Invalid XML file"));
+        caerLog(CAER_LOG_ERROR, __func__, ("Invalid XML file"));
         return false;
     }
 
     const char *name = mxmlGetElement(tree);
     size_t level = 0;
-    caerLog(CAER_LOG_NOTICE, __func__, (name));
+    caerLog(CAER_LOG_DEBUG, __func__, (name));
 
     mxml_node_t *connections;
     connections = mxmlFindElement(tree, tree, "CONNECTIONS", NULL, NULL, MXML_DESCEND);
