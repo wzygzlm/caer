@@ -262,7 +262,7 @@ static void caerNetParserModuleConfig(caerModuleData moduleData) {
 			    caerLog(CAER_LOG_NOTICE, __func__, "Starting Board Connectivity Programming with txt file");
     			std::string filePath = sshsNodeGetString(moduleData->moduleNode, "txt_file");
 				//manager.Connect(new Neuron(2,2,2),new Neuron(2,2,6),1,1);
-    			operation_result = ReadNet(&(state->manager), filePath);
+    			operation_result = ReadNetTXT(&(state->manager), filePath);
                 if (operation_result){
                     caerLog(CAER_LOG_NOTICE, __func__, ("Succesfully Finished Board Connectivity Programming from " + filePath).c_str());
                 } else {
@@ -282,7 +282,7 @@ static void caerNetParserModuleConfig(caerModuleData moduleData) {
                 std::string filePath = sshsNodeGetString(moduleData->moduleNode, "xml_file");
 
                 //manager.Connect(new Neuron(2,2,2),new Neuron(2,2,6),1,1);
-                operation_result = ReadXMLNet(&(state->manager), filePath);
+                operation_result = ReadNetXML(&(state->manager), filePath);
 
                  if (operation_result){
                     caerLog(CAER_LOG_NOTICE, __func__, ("Succesfully Finished Board Connectivity Programming from " + filePath).c_str());

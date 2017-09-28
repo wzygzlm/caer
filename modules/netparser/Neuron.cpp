@@ -391,7 +391,7 @@ void ConnectionManager::Connect(Neuron * pre, Neuron * post, uint8_t cam_slots_n
 
 }
 
-bool ReadNet (ConnectionManager * manager, string filepath) {
+bool ReadNetTXT (ConnectionManager * manager, string filepath) {
 
     caerLog(CAER_LOG_DEBUG, __func__, ("attempting to read net found at: " + filepath).c_str());
     ifstream netFile (filepath);
@@ -441,7 +441,7 @@ bool ReadNet (ConnectionManager * manager, string filepath) {
 }
 
 // TODO: Finish XML reader
-bool ReadXMLNet (ConnectionManager * manager, string filepath) {
+bool ReadNetXML (ConnectionManager * manager, string filepath) {
 
     FILE *netFile;
     mxml_node_t *tree;
