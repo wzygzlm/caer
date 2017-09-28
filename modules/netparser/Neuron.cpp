@@ -327,7 +327,26 @@ stringstream ConnectionManager::GetNeuronMapString(){
         " -- CAM: " << entry->GetCAMString();  
     }
 
-    caerLog(CAER_LOG_NOTICE, __func__, ss.str().c_str());
+    return ss;
+}
+
+void ConnectionManager::PrintNeuronMap(){   
+
+    string entry_message;
+    
+    for(auto it = neuronMap_.cbegin(); it != neuronMap_.cend(); ++it)
+    {
+        Neuron * entry = it->second; 
+        entry_message = "\n"+ 
+        entry->GetLocString() + 
+        " -- SRAM: " + 
+        entry->GetSRAMString() +
+        " -- CAM: " + 
+        entry->GetCAMString();  
+
+        caerLog(CAER_LOG_NOTICE, __func__, entry_message.c_str());
+    }
+
 }
 
 vector <Neuron *> ConnectionManager::GetNeuron(Neuron * pre){

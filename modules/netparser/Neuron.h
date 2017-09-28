@@ -88,6 +88,7 @@ public:
     map<Neuron, Neuron *> *GetNeuronMap();
 
     void PrintNeuronMap();
+    stringstream GetNeuronMapString();
 
     vector<Neuron *> GetNeuron(Neuron *pre);
 
