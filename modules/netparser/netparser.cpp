@@ -235,6 +235,8 @@ void caerClearConnections(caerModuleData moduleData){
     caerDeviceConfigSet(handle, DYNAPSE_CONFIG_DEFAULT_SRAM, DYNAPSE_CONFIG_DYNAPSE_U3, 0);
     caerDeviceConfigSet(handle, DYNAPSE_CONFIG_CLEAR_CAM, 0, 0);
 
+    state->manager.Clear();
+
     caerLog(CAER_LOG_NOTICE, __func__, "Done Clearing Networks");    
 
 }

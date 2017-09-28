@@ -82,6 +82,8 @@ private:
 
 public:
     ConnectionManager(caerDeviceHandle h);
+    
+    void Clear();
 
     map<Neuron, Neuron *> *GetNeuronMap();
 

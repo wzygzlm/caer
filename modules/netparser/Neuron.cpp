@@ -309,6 +309,11 @@ map<Neuron,Neuron*> * ConnectionManager::GetNeuronMap(){
     return &(this->neuronMap_);
 }
 
+void ConnectionManager::Clear(){
+    caerLog(CAER_LOG_NOTICE, __func__,"Clearing Connection Manager...\nAll stored connections will be deleted");
+    this->neuronMap_.clear();
+}
+
 void ConnectionManager::PrintNeuronMap(){
     stringstream ss;
     
@@ -364,10 +369,6 @@ void ConnectionManager::Connect(Neuron * pre, Neuron * post, uint8_t cam_slots_n
     catch (const string e){
         caerLog(CAER_LOG_NOTICE, __func__, e.c_str());
     }
-
-}
-
-void ConnectionManager::ClearManager(){
 
 }
 
