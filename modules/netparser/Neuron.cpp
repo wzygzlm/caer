@@ -367,7 +367,9 @@ void ConnectionManager::Connect(Neuron * pre, Neuron * post, uint8_t cam_slots_n
 
 }
 
+void ConnectionManager::ClearManager(){
 
+}
 
 bool ReadNet (ConnectionManager * manager, string filepath) {
 
@@ -547,15 +549,4 @@ bool ReadXMLNet (ConnectionManager * manager, string filepath) {
     fclose(netFile);
 
 }
-
-void ExampleXMLsave(){
-
-    FILE *fp;
-    mxml_node_t *tree;
-
-    fp = fopen("filename.xml", "w");
-    mxmlSaveFile(tree, fp, MXML_NO_CALLBACK);
-    fclose(fp);
-}
-
 
