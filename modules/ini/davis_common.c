@@ -733,7 +733,7 @@ static void createDefaultConfiguration(caerModuleData moduleData, struct caer_da
 
 	// Not supported on DAVIS RGB.
 	if (!IS_DAVISRGB(devInfo->chipID)) {
-		sshsNodeCreateShort(apsNode, "ResetSettle", (devInfo->adcClock / 3), 0, devInfo->adcClock, SSHS_FLAGS_NORMAL,
+		sshsNodeCreateShort(apsNode, "ResetSettle", (devInfo->adcClock / 3), 0, I16T(devInfo->adcClock * 2), SSHS_FLAGS_NORMAL,
 			"Set reset settle time (in cycles).");
 		sshsNodeCreateShort(apsNode, "ColumnSettle", devInfo->adcClock, 0, I16T(devInfo->adcClock * 2),
 			SSHS_FLAGS_NORMAL, "Set column settle time (in cycles).");
@@ -774,9 +774,9 @@ static void createDefaultConfiguration(caerModuleData moduleData, struct caer_da
 
 	if (devInfo->apsHasInternalADC) {
 		sshsNodeCreateBool(apsNode, "SampleEnable", true, SSHS_FLAGS_NORMAL, "Enable Sample&Hold circuitry.");
-		sshsNodeCreateShort(apsNode, "SampleSettle", devInfo->adcClock, 0, I16T(devInfo->adcClock * 2),
+		sshsNodeCreateShort(apsNode, "SampleSettle", devInfo->adcClock, 0, I16T(devInfo->adcClock * 8),
 			SSHS_FLAGS_NORMAL, "Sample hold time (in cycles).");
-		sshsNodeCreateShort(apsNode, "RampReset", (devInfo->adcClock / 3), 0, I16T(devInfo->adcClock * 2),
+		sshsNodeCreateShort(apsNode, "RampReset", (devInfo->adcClock / 3), 0, I16T(devInfo->adcClock * 4),
 			SSHS_FLAGS_NORMAL, "Ramp reset time (in cycles).");
 		sshsNodeCreateBool(apsNode, "RampShortReset", false, SSHS_FLAGS_NORMAL,
 			"Only go through half the ramp for reset read.");
