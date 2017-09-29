@@ -19,7 +19,7 @@ void MyCaffe_file_set(MyCaffe* v, caerFrameEventPacketConst frameIn, bool thr, b
 
 char * MyCaffe_file_get(MyCaffe* v);
 
-void MyCaffe_init_network(MyCaffe *v);
+void MyCaffe_init_network(MyCaffe *v, int lowPass);
 
 void deleteMyCaffe(MyCaffe* v);
 
