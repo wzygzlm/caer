@@ -725,7 +725,7 @@ static void createDefaultConfiguration(caerModuleData moduleData, struct caer_da
 	sshsNodeCreateInt(apsNode, "Exposure", 4000, 0, (0x01 << 20) - 1, SSHS_FLAGS_NORMAL, "Set exposure time (in µs).");
 	sshsNodeCreateInt(apsNode, "FrameDelay", 1000, 0, (0x01 << 20) - 1, SSHS_FLAGS_NORMAL,
 		"Set delay time between frames (in µs).");
-	sshsNodeCreateShort(apsNode, "RowSettle", (devInfo->adcClock / 3), 0, devInfo->adcClock, SSHS_FLAGS_NORMAL,
+	sshsNodeCreateShort(apsNode, "RowSettle", (devInfo->adcClock / 3), 0, I16T(devInfo->adcClock * 2), SSHS_FLAGS_NORMAL,
 		"Set row settle time (in cycles).");
 	sshsNodeCreateBool(apsNode, "TakeSnapShot", false, SSHS_FLAGS_NOTIFY_ONLY, "Take a single frame capture.");
 	sshsNodeCreateBool(apsNode, "AutoExposure", true, SSHS_FLAGS_NORMAL,
@@ -735,10 +735,14 @@ static void createDefaultConfiguration(caerModuleData moduleData, struct caer_da
 	if (!IS_DAVISRGB(devInfo->chipID)) {
 		sshsNodeCreateShort(apsNode, "ResetSettle", (devInfo->adcClock / 3), 0, I16T(devInfo->adcClock * 2), SSHS_FLAGS_NORMAL,
 			"Set reset settle time (in cycles).");
-		sshsNodeCreateShort(apsNode, "ColumnSettle", devInfo->adcClock, 0, I16T(devInfo->adcClock * 2),
-			SSHS_FLAGS_NORMAL, "Set column settle time (in cycles).");
 		sshsNodeCreateShort(apsNode, "NullSettle", (devInfo->adcClock / 10), 0, devInfo->adcClock, SSHS_FLAGS_NORMAL,
 			"Set null settle time (in cycles).");
+	}
+
+	// Only available on DAVIS240 due to external ADC use, which has both a row and column timing.
+	if (IS_DAVIS240(devInfo->chipID)) {
+		sshsNodeCreateShort(apsNode, "ColumnSettle", devInfo->adcClock, 0, I16T(devInfo->adcClock * 2),
+			SSHS_FLAGS_NORMAL, "Set column settle time (in cycles).");
 	}
 
 	if (devInfo->apsHasQuadROI) {
@@ -2005,10 +2009,14 @@ static void apsConfigSend(sshsNode node, caerModuleData moduleData, struct caer_
 	if (!IS_DAVISRGB(devInfo->chipID)) {
 		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_RESET_SETTLE,
 			U32T(sshsNodeGetShort(node, "ResetSettle")));
-		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_COLUMN_SETTLE,
-			U32T(sshsNodeGetShort(node, "ColumnSettle")));
 		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_NULL_SETTLE,
 			U32T(sshsNodeGetShort(node, "NullSettle")));
+	}
+
+	// Only available on DAVIS240 due to external ADC use, which has both a row and column timing.
+	if (IS_DAVIS240(devInfo->chipID)) {
+		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_COLUMN_SETTLE,
+			U32T(sshsNodeGetShort(node, "ColumnSettle")));
 	}
 
 	if (devInfo->apsHasQuadROI) {
