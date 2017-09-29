@@ -476,7 +476,7 @@ static void createDefaultConfiguration(caerModuleData moduleData, struct caer_da
 		}
 
 		createCoarseFineBiasSetting(biasNode, "LocalBufBn", 5, 164, true, "N", "Normal");
-		createCoarseFineBiasSetting(biasNode, "PadFollBn", 7, 215, false, "N", "Normal"); // TODO: this is ENABLED in libcaer.
+		createCoarseFineBiasSetting(biasNode, "PadFollBn", 7, 215, false, "N", "Normal");
 		createCoarseFineBiasSetting(biasNode, "DiffBn", 4, 39, true, "N", "Normal");
 		createCoarseFineBiasSetting(biasNode, "OnBn", 5, 255, true, "N", "Normal");
 		createCoarseFineBiasSetting(biasNode, "OffBn", 4, 1, true, "N", "Normal");
