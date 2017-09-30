@@ -675,12 +675,12 @@ static void createDefaultConfiguration(caerModuleData moduleData, struct caer_da
 	if (devInfo->dvsHasBackgroundActivityFilter) {
 		sshsNodeCreateBool(dvsNode, "FilterBackgroundActivity", false, SSHS_FLAGS_NORMAL,
 			"Filter background events using hardware filter on FPGA.");
-		sshsNodeCreateInt(dvsNode, "FilterBackgroundActivityTime", 20000, 0, (0x01 << 16) - 1, SSHS_FLAGS_NORMAL,
-			"Hardware background events filter delta time (in µs).");
+		sshsNodeCreateInt(dvsNode, "FilterBackgroundActivityTime", 80, 0, (0x01 << 12) - 1, SSHS_FLAGS_NORMAL,
+			"Hardware background events filter delta time (in 250µs units).");
 		sshsNodeCreateBool(dvsNode, "FilterRefractoryPeriod", false, SSHS_FLAGS_NORMAL,
 			"Limit pixel firing rate using hardware filter on FPGA.");
-		sshsNodeCreateInt(dvsNode, "FilterRefractoryPeriodTime", 200, 0, (0x01 << 16) - 1, SSHS_FLAGS_NORMAL,
-			"Hardware refractory period time (in µs).");
+		sshsNodeCreateInt(dvsNode, "FilterRefractoryPeriodTime", 2, 0, (0x01 << 12) - 1, SSHS_FLAGS_NORMAL,
+			"Hardware refractory period time (in 250µs units).");
 	}
 
 	if (devInfo->dvsHasTestEventGenerator) {
