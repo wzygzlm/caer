@@ -480,9 +480,9 @@ static void createDefaultConfiguration(caerModuleData moduleData, struct caer_da
 		createCoarseFineBiasSetting(biasNode, "DiffBn", 4, 39, true, "N", "Normal");
 		createCoarseFineBiasSetting(biasNode, "OnBn", 5, 255, true, "N", "Normal");
 		createCoarseFineBiasSetting(biasNode, "OffBn", 4, 1, true, "N", "Normal");
+		createCoarseFineBiasSetting(biasNode, "PixInvBn", 5, 129, true, "N", "Normal");
 		createCoarseFineBiasSetting(biasNode, "PrBp", 2, 58, true, "P", "Normal");
 		createCoarseFineBiasSetting(biasNode, "PrSFBp", 1, 16, true, "P", "Normal");
-		createCoarseFineBiasSetting(biasNode, "PixInvBn", 5, 129, true, "N", "Normal");
 		createCoarseFineBiasSetting(biasNode, "RefrBp", 4, 25, true, "P", "Normal");
 		createCoarseFineBiasSetting(biasNode, "ReadoutBufBp", 6, 20, true, "P", "Normal");
 		createCoarseFineBiasSetting(biasNode, "ApsROSFBn", 6, 219, true, "N", "Normal");
@@ -1015,12 +1015,12 @@ static void biasConfigSend(sshsNode node, caerModuleData moduleData, struct caer
 			generateCoarseFineBiasParent(node, "OnBn"));
 		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_BIAS, DAVIS128_CONFIG_BIAS_OFFBN,
 			generateCoarseFineBiasParent(node, "OffBn"));
+		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_BIAS, DAVIS128_CONFIG_BIAS_PIXINVBN,
+			generateCoarseFineBiasParent(node, "PixInvBn"));
 		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_BIAS, DAVIS128_CONFIG_BIAS_PRBP,
 			generateCoarseFineBiasParent(node, "PrBp"));
 		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_BIAS, DAVIS128_CONFIG_BIAS_PRSFBP,
 			generateCoarseFineBiasParent(node, "PrSFBp"));
-		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_BIAS, DAVIS128_CONFIG_BIAS_PIXINVBN,
-			generateCoarseFineBiasParent(node, "PixInvBn"));
 		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_BIAS, DAVIS128_CONFIG_BIAS_REFRBP,
 			generateCoarseFineBiasParent(node, "RefrBp"));
 		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_BIAS, DAVIS128_CONFIG_BIAS_READOUTBUFBP,
@@ -1292,16 +1292,16 @@ static void biasConfigListener(sshsNode node, void *userData, enum sshs_node_att
 				caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_BIAS, DAVIS128_CONFIG_BIAS_OFFBN,
 					generateCoarseFineBias(node));
 			}
+			else if (caerStrEquals(nodeName, "PixInvBn")) {
+				caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_BIAS, DAVIS128_CONFIG_BIAS_PIXINVBN,
+					generateCoarseFineBias(node));
+			}
 			else if (caerStrEquals(nodeName, "PrBp")) {
 				caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_BIAS, DAVIS128_CONFIG_BIAS_PRBP,
 					generateCoarseFineBias(node));
 			}
 			else if (caerStrEquals(nodeName, "PrSFBp")) {
 				caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_BIAS, DAVIS128_CONFIG_BIAS_PRSFBP,
-					generateCoarseFineBias(node));
-			}
-			else if (caerStrEquals(nodeName, "PixInvBn")) {
-				caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_BIAS, DAVIS128_CONFIG_BIAS_PIXINVBN,
 					generateCoarseFineBias(node));
 			}
 			else if (caerStrEquals(nodeName, "RefrBp")) {
