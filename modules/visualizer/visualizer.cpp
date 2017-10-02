@@ -364,7 +364,8 @@ static void initSystemOnce(caerModuleData moduleData) {
 	sf::Text maxStatText(maxStatString, font, GLOBAL_FONT_SIZE);
 	STATISTICS_WIDTH = (2 * GLOBAL_FONT_SPACING) + U32T(maxStatText.getLocalBounds().width);
 
-	STATISTICS_HEIGHT = (3 * GLOBAL_FONT_SPACING) + (2 * U32T(maxStatText.getLocalBounds().height));
+	// 3 lines of statistics.
+	STATISTICS_HEIGHT = (4 * GLOBAL_FONT_SPACING) + (3 * U32T(maxStatText.getLocalBounds().height));
 }
 
 static bool initRenderSize(caerModuleData moduleData, int16_t *inputs, size_t inputsSize) {
@@ -478,6 +479,9 @@ static bool initGraphics(caerModuleData moduleData) {
 			state->renderSizeY);
 		return (false);
 	}
+
+	// Set frameRate limit to 60 FPS.
+	state->renderWindow->setFramerateLimit(60);
 
 	// Default zoom factor for above window would be 1.
 	state->renderZoomFactor.store(1.0f);
@@ -762,6 +766,12 @@ static void renderScreen(caerModuleData moduleData) {
 			validEventsText.setPosition(GLOBAL_FONT_SPACING,
 				(state->renderSizeY * state->renderZoomFactor.load(std::memory_order_relaxed)) + GLOBAL_FONT_SIZE);
 			state->renderWindow->draw(validEventsText);
+
+			sf::Text GapEventsText(state->packetStatistics.currentStatisticsStringGap, *state->font,
+			GLOBAL_FONT_SIZE);
+			sfml::Helpers::setTextColor(GapEventsText, sf::Color::White);
+			GapEventsText.setPosition(GLOBAL_FONT_SPACING, state->renderSizeY + (GLOBAL_FONT_SIZE * 2));
+			state->renderWindow->draw(GapEventsText);
 		}
 
 		// Draw to screen.
