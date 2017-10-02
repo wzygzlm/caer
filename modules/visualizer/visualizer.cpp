@@ -770,7 +770,8 @@ static void renderScreen(caerModuleData moduleData) {
 			sf::Text GapEventsText(state->packetStatistics.currentStatisticsStringGap, *state->font,
 			GLOBAL_FONT_SIZE);
 			sfml::Helpers::setTextColor(GapEventsText, sf::Color::White);
-			GapEventsText.setPosition(GLOBAL_FONT_SPACING, state->renderSizeY + (GLOBAL_FONT_SIZE * 2));
+			GapEventsText.setPosition(GLOBAL_FONT_SPACING,
+				(state->renderSizeY * state->renderZoomFactor.load(std::memory_order_relaxed)) + (2 * GLOBAL_FONT_SIZE));
 			state->renderWindow->draw(GapEventsText);
 		}
 
