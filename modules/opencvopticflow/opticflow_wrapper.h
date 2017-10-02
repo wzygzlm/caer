@@ -6,6 +6,7 @@ extern "C" {
 #endif
 
 #include "opticflow_settings.h"
+#include <libcaer/events/frame.h>
 
 typedef struct OpticFlow OpticFlow;
 
