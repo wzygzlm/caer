@@ -479,6 +479,9 @@ static bool initGraphics(caerModuleData moduleData) {
 		return (false);
 	}
 
+	// Set frameRate limit to 60 fps
+	state->renderWindow->setFramerateLimit(60);
+
 	// Set scale transform for display window, update sizes.
 	updateDisplaySize(state);
 
