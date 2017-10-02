@@ -361,7 +361,7 @@ static void initSystemOnce(caerModuleData moduleData) {
 	}
 
 	// Determine statistics string width.
-	sf::Text maxStatText(maxStatString, font, GLOBAL_FONT_SIZE);
+	sf::Text maxStatText(maxStatString, font, GLOBAL_FONT_SIZE * 2); // 3 lines of stats
 	STATISTICS_WIDTH = (2 * GLOBAL_FONT_SPACING) + U32T(maxStatText.getLocalBounds().width);
 
 	STATISTICS_HEIGHT = (3 * GLOBAL_FONT_SPACING) + (2 * U32T(maxStatText.getLocalBounds().height));
@@ -757,6 +757,12 @@ static void renderScreen(caerModuleData moduleData) {
 			sfml::Helpers::setTextColor(validEventsText, sf::Color::White);
 			validEventsText.setPosition(GLOBAL_FONT_SPACING, state->renderSizeY + GLOBAL_FONT_SIZE);
 			state->renderWindow->draw(validEventsText);
+
+			sf::Text GapEventsText(state->packetStatistics.currentStatisticsStringGap, *state->font,
+			GLOBAL_FONT_SIZE);
+			sfml::Helpers::setTextColor(GapEventsText, sf::Color::White);
+			GapEventsText.setPosition(GLOBAL_FONT_SPACING, state->renderSizeY + GLOBAL_FONT_SIZE * 2);
+			state->renderWindow->draw(GapEventsText);
 		}
 
 		// Draw to screen.
