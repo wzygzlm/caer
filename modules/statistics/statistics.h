@@ -37,17 +37,21 @@ static inline bool caerStatisticsStringInit(caerStatisticsState state) {
 		return (false);
 	}
 
-	state->currentStatisticsStringGap = (char *) calloc(maxSplitStatStringLength + 1, sizeof(char)); // +1 for NUL termination.
-	if (state->currentStatisticsStringGap == NULL) {
-		free(state->currentStatisticsStringGap);
-		return (false);
-	}
-
 	state->currentStatisticsStringValid = (char *) calloc(maxSplitStatStringLength + 1, sizeof(char)); // +1 for NUL termination.
 	if (state->currentStatisticsStringValid == NULL) {
 		free(state->currentStatisticsStringTotal);
-		free(state->currentStatisticsStringGap);
 		state->currentStatisticsStringTotal = NULL;
+
+		return (false);
+	}
+
+	state->currentStatisticsStringGap = (char *) calloc(maxSplitStatStringLength + 1, sizeof(char)); // +1 for NUL termination.
+	if (state->currentStatisticsStringGap == NULL) {
+		free(state->currentStatisticsStringTotal);
+		state->currentStatisticsStringTotal = NULL;
+
+		free(state->currentStatisticsStringValid);
+		state->currentStatisticsStringValid = NULL;
 
 		return (false);
 	}
@@ -87,16 +91,18 @@ static inline void caerStatisticsStringUpdate(caerEventPacketHeaderConst packetH
 		int32_t tspacket_last = caerGenericEventGetTimestamp(event_last, packetHeader);
 		int32_t tspacket_first = caerGenericEventGetTimestamp(event_first, packetHeader);
 		int32_t gap = 0;
+
 		if (state->lastTs == 0) {
 			state->lastTs = tspacket_last;
 		}
 		else {
 			gap = tspacket_first - state->lastTs;
+			state->lastTs = tspacket_last;
 		}
+
 		if (gap > state->maxTimeGap) {
 			state->maxTimeGap = gap;
 		}
-		state->lastTs = tspacket_last;
 	}
 
 	// DiffNanoTime is the difference in nanoseconds; we want to trigger roughly every second.
