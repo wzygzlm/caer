@@ -1,8 +1,10 @@
-#include "stereomatching.h"
 #include "matching_settings.h"
 #include "stereomatching_wrapper.h"
 #include "base/mainloop.h"
 #include "base/module.h"
+
+#include <libcaer/events/polarity.h>
+#include <libcaer/events/frame.h>
 
 struct StereoMatchingState_struct {
 	struct StereoMatchingSettings_struct settings; // Struct containing all settings (shared)
@@ -12,15 +14,16 @@ struct StereoMatchingState_struct {
 	uint32_t points_found;
 	uint32_t last_points_found;
 	size_t lastFoundPoints;
-	bool calibrationLoaded;
+	int calibrationLoaded;
 	caerFrameEventPacket cam0;
 	caerFrameEventPacket cam1;
 };
 
 typedef struct StereoMatchingState_struct *StereoMatchingState;
 
-static bool caerStereoMatchingInit(caerModuleData moduleData);
-static void caerStereoMatchingRun(caerModuleData moduleData, size_t argsNumber, va_list args);
+static int caerStereoMatchingInit(caerModuleData moduleData);
+static void caerStereoMatchingRun(caerModuleData moduleData, caerEventPacketContainer in,
+	caerEventPacketContainer *out);
 static void caerStereoMatchingConfig(caerModuleData moduleData);
 static void caerStereoMatchingExit(caerModuleData moduleData);
 static void updateSettings(caerModuleData moduleData);
@@ -29,37 +32,44 @@ static struct caer_module_functions caerStereoMatchingFunctions = { .moduleInit 
 	.moduleRun = &caerStereoMatchingRun, .moduleConfig = &caerStereoMatchingConfig, .moduleExit =
 		&caerStereoMatchingExit };
 
-void caerStereoMatching(uint16_t moduleID, caerFrameEventPacket frame_0, caerFrameEventPacket frame_1) {
-	caerModuleData moduleData = caerMainloopFindModule(moduleID, "StereoMatching", CAER_MODULE_PROCESSOR);
-	if (moduleData == NULL) {
-		return;
-	}
+static const struct caer_event_stream_in caerStereoMatchingInputs[] = { { .type = FRAME_EVENT, .number = 2, .readOnly =
+true } };
 
-	caerModuleSM(&caerStereoMatchingFunctions, moduleData, sizeof(struct StereoMatchingState_struct), 2, frame_0,
-		frame_1);
+static const struct caer_module_info caerStereoMatchingInfo = { .version = 1, .name = "StereoMatching", .description =
+	"Run stereo matching", .type = CAER_MODULE_PROCESSOR, .memSize =
+	sizeof(struct StereoMatchingState_struct), .functions = &caerStereoMatchingFunctions, .inputStreams =
+		caerStereoMatchingInputs, .inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(caerStereoMatchingInputs), .outputStreams =
+	NULL, .outputStreamsSize = 0, };
+
+
+caerModuleInfo caerModuleGetInfo(void) {
+	return (&caerStereoMatchingInfo);
 }
 
-static bool caerStereoMatchingInit(caerModuleData moduleData) {
+static int caerStereoMatchingInit(caerModuleData moduleData) {
 	StereoMatchingState state = moduleData->moduleState;
 
 	// Create config settings.
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "doMatching", false); // Do calibration using live images
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "captureDelay", 2000);
-	sshsNodePutStringIfAbsent(moduleData->moduleNode, "loadFileName_extrinsic", "extrinsics.xml"); // The name of the file from which to load the calibration
-	sshsNodePutStringIfAbsent(moduleData->moduleNode, "loadFileName_intrinsic", "intrinsics.xml"); // The name of the file from which to load the calibration
-
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "minDisparity", 0);
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "numDisparities", 16);
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "blockSize", 3);
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "PP1", 0);
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "PP2", 0);
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "disp12MaxDiff", 0);
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "preFilterCap", 0);
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "uniquenessRatio", 0);
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "speckleWindowSize", 0);
-	sshsNodePutIntIfAbsent(moduleData->moduleNode, "speckleRange", 0);
-	sshsNodePutStringIfAbsent(moduleData->moduleNode, "stereoMatchingAlg", "STEREO_SGBM"); //  STEREO_SGBM=1, STEREO_HH=2,  STEREO_3WAY=4
-	sshsNodePutStringIfAbsent(moduleData->moduleNode, "stereoMatchingAlgListOptions", "STEREO_SGBM,STEREO_HH,STEREO_3WAY");
+	sshsNodeCreateBool(moduleData->moduleNode, "doMatching", false, SSHS_FLAGS_NORMAL, "Start computation."); // Do calibration using live images
+	sshsNodeCreateInt(moduleData->moduleNode, "captureDelay", 2000, 1, 50000, SSHS_FLAGS_NORMAL, "Delay in us between images, less than this delay the images will be considered concident in time");
+	sshsNodeCreateString(moduleData->moduleNode, "loadFileName_extrinsic", "extrinsics.xml", 2, 2048,
+		SSHS_FLAGS_NORMAL, "extrinsic calibration file name.");
+	sshsNodeCreateString(moduleData->moduleNode, "loadFileName_intrinsic", "intrinsics.xml", 2, 2048,
+		SSHS_FLAGS_NORMAL, "intrinsics calibration file name.");
+	sshsNodeCreateInt(moduleData->moduleNode, "minDisparity", 0, 0, 1000, SSHS_FLAGS_NORMAL, "Minimum disparity");
+	sshsNodeCreateInt(moduleData->moduleNode, "numDisparities", 16, 2, 32, SSHS_FLAGS_NORMAL, "number of disparities");
+	sshsNodeCreateInt(moduleData->moduleNode, "blockSize", 3, 1, 32, SSHS_FLAGS_NORMAL, "blocksize");
+	sshsNodeCreateInt(moduleData->moduleNode, "PP1", 0, 0, 10, SSHS_FLAGS_NORMAL, "PP1 parameter, see opencv doc");
+	sshsNodeCreateInt(moduleData->moduleNode, "PP2", 0, 0, 10, SSHS_FLAGS_NORMAL, "PP2 parameter, see opencv doc");
+	sshsNodeCreateInt(moduleData->moduleNode, "disp12MaxDiff", 0, 0, 10, SSHS_FLAGS_NORMAL, "Display 12 Max diff");
+	sshsNodeCreateInt(moduleData->moduleNode, "preFilterCap", 0, 0, 10, SSHS_FLAGS_NORMAL, "Pre-filter cap");
+	sshsNodeCreateInt(moduleData->moduleNode, "uniquenessRatio", 0, 0, 10, SSHS_FLAGS_NORMAL, "uniquenessRatio");
+	sshsNodeCreateInt(moduleData->moduleNode, "speckleWindowSize", 0, 0, 10, SSHS_FLAGS_NORMAL, "speckleWindowSize");
+	sshsNodeCreateInt(moduleData->moduleNode, "speckleRange", 0, 0, 10, SSHS_FLAGS_NORMAL, "speckleRange");
+	sshsNodeCreateString(moduleData->moduleNode, "stereoMatchingAlg", "STEREO_SGBM", 2, 2048,
+		SSHS_FLAGS_NORMAL, "Supported: STEREO_SGBM=1, STEREO_HH=2,  STEREO_3WAY=4");
+	sshsNodeCreateString(moduleData->moduleNode, "stereoMatchingAlgListOptions", "STEREO_SGBM,STEREO_HH,STEREO_3WAY", 2, 2048,
+			SSHS_FLAGS_NORMAL, "Supported: STEREO_SGBM,STEREO_HH,STEREO_3WAY");
 
 	// Update all settings.
 	updateSettings(moduleData);
@@ -130,12 +140,16 @@ static void caerStereoMatchingExit(caerModuleData moduleData) {
 
 }
 
-static void caerStereoMatchingRun(caerModuleData moduleData, size_t argsNumber, va_list args) {
-	UNUSED_ARGUMENT(argsNumber);
+static void caerStereoMatchingRun(caerModuleData moduleData, caerEventPacketContainer in,
+	caerEventPacketContainer *out) {
 
-	// Interpret variable arguments (same as above in main function).
-	caerFrameEventPacket frame_0 = va_arg(args, caerFrameEventPacket);
-	caerFrameEventPacket frame_1 = va_arg(args, caerFrameEventPacket);
+	if (caerEventPacketContainerGetEventPacketsNumber(in) > 0) {
+		// We need at least one frame to proceed.
+		return;
+	}
+
+	caerFrameEventPacketConst frame_0 = (caerFrameEventPacketConst) caerEventPacketContainerGetEventPacketConst(in, 0);
+	caerFrameEventPacketConst frame_1 = (caerFrameEventPacketConst) caerEventPacketContainerGetEventPacketConst(in, 1);
 
 	StereoMatchingState state = moduleData->moduleState;
 
@@ -168,9 +182,9 @@ static void caerStereoMatchingRun(caerModuleData moduleData, size_t argsNumber, 
 
 		//caerLog(CAER_LOG_NOTICE, moduleData->moduleSubSystemString, "Looking for calibration patterns...");
 
-		bool frame_0_pattern = false;
+		int frame_0_pattern = false;
 		uint64_t frame_0_ts = NULL;
-		bool frame_1_pattern = false;
+		int frame_1_pattern = false;
 		uint64_t frame_1_ts = NULL;
 		void * foundPoint_cam1 = NULL;
 		void * foundPoint_cam0 = NULL;
@@ -179,7 +193,7 @@ static void caerStereoMatchingRun(caerModuleData moduleData, size_t argsNumber, 
 		// get last valid frame in packet for both cameras
 		caerFrameEventPacket currFramePacket_cam0 = (caerFrameEventPacket) frame_0;
 		caerFrameEvent currFrameEvent_cam0;
-		bool have_frame_0 = false;
+		int have_frame_0 = false;
 
 		for (int32_t i = caerEventPacketHeaderGetEventNumber(&currFramePacket_cam0->packetHeader) - 1; i >= 0; i--) {
 			currFrameEvent_cam0 = caerFrameEventPacketGetEvent(currFramePacket_cam0, i);
@@ -192,7 +206,7 @@ static void caerStereoMatchingRun(caerModuleData moduleData, size_t argsNumber, 
 
 		caerFrameEventPacket currFramePacket_cam1 = (caerFrameEventPacket) frame_1;
 		caerFrameEvent currFrameEvent_cam1;
-		bool have_frame_1 = false;
+		int have_frame_1 = false;
 
 		for (int32_t i = caerEventPacketHeaderGetEventNumber(&currFramePacket_cam1->packetHeader) - 1; i >= 0; i--) {
 			currFrameEvent_cam1 = caerFrameEventPacketGetEvent(currFramePacket_cam1, i);

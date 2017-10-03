@@ -151,7 +151,6 @@ static void caerStereoCalibrationExit(caerModuleData moduleData) {
 
 static void caerStereoCalibrationRun(caerModuleData moduleData, caerEventPacketContainer in,
 	caerEventPacketContainer *out) {
-	UNUSED_ARGUMENT(out);
 
 	if (caerEventPacketContainerGetEventPacketsNumber(in) != 2) {
 		// We need both frames to proceed.

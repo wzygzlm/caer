@@ -119,35 +119,34 @@ static void caerOpticFlowRun(caerModuleData moduleData, caerEventPacketContainer
 	// Generate image.
 	caerFrameEventPacket frameOut = NULL;
 
+	// Allocate packet container for result packet.
+	*out = caerEventPacketContainerAllocate(1);
 	if (*out == NULL) {
-		// Allocate packet container for result packet.
-		*out = caerEventPacketContainerAllocate(1);
-		if (*out == NULL) {
-			return; // Error.
+		return; // Error.
+	}
+
+	caerFrameEvent single_frame = caerFrameEventPacketGetEvent(*out, 0);
+
+	//add info to the frame
+	caerFrameEventSetLengthXLengthYChannelNumber(single_frame, sizeX, sizeY, 3, *out); // to do remove hard coded size
+	caerFrameEvent single_frame_in = caerFrameEventPacketGetEvent(frameInput, 0);
+
+	CAER_FRAME_ITERATOR_VALID_START(frameInput)
+
+		int sizeX = caerFrameEventGetLengthX(caerFrameIteratorElement);
+		int sizeY = caerFrameEventGetLengthY(caerFrameIteratorElement);
+		OpticFlow_doOpticFlow(state->cpp_class, &single_frame, &single_frame_in, sizeX, sizeY);
+
+		// validate frame
+		if (single_frame != NULL) {
+			caerFrameEventValidate(single_frame, *out);
+		}
+		else {
+			*out = NULL;
 		}
 
-		caerFrameEvent single_frame = caerFrameEventPacketGetEvent(*out, 0);
+	CAER_FRAME_ITERATOR_VALID_END
 
-		//add info to the frame
-		caerFrameEventSetLengthXLengthYChannelNumber(single_frame, sizeX, sizeY, 3, *out); // to do remove hard coded size
-		caerFrameEvent single_frame_in = caerFrameEventPacketGetEvent(frameInput, 0);
 
-		CAER_FRAME_ITERATOR_VALID_START(frameInput)
-
-			int sizeX = caerFrameEventGetLengthX(caerFrameIteratorElement);
-			int sizeY = caerFrameEventGetLengthY(caerFrameIteratorElement);
-			OpticFlow_doOpticFlow(state->cpp_class, &single_frame, &single_frame_in, sizeX, sizeY);
-
-			// validate frame
-			if (single_frame != NULL) {
-				caerFrameEventValidate(single_frame, *out);
-			}
-			else {
-				*out = NULL;
-			}
-
-		CAER_FRAME_ITERATOR_VALID_END
-
-	}
 
 }
