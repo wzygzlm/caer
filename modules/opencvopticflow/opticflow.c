@@ -1,8 +1,9 @@
-#include "opticflow.h"
+#include "main.h"
 #include "opticflow_wrapper.h"
-
 #include "base/mainloop.h"
 #include "base/module.h"
+#include <libcaer/events/frame.h>
+
 
 struct OpticFlowState_struct {
 	struct OpticFlowSettings_struct settings; // Struct containing all settings (shared)
@@ -12,7 +13,7 @@ struct OpticFlowState_struct {
 typedef struct OpticFlowState_struct *OpticFlowState;
 
 static bool caerOpticFlowInit(caerModuleData moduleData);
-static void caerOpticFlowRun(caerModuleData moduleData, size_t argsNumber, va_list args);
+static void caerOpticFlowRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out);
 static void caerOpticFlowConfig(caerModuleData moduleData);
 static void caerOpticFlowExit(caerModuleData moduleData);
 static void updateSettings(caerModuleData moduleData);
@@ -20,25 +21,33 @@ static void updateSettings(caerModuleData moduleData);
 static struct caer_module_functions caerOpticFlowFunctions = { .moduleInit = &caerOpticFlowInit, .moduleRun =
 	&caerOpticFlowRun, .moduleConfig = &caerOpticFlowConfig, .moduleExit = &caerOpticFlowExit };
 
-caerFrameEventPacket caerOpticFlow(uint16_t moduleID, caerFrameEventPacket frameInput) {
 
-	caerFrameEventPacket frame = NULL;
+static const struct caer_event_stream_in moduleInputs[] = { { .type = FRAME_EVENT, .number = 1, .readOnly = true } };
 
-	caerModuleData moduleData = caerMainloopFindModule(moduleID, "OpticFlow", CAER_MODULE_PROCESSOR);
-	if (moduleData == NULL) {
-		return(frame);
-	}
+static const struct caer_event_stream_out moduleOutputs[] = { { .type = FRAME_EVENT } };
 
-	caerModuleSM(&caerOpticFlowFunctions, moduleData, sizeof(struct OpticFlowState_struct), 2, frameInput, &frame);
+static const struct caer_module_info moduleInfo = {
+	.version = 1, .name = "Optic Flow",
+	.description = "Optic Flow on accumulated event stream",
+	.type = CAER_MODULE_PROCESSOR,
+	.memSize = sizeof(struct OpticFlowState_struct),
+	.functions = &caerOpticFlowFunctions,
+	.inputStreams = moduleInputs,
+	.inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(moduleInputs),
+	.outputStreams = moduleOutputs,
+	.outputStreamsSize = CAER_EVENT_STREAM_OUT_SIZE(moduleOutputs)
+};
 
-	return (frame);
+caerModuleInfo caerModuleGetInfo(void) {
+    return (&moduleInfo);
 }
+
 
 static bool caerOpticFlowInit(caerModuleData moduleData) {
 	OpticFlowState state = moduleData->moduleState;
 
 	// Create config settings.
-	sshsNodePutBoolIfAbsent(moduleData->moduleNode, "doOpticFlow", false); // Do OpticFlow using live images
+	sshsNodeCreateBool(moduleData->moduleNode, "doOpticFlow", true, SSHS_FLAGS_NORMAL, "Run optic flow estimation");
 
 	// Update all settings.
 	updateSettings(moduleData);
@@ -85,12 +94,10 @@ static void caerOpticFlowConfig(caerModuleData moduleData) {
 
 }
 
-static void caerOpticFlowRun(caerModuleData moduleData, size_t argsNumber, va_list args) {
-	UNUSED_ARGUMENT(argsNumber);
-
+static void caerOpticFlowRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out) {
 	// Interpret variable arguments (same as above in main function).
-	caerFrameEventPacket frameInput = va_arg(args, caerFrameEventPacket);
-	caerFrameEventPacket *frame = va_arg(args, caerFrameEventPacket*);
+	caerFrameEventPacketConst frameInput =
+			(caerFrameEventPacketConst) caerEventPacketContainerFindEventPacketByTypeConst(in, FRAME_EVENT);
 
 	if (frameInput == NULL) {
 		return;
@@ -109,15 +116,22 @@ static void caerOpticFlowRun(caerModuleData moduleData, size_t argsNumber, va_li
 		sshsNodePutShort(sourceInfoNode, "dataSizeY", sizeY);
 	}
 
-	*frame = caerFrameEventPacketAllocate(1, I16T(moduleData->moduleID), 0, sizeX, sizeY, 3);
-	caerMainloopFreeAfterLoop(&free, *frame);
-	if (*frame != NULL) {
+	// Generate image.
+	caerFrameEventPacket frameOut = NULL;
 
-		caerFrameEvent single_frame = caerFrameEventPacketGetEvent(*frame, 0);
+	if (*out == NULL) {
+		// Allocate packet container for result packet.
+		*out = caerEventPacketContainerAllocate(1);
+		if (*out == NULL) {
+			return; // Error.
+		}
+
+		caerFrameEvent single_frame = caerFrameEventPacketGetEvent(*out, 0);
+
 		//add info to the frame
-		caerFrameEventSetLengthXLengthYChannelNumber(single_frame, sizeX, sizeY, 3, *frame); // to do remove hard coded size
-
+		caerFrameEventSetLengthXLengthYChannelNumber(single_frame, sizeX, sizeY, 3, *out); // to do remove hard coded size
 		caerFrameEvent single_frame_in = caerFrameEventPacketGetEvent(frameInput, 0);
+
 		CAER_FRAME_ITERATOR_VALID_START(frameInput)
 
 			int sizeX = caerFrameEventGetLengthX(caerFrameIteratorElement);
@@ -126,10 +140,10 @@ static void caerOpticFlowRun(caerModuleData moduleData, size_t argsNumber, va_li
 
 			// validate frame
 			if (single_frame != NULL) {
-				caerFrameEventValidate(single_frame, *frame);
+				caerFrameEventValidate(single_frame, *out);
 			}
 			else {
-				*frame = NULL;
+				*out = NULL;
 			}
 
 		CAER_FRAME_ITERATOR_VALID_END
