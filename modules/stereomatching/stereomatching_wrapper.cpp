@@ -24,7 +24,7 @@ void StereoMatching_updateSettings(StereoMatching *calibClass) {
 
 }
 
-bool StereoMatching_stereoMatch(StereoMatching *calibClass, StereoMatchingSettings settings,
+int StereoMatching_stereoMatch(StereoMatching *calibClass, StereoMatchingSettings settings,
 	caerFrameEvent  vec1, caerFrameEvent  vec2) {
 
 	try {
@@ -37,7 +37,7 @@ bool StereoMatching_stereoMatch(StereoMatching *calibClass, StereoMatchingSettin
 
 }
 
-bool StereoMatching_loadCalibrationFile(StereoMatching *calibClass,
+int StereoMatching_loadCalibrationFile(StereoMatching *calibClass,
 		StereoMatchingSettings settings) {
 	try {
 		return (calibClass->loadCalibrationFile(settings));

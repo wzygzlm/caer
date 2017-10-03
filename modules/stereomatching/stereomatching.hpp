@@ -24,7 +24,6 @@
 #include <opencv2/calib3d.hpp>
 
 #include <iostream>
-#include <opencv2/aruco.hpp>
 #include <opencv2/highgui/highgui.hpp>
 
 using namespace cv;
@@ -35,14 +34,14 @@ class StereoMatching {
 public:
 	StereoMatching(StereoMatchingSettings settings);
 	void updateSettings(StereoMatchingSettings settings);
-	bool loadCalibrationFile(StereoMatchingSettings settings);
-	bool stereoMatch(StereoMatchingSettings settings, caerFrameEvent vec1, caerFrameEvent vec2);
+	int loadCalibrationFile(StereoMatchingSettings settings);
+	int stereoMatch(StereoMatchingSettings settings, caerFrameEvent vec1, caerFrameEvent vec2);
 
 private:
 	Mat M1, D1, M2, D2;
 	Mat R, T, R1, P1, R2, P2;
 	Mat Q;
-	StereoMatchingSettings settings = NULL;
+	StereoMatchingSettings settings;
 
 };
 

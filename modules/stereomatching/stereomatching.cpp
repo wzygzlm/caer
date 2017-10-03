@@ -1,8 +1,7 @@
 #include "stereomatching.hpp"
 #include <fstream>
 #include <iostream>
-#include "opencv2/cudastereo.hpp"
-
+#include <opencv2/cudastereo.hpp>
 
 StereoMatching::StereoMatching(StereoMatchingSettings settings){
 
@@ -14,7 +13,7 @@ StereoMatching::StereoMatching(StereoMatchingSettings settings){
 	//updateSettings(settings);
 }
 
-bool StereoMatching::stereoMatch(StereoMatchingSettings settings, caerFrameEvent vec1, caerFrameEvent vec2) {
+int StereoMatching::stereoMatch(StereoMatchingSettings settings, caerFrameEvent vec1, caerFrameEvent vec2) {
 	this->settings = settings;
 
 	// Initialize OpenCV Mat based on caerFrameEvent data directly (no image copy).
@@ -115,7 +114,7 @@ void StereoMatching::updateSettings(StereoMatchingSettings settings) {
 }
 
 
-bool StereoMatching::loadCalibrationFile(StereoMatchingSettings settings) {
+int StereoMatching::loadCalibrationFile(StereoMatchingSettings settings) {
 
 	// Open file with undistort matrices.
 	FileStorage fs(settings->loadFileName_intrinsic, FileStorage::READ);
