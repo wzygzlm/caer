@@ -459,7 +459,7 @@ static void createDefaultConfiguration(caerModuleData moduleData, struct caer_da
 
 		createVDACBiasSetting(biasNode, "ApsOverflowLevel", 27, 6);
 		createVDACBiasSetting(biasNode, "ApsCas", 21, 6);
-		createVDACBiasSetting(biasNode, "AdcRefHigh", 30, 7);
+		createVDACBiasSetting(biasNode, "AdcRefHigh", 32, 7);
 		createVDACBiasSetting(biasNode, "AdcRefLow", 1, 7);
 
 		if (IS_DAVIS346(devInfo->chipID) || IS_DAVIS640(devInfo->chipID)) {
@@ -673,7 +673,7 @@ static void createDefaultConfiguration(caerModuleData moduleData, struct caer_da
 	}
 
 	if (devInfo->dvsHasBackgroundActivityFilter) {
-		sshsNodeCreateBool(dvsNode, "FilterBackgroundActivity", false, SSHS_FLAGS_NORMAL,
+		sshsNodeCreateBool(dvsNode, "FilterBackgroundActivity", true, SSHS_FLAGS_NORMAL,
 			"Filter background events using hardware filter on FPGA.");
 		sshsNodeCreateInt(dvsNode, "FilterBackgroundActivityTime", 80, 0, (0x01 << 12) - 1, SSHS_FLAGS_NORMAL,
 			"Hardware background events filter delta time (in 250µs units).");
@@ -778,7 +778,7 @@ static void createDefaultConfiguration(caerModuleData moduleData, struct caer_da
 
 	if (devInfo->apsHasInternalADC) {
 		sshsNodeCreateBool(apsNode, "SampleEnable", true, SSHS_FLAGS_NORMAL, "Enable Sample&Hold circuitry.");
-		sshsNodeCreateShort(apsNode, "SampleSettle", devInfo->adcClock, 0, I16T(devInfo->adcClock * 8),
+		sshsNodeCreateShort(apsNode, "SampleSettle", I16T(devInfo->adcClock * 2), 0, I16T(devInfo->adcClock * 8),
 			SSHS_FLAGS_NORMAL, "Sample hold time (in cycles).");
 		sshsNodeCreateShort(apsNode, "RampReset", (devInfo->adcClock / 3), 0, I16T(devInfo->adcClock * 4),
 			SSHS_FLAGS_NORMAL, "Ramp reset time (in cycles).");
