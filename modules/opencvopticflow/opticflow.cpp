@@ -27,9 +27,9 @@ bool OpticFlow::doOpticFlow(caerFrameEvent * frame, caerFrameEvent * frameInput,
 	cv::Mat imgInput = cv::Mat(sizeX, sizeY, CV_8UC3);
 	for (size_t i = 0; i < sizeX; i++) {
 		for (size_t j = 0; j < sizeY; j++) {
-			imgInput.at<Vec3b>(i,j)[0] = caerFrameEventGetPixelForChannel(*frameInput, i, j, 0);
-			imgInput.at<Vec3b>(i,j)[1] = caerFrameEventGetPixelForChannel(*frameInput, i, j, 1);
-			imgInput.at<Vec3b>(i,j)[2]  = caerFrameEventGetPixelForChannel(*frameInput, i, j, 2);
+			imgInput.at<Vec3b>(i,j)[0] = caerFrameEventGetPixelForChannel(*frameInput, i, j, 0)>>8;
+			imgInput.at<Vec3b>(i,j)[1] = caerFrameEventGetPixelForChannel(*frameInput, i, j, 0)>>8;
+			imgInput.at<Vec3b>(i,j)[2]  = caerFrameEventGetPixelForChannel(*frameInput, i, j, 0)>>8;
 		}
 	}
 
@@ -37,9 +37,9 @@ bool OpticFlow::doOpticFlow(caerFrameEvent * frame, caerFrameEvent * frameInput,
 	cv::Mat imgOutput = cv::Mat(sizeX, sizeY, CV_8UC3);
 	for (size_t i = 0; i < sizeX; i++) {
 		for (size_t j = 0; j < sizeY; j++) {
-			imgOutput.at<Vec3b>(i,j)[0]= caerFrameEventGetPixelForChannel(*frame, i, j, 0);
-			imgOutput.at<Vec3b>(i,j)[1] = caerFrameEventGetPixelForChannel(*frame, i, j, 1);
-			imgOutput.at<Vec3b>(i,j)[2] = caerFrameEventGetPixelForChannel(*frame, i, j, 2);
+			imgOutput.at<Vec3b>(i,j)[0]= caerFrameEventGetPixelForChannel(*frame, i, j, 0)>>8;
+			imgOutput.at<Vec3b>(i,j)[1] = caerFrameEventGetPixelForChannel(*frame, i, j, 1)>>8;
+			imgOutput.at<Vec3b>(i,j)[2] = caerFrameEventGetPixelForChannel(*frame, i, j, 2)>>8;
 		}
 	}
 
@@ -213,8 +213,8 @@ bool OpticFlow::doOpticFlow(caerFrameEvent * frame, caerFrameEvent * frameInput,
 		smallImage.copyTo(oldSmallImage);
 
 		//imgInput.convertTo(imgInput, CV_8UC3);
-		for (int j = 0; j < sizeX; j++) {
-		    for (int i = 0; i < sizeY; i++) {
+		for (int i = 0; i < sizeX; i++) {
+		    for (int j = 0; j < sizeY; j++) {
 		        //int color = (int) imgInput.at<char>(i,j)[0];
 		        int bgrPixel = (int)motionMat.at<Vec3b>(i,j)[0];//(int) imgInput.at<uchar>(i,j,0);
 		        caerFrameEventSetPixelForChannel(*frame, i, j, 0, bgrPixel*256);

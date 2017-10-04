@@ -81,6 +81,7 @@ static bool caerImageGeneratorInit(caerModuleData moduleData) {
 	int16_t outputFrameSizeX = sshsNodeGetShort(moduleData->moduleNode, "outputFrameSizeX");
 	int16_t outputFrameSizeY = sshsNodeGetShort(moduleData->moduleNode, "outputFrameSizeY");
 
+
 	// Allocate map, sizes are known.
 	state->outputFrame = simple2DBufferInitLong((size_t) outputFrameSizeX, (size_t) outputFrameSizeY);
 	if (state->outputFrame == NULL) {
