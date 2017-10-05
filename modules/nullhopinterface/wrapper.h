@@ -15,7 +15,7 @@ typedef struct zs_driver zs_driver;
 
 zs_driver* newzs_driver(char * stringa);
 
-int zs_driver_classify_image(zs_driver* v, int * picture);
+int zs_driver_classify_image(zs_driver* v, caerFrameEventPacketConst picture);
 
 
 #ifdef __cplusplus
