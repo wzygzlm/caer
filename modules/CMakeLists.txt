@@ -15,6 +15,7 @@ ADD_SUBDIRECTORY(fpgaspikegen)
 ADD_SUBDIRECTORY(poissonspikegen)
 ADD_SUBDIRECTORY(rotatefilter)
 ADD_SUBDIRECTORY(reservoir)
+ADD_SUBDIRECTORY(nullhopinterface)
 
 # Support private modules that don't get considered for commit,
 # by reserving a directory called PrivateModules with its own

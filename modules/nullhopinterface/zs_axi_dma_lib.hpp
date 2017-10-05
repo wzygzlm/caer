@@ -1,8 +1,10 @@
 #ifndef __ZS_AXIDMA__
 #define __ZS_AXIDMA__
 
-#include "axidmalib.hpp"
-//#include "axigpio.cpp"
+#include "axi_dma_lib.hpp"
+#include "axi_gpio.hpp"
+#include "npp_log_utilities.cpp"
+#include "npp_performance_profiler.hpp"
 #include <list>
 #include <pthread.h>
 #include <unistd.h>
@@ -12,7 +14,7 @@
 #define AXIDMA_DEVICE_DEFINE 0x40400000
 #define DESTINATION_ADDR_OFFSET_DEFINE 0x0F000000
 #define SOURCE_ADDR_OFFSET_DEFINE 0x0E000000
-#define AXIGPIO_DEVICE_DEFINE 0X41200000
+#define AXIGPIO_BASE 902
 
 /** \brief ZS_axidma class. High level class for ZS - AXIDMA interfacing
  *
@@ -29,14 +31,18 @@ private:
      */
     void write_to_axidma(void);
     std::list<std::vector<uint64_t>> write_data;
-    std::list<bool> write_data_checklist;
+    //std::list<bool> write_data_checklist;
     bool write_thread_running;
 
     //void read_from_axidma(void);
     //bool read_layer_finish;
 
     Axigpio axigpio;    //!< Object used to control the software reset
-    Axidma axidma;      //!< Object used to manage AXIDMA engine
+    Axidma_pool axidma; //!< Object used to manage AXIDMA engine using pooling sync
+    //Axidma_int axidma; //!< Object used to manage AXIDMA engine using interruption sync
+
+    Npp_performance_profiler* performance_profiler;
+    uint16_t perf_axidma_write_transfer, perf_axidma_read_transfer;
 
 public:
     /** \brief Constructor
@@ -51,7 +57,7 @@ public:
      *
      *  @param read_transfer_length set the ZS read transfer length in bytes
      */
-    void init(unsigned int read_tranfer_length);
+    void init();
 
     /** \brief Reset AXIDMA engine and all hardware modules in the programmable logic
      */
@@ -66,7 +72,7 @@ public:
      *  Add a new vector to write_data list to be written to ZS
      *  @param data vector to be added to write_data list
      */
-    void write(std::vector<uint64_t>* data);
+    void write(const std::vector<uint64_t>* data);
 
     /** \brief Bblocking read operation.
      *

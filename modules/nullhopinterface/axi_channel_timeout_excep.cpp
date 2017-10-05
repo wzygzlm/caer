@@ -13,7 +13,7 @@
 class AXIDMA_timeout_exception: public std::exception {
 public:
 	virtual const char* what() const throw () {
-		return "Reached AXIDMA channel timeout exception.\n";
+		return "Reached AXIDMA channel timeout exception\n";
 	}
 };
 
