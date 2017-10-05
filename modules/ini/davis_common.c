@@ -733,7 +733,7 @@ static void createDefaultConfiguration(caerModuleData moduleData, struct caer_da
 
 	// Not supported on DAVIS RGB.
 	if (!IS_DAVISRGB(devInfo->chipID)) {
-		sshsNodeCreateShort(apsNode, "ResetSettle", (devInfo->adcClock / 3), 0, I16T(devInfo->adcClock * 2), SSHS_FLAGS_NORMAL,
+		sshsNodeCreateShort(apsNode, "ResetSettle", devInfo->adcClock, 0, I16T(devInfo->adcClock * 2), SSHS_FLAGS_NORMAL,
 			"Set reset settle time (in cycles).");
 		sshsNodeCreateShort(apsNode, "NullSettle", (devInfo->adcClock / 10), 0, devInfo->adcClock, SSHS_FLAGS_NORMAL,
 			"Set null settle time (in cycles).");
