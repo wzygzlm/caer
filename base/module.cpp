@@ -346,10 +346,20 @@ void caerUpdateModulesInformation() {
 	glModuleData.modulePaths.clear();
 
 	// Search for available modules. Will be loaded as needed later.
-	const std::string modulesSearchPath = sshsNodeGetStdString(modulesNode, "modulesSearchPath");
+	std::string modulesSearchPath = sshsNodeGetStdString(modulesNode, "modulesSearchPath");
 
-	// Split on '|'.
+	// Split on '|' to get base path with no private module location
 	std::vector<std::string> searchPaths;
+	boost::algorithm::split(searchPaths, modulesSearchPath, boost::is_any_of("|"));
+
+	// now add Private modules location, from SDK
+	for (const auto &sPath : searchPaths) {
+		modulesSearchPath += "|";					// separator
+		modulesSearchPath += sPath.c_str();			// base path
+		modulesSearchPath += "PrivateModules/";		// privatemodules folder
+	}
+
+	// Split on separator and get final paths
 	boost::algorithm::split(searchPaths, modulesSearchPath, boost::is_any_of("|"));
 
 	const std::regex moduleRegex("\\w+\\.(so|dll|dylib)");
