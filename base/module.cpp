@@ -346,13 +346,13 @@ void caerUpdateModulesInformation() {
 	glModuleData.modulePaths.clear();
 
 	// Search for available modules. Will be loaded as needed later.
-	std::string modulesSearchPath = sshsNodeGetStdString(modulesNode, "modulesSearchPath");
+	const std::string modulesSearchPath = sshsNodeGetStdString(modulesNode, "modulesSearchPath");
 
-	// Split on '|'
+	// Split on '|'.
 	std::vector<std::string> searchPaths;
 	boost::algorithm::split(searchPaths, modulesSearchPath, boost::is_any_of("|"));
 
-	// Search is recursive for binary shared libraries
+	// Search is recursive for binary shared libraries.
 	const std::regex moduleRegex("\\w+\\.(so|dll|dylib)");
 
 	for (const auto &sPath : searchPaths) {
