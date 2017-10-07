@@ -699,6 +699,11 @@ static void createDefaultConfiguration(caerModuleData moduleData, struct caer_da
 			SSHS_FLAGS_NORMAL, "Row/Y address of ROI filter end point.");
 	}
 
+	if (IS_DAVISRGB(devInfo->chipID)) {
+		sshsNodeCreateBool(dvsNode, "SpacedAddresses", true, SSHS_FLAGS_NORMAL,
+			"Space DVS addresses coming from the CDAVIS sensor as they are in the pixel array.");
+	}
+
 	// Subsystem 2: APS ADC
 	sshsNode apsNode = sshsGetRelativeNode(deviceConfigNode, "aps/");
 
@@ -1768,6 +1773,11 @@ static void dvsConfigSend(sshsNode node, caerModuleData moduleData, struct caer_
 	caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_DVS, DAVIS_CONFIG_DVS_EXTERNAL_AER_CONTROL,
 		U32T(sshsNodeGetBool(node, "ExternalAERControl")));
 
+	if (IS_DAVISRGB(devInfo->chipID)) {
+		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_DVS, DAVIS_CONFIG_DVS_CDAVIS_SPACED_ADDRESSES,
+			U32T(sshsNodeGetBool(node, "SpacedAddresses")));
+	}
+
 	if (devInfo->dvsHasPixelFilter) {
 		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_DVS, DAVIS_CONFIG_DVS_FILTER_PIXEL_0_ROW,
 			U32T(sshsNodeGetShort(node, "FilterPixel0Row")));
@@ -1868,6 +1878,10 @@ static void dvsConfigListener(sshsNode node, void *userData, enum sshs_node_attr
 		}
 		else if (changeType == SSHS_BOOL && caerStrEquals(changeKey, "ExternalAERControl")) {
 			caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_DVS, DAVIS_CONFIG_DVS_EXTERNAL_AER_CONTROL,
+				changeValue.boolean);
+		}
+		else if (changeType == SSHS_BOOL && caerStrEquals(changeKey, "SpacedAddresses")) {
+			caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_DVS, DAVIS_CONFIG_DVS_CDAVIS_SPACED_ADDRESSES,
 				changeValue.boolean);
 		}
 		else if (changeType == SSHS_SHORT && caerStrEquals(changeKey, "FilterPixel0Row")) {
