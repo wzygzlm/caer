@@ -435,10 +435,10 @@ static void createDefaultConfiguration(caerModuleData moduleData, struct caer_da
 		createCoarseFineBiasSetting(biasNode, "AEPuYBp", 7, 152, true, "P", "Normal");
 		createCoarseFineBiasSetting(biasNode, "IFThrBn", 5, 255, true, "N", "Normal");
 		createCoarseFineBiasSetting(biasNode, "IFRefrBn", 5, 255, true, "N", "Normal");
-		createCoarseFineBiasSetting(biasNode, "PadFollBn", 7, 215, true, "N", "Normal"); // TODO: check if needed.
+		createCoarseFineBiasSetting(biasNode, "PadFollBn", 7, 215, true, "N", "Normal");
 		createCoarseFineBiasSetting(biasNode, "ApsOverflowLevelBn", 6, 253, true, "N", "Normal");
 
-		createCoarseFineBiasSetting(biasNode, "BiasBuffer", 6, 255, true, "N", "Normal");
+		createCoarseFineBiasSetting(biasNode, "BiasBuffer", 5, 254, true, "N", "Normal");
 
 		createShiftedSourceBiasSetting(biasNode, "SSP", 1, 33, "ShiftedSource", "SplitGate");
 		createShiftedSourceBiasSetting(biasNode, "SSN", 1, 33, "ShiftedSource", "SplitGate");
@@ -453,11 +453,13 @@ static void createDefaultConfiguration(caerModuleData moduleData, struct caer_da
 			createCoarseFineBiasSetting(biasNode, "PrSFBp", 1, 1, true, "P", "Normal");
 			createCoarseFineBiasSetting(biasNode, "OnBn", 5, 155, true, "N", "Normal");
 			createCoarseFineBiasSetting(biasNode, "OffBn", 1, 4, true, "N", "Normal");
+
+			createCoarseFineBiasSetting(biasNode, "BiasBuffer", 6, 125, true, "N", "Normal");
 		}
 
 		createVDACBiasSetting(biasNode, "ApsOverflowLevel", 27, 6);
 		createVDACBiasSetting(biasNode, "ApsCas", 21, 6);
-		createVDACBiasSetting(biasNode, "AdcRefHigh", 25, 7);
+		createVDACBiasSetting(biasNode, "AdcRefHigh", 32, 7);
 		createVDACBiasSetting(biasNode, "AdcRefLow", 1, 7);
 
 		if (IS_DAVIS346(devInfo->chipID) || IS_DAVIS640(devInfo->chipID)) {
@@ -478,9 +480,9 @@ static void createDefaultConfiguration(caerModuleData moduleData, struct caer_da
 		createCoarseFineBiasSetting(biasNode, "DiffBn", 4, 39, true, "N", "Normal");
 		createCoarseFineBiasSetting(biasNode, "OnBn", 5, 255, true, "N", "Normal");
 		createCoarseFineBiasSetting(biasNode, "OffBn", 4, 1, true, "N", "Normal");
+		createCoarseFineBiasSetting(biasNode, "PixInvBn", 5, 129, true, "N", "Normal");
 		createCoarseFineBiasSetting(biasNode, "PrBp", 2, 58, true, "P", "Normal");
 		createCoarseFineBiasSetting(biasNode, "PrSFBp", 1, 16, true, "P", "Normal");
-		createCoarseFineBiasSetting(biasNode, "PixInvBn", 5, 129, true, "N", "Normal");
 		createCoarseFineBiasSetting(biasNode, "RefrBp", 4, 25, true, "P", "Normal");
 		createCoarseFineBiasSetting(biasNode, "ReadoutBufBp", 6, 20, true, "P", "Normal");
 		createCoarseFineBiasSetting(biasNode, "ApsROSFBn", 6, 219, true, "N", "Normal");
@@ -494,12 +496,7 @@ static void createDefaultConfiguration(caerModuleData moduleData, struct caer_da
 		createCoarseFineBiasSetting(biasNode, "IFRefrBn", 5, 255, true, "N", "Normal");
 		createCoarseFineBiasSetting(biasNode, "IFThrBn", 5, 255, true, "N", "Normal");
 
-		if (IS_DAVIS640(devInfo->chipID)) {
-			createCoarseFineBiasSetting(biasNode, "BiasBuffer", 6, 125, true, "N", "Normal");
-		}
-		else {
-			createCoarseFineBiasSetting(biasNode, "BiasBuffer", 7, 255, true, "N", "Normal");
-		}
+		createCoarseFineBiasSetting(biasNode, "BiasBuffer", 5, 254, true, "N", "Normal");
 
 		createShiftedSourceBiasSetting(biasNode, "SSP", 1, 33, "ShiftedSource", "SplitGate");
 		createShiftedSourceBiasSetting(biasNode, "SSN", 1, 33, "ShiftedSource", "SplitGate");
@@ -676,14 +673,14 @@ static void createDefaultConfiguration(caerModuleData moduleData, struct caer_da
 	}
 
 	if (devInfo->dvsHasBackgroundActivityFilter) {
-		sshsNodeCreateBool(dvsNode, "FilterBackgroundActivity", false, SSHS_FLAGS_NORMAL,
+		sshsNodeCreateBool(dvsNode, "FilterBackgroundActivity", true, SSHS_FLAGS_NORMAL,
 			"Filter background events using hardware filter on FPGA.");
-		sshsNodeCreateInt(dvsNode, "FilterBackgroundActivityTime", 20000, 0, (0x01 << 16) - 1, SSHS_FLAGS_NORMAL,
-			"Hardware background events filter delta time (in µs).");
+		sshsNodeCreateInt(dvsNode, "FilterBackgroundActivityTime", 80, 0, (0x01 << 12) - 1, SSHS_FLAGS_NORMAL,
+			"Hardware background events filter delta time (in 250µs units).");
 		sshsNodeCreateBool(dvsNode, "FilterRefractoryPeriod", false, SSHS_FLAGS_NORMAL,
 			"Limit pixel firing rate using hardware filter on FPGA.");
-		sshsNodeCreateInt(dvsNode, "FilterRefractoryPeriodTime", 200, 0, (0x01 << 16) - 1, SSHS_FLAGS_NORMAL,
-			"Hardware refractory period time (in µs).");
+		sshsNodeCreateInt(dvsNode, "FilterRefractoryPeriodTime", 2, 0, (0x01 << 12) - 1, SSHS_FLAGS_NORMAL,
+			"Hardware refractory period time (in 250µs units).");
 	}
 
 	if (devInfo->dvsHasTestEventGenerator) {
@@ -702,6 +699,11 @@ static void createDefaultConfiguration(caerModuleData moduleData, struct caer_da
 			SSHS_FLAGS_NORMAL, "Row/Y address of ROI filter end point.");
 	}
 
+	if (IS_DAVISRGB(devInfo->chipID)) {
+		sshsNodeCreateBool(dvsNode, "SpacedAddresses", true, SSHS_FLAGS_NORMAL,
+			"Space DVS addresses coming from the CDAVIS sensor as they are in the pixel array.");
+	}
+
 	// Subsystem 2: APS ADC
 	sshsNode apsNode = sshsGetRelativeNode(deviceConfigNode, "aps/");
 
@@ -716,18 +718,19 @@ static void createDefaultConfiguration(caerModuleData moduleData, struct caer_da
 		"Do the reset read in addition to the signal read.");
 	sshsNodeCreateBool(apsNode, "WaitOnTransferStall", true, SSHS_FLAGS_NORMAL,
 		"On event FIFO full, pause and wait for free space. This ensures no APS pixels are dropped.");
-	sshsNodeCreateShort(apsNode, "StartColumn0", 0, 0, devInfo->apsSizeX, SSHS_FLAGS_NORMAL,
+	sshsNodeCreateShort(apsNode, "StartColumn0", 0, 0, I16T(devInfo->apsSizeX - 1), SSHS_FLAGS_NORMAL,
 		"Column/X address of ROI 0 start point.");
-	sshsNodeCreateShort(apsNode, "StartRow0", 0, 0, devInfo->apsSizeY, SSHS_FLAGS_NORMAL,
+	sshsNodeCreateShort(apsNode, "StartRow0", 0, 0, I16T(devInfo->apsSizeY - 1), SSHS_FLAGS_NORMAL,
 		"Row/Y address of ROI 0 start point.");
 	sshsNodeCreateShort(apsNode, "EndColumn0", I16T(devInfo->apsSizeX - 1), 0, I16T(devInfo->apsSizeX - 1), SSHS_FLAGS_NORMAL,
 		"Column/X address of ROI 0 end point.");
 	sshsNodeCreateShort(apsNode, "EndRow0", I16T(devInfo->apsSizeY - 1), 0, I16T(devInfo->apsSizeY - 1), SSHS_FLAGS_NORMAL,
 		"Row/Y address of ROI 0 end point.");
+	sshsNodeCreateBool(apsNode, "ROI0Enabled", true, SSHS_FLAGS_NORMAL, "Enable ROI region 0.");
 	sshsNodeCreateInt(apsNode, "Exposure", 4000, 0, (0x01 << 20) - 1, SSHS_FLAGS_NORMAL, "Set exposure time (in µs).");
 	sshsNodeCreateInt(apsNode, "FrameDelay", 1000, 0, (0x01 << 20) - 1, SSHS_FLAGS_NORMAL,
 		"Set delay time between frames (in µs).");
-	sshsNodeCreateShort(apsNode, "RowSettle", (devInfo->adcClock / 3), 0, devInfo->adcClock, SSHS_FLAGS_NORMAL,
+	sshsNodeCreateShort(apsNode, "RowSettle", (devInfo->adcClock / 3), 0, I16T(devInfo->adcClock * 2), SSHS_FLAGS_NORMAL,
 		"Set row settle time (in cycles).");
 	sshsNodeCreateBool(apsNode, "TakeSnapShot", false, SSHS_FLAGS_NOTIFY_ONLY, "Take a single frame capture.");
 	sshsNodeCreateBool(apsNode, "AutoExposure", true, SSHS_FLAGS_NORMAL,
@@ -735,48 +738,54 @@ static void createDefaultConfiguration(caerModuleData moduleData, struct caer_da
 
 	// Not supported on DAVIS RGB.
 	if (!IS_DAVISRGB(devInfo->chipID)) {
-		sshsNodeCreateShort(apsNode, "ResetSettle", (devInfo->adcClock / 3), 0, devInfo->adcClock, SSHS_FLAGS_NORMAL,
+		sshsNodeCreateShort(apsNode, "ResetSettle", devInfo->adcClock, 0, I16T(devInfo->adcClock * 2), SSHS_FLAGS_NORMAL,
 			"Set reset settle time (in cycles).");
-		sshsNodeCreateShort(apsNode, "ColumnSettle", devInfo->adcClock, 0, I16T(devInfo->adcClock * 2),
-			SSHS_FLAGS_NORMAL, "Set column settle time (in cycles).");
 		sshsNodeCreateShort(apsNode, "NullSettle", (devInfo->adcClock / 10), 0, devInfo->adcClock, SSHS_FLAGS_NORMAL,
 			"Set null settle time (in cycles).");
 	}
 
+	// Only available on DAVIS240 due to external ADC use, which has both a row and column timing.
+	if (IS_DAVIS240(devInfo->chipID)) {
+		sshsNodeCreateShort(apsNode, "ColumnSettle", devInfo->adcClock, 0, I16T(devInfo->adcClock * 2),
+			SSHS_FLAGS_NORMAL, "Set column settle time (in cycles).");
+	}
+
 	if (devInfo->apsHasQuadROI) {
-		sshsNodeCreateShort(apsNode, "StartColumn1", devInfo->apsSizeX, 0, devInfo->apsSizeX, SSHS_FLAGS_NORMAL,
+		sshsNodeCreateShort(apsNode, "StartColumn1", 0, 0, I16T(devInfo->apsSizeX - 1), SSHS_FLAGS_NORMAL,
 			"Column/X address of ROI 1 start point.");
-		sshsNodeCreateShort(apsNode, "StartRow1", devInfo->apsSizeY, 0, devInfo->apsSizeY, SSHS_FLAGS_NORMAL,
+		sshsNodeCreateShort(apsNode, "StartRow1", 0, 0, I16T(devInfo->apsSizeY - 1), SSHS_FLAGS_NORMAL,
 			"Row/Y address of ROI 1 start point.");
 		sshsNodeCreateShort(apsNode, "EndColumn1", I16T(devInfo->apsSizeX - 1), 0, I16T(devInfo->apsSizeX - 1), SSHS_FLAGS_NORMAL,
 			"Column/X address of ROI 1 end point.");
 		sshsNodeCreateShort(apsNode, "EndRow1", I16T(devInfo->apsSizeY - 1), 0, I16T(devInfo->apsSizeY - 1), SSHS_FLAGS_NORMAL,
 			"Row/Y address of ROI 1 end point.");
-		sshsNodeCreateShort(apsNode, "StartColumn2", devInfo->apsSizeX, 0, devInfo->apsSizeX, SSHS_FLAGS_NORMAL,
+		sshsNodeCreateShort(apsNode, "StartColumn2", 0, 0, I16T(devInfo->apsSizeX - 1), SSHS_FLAGS_NORMAL,
 			"Column/X address of ROI 2 start point.");
-		sshsNodeCreateShort(apsNode, "StartRow2", devInfo->apsSizeY, 0, devInfo->apsSizeY, SSHS_FLAGS_NORMAL,
+		sshsNodeCreateShort(apsNode, "StartRow2", 0, 0, I16T(devInfo->apsSizeY - 1), SSHS_FLAGS_NORMAL,
 			"Row/Y address of ROI 2 start point.");
 		sshsNodeCreateShort(apsNode, "EndColumn2", I16T(devInfo->apsSizeX - 1), 0, I16T(devInfo->apsSizeX - 1), SSHS_FLAGS_NORMAL,
 			"Column/X address of ROI 2 end point.");
 		sshsNodeCreateShort(apsNode, "EndRow2", I16T(devInfo->apsSizeY - 1), 0, I16T(devInfo->apsSizeY - 1), SSHS_FLAGS_NORMAL,
 			"Row/Y address of ROI 2 end point.");
-		sshsNodeCreateShort(apsNode, "StartColumn3", devInfo->apsSizeX, 0, devInfo->apsSizeX, SSHS_FLAGS_NORMAL,
+		sshsNodeCreateShort(apsNode, "StartColumn3", 0, 0, I16T(devInfo->apsSizeX - 1), SSHS_FLAGS_NORMAL,
 			"Column/X address of ROI 3 start point.");
-		sshsNodeCreateShort(apsNode, "StartRow3", devInfo->apsSizeY, 0, devInfo->apsSizeY, SSHS_FLAGS_NORMAL,
+		sshsNodeCreateShort(apsNode, "StartRow3", 0, 0, I16T(devInfo->apsSizeY - 1), SSHS_FLAGS_NORMAL,
 			"Row/Y address of ROI 3 start point.");
 		sshsNodeCreateShort(apsNode, "EndColumn3", I16T(devInfo->apsSizeX - 1), 0, I16T(devInfo->apsSizeX - 1), SSHS_FLAGS_NORMAL,
 			"Column/X address of ROI 3 end point.");
 		sshsNodeCreateShort(apsNode, "EndRow3", I16T(devInfo->apsSizeY - 1), 0, I16T(devInfo->apsSizeY - 1), SSHS_FLAGS_NORMAL,
 			"Row/Y address of ROI 3 end point.");
+
+		sshsNodeCreateBool(apsNode, "ROI1Enabled", false, SSHS_FLAGS_NORMAL, "Enable ROI region 1.");
+		sshsNodeCreateBool(apsNode, "ROI2Enabled", false, SSHS_FLAGS_NORMAL, "Enable ROI region 2.");
+		sshsNodeCreateBool(apsNode, "ROI3Enabled", false, SSHS_FLAGS_NORMAL, "Enable ROI region 3.");
 	}
 
 	if (devInfo->apsHasInternalADC) {
-		sshsNodeCreateBool(apsNode, "UseInternalADC", true, SSHS_FLAGS_NORMAL,
-			"Use the on-chip ADC instead of the external ADC chip.");
 		sshsNodeCreateBool(apsNode, "SampleEnable", true, SSHS_FLAGS_NORMAL, "Enable Sample&Hold circuitry.");
-		sshsNodeCreateShort(apsNode, "SampleSettle", devInfo->adcClock, 0, I16T(devInfo->adcClock * 2),
+		sshsNodeCreateShort(apsNode, "SampleSettle", I16T(devInfo->adcClock * 2), 0, I16T(devInfo->adcClock * 8),
 			SSHS_FLAGS_NORMAL, "Sample hold time (in cycles).");
-		sshsNodeCreateShort(apsNode, "RampReset", (devInfo->adcClock / 3), 0, I16T(devInfo->adcClock * 2),
+		sshsNodeCreateShort(apsNode, "RampReset", (devInfo->adcClock / 3), 0, I16T(devInfo->adcClock * 4),
 			SSHS_FLAGS_NORMAL, "Ramp reset time (in cycles).");
 		sshsNodeCreateBool(apsNode, "RampShortReset", false, SSHS_FLAGS_NORMAL,
 			"Only go through half the ramp for reset read.");
@@ -1764,6 +1773,11 @@ static void dvsConfigSend(sshsNode node, caerModuleData moduleData, struct caer_
 	caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_DVS, DAVIS_CONFIG_DVS_EXTERNAL_AER_CONTROL,
 		U32T(sshsNodeGetBool(node, "ExternalAERControl")));
 
+	if (IS_DAVISRGB(devInfo->chipID)) {
+		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_DVS, DAVIS_CONFIG_DVS_CDAVIS_SPACED_ADDRESSES,
+			U32T(sshsNodeGetBool(node, "SpacedAddresses")));
+	}
+
 	if (devInfo->dvsHasPixelFilter) {
 		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_DVS, DAVIS_CONFIG_DVS_FILTER_PIXEL_0_ROW,
 			U32T(sshsNodeGetShort(node, "FilterPixel0Row")));
@@ -1864,6 +1878,10 @@ static void dvsConfigListener(sshsNode node, void *userData, enum sshs_node_attr
 		}
 		else if (changeType == SSHS_BOOL && caerStrEquals(changeKey, "ExternalAERControl")) {
 			caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_DVS, DAVIS_CONFIG_DVS_EXTERNAL_AER_CONTROL,
+				changeValue.boolean);
+		}
+		else if (changeType == SSHS_BOOL && caerStrEquals(changeKey, "SpacedAddresses")) {
+			caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_DVS, DAVIS_CONFIG_DVS_CDAVIS_SPACED_ADDRESSES,
 				changeValue.boolean);
 		}
 		else if (changeType == SSHS_SHORT && caerStrEquals(changeKey, "FilterPixel0Row")) {
@@ -1990,6 +2008,8 @@ static void apsConfigSend(sshsNode node, caerModuleData moduleData, struct caer_
 		U32T(sshsNodeGetShort(node, "EndColumn0")));
 	caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_END_ROW_0,
 		U32T(sshsNodeGetShort(node, "EndRow0")));
+	caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_ROI0_ENABLED,
+		sshsNodeGetBool(node, "ROI0Enabled"));
 	caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_EXPOSURE,
 		U32T(sshsNodeGetInt(node, "Exposure")));
 	caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_FRAME_DELAY,
@@ -2003,10 +2023,14 @@ static void apsConfigSend(sshsNode node, caerModuleData moduleData, struct caer_
 	if (!IS_DAVISRGB(devInfo->chipID)) {
 		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_RESET_SETTLE,
 			U32T(sshsNodeGetShort(node, "ResetSettle")));
-		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_COLUMN_SETTLE,
-			U32T(sshsNodeGetShort(node, "ColumnSettle")));
 		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_NULL_SETTLE,
 			U32T(sshsNodeGetShort(node, "NullSettle")));
+	}
+
+	// Only available on DAVIS240 due to external ADC use, which has both a row and column timing.
+	if (IS_DAVIS240(devInfo->chipID)) {
+		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_COLUMN_SETTLE,
+			U32T(sshsNodeGetShort(node, "ColumnSettle")));
 	}
 
 	if (devInfo->apsHasQuadROI) {
@@ -2034,11 +2058,16 @@ static void apsConfigSend(sshsNode node, caerModuleData moduleData, struct caer_
 			U32T(sshsNodeGetShort(node, "EndColumn3")));
 		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_END_ROW_3,
 			U32T(sshsNodeGetShort(node, "EndRow3")));
+
+		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_ROI1_ENABLED,
+			sshsNodeGetBool(node, "ROI1Enabled"));
+		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_ROI2_ENABLED,
+			sshsNodeGetBool(node, "ROI2Enabled"));
+		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_ROI3_ENABLED,
+			sshsNodeGetBool(node, "ROI3Enabled"));
 	}
 
 	if (devInfo->apsHasInternalADC) {
-		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_USE_INTERNAL_ADC,
-			sshsNodeGetBool(node, "UseInternalADC"));
 		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_SAMPLE_ENABLE,
 			sshsNodeGetBool(node, "SampleEnable"));
 		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_SAMPLE_SETTLE,
@@ -2177,8 +2206,20 @@ static void apsConfigListener(sshsNode node, void *userData, enum sshs_node_attr
 			caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_END_ROW_3,
 				U32T(changeValue.ishort));
 		}
-		else if (changeType == SSHS_BOOL && caerStrEquals(changeKey, "UseInternalADC")) {
-			caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_USE_INTERNAL_ADC,
+		else if (changeType == SSHS_BOOL && caerStrEquals(changeKey, "ROI0Enabled")) {
+			caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_ROI0_ENABLED,
+				changeValue.boolean);
+		}
+		else if (changeType == SSHS_BOOL && caerStrEquals(changeKey, "ROI1Enabled")) {
+			caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_ROI1_ENABLED,
+				changeValue.boolean);
+		}
+		else if (changeType == SSHS_BOOL && caerStrEquals(changeKey, "ROI2Enabled")) {
+			caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_ROI2_ENABLED,
+				changeValue.boolean);
+		}
+		else if (changeType == SSHS_BOOL && caerStrEquals(changeKey, "ROI3Enabled")) {
+			caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_ROI3_ENABLED,
 				changeValue.boolean);
 		}
 		else if (changeType == SSHS_BOOL && caerStrEquals(changeKey, "SampleEnable")) {

@@ -38,6 +38,16 @@ caerModuleInfo caerModuleGetInfo(void) {
 }
 
 static bool caerFrameEnhancerInit(caerModuleData moduleData) {
+	// Wait for input to be ready. All inputs, once they are up and running, will
+	// have a valid sourceInfo node to query, especially if dealing with data.
+	int16_t *inputs = caerMainloopGetModuleInputIDs(moduleData->moduleID, NULL);
+	if (inputs == NULL) {
+		return (false);
+	}
+
+	int16_t sourceID = inputs[0];
+	free(inputs);
+
 	sshsNodeCreateBool(moduleData->moduleNode, "doDemosaic", false, SSHS_FLAGS_NORMAL,
 		"Do demosaicing (color interpolation) on frame.");
 	sshsNodeCreateBool(moduleData->moduleNode, "doContrast", false, SSHS_FLAGS_NORMAL,
@@ -64,6 +74,24 @@ static bool caerFrameEnhancerInit(caerModuleData moduleData) {
 	sshsNodeCreateString(moduleData->moduleNode, "contrastType", "standard", 8, 8,
 		SSHS_FLAGS_READ_ONLY, "Contrast enhancement algorithm to apply.");
 #endif
+
+	sshsNode sourceInfoSource = caerMainloopGetSourceInfo(sourceID);
+	if (sourceInfoSource == NULL) {
+		return (false);
+	}
+
+	int16_t sizeX = sshsNodeGetShort(sourceInfoSource, "dataSizeX");
+	int16_t sizeY = sshsNodeGetShort(sourceInfoSource, "dataSizeY");
+
+	sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
+	sshsNodeCreateShort(sourceInfoNode, "frameSizeX", sizeX, 1, 1024, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT,
+		"Output frame width.");
+	sshsNodeCreateShort(sourceInfoNode, "frameSizeY", sizeY, 1, 1024, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT,
+		"Output frame height.");
+	sshsNodeCreateShort(sourceInfoNode, "dataSizeX", sizeX, 1, 1024, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT,
+		"Output data width.");
+	sshsNodeCreateShort(sourceInfoNode, "dataSizeY", sizeY, 1, 1024, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT,
+		"Output data height.");
 
 	// Initialize configuration.
 	caerFrameEnhancerConfig(moduleData);
@@ -177,4 +205,7 @@ static void caerFrameEnhancerConfig(caerModuleData moduleData) {
 static void caerFrameEnhancerExit(caerModuleData moduleData) {
 	// Remove listener, which can reference invalid memory in userData.
 	sshsNodeRemoveAttributeListener(moduleData->moduleNode, moduleData, &caerModuleConfigDefaultListener);
+
+	sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
+	sshsNodeClearSubTree(sourceInfoNode, true);
 }
