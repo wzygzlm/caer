@@ -12,9 +12,10 @@
 #include <libcaercpp/devices/davis.hpp> // Only for constants.
 #include <libcaercpp/devices/dynapse.hpp> // Only for constants.
 
+static void *caerVisualizerRendererPolarityEventsStateInit(caerVisualizerPublicState state);
 static bool caerVisualizerRendererPolarityEvents(caerVisualizerPublicState state, caerEventPacketContainer container);
 static const struct caer_visualizer_renderer_info rendererPolarityEvents("Polarity",
-	&caerVisualizerRendererPolarityEvents);
+	&caerVisualizerRendererPolarityEvents, false, &caerVisualizerRendererPolarityEventsStateInit, nullptr);
 
 static void *caerVisualizerRendererFrameEventsStateInit(caerVisualizerPublicState state);
 static void caerVisualizerRendererFrameEventsStateExit(caerVisualizerPublicState state);
@@ -53,6 +54,13 @@ const struct caer_visualizer_renderer_info caerVisualizerRendererList[] = { { "N
 const size_t caerVisualizerRendererListLength = (sizeof(caerVisualizerRendererList)
 	/ sizeof(struct caer_visualizer_renderer_info));
 
+static void *caerVisualizerRendererPolarityEventsStateInit(caerVisualizerPublicState state) {
+	sshsNodeCreateBool(state->visualizerConfigNode, "DoubleSpacedAddresses", false, SSHS_FLAGS_NORMAL,
+		"Space DVS addresses apart by doubling them, this is useful for the CDAVIS sensor to put them as they are in the pixel array.");
+
+	return (CAER_VISUALIZER_RENDER_INIT_NO_MEM); // No allocated memory.
+}
+
 static bool caerVisualizerRendererPolarityEvents(caerVisualizerPublicState state, caerEventPacketContainer container) {
 	UNUSED_ARGUMENT(state);
 
@@ -64,6 +72,8 @@ static bool caerVisualizerRendererPolarityEvents(caerVisualizerPublicState state
 		return (false);
 	}
 
+	bool doubleSpacedAddresses = sshsNodeGetBool(state->visualizerConfigNode, "DoubleSpacedAddresses");
+
 	const libcaer::events::PolarityEventPacket polarityPacket(polarityPacketHeader, false);
 
 	std::vector<sf::Vertex> vertices((size_t) polarityPacket.getEventValid() * 4);
@@ -74,9 +84,16 @@ static bool caerVisualizerRendererPolarityEvents(caerVisualizerPublicState state
 			continue; // Skip invalid events.
 		}
 
+		uint16_t x = polarityEvent.getX();
+		uint16_t y = polarityEvent.getY();
+
+		if (doubleSpacedAddresses) {
+			x = U16T(x << 1);
+			y = U16T(y << 1);
+		}
+
 		// ON polarity (green), OFF polarity (red).
-		sfml::Helpers::addPixelVertices(vertices, polarityEvent.getX(), polarityEvent.getY(),
-			state->renderZoomFactor.load(std::memory_order_relaxed),
+		sfml::Helpers::addPixelVertices(vertices, x, y, state->renderZoomFactor.load(std::memory_order_relaxed),
 			(polarityEvent.getPolarity()) ? (sf::Color::Green) : (sf::Color::Red));
 	}
 
@@ -95,7 +112,7 @@ typedef struct renderer_frame_events_state *rendererFrameEventsState;
 
 static void *caerVisualizerRendererFrameEventsStateInit(caerVisualizerPublicState state) {
 	// Add configuration for ROI region.
-	sshsNodeCreate(state->visualizerConfigNode, "roiRegion", -1, -1, 7, SSHS_FLAGS_NORMAL,
+	sshsNodeCreate(state->visualizerConfigNode, "ROIRegion", -1, -1, 7, SSHS_FLAGS_NORMAL,
 		"Selects which ROI region to display. '-1' disables this and renders all of [0,1,2,3].");
 
 	// Allocate memory via C++ for renderer state, since we use C++ objects directly.
@@ -132,7 +149,7 @@ static bool caerVisualizerRendererFrameEvents(caerVisualizerPublicState state, c
 		return (false);
 	}
 
-	int roiRegionSelect = sshsNodeGetInt(state->visualizerConfigNode, "roiRegion");
+	int roiRegionSelect = sshsNodeGetInt(state->visualizerConfigNode, "ROIRegion");
 
 	const libcaer::events::FrameEventPacket framePacket(framePacketHeader, false);
 
