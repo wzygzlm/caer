@@ -34,9 +34,12 @@ caerModuleInfo caerModuleGetInfo(void) {
 	return (&DAVISInfo);
 }
 
-static void createDefaultConfiguration(caerModuleData moduleData, struct caer_davis_info *devInfo);
+static void createDefaultBiasConfiguration(caerModuleData moduleData, const char *nodePrefix, int16_t chipID);
+static void createDefaultLogicConfiguration(caerModuleData moduleData, const char *nodePrefix,
+	struct caer_davis_info *devInfo);
 static void sendDefaultConfiguration(caerModuleData moduleData, struct caer_davis_info *devInfo);
 static void moduleShutdownNotify(void *p);
+
 static void biasConfigSend(sshsNode node, caerModuleData moduleData, struct caer_davis_info *devInfo);
 static void biasConfigListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
@@ -67,6 +70,7 @@ static void systemConfigListener(sshsNode node, void *userData, enum sshs_node_a
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
 static void logLevelListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
+
 static void createVDACBiasSetting(sshsNode biasNode, const char *biasName, uint8_t voltageValue, uint8_t currentValue);
 static uint16_t generateVDACBiasParent(sshsNode biasNode, const char *biasName);
 static uint16_t generateVDACBias(sshsNode biasNode);
@@ -106,7 +110,7 @@ static inline const char *chipIDToName(int16_t chipID, bool withEndSlash) {
 			break;
 
 		case 7: // TODO: finalize name of this chip type.
-			return ((withEndSlash) ? ("CDAVIS/") : ("CDAVIS"));
+			return ((withEndSlash) ? ("DAVIS640het/") : ("DAVIS640het"));
 			break;
 
 		case 8: // PixelParade.
@@ -137,7 +141,7 @@ static bool caerInputDAVISInit(caerModuleData moduleData) {
 	sshsNodeCreateBool(moduleData->moduleNode, "autoRestart", true, SSHS_FLAGS_NORMAL,
 		"Automatically restart module after shutdown.");
 
-	/// Start data acquisition, and correctly notify mainloop of new data and module of exceptional
+	// Start data acquisition, and correctly notify mainloop of new data and module of exceptional
 	// shutdown cases (device pulled, ...).
 	char *serialNumber = sshsNodeGetString(moduleData->moduleNode, "serialNumber");
 	moduleData->moduleState = caerDeviceOpen(U16T(moduleData->moduleID), CAER_DEVICE_DAVIS,
@@ -252,7 +256,8 @@ static bool caerInputDAVISInit(caerModuleData moduleData) {
 	CAER_HOST_CONFIG_DATAEXCHANGE_STOP_PRODUCERS, true);
 
 	// Create default settings and send them to the device.
-	createDefaultConfiguration(moduleData, &devInfo);
+	createDefaultBiasConfiguration(moduleData, chipIDToName(devInfo.chipID, true), devInfo.chipID);
+	createDefaultLogicConfiguration(moduleData, chipIDToName(devInfo.chipID, true), &devInfo);
 	sendDefaultConfiguration(moduleData, &devInfo);
 
 	// Start data acquisition.
@@ -403,17 +408,14 @@ static void caerInputDAVISRun(caerModuleData moduleData, caerEventPacketContaine
 	}
 }
 
-static void createDefaultConfiguration(caerModuleData moduleData, struct caer_davis_info *devInfo) {
-	// First, always create all needed setting nodes, set their default values
-	// and add their listeners.
-
+static void createDefaultBiasConfiguration(caerModuleData moduleData, const char *nodePrefix, int16_t chipID) {
 	// Device related configuration has its own sub-node.
-	sshsNode deviceConfigNode = sshsGetRelativeNode(moduleData->moduleNode, chipIDToName(devInfo->chipID, true));
+	sshsNode deviceConfigNode = sshsGetRelativeNode(moduleData->moduleNode, nodePrefix);
 
 	// Chip biases, based on testing defaults.
 	sshsNode biasNode = sshsGetRelativeNode(deviceConfigNode, "bias/");
 
-	if (IS_DAVIS240(devInfo->chipID)) {
+	if (IS_DAVIS240(chipID)) {
 		createCoarseFineBiasSetting(biasNode, "DiffBn", 4, 39, true, "N", "Normal");
 		createCoarseFineBiasSetting(biasNode, "OnBn", 5, 255, true, "N", "Normal");
 		createCoarseFineBiasSetting(biasNode, "OffBn", 4, 0, true, "N", "Normal");
@@ -440,10 +442,10 @@ static void createDefaultConfiguration(caerModuleData moduleData, struct caer_da
 		createShiftedSourceBiasSetting(biasNode, "SSN", 1, 33, "ShiftedSource", "SplitGate");
 	}
 
-	if (IS_DAVIS128(devInfo->chipID) || IS_DAVIS208(devInfo->chipID) || IS_DAVIS346(devInfo->chipID)
-	|| IS_DAVIS640(devInfo->chipID)) {
+	if (IS_DAVIS128(chipID) || IS_DAVIS208(chipID) || IS_DAVIS346(chipID)
+	|| IS_DAVIS640(chipID)) {
 		// This is first so that it takes precedence over later settings for all other chips.
-		if (IS_DAVIS640(devInfo->chipID)) {
+		if (IS_DAVIS640(chipID)) {
 			// Slow down pixels for big 640x480 array, to avoid overwhelming the AER bus.
 			createCoarseFineBiasSetting(biasNode, "PrBp", 2, 3, true, "P", "Normal");
 			createCoarseFineBiasSetting(biasNode, "PrSFBp", 1, 1, true, "P", "Normal");
@@ -458,12 +460,12 @@ static void createDefaultConfiguration(caerModuleData moduleData, struct caer_da
 		createVDACBiasSetting(biasNode, "AdcRefHigh", 32, 7);
 		createVDACBiasSetting(biasNode, "AdcRefLow", 1, 7);
 
-		if (IS_DAVIS346(devInfo->chipID) || IS_DAVIS640(devInfo->chipID)) {
+		if (IS_DAVIS346(chipID) || IS_DAVIS640(chipID)) {
 			// Only DAVIS346 and 640 have ADC testing.
 			createVDACBiasSetting(biasNode, "AdcTestVoltage", 21, 7);
 		}
 
-		if (IS_DAVIS208(devInfo->chipID)) {
+		if (IS_DAVIS208(chipID)) {
 			createVDACBiasSetting(biasNode, "ResetHighPass", 63, 7);
 			createVDACBiasSetting(biasNode, "RefSS", 11, 5);
 
@@ -498,7 +500,7 @@ static void createDefaultConfiguration(caerModuleData moduleData, struct caer_da
 		createShiftedSourceBiasSetting(biasNode, "SSN", 1, 33, "ShiftedSource", "SplitGate");
 	}
 
-	if (IS_DAVISRGB(devInfo->chipID)) {
+	if (IS_DAVISRGB(chipID)) {
 		createVDACBiasSetting(biasNode, "ApsCas", 21, 4);
 		createVDACBiasSetting(biasNode, "OVG1Lo", 63, 4);
 		createVDACBiasSetting(biasNode, "OVG2Lo", 0, 0);
@@ -562,27 +564,27 @@ static void createDefaultConfiguration(caerModuleData moduleData, struct caer_da
 	// No GlobalShutter flag here, it's controlled by the APS module's GS flag, and libcaer
 	// ensures that both the chip SR and the APS module flags are kept in sync.
 
-	if (IS_DAVIS240A(devInfo->chipID) || IS_DAVIS240B(devInfo->chipID)) {
+	if (IS_DAVIS240A(chipID) || IS_DAVIS240B(chipID)) {
 		sshsNodeCreateBool(chipNode, "SpecialPixelControl", false, SSHS_FLAGS_NORMAL,
-			IS_DAVIS240A(devInfo->chipID) ?
+			IS_DAVIS240A(chipID) ?
 				("Enable experimental hot-pixels suppression circuit.") :
 				("Enable experimental pixel stripes on right side of array."));
 	}
 
-	if (IS_DAVIS128(devInfo->chipID) || IS_DAVIS208(devInfo->chipID) || IS_DAVIS346(devInfo->chipID)
-	|| IS_DAVIS640(devInfo->chipID)|| IS_DAVISRGB(devInfo->chipID)) {
+	if (IS_DAVIS128(chipID) || IS_DAVIS208(chipID) || IS_DAVIS346(chipID)
+	|| IS_DAVIS640(chipID)|| IS_DAVISRGB(chipID)) {
 		sshsNodeCreateBool(chipNode, "SelectGrayCounter", 1, SSHS_FLAGS_NORMAL,
 			"Select which gray counter to use with the internal ADC: '0' means the external gray counter "
 				"is used, which has to be supplied off-chip. '1' means the on-chip gray counter is used instead.");
 	}
 
-	if (IS_DAVIS346(devInfo->chipID) || IS_DAVIS640(devInfo->chipID) || IS_DAVISRGB(devInfo->chipID)) {
+	if (IS_DAVIS346(chipID) || IS_DAVIS640(chipID) || IS_DAVISRGB(chipID)) {
 		sshsNodeCreateBool(chipNode, "TestADC", false, SSHS_FLAGS_NORMAL,
 			"Test ADC functionality: if true, the ADC takes its input voltage not from the pixel, but from the "
 				"VDAC 'AdcTestVoltage'. If false, the voltage comes from the pixels.");
 	}
 
-	if (IS_DAVIS208(devInfo->chipID)) {
+	if (IS_DAVIS208(chipID)) {
 		sshsNodeCreateBool(chipNode, "SelectPreAmpAvg", false, SSHS_FLAGS_NORMAL,
 			"If 1, connect PreAmpAvgxA to calibration neuron, if 0, commongate.");
 		sshsNodeCreateBool(chipNode, "SelectBiasRefSS", false, SSHS_FLAGS_NORMAL,
@@ -592,11 +594,17 @@ static void createDefaultConfiguration(caerModuleData moduleData, struct caer_da
 		sshsNodeCreateBool(chipNode, "SelectHighPass", false, SSHS_FLAGS_NORMAL, "Enable HighPass pixels.");
 	}
 
-	if (IS_DAVISRGB(devInfo->chipID)) {
+	if (IS_DAVISRGB(chipID)) {
 		sshsNodeCreateBool(chipNode, "AdjustOVG1Lo", true, SSHS_FLAGS_NORMAL, "Adjust OVG1 Low.");
 		sshsNodeCreateBool(chipNode, "AdjustOVG2Lo", false, SSHS_FLAGS_NORMAL, "Adjust OVG2 Low.");
 		sshsNodeCreateBool(chipNode, "AdjustTX2OVG2Hi", false, SSHS_FLAGS_NORMAL, "Adjust TX2OVG2Hi.");
 	}
+}
+
+static void createDefaultLogicConfiguration(caerModuleData moduleData, const char *nodePrefix,
+	struct caer_davis_info *devInfo) {
+	// Device related configuration has its own sub-node.
+	sshsNode deviceConfigNode = sshsGetRelativeNode(moduleData->moduleNode, nodePrefix);
 
 	// Subsystem 0: Multiplexer
 	sshsNode muxNode = sshsGetRelativeNode(deviceConfigNode, "multiplexer/");
