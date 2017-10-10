@@ -54,7 +54,7 @@ IF (DAVIS)
 ENDIF()
 
 IF (DYNAPSE)
-	ADD_LIBRARY(dynapse SHARED dynapse_common.c gen_spikes.c)
+	ADD_LIBRARY(dynapse SHARED dynapse_common.c)
 
 	SET_TARGET_PROPERTIES(dynapse
 		PROPERTIES

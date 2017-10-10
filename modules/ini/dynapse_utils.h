@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-static inline const char *chipIDToName(int16_t chipID, bool withEndSlash) {
+static inline const char *chipIDToName(uint8_t chipID, bool withEndSlash) {
 	switch (chipID) {
 		case DYNAPSE_CONFIG_DYNAPSE_U0: {
 			return ((withEndSlash) ? ("U0/") : ("U0"));
@@ -28,6 +28,29 @@ static inline const char *chipIDToName(int16_t chipID, bool withEndSlash) {
 		}
 		case DYNAPSE_CHIP_DYNAPSE: {
 			return ((withEndSlash) ? ("DYNAPSE/") : ("DYNAPSE"));
+			break;
+		}
+	}
+
+	return ((withEndSlash) ? ("Unsupported/") : ("Unsupported"));
+}
+
+static inline const char *coreIDToName(uint8_t coreID, bool withEndSlash) {
+	switch (coreID) {
+		case 0: {
+			return ((withEndSlash) ? ("C0/") : ("C0"));
+			break;
+		}
+		case 1: {
+			return ((withEndSlash) ? ("C1/") : ("C1"));
+			break;
+		}
+		case 2: {
+			return ((withEndSlash) ? ("C2/") : ("C2"));
+			break;
+		}
+		case 3: {
+			return ((withEndSlash) ? ("C3/") : ("C3"));
 			break;
 		}
 	}
