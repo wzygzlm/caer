@@ -196,7 +196,7 @@ static bool caerInputDYNAPSEInit(caerModuleData moduleData) {
 			if (coreNodes != NULL) {
 				for (size_t j = 0; j < coreNodesLength; j++) {
 					size_t biasNodesLength = 0;
-					sshsNode *biasNodes = sshsNodeGetChildren(coreNodes[i], &biasNodesLength);
+					sshsNode *biasNodes = sshsNodeGetChildren(coreNodes[j], &biasNodesLength);
 
 					if (biasNodes != NULL) {
 						for (size_t k = 0; k < biasNodesLength; k++) {
@@ -252,7 +252,7 @@ static void caerInputDYNAPSEExit(caerModuleData moduleData) {
 			if (coreNodes != NULL) {
 				for (size_t j = 0; j < coreNodesLength; j++) {
 					size_t biasNodesLength = 0;
-					sshsNode *biasNodes = sshsNodeGetChildren(coreNodes[i], &biasNodesLength);
+					sshsNode *biasNodes = sshsNodeGetChildren(coreNodes[j], &biasNodesLength);
 
 					if (biasNodes != NULL) {
 						for (size_t k = 0; k < biasNodesLength; k++) {
@@ -408,12 +408,14 @@ static void createDefaultLogicConfiguration(caerModuleData moduleData) {
 
 static void sendDefaultConfiguration(caerModuleData moduleData) {
 	// Send cAER configuration to libcaer and device.
-	biasConfigSend(sshsGetRelativeNode(moduleData->moduleNode, "bias/"), moduleData);
 	systemConfigSend(sshsGetRelativeNode(moduleData->moduleNode, "system/"), moduleData);
 	usbConfigSend(sshsGetRelativeNode(moduleData->moduleNode, "usb/"), moduleData);
 	muxConfigSend(sshsGetRelativeNode(moduleData->moduleNode, "multiplexer/"), moduleData);
 	configAERConfigSend(sshsGetRelativeNode(moduleData->moduleNode, "configAER/"), moduleData);
 	spikesAERConfigSend(sshsGetRelativeNode(moduleData->moduleNode, "spikesAER/"), moduleData);
+
+	// Biases last as they need the AER buses running.
+	biasConfigSend(sshsGetRelativeNode(moduleData->moduleNode, "bias/"), moduleData);
 }
 
 static void moduleShutdownNotify(void *p) {
