@@ -97,32 +97,28 @@ static inline const char *chipIDToName(int16_t chipID, bool withEndSlash) {
 			return ((withEndSlash) ? ("DAVIS128/") : ("DAVIS128"));
 			break;
 
-		case 4:
-			return ((withEndSlash) ? ("DAVIS346A/") : ("DAVIS346A"));
-			break;
-
-		case 5:
-			return ((withEndSlash) ? ("DAVIS346B/") : ("DAVIS346B"));
+		case 5: // DAVIS346B -> only FSI chip.
+			return ((withEndSlash) ? ("DAVIS346/") : ("DAVIS346"));
 			break;
 
 		case 6:
 			return ((withEndSlash) ? ("DAVIS640/") : ("DAVIS640"));
 			break;
 
-		case 7:
-			return ((withEndSlash) ? ("DAVISHet640/") : ("DAVISHet640"));
+		case 7: // TODO: finalize name of this chip type.
+			return ((withEndSlash) ? ("CDAVIS/") : ("CDAVIS"));
 			break;
 
-		case 8:
+		case 8: // PixelParade.
 			return ((withEndSlash) ? ("DAVIS208/") : ("DAVIS208"));
 			break;
 
-		case 9:
-			return ((withEndSlash) ? ("DAVIS346Cbsi/") : ("DAVIS346Cbsi"));
+		case 9: // DAVIS346Cbsi -> only BSI chip.
+			return ((withEndSlash) ? ("DAVIS346bsi/") : ("DAVIS346bsi"));
 			break;
 	}
 
-	return ((withEndSlash) ? ("Unknown/") : ("Unknown"));
+	return ((withEndSlash) ? ("Unsupported/") : ("Unsupported"));
 }
 
 static bool caerInputDAVISInit(caerModuleData moduleData) {
