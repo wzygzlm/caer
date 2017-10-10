@@ -11,28 +11,28 @@ extern "C" {
 static inline const char *chipIDToName(int16_t chipID, bool withEndSlash) {
 	switch (chipID) {
 		case DYNAPSE_CONFIG_DYNAPSE_U0: {
-			return ((withEndSlash) ? ("DYNAPSE_CONFIG_DYNAPSE_U0/") : ("DYNAPSE_CONFIG_DYNAPSE_U0"));
+			return ((withEndSlash) ? ("U0/") : ("U0"));
 			break;
 		}
 		case DYNAPSE_CONFIG_DYNAPSE_U1: {
-			return ((withEndSlash) ? ("DYNAPSE_CONFIG_DYNAPSE_U1/") : ("DYNAPSE_CONFIG_DYNAPSE_U1"));
+			return ((withEndSlash) ? ("U1/") : ("U1"));
 			break;
 		}
 		case DYNAPSE_CONFIG_DYNAPSE_U2: {
-			return ((withEndSlash) ? ("DYNAPSE_CONFIG_DYNAPSE_U2/") : ("DYNAPSE_CONFIG_DYNAPSE_U2"));
+			return ((withEndSlash) ? ("U2/") : ("U2"));
 			break;
 		}
 		case DYNAPSE_CONFIG_DYNAPSE_U3: {
-			return ((withEndSlash) ? ("DYNAPSE_CONFIG_DYNAPSE_U3/") : ("DYNAPSE_CONFIG_DYNAPSE_U3"));
+			return ((withEndSlash) ? ("U3/") : ("U3"));
 			break;
 		}
 		case DYNAPSE_CHIP_DYNAPSE: {
-			return ((withEndSlash) ? ("DYNAPSEFX2/") : ("DYNAPSEFX2"));
+			return ((withEndSlash) ? ("DYNAPSE/") : ("DYNAPSE"));
 			break;
 		}
 	}
 
-	return ((withEndSlash) ? ("Unknown/") : ("Unknown"));
+	return ((withEndSlash) ? ("Unsupported/") : ("Unsupported"));
 }
 
 /**

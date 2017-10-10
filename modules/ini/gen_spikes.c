@@ -158,7 +158,9 @@ void caerGenSpikeExit(caerModuleData moduleData) {
 	atomic_store_explicit(&state->genSpikeState.running, false, memory_order_release);
 
 	//make sure that doStim is off
-	sshsNode spikeGenNode = sshsGetRelativeNode(moduleData->moduleNode, "DYNAPSEFX2/spikeGen/");
+	sshsNode deviceConfigNodeMain = sshsGetRelativeNode(moduleData->moduleNode,
+		chipIDToName(DYNAPSE_CHIP_DYNAPSE, true));
+	sshsNode spikeGenNode = sshsGetRelativeNode(deviceConfigNodeMain, "spikeGen/");
 	sshsNodePutBool(spikeGenNode, "doStim", false);
 	sshsNodePutBool(spikeGenNode, "doStimPrimitiveBias", false);
 	sshsNodePutBool(spikeGenNode, "doStimPrimitiveCam", false);

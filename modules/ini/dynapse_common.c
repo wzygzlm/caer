@@ -306,7 +306,7 @@ static void biasConfigListener(sshsNode node, void *userData, enum sshs_node_att
 		const char *nodeGrandParent = sshsNodeGetName(grandparent);
 		uint32_t value = generateCoarseFineBias(node);
 
-		if (caerStrEquals(nodeGrandParent, "DYNAPSE_CONFIG_DYNAPSE_U0")) {
+		if (caerStrEquals(nodeGrandParent, "U0")) {
 			int retval = caerDeviceConfigSet(((caerInputDynapseState) moduleData->moduleState)->deviceState,
 			DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID,
 			DYNAPSE_CONFIG_DYNAPSE_U0);
@@ -315,7 +315,7 @@ static void biasConfigListener(sshsNode node, void *userData, enum sshs_node_att
 					"failed to set DYNAPSE_CONFIG_CHIP_ID to DYNAPSE_CONFIG_DYNAPSE_U0");
 			}
 		}
-		else if (caerStrEquals(nodeGrandParent, "DYNAPSE_CONFIG_DYNAPSE_U1")) {
+		else if (caerStrEquals(nodeGrandParent, "U1")) {
 			int retval = caerDeviceConfigSet(((caerInputDynapseState) moduleData->moduleState)->deviceState,
 			DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID,
 			DYNAPSE_CONFIG_DYNAPSE_U1);
@@ -324,7 +324,7 @@ static void biasConfigListener(sshsNode node, void *userData, enum sshs_node_att
 					"failed to set DYNAPSE_CONFIG_CHIP_ID to DYNAPSE_CONFIG_DYNAPSE_U1");
 			}
 		}
-		else if (caerStrEquals(nodeGrandParent, "DYNAPSE_CONFIG_DYNAPSE_U2")) {
+		else if (caerStrEquals(nodeGrandParent, "U2")) {
 			int retval = caerDeviceConfigSet(((caerInputDynapseState) moduleData->moduleState)->deviceState,
 			DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID,
 			DYNAPSE_CONFIG_DYNAPSE_U2);
@@ -333,7 +333,7 @@ static void biasConfigListener(sshsNode node, void *userData, enum sshs_node_att
 					"failed to set DYNAPSE_CONFIG_CHIP_ID to DYNAPSE_CONFIG_DYNAPSE_U2");
 			}
 		}
-		else if (caerStrEquals(nodeGrandParent, "DYNAPSE_CONFIG_DYNAPSE_U3")) {
+		else if (caerStrEquals(nodeGrandParent, "U3")) {
 			int retval = caerDeviceConfigSet(((caerInputDynapseState) moduleData->moduleState)->deviceState,
 			DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID,
 			DYNAPSE_CONFIG_DYNAPSE_U3);
