@@ -339,12 +339,14 @@ static void createDefaultBiasConfiguration(caerModuleData moduleData) {
 			createDynapseBiasSetting(coreBiasNode, "R2R_P", 4, 85, true, true, false, true);
 		}
 
-		createDynapseBiasSetting(chipBiasNode, "D_BUFFER", 1, 2, true, true, false, true);
-		createDynapseBiasSetting(chipBiasNode, "D_SSP", 0, 7, true, true, false, true);
-		createDynapseBiasSetting(chipBiasNode, "D_SSN", 0, 15, true, true, false, true);
-		createDynapseBiasSetting(chipBiasNode, "U_BUFFER", 1, 2, true, true, false, true);
-		createDynapseBiasSetting(chipBiasNode, "U_SSP", 0, 7, true, true, false, true);
-		createDynapseBiasSetting(chipBiasNode, "U_SSN", 0, 15, true, true, false, true);
+		sshsNode globalBiasNode =  sshsGetRelativeNode(chipBiasNode, "Global/");
+
+		createDynapseBiasSetting(globalBiasNode, "D_BUFFER", 1, 2, true, true, false, true);
+		createDynapseBiasSetting(globalBiasNode, "D_SSP", 0, 7, true, true, false, true);
+		createDynapseBiasSetting(globalBiasNode, "D_SSN", 0, 15, true, true, false, true);
+		createDynapseBiasSetting(globalBiasNode, "U_BUFFER", 1, 2, true, true, false, true);
+		createDynapseBiasSetting(globalBiasNode, "U_SSP", 0, 7, true, true, false, true);
+		createDynapseBiasSetting(globalBiasNode, "U_SSN", 0, 15, true, true, false, true);
 	}
 }
 
@@ -433,7 +435,7 @@ static void biasConfigSend(sshsNode node, caerModuleData moduleData) {
 			if (coreNodes != NULL) {
 				for (size_t j = 0; j < coreNodesLength; j++) {
 					size_t biasNodesLength = 0;
-					sshsNode *biasNodes = sshsNodeGetChildren(coreNodes[i], &biasNodesLength);
+					sshsNode *biasNodes = sshsNodeGetChildren(coreNodes[j], &biasNodesLength);
 
 					if (biasNodes != NULL) {
 						for (size_t k = 0; k < biasNodesLength; k++) {
@@ -736,6 +738,9 @@ static void setDynapseBias(sshsNode biasNode, caerDeviceHandle cdh) {
 	uint32_t biasBits = caerBiasDynapseGenerate(biasValue);
 
 	caerDeviceConfigSet(cdh, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_CONTENT, biasBits);
+
+	caerLog(CAER_LOG_DEBUG, "Dynap-SE biasing", "Sent 'bias/%s/%s/%s/' - chipId: %d, biasAddress: %d.", chipName,
+		coreName, biasName, chipId, biasAddress);
 }
 
 static uint8_t generateBiasAddress(const char *biasName, const char *coreName) {
@@ -745,7 +750,7 @@ static uint8_t generateBiasAddress(const char *biasName, const char *coreName) {
 	if (caerStrEquals(coreName, coreIDToName(0, false))) {
 		biasAddressBase = 0;
 	}
-	if (caerStrEquals(coreName, coreIDToName(1, false))) {
+	else if (caerStrEquals(coreName, coreIDToName(1, false))) {
 		biasAddressBase = 1;
 	}
 	else if (caerStrEquals(coreName, coreIDToName(2, false))) {
@@ -754,7 +759,7 @@ static uint8_t generateBiasAddress(const char *biasName, const char *coreName) {
 	else if (caerStrEquals(coreName, coreIDToName(3, false))) {
 		biasAddressBase = 64 + 1;
 	}
-	else {
+	else if (caerStrEquals(coreName, "Global")) {
 		// U/D (not part of core).
 		if (caerStrEquals(biasName, "U_BUFFER")) {
 			return (DYNAPSE_CONFIG_BIAS_U_BUFFER);
@@ -774,7 +779,12 @@ static uint8_t generateBiasAddress(const char *biasName, const char *coreName) {
 		else if (caerStrEquals(biasName, "D_SSN")) {
 			return (DYNAPSE_CONFIG_BIAS_D_SSN);
 		}
-
+		else {
+			// Not possible.
+			return (UINT8_MAX);
+		}
+	}
+	else {
 		// Not possible.
 		return (UINT8_MAX);
 	}
