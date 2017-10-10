@@ -306,6 +306,10 @@ static void createDefaultBiasConfiguration(caerModuleData moduleData) {
 	// Chip biases, based on testing defaults.
 	sshsNode biasNode = sshsGetRelativeNode(moduleData->moduleNode, "bias/");
 
+	// Allow reset to default low-power biases.
+	sshsNodeCreateBool(biasNode, "ResetAllBiasesToDefault", false, SSHS_FLAGS_NOTIFY_ONLY,
+		"Reset all biases to the default low-power values.");
+
 	for (uint8_t chipId = 0; chipId < DYNAPSE_X4BOARD_NUMCHIPS; chipId++) {
 		sshsNode chipBiasNode =  sshsGetRelativeNode(biasNode, chipIDToName(chipId, true));
 
@@ -404,6 +408,49 @@ static void createDefaultLogicConfiguration(caerModuleData moduleData) {
 	// Ring-buffer setting (only changes value on module init/shutdown cycles).
 	sshsNodeCreateInt(sysNode, "DataExchangeBufferSize", 64, 8, 1024, SSHS_FLAGS_NORMAL,
 		"Size of EventPacketContainer queue, used for transfers between data acquisition thread and mainloop.");
+
+	// Additional Dynap-SE special settings.
+	char monitorKey[] = "Ux_Cy";
+	const char *emptyAllKey = "EmptyAll";
+	char emptyKey[] = "EmptyUx";
+	const char *defaultAllKey = "DefaultAll";
+	char defaultKey[] = "DefaultUx";
+
+	// Neuron monitoring (one per core).
+	sshsNode neuronMonitorNode = sshsGetRelativeNode(moduleData->moduleNode, "NeuronMonitor/");
+
+	for (uint8_t chipId = 0; chipId < DYNAPSE_X4BOARD_NUMCHIPS; chipId++) {
+		for (uint8_t coreId = 0; coreId < DYNAPSE_CONFIG_NUMCORES; coreId++) {
+			monitorKey[1] = (char) (48 + chipId);
+			monitorKey[4] = (char) (48 + coreId);
+			sshsNodeCreateShort(neuronMonitorNode, monitorKey, 0, 0, (DYNAPSE_CONFIG_NUMNEURONS_CORE - 1),
+				SSHS_FLAGS_NORMAL, "Monitor a specific neuron.");
+		}
+	}
+
+	// SRAM reset (empty, default).
+	sshsNode sramControlNode = sshsGetRelativeNode(moduleData->moduleNode, "SRAM/");
+
+	sshsNodeCreateBool(sramControlNode, emptyAllKey, false, SSHS_FLAGS_NOTIFY_ONLY, "Reset all SRAMs to empty.");
+	sshsNodeCreateBool(sramControlNode, defaultAllKey, false, SSHS_FLAGS_NOTIFY_ONLY,"Reset all SRAMs to default routing.");
+
+	for (uint8_t chipId = 0; chipId < DYNAPSE_X4BOARD_NUMCHIPS; chipId++) {
+		emptyKey[6] = (char) (48 + chipId);
+		sshsNodeCreateBool(sramControlNode, emptyKey, false, SSHS_FLAGS_NOTIFY_ONLY, "Reset SRAM to empty.");
+
+		defaultKey[8] = (char) (48 + chipId);
+		sshsNodeCreateBool(sramControlNode, defaultKey, false, SSHS_FLAGS_NOTIFY_ONLY, "Reset SRAM to default routing.");
+	}
+
+	// CAM reset (empty).
+	sshsNode camControlNode = sshsGetRelativeNode(moduleData->moduleNode, "CAM/");
+
+	sshsNodeCreateBool(camControlNode, emptyAllKey, false, SSHS_FLAGS_NOTIFY_ONLY, "Reset all CAMs to empty.");
+
+	for (uint8_t chipId = 0; chipId < DYNAPSE_X4BOARD_NUMCHIPS; chipId++) {
+		emptyKey[6] = (char) (48 + chipId);
+		sshsNodeCreateBool(camControlNode, emptyKey, false, SSHS_FLAGS_NOTIFY_ONLY, "Reset CAM to empty.");
+	}
 }
 
 static void sendDefaultConfiguration(caerModuleData moduleData) {

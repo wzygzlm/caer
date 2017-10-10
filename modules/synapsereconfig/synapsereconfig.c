@@ -13,6 +13,7 @@ struct SynapseReconfig_state {
 	char* sramKernelFilePath;
 	bool doInit;
 	caerDeviceHandle eventSourceModuleState;
+	sshsNode eventSourceModuleNode;
 };
 
 typedef struct SynapseReconfig_state *SynapseReconfigState;        // filter state contains two variables
@@ -90,6 +91,7 @@ static bool caerSynapseReconfigModuleInit(caerModuleData moduleData) {
 
 	// get source state
 	state->eventSourceModuleState = caerMainloopGetSourceState(sourceID);
+	state->eventSourceModuleNode = caerMainloopGetSourceNode(sourceID);
 
 	// add parameters for the user
 
@@ -148,13 +150,16 @@ static void caerSynapseReconfigModuleRun(caerModuleData moduleData, caerEventPac
 	SynapseReconfigState state = moduleData->moduleState;
 	if(state->doInit){
 		// do init
-		// clear CAM al load default biases
-		// TODO: atomic_store(&state->eventSourceModuleState->genSpikeState.clearAllCam, true);
-		// TODO: atomic_store(&state->eventSourceModuleState->genSpikeState.loadDefaultBiases, true);
+		// clear CAMs and load default biases
+		sshsNode camControlNode = sshsGetRelativeNode(state->eventSourceModuleNode, "CAM/");
+		sshsNodePutBool(camControlNode, "EmptyAll", true);
+
+		sshsNode biasNode = sshsGetRelativeNode(state->eventSourceModuleNode, "bias/");
+		sshsNodePutBool(biasNode, "ResetAllBiasesToDefault", true);
+
 		// do not do init anymore
 		state->doInit = false;
 	}
-
 }
 
 // update parameters
