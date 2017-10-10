@@ -408,14 +408,17 @@ static void createDefaultLogicConfiguration(caerModuleData moduleData) {
 
 static void sendDefaultConfiguration(caerModuleData moduleData) {
 	// Send cAER configuration to libcaer and device.
-	systemConfigSend(sshsGetRelativeNode(moduleData->moduleNode, "system/"), moduleData);
-	usbConfigSend(sshsGetRelativeNode(moduleData->moduleNode, "usb/"), moduleData);
-	muxConfigSend(sshsGetRelativeNode(moduleData->moduleNode, "multiplexer/"), moduleData);
+	// First enable AER buses.
 	configAERConfigSend(sshsGetRelativeNode(moduleData->moduleNode, "configAER/"), moduleData);
 	spikesAERConfigSend(sshsGetRelativeNode(moduleData->moduleNode, "spikesAER/"), moduleData);
 
-	// Biases last as they need the AER buses running.
+	// Then send biases, as they need the AER buses running.
 	biasConfigSend(sshsGetRelativeNode(moduleData->moduleNode, "bias/"), moduleData);
+
+	// Last enable USB/Multiplexer, so we don't get startup garbage events/timestamps.
+	systemConfigSend(sshsGetRelativeNode(moduleData->moduleNode, "system/"), moduleData);
+	usbConfigSend(sshsGetRelativeNode(moduleData->moduleNode, "usb/"), moduleData);
+	muxConfigSend(sshsGetRelativeNode(moduleData->moduleNode, "multiplexer/"), moduleData);
 }
 
 static void moduleShutdownNotify(void *p) {
