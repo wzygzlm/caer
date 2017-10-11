@@ -51,11 +51,25 @@ static void systemConfigListener(sshsNode node, void *userData, enum sshs_node_a
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
 static void logLevelListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
+static void neuronMonitorSend(sshsNode node, caerModuleData moduleData);
+static void neuronMonitorListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
+	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
+static void sramControlListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
+	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
+static void camControlListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
+	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
 
 static void createDynapseBiasSetting(sshsNode biasNode, const char *biasName,
 	uint8_t coarseValue, uint8_t fineValue, bool biasHigh, bool typeNormal, bool sexN, bool enabled);
 static void setDynapseBias(sshsNode biasNode, caerDeviceHandle cdh);
 static uint8_t generateBiasAddress(const char *biasName, const char *coreName);
+
+// Additional Dynap-SE special settings.
+static char monitorKey[] = "Ux_Cy";
+static const char *emptyAllKey = "EmptyAll";
+static char emptyKey[] = "EmptyUx";
+static const char *defaultAllKey = "DefaultAll";
+static char defaultKey[] = "DefaultUx";
 
 static bool caerInputDYNAPSEInit(caerModuleData moduleData) {
 	caerModuleLog(moduleData, CAER_LOG_DEBUG, "Initializing module ...");
@@ -214,6 +228,15 @@ static bool caerInputDYNAPSEInit(caerModuleData moduleData) {
 
 		free(chipNodes);
 	}
+
+	sshsNode neuronMonitorNode = sshsGetRelativeNode(moduleData->moduleNode, "NeuronMonitor/");
+	sshsNodeAddAttributeListener(neuronMonitorNode, moduleData, &neuronMonitorListener);
+
+	sshsNode sramControlNode = sshsGetRelativeNode(moduleData->moduleNode, "SRAM/");
+	sshsNodeAddAttributeListener(sramControlNode, moduleData, &sramControlListener);
+
+	sshsNode camControlNode = sshsGetRelativeNode(moduleData->moduleNode, "CAM/");
+	sshsNodeAddAttributeListener(camControlNode, moduleData, &camControlListener);
 
 	sshsNodeAddAttributeListener(moduleData->moduleNode, moduleData, &logLevelListener);
 
@@ -409,13 +432,6 @@ static void createDefaultLogicConfiguration(caerModuleData moduleData) {
 	sshsNodeCreateInt(sysNode, "DataExchangeBufferSize", 64, 8, 1024, SSHS_FLAGS_NORMAL,
 		"Size of EventPacketContainer queue, used for transfers between data acquisition thread and mainloop.");
 
-	// Additional Dynap-SE special settings.
-	char monitorKey[] = "Ux_Cy";
-	const char *emptyAllKey = "EmptyAll";
-	char emptyKey[] = "EmptyUx";
-	const char *defaultAllKey = "DefaultAll";
-	char defaultKey[] = "DefaultUx";
-
 	// Neuron monitoring (one per core).
 	sshsNode neuronMonitorNode = sshsGetRelativeNode(moduleData->moduleNode, "NeuronMonitor/");
 
@@ -461,6 +477,9 @@ static void sendDefaultConfiguration(caerModuleData moduleData) {
 
 	// Then send biases, as they need the AER buses running.
 	biasConfigSend(sshsGetRelativeNode(moduleData->moduleNode, "bias/"), moduleData);
+
+	// Enable neuron monitoring (analog external).
+	neuronMonitorSend(sshsGetRelativeNode(moduleData->moduleNode, "NeuronMonitor/"), moduleData);
 
 	// Last enable USB/Multiplexer, so we don't get startup garbage events/timestamps.
 	systemConfigSend(sshsGetRelativeNode(moduleData->moduleNode, "system/"), moduleData);
@@ -707,6 +726,95 @@ static void logLevelListener(sshsNode node, void *userData, enum sshs_node_attri
 	if (event == SSHS_ATTRIBUTE_MODIFIED && changeType == SSHS_BYTE && caerStrEquals(changeKey, "logLevel")) {
 		caerDeviceConfigSet(moduleData->moduleState, CAER_HOST_CONFIG_LOG, CAER_HOST_CONFIG_LOG_LEVEL,
 			U32T(changeValue.ibyte));
+	}
+}
+
+static void neuronMonitorSend(sshsNode node, caerModuleData moduleData) {
+	for (uint8_t chipId = 0; chipId < DYNAPSE_X4BOARD_NUMCHIPS; chipId++) {
+		caerDeviceConfigSet(moduleData->moduleState, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, chipId);
+
+		for (uint8_t coreId = 0; coreId < DYNAPSE_CONFIG_NUMCORES; coreId++) {
+			monitorKey[1] = (char) (48 + chipId);
+			monitorKey[4] = (char) (48 + coreId);
+
+			caerDeviceConfigSet(moduleData->moduleState, DYNAPSE_CONFIG_MONITOR_NEU, coreId,
+				U32T(sshsNodeGetShort(node, monitorKey)));
+		}
+	}
+}
+
+static void neuronMonitorListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
+	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue) {
+	UNUSED_ARGUMENT(node);
+
+	caerModuleData moduleData = userData;
+
+	if (event == SSHS_ATTRIBUTE_MODIFIED && changeType == SSHS_SHORT) {
+		// Parse changeKey to get chipId and coreId.
+		uint8_t chipId = U8T(changeKey[1] - 48);
+		uint8_t coreId = U8T(changeKey[4] - 48);
+
+		caerDeviceConfigSet(moduleData->moduleState, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, chipId);
+		caerDeviceConfigSet(moduleData->moduleState, DYNAPSE_CONFIG_MONITOR_NEU, coreId, U32T(changeValue.ishort));
+	}
+}
+
+static void sramControlListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
+	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue) {
+	UNUSED_ARGUMENT(node);
+
+	caerModuleData moduleData = userData;
+
+	if (event == SSHS_ATTRIBUTE_MODIFIED && changeType == SSHS_BOOL && changeValue.boolean == true) {
+		if (caerStrEquals(changeKey, emptyAllKey)) {
+			// Empty all SRAMs.
+			for (uint8_t chipId = 0; chipId < DYNAPSE_X4BOARD_NUMCHIPS; chipId++) {
+				caerDeviceConfigSet(moduleData->moduleState, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, chipId);
+				caerDeviceConfigSet(moduleData->moduleState, DYNAPSE_CONFIG_DEFAULT_SRAM_EMPTY, 0, 0);
+			}
+		}
+		else if (caerStrEquals(changeKey, defaultAllKey)) {
+			// Set all SRAMs to default routing.
+			for (uint8_t chipId = 0; chipId < DYNAPSE_X4BOARD_NUMCHIPS; chipId++) {
+				caerDeviceConfigSet(moduleData->moduleState, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, chipId);
+				caerDeviceConfigSet(moduleData->moduleState, DYNAPSE_CONFIG_DEFAULT_SRAM, chipId, 0);
+			}
+		}
+		else if (caerStrEqualsUpTo(changeKey, emptyKey, 6)) {
+			uint8_t chipId = U8T(changeKey[6] - 48);
+
+			caerDeviceConfigSet(moduleData->moduleState, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, chipId);
+			caerDeviceConfigSet(moduleData->moduleState, DYNAPSE_CONFIG_DEFAULT_SRAM_EMPTY, 0, 0);
+		}
+		else if (caerStrEqualsUpTo(changeKey, defaultKey, 8)) {
+			uint8_t chipId = U8T(changeKey[8] - 48);
+
+			caerDeviceConfigSet(moduleData->moduleState, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, chipId);
+			caerDeviceConfigSet(moduleData->moduleState, DYNAPSE_CONFIG_DEFAULT_SRAM, chipId, 0);
+		}
+	}
+}
+
+static void camControlListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
+	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue) {
+	UNUSED_ARGUMENT(node);
+
+	caerModuleData moduleData = userData;
+
+	if (event == SSHS_ATTRIBUTE_MODIFIED && changeType == SSHS_BOOL && changeValue.boolean == true) {
+		if (caerStrEquals(changeKey, emptyAllKey)) {
+			// Empty all CAMs.
+			for (uint8_t chipId = 0; chipId < DYNAPSE_X4BOARD_NUMCHIPS; chipId++) {
+				caerDeviceConfigSet(moduleData->moduleState, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, chipId);
+				caerDeviceConfigSet(moduleData->moduleState, DYNAPSE_CONFIG_CLEAR_CAM, 0, 0);
+			}
+		}
+		else if (caerStrEqualsUpTo(changeKey, emptyKey, 6)) {
+			uint8_t chipId = U8T(changeKey[6] - 48);
+
+			caerDeviceConfigSet(moduleData->moduleState, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, chipId);
+			caerDeviceConfigSet(moduleData->moduleState, DYNAPSE_CONFIG_CLEAR_CAM, 0, 0);
+		}
 	}
 }
 
