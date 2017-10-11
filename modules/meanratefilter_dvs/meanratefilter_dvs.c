@@ -47,28 +47,19 @@ static struct caer_module_functions caerMeanRateFilterFunctions = { .moduleInit 
 	&caerMeanRateFilterRun, .moduleConfig = &caerMeanRateFilterConfig, .moduleExit = &caerMeanRateFilterExit,
 	.moduleReset = &caerMeanRateFilterReset };
 
-static const struct caer_event_stream_in moduleInputs[] = {
-    { .type = POLARITY_EVENT, .number = 1, .readOnly = true }
-};
+static const struct caer_event_stream_in moduleInputs[] = { { .type = POLARITY_EVENT, .number = 1, .readOnly = true } };
 
 static const struct caer_event_stream_out moduleOutputs[] = { { .type = FRAME_EVENT } };
 
-static const struct caer_module_info moduleInfo = {
-	.version = 1, .name = "MeanRateDVS",
-	.description = "Measure mean rate activity of dvs pixels",
-	.type = CAER_MODULE_PROCESSOR,
-	.memSize = sizeof(struct MRFilter_state),
-	.functions = &caerMeanRateFilterFunctions,
-	.inputStreams = moduleInputs,
-	.inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(moduleInputs),
-	.outputStreams = moduleOutputs,
-	.outputStreamsSize = CAER_EVENT_STREAM_OUT_SIZE(moduleOutputs)
-};
+static const struct caer_module_info moduleInfo = { .version = 1, .name = "MeanRateDVS", .description =
+	"Measure mean rate activity of dvs pixels", .type = CAER_MODULE_PROCESSOR, .memSize = sizeof(struct MRFilter_state),
+	.functions = &caerMeanRateFilterFunctions, .inputStreams = moduleInputs, .inputStreamsSize =
+		CAER_EVENT_STREAM_IN_SIZE(moduleInputs), .outputStreams = moduleOutputs, .outputStreamsSize =
+		CAER_EVENT_STREAM_OUT_SIZE(moduleOutputs) };
 
 caerModuleInfo caerModuleGetInfo(void) {
-    return (&moduleInfo);
+	return (&moduleInfo);
 }
-
 
 static bool caerMeanRateFilterInit(caerModuleData moduleData) {
 
@@ -81,14 +72,30 @@ static bool caerMeanRateFilterInit(caerModuleData moduleData) {
 		return (false);
 	}
 
-	state->sourceID = inputs[0];
+	int16_t sourceID = inputs[0];
 	free(inputs);
+	state->sourceID = sourceID;
 
-	sshsNodeCreateInt(moduleData->moduleNode, "colorscaleMax", 500, 0, 1000, SSHS_FLAGS_NORMAL, "Color Scale, i.e. Max Frequency (Hz)");
-	sshsNodeCreateInt(moduleData->moduleNode, "colorscaleMin", 0, 0, 1000, SSHS_FLAGS_NORMAL, "Color Scale, i.e. Min Frequency (Hz)");
-	sshsNodeCreateFloat(moduleData->moduleNode, "targetFreq", 100, 0, 250, SSHS_FLAGS_NORMAL, "Target frequency for neurons");
-	sshsNodeCreateFloat(moduleData->moduleNode, "measureMinTime", 3.0, 0, 360, SSHS_FLAGS_NORMAL, "Measure time before updating the mean");
-	sshsNodeCreateBool(moduleData->moduleNode, "doSetFreq", false, SSHS_FLAGS_NORMAL, "Start/Stop changing biases for reaching target frequency"); // TODO not implemented
+	// Wait for source size information to be available.
+	// Allocate map using info from sourceInfo.
+	sshsNode sourceInfo = caerMainloopGetSourceInfo(sourceID);
+	if (sourceInfo == NULL) {
+		return (false);
+	}
+
+	int16_t polaritySizeX = sshsNodeGetShort(sourceInfo, "polaritySizeX");
+	int16_t polaritySizeY = sshsNodeGetShort(sourceInfo, "polaritySizeY");
+
+	sshsNodeCreateInt(moduleData->moduleNode, "colorscaleMax", 500, 0, 1000, SSHS_FLAGS_NORMAL,
+		"Color Scale, i.e. Max Frequency (Hz)");
+	sshsNodeCreateInt(moduleData->moduleNode, "colorscaleMin", 0, 0, 1000, SSHS_FLAGS_NORMAL,
+		"Color Scale, i.e. Min Frequency (Hz)");
+	sshsNodeCreateFloat(moduleData->moduleNode, "targetFreq", 100, 0, 250, SSHS_FLAGS_NORMAL,
+		"Target frequency for neurons");
+	sshsNodeCreateFloat(moduleData->moduleNode, "measureMinTime", 3.0, 0, 360, SSHS_FLAGS_NORMAL,
+		"Measure time before updating the mean");
+	sshsNodeCreateBool(moduleData->moduleNode, "doSetFreq", false, SSHS_FLAGS_NORMAL,
+		"Start/Stop changing biases for reaching target frequency"); // TODO not implemented
 
 	// Add config listeners last, to avoid having them dangling if Init doesn't succeed.
 	sshsNodeAddAttributeListener(moduleData->moduleNode, moduleData, &caerModuleConfigDefaultListener);
@@ -98,15 +105,18 @@ static bool caerMeanRateFilterInit(caerModuleData moduleData) {
 	state->measureStartedAt = 0.0f;
 	state->measureMinTime = sshsNodeGetFloat(moduleData->moduleNode, "measureMinTime");
 
-	allocateFrequencyMap(state, state->sourceID);
-	allocateSpikeCountMap(state, state->sourceID);
+	allocateFrequencyMap(state, sourceID);
+	allocateSpikeCountMap(state, sourceID);
 
-	sshsNode sourceInfoNodeCA = caerMainloopGetSourceInfo(state->sourceID);
 	sshsNode sourceInfoNode = sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/");
-	if (!sshsNodeAttributeExists(sourceInfoNode, "dataSizeX", SSHS_SHORT)) { //to do for visualizer change name of field to a more generic one
-		sshsNodePutShort(sourceInfoNode, "dataSizeX", sshsNodeGetShort(sourceInfoNodeCA, "dvsSizeX"));
-		sshsNodePutShort(sourceInfoNode, "dataSizeY", sshsNodeGetShort(sourceInfoNodeCA, "dvsSizeY"));
-	}
+	sshsNodeCreateShort(sourceInfoNode, "frameSizeX", polaritySizeX, 1, 1024,
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Output frame width.");
+	sshsNodeCreateShort(sourceInfoNode, "frameSizeY", polaritySizeY, 1, 1024,
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Output frame height.");
+	sshsNodeCreateShort(sourceInfoNode, "dataSizeX", polaritySizeX, 1, 1024,
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Output data width.");
+	sshsNodeCreateShort(sourceInfoNode, "dataSizeY", polaritySizeY, 1, 1024,
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Output data height.");
 
 	state->eventSourceConfigNode = caerMainloopGetSourceNode(U16T(state->sourceID));
 
@@ -179,7 +189,6 @@ static void caerMeanRateFilterRun(caerModuleData moduleData, caerEventPacketCont
 		state->spikeCountMap->buffer2d[x][y] += 1;
 	CAER_POLARITY_ITERATOR_VALID_END
 
-
 	// Generate output frame.
 	// Allocate packet container for result packet.
 	*out = caerEventPacketContainerAllocate(1);
@@ -189,8 +198,7 @@ static void caerMeanRateFilterRun(caerModuleData moduleData, caerEventPacketCont
 
 	// Everything that is in the out packet container will be automatically freed after main loop.
 	caerFrameEventPacket frameOut = caerFrameEventPacketAllocate(1, moduleData->moduleID,
-		caerEventPacketHeaderGetEventTSOverflow(&polarity->packetHeader), I32T(sizeX),
-		I32T(sizeY), 3);
+		caerEventPacketHeaderGetEventTSOverflow(&polarity->packetHeader), I32T(sizeX), I32T(sizeY), 3);
 	if (frameOut == NULL) {
 		return; // Error.
 	}
@@ -203,23 +211,22 @@ static void caerMeanRateFilterRun(caerModuleData moduleData, caerEventPacketCont
 	caerFrameEvent singleplot = caerFrameEventPacketGetEvent(frameOut, 0);
 
 	size_t counter = 0;
-	for (size_t x = 0; x < sizeX; x++) {
-		for (size_t y = 0; y < sizeY; y++) {
+	for (size_t y = 0; y < sizeY; y++) {
+		for (size_t x = 0; x < sizeX; x++) {
 			//uint16_t colorValue = U16T(state->surfaceMap->buffer2d[x][y] * UINT16_MAX);
-			COLOUR col  = GetColour((double) state->frequencyMap->buffer2d[y][x], state->colorscaleMin, state->colorscaleMax);
-			singleplot->pixels[counter] = (int) (col.r*65535); // red
-			singleplot->pixels[counter + 1] = (int) (col.g*65535); // green
-			singleplot->pixels[counter + 2] = (int) (col.b*65535); // blue
+			COLOUR col = GetColour((double) state->frequencyMap->buffer2d[x][y], state->colorscaleMin,
+				state->colorscaleMax);
+			singleplot->pixels[counter] = (int) (col.r * 65535); // red
+			singleplot->pixels[counter + 1] = (int) (col.g * 65535); // green
+			singleplot->pixels[counter + 2] = (int) (col.b * 65535); // blue
 			counter += 3;
 		}
 	}
 
 	// Add info to frame.
-	caerFrameEventSetLengthXLengthYChannelNumber(singleplot, I32T(sizeX),
-		I32T(sizeY), 3, frameOut);
+	caerFrameEventSetLengthXLengthYChannelNumber(singleplot, I32T(sizeX), I32T(sizeY), 3, frameOut);
 	// Validate frame.
 	caerFrameEventValidate(singleplot, frameOut);
-
 
 }
 
@@ -266,8 +273,8 @@ static bool allocateSpikeCountMap(MRFilterState state, int16_t sourceID) {
 		return (false);
 	}
 
-	int16_t sizeX = sshsNodeGetShort(sourceInfoNode, "dataSizeX");
-	int16_t sizeY = sshsNodeGetShort(sourceInfoNode, "dataSizeY");
+	int16_t sizeX = sshsNodeGetShort(sourceInfoNode, "polaritySizeX");
+	int16_t sizeY = sshsNodeGetShort(sourceInfoNode, "polaritySizeY");
 
 	state->spikeCountMap = simple2DBufferInitLong((size_t) sizeX, (size_t) sizeY);
 	if (state->spikeCountMap == NULL) {
@@ -292,8 +299,8 @@ static bool allocateFrequencyMap(MRFilterState state, int16_t sourceID) {
 		return (false);
 	}
 
-	int16_t sizeX = sshsNodeGetShort(sourceInfoNode, "dataSizeX");
-	int16_t sizeY = sshsNodeGetShort(sourceInfoNode, "dataSizeY");
+	int16_t sizeX = sshsNodeGetShort(sourceInfoNode, "polaritySizeX");
+	int16_t sizeY = sshsNodeGetShort(sourceInfoNode, "polaritySizeY");
 
 	state->frequencyMap = simple2DBufferInitFloat((size_t) sizeX, (size_t) sizeY);
 	if (state->frequencyMap == NULL) {
