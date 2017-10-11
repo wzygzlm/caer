@@ -8,6 +8,7 @@
 #include <libcaercpp/events/imu6.hpp>
 #include <libcaercpp/events/point2d.hpp>
 #include <libcaercpp/events/point4d.hpp>
+#include <libcaercpp/events/point3d.hpp>   // 3d renderer
 #include <libcaercpp/events/spike.hpp>
 #include <libcaercpp/devices/davis.hpp> // Only for constants.
 #include <libcaercpp/devices/dynapse.hpp> // Only for constants.
@@ -39,10 +40,13 @@ static bool caerVisualizerRendererSpikeEventsRaster(caerVisualizerPublicState st
 static const struct caer_visualizer_renderer_info rendererSpikeEventsRaster("Spikes_Raster_Plot",
 	&caerVisualizerRendererSpikeEventsRaster, false, &caerVisualizerRendererSpikeEventsRasterStateInit, nullptr);
 
+static void *caerVisualizerRendererPolarityAndFrameEventsStateInit(caerVisualizerPublicState state);
+static void caerVisualizerRendererPolarityAndFrameEventsStateExit(caerVisualizerPublicState state);
 static bool caerVisualizerRendererPolarityAndFrameEvents(caerVisualizerPublicState state,
 	caerEventPacketContainer container);
 static const struct caer_visualizer_renderer_info rendererPolarityAndFrameEvents("Polarity_and_Frames",
-	&caerVisualizerRendererPolarityAndFrameEvents);
+	&caerVisualizerRendererPolarityAndFrameEvents, false, &caerVisualizerRendererPolarityAndFrameEventsStateInit,
+	&caerVisualizerRendererPolarityAndFrameEventsStateExit);
 
 const std::string caerVisualizerRendererListOptionsString =
 	"None,Polarity,Frame,IMU_6-axes,2D_Points,Spikes,Spikes_Raster_Plot,Polarity_and_Frames";
@@ -528,6 +532,15 @@ static bool caerVisualizerRendererSpikeEventsRaster(caerVisualizerPublicState st
 	state->renderWindow->draw(verticalBorderLine);
 
 	return (true);
+}
+
+static void *caerVisualizerRendererPolarityAndFrameEventsStateInit(caerVisualizerPublicState state) {
+	caerVisualizerRendererPolarityEventsStateInit(state);
+	return (caerVisualizerRendererFrameEventsStateInit(state));
+}
+
+static void caerVisualizerRendererPolarityAndFrameEventsStateExit(caerVisualizerPublicState state) {
+	caerVisualizerRendererFrameEventsStateExit(state);
 }
 
 static bool caerVisualizerRendererPolarityAndFrameEvents(caerVisualizerPublicState state,
