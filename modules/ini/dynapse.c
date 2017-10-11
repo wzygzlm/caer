@@ -58,13 +58,21 @@ static void sramControlListener(sshsNode node, void *userData, enum sshs_node_at
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
 static void camControlListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
+static void resetToDefaultBiasesListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
+	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
 
 static void createDynapseBiasSetting(sshsNode biasNode, const char *biasName,
 	uint8_t coarseValue, uint8_t fineValue, bool biasHigh, bool typeNormal, bool sexN, bool enabled);
+static void setDynapseBiasSetting(sshsNode biasNode, const char *biasName,
+	uint8_t coarseValue, uint8_t fineValue, bool biasHigh, bool typeNormal, bool sexN, bool enabled);
 static void setDynapseBias(sshsNode biasNode, caerDeviceHandle cdh);
 static uint8_t generateBiasAddress(const char *biasName, const char *coreName);
+static void generateDefaultBiases(sshsNode biasNode, uint8_t chipId);
+static void resetDefaultBiases(sshsNode biasNode, uint8_t chipId);
 
 // Additional Dynap-SE special settings.
+static const char *resetAllBiasesKey = "ResetAllBiasesToDefault";
+static char resetBiasesKey[] = "ResetUxBiasesToDefault";
 static char monitorKey[] = "Ux_Cy";
 static const char *emptyAllKey = "EmptyAll";
 static char emptyKey[] = "EmptyUx";
@@ -199,6 +207,8 @@ static bool caerInputDYNAPSEInit(caerModuleData moduleData) {
 
 	sshsNode biasNode = sshsGetRelativeNode(moduleData->moduleNode, "bias/");
 
+	sshsNodeAddAttributeListener(biasNode, moduleData, &resetToDefaultBiasesListener);
+
 	size_t chipNodesLength = 0;
 	sshsNode *chipNodes = sshsNodeGetChildren(biasNode, &chipNodesLength);
 
@@ -264,6 +274,8 @@ static void caerInputDYNAPSEExit(caerModuleData moduleData) {
 
 	sshsNode biasNode = sshsGetRelativeNode(moduleData->moduleNode, "bias/");
 
+	sshsNodeRemoveAttributeListener(biasNode, moduleData, &resetToDefaultBiasesListener);
+
 	size_t chipNodesLength = 0;
 	sshsNode *chipNodes = sshsNodeGetChildren(biasNode, &chipNodesLength);
 
@@ -293,6 +305,15 @@ static void caerInputDYNAPSEExit(caerModuleData moduleData) {
 
 		free(chipNodes);
 	}
+
+	sshsNode neuronMonitorNode = sshsGetRelativeNode(moduleData->moduleNode, "NeuronMonitor/");
+	sshsNodeRemoveAttributeListener(neuronMonitorNode, moduleData, &neuronMonitorListener);
+
+	sshsNode sramControlNode = sshsGetRelativeNode(moduleData->moduleNode, "SRAM/");
+	sshsNodeRemoveAttributeListener(sramControlNode, moduleData, &sramControlListener);
+
+	sshsNode camControlNode = sshsGetRelativeNode(moduleData->moduleNode, "CAM/");
+	sshsNodeRemoveAttributeListener(camControlNode, moduleData, &camControlListener);
 
 	caerDeviceDataStop(moduleData->moduleState);
 
@@ -330,50 +351,19 @@ static void createDefaultBiasConfiguration(caerModuleData moduleData) {
 	sshsNode biasNode = sshsGetRelativeNode(moduleData->moduleNode, "bias/");
 
 	// Allow reset to default low-power biases.
-	sshsNodeCreateBool(biasNode, "ResetAllBiasesToDefault", false, SSHS_FLAGS_NOTIFY_ONLY,
+	sshsNodeCreateBool(biasNode, resetAllBiasesKey, false, SSHS_FLAGS_NOTIFY_ONLY,
 		"Reset all biases to the default low-power values.");
 
 	for (uint8_t chipId = 0; chipId < DYNAPSE_X4BOARD_NUMCHIPS; chipId++) {
-		sshsNode chipBiasNode =  sshsGetRelativeNode(biasNode, chipIDToName(chipId, true));
+		resetBiasesKey[6] = (char) (48 + chipId);
 
-		for (uint8_t coreId = 0; coreId < DYNAPSE_CONFIG_NUMCORES; coreId++) {
-			sshsNode coreBiasNode =  sshsGetRelativeNode(chipBiasNode, coreIDToName(coreId, true));
+		sshsNodeCreateBool(biasNode, resetBiasesKey, false, SSHS_FLAGS_NOTIFY_ONLY,
+			"Reset biases to the default low-power values.");
+	}
 
-			createDynapseBiasSetting(coreBiasNode, "IF_BUF_P", 3, 80, true, true, false, true);
-			createDynapseBiasSetting(coreBiasNode, "IF_RFR_N", 3, 3, true, true, true, true);
-			createDynapseBiasSetting(coreBiasNode, "IF_NMDA_N", 7, 0, true, true, true, true);
-			createDynapseBiasSetting(coreBiasNode, "IF_DC_P", 1, 30, true, true, false, true);
-			createDynapseBiasSetting(coreBiasNode, "IF_TAU1_N", 7, 5, false, true, true, true);
-			createDynapseBiasSetting(coreBiasNode, "IF_TAU2_N", 6, 100, true, true, true, true);
-			createDynapseBiasSetting(coreBiasNode, "IF_THR_N", 4, 120, true, true, true, true);
-			createDynapseBiasSetting(coreBiasNode, "IF_AHW_P", 7, 0, true, true, false, true);
-			createDynapseBiasSetting(coreBiasNode, "IF_AHTAU_N", 7, 35, true, true, true, true);
-			createDynapseBiasSetting(coreBiasNode, "IF_AHTHR_N", 7, 0, true, true, true, true);
-			createDynapseBiasSetting(coreBiasNode, "IF_CASC_N", 7, 0, true, true, true, true);
-			createDynapseBiasSetting(coreBiasNode, "PULSE_PWLK_P", 3, 106, true, true, false, true);
-			createDynapseBiasSetting(coreBiasNode, "PS_WEIGHT_INH_S_N", 7, 0, true, true, true, true);
-			createDynapseBiasSetting(coreBiasNode, "PS_WEIGHT_INH_F_N", 7, 0, true, true, true, true);
-			createDynapseBiasSetting(coreBiasNode, "PS_WEIGHT_EXC_S_N", 7, 0, true, true, true, true);
-			createDynapseBiasSetting(coreBiasNode, "PS_WEIGHT_EXC_F_N", 7, 0, true, true, true, true);
-			createDynapseBiasSetting(coreBiasNode, "NPDPII_TAU_S_P", 7, 40, true, true, false, true);
-			createDynapseBiasSetting(coreBiasNode, "NPDPII_TAU_F_P", 7, 0, true, true, false, true);
-			createDynapseBiasSetting(coreBiasNode, "NPDPII_THR_S_P", 7, 40, true, true, false, true);
-			createDynapseBiasSetting(coreBiasNode, "NPDPII_THR_F_P", 7, 0, true, true, false, true);
-			createDynapseBiasSetting(coreBiasNode, "NPDPIE_TAU_S_P", 7, 0, true, true, false, true);
-			createDynapseBiasSetting(coreBiasNode, "NPDPIE_TAU_F_P", 7, 40, true, true, false, true);
-			createDynapseBiasSetting(coreBiasNode, "NPDPIE_THR_S_P", 7, 0, true, true, false, true);
-			createDynapseBiasSetting(coreBiasNode, "NPDPIE_THR_F_P", 7, 0, true, true, false, true);
-			createDynapseBiasSetting(coreBiasNode, "R2R_P", 4, 85, true, true, false, true);
-		}
-
-		sshsNode globalBiasNode =  sshsGetRelativeNode(chipBiasNode, "Global/");
-
-		createDynapseBiasSetting(globalBiasNode, "D_BUFFER", 1, 2, true, true, false, true);
-		createDynapseBiasSetting(globalBiasNode, "D_SSP", 0, 7, true, true, false, true);
-		createDynapseBiasSetting(globalBiasNode, "D_SSN", 0, 15, true, true, false, true);
-		createDynapseBiasSetting(globalBiasNode, "U_BUFFER", 1, 2, true, true, false, true);
-		createDynapseBiasSetting(globalBiasNode, "U_SSP", 0, 7, true, true, false, true);
-		createDynapseBiasSetting(globalBiasNode, "U_SSN", 0, 15, true, true, false, true);
+	// Generate biases with default values.
+	for (uint8_t chipId = 0; chipId < DYNAPSE_X4BOARD_NUMCHIPS; chipId++) {
+		generateDefaultBiases(biasNode, chipId);
 	}
 }
 
@@ -818,6 +808,28 @@ static void camControlListener(sshsNode node, void *userData, enum sshs_node_att
 	}
 }
 
+static void resetToDefaultBiasesListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
+	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue) {
+	UNUSED_ARGUMENT(node);
+
+	caerModuleData moduleData = userData;
+
+	if (event == SSHS_ATTRIBUTE_MODIFIED && changeType == SSHS_BOOL && changeValue.boolean == true) {
+		if (caerStrEquals(changeKey, resetAllBiasesKey)) {
+			sshsNode biasNode = sshsGetRelativeNode(moduleData->moduleNode, "bias/");
+
+			for (uint8_t chipId = 0; chipId < DYNAPSE_X4BOARD_NUMCHIPS; chipId++) {
+				resetDefaultBiases(biasNode, chipId);
+			}
+		}
+		else if (caerStrEqualsUpTo(changeKey, resetBiasesKey, 6)) {
+			uint8_t chipId = U8T(changeKey[6] - 48);
+
+			resetDefaultBiases(sshsGetRelativeNode(moduleData->moduleNode, "bias/"), chipId);
+		}
+	}
+}
+
 static void createDynapseBiasSetting(sshsNode biasNode, const char *biasName,
 	uint8_t coarseValue, uint8_t fineValue, bool biasHigh, bool typeNormal, bool sexN, bool enabled) {
 	// Add trailing slash to node name (required!).
@@ -851,6 +863,28 @@ static void createDynapseBiasSetting(sshsNode biasNode, const char *biasName,
 	sshsNodeRemoveAttribute(biasConfigNode, "currentLevelListOptions", SSHS_STRING);
 	sshsNodeCreateString(biasConfigNode, "currentLevelListOptions", "High,Low", 0, 20, SSHS_FLAGS_READ_ONLY,
 		"Bias current level possible values.");
+}
+
+static void setDynapseBiasSetting(sshsNode biasNode, const char *biasName,
+	uint8_t coarseValue, uint8_t fineValue, bool biasHigh, bool typeNormal, bool sexN, bool enabled) {
+	// Add trailing slash to node name (required!).
+	size_t biasNameLength = strlen(biasName);
+	char biasNameFull[biasNameLength + 2];
+	memcpy(biasNameFull, biasName, biasNameLength);
+	biasNameFull[biasNameLength] = '/';
+	biasNameFull[biasNameLength + 1] = '\0';
+
+	// Get configuration node for this particular bias.
+	sshsNode biasConfigNode = sshsGetRelativeNode(biasNode, biasNameFull);
+
+	// Set bias settings.
+	sshsNodePutByte(biasConfigNode, "coarseValue", I8T(coarseValue));
+	sshsNodePutShort(biasConfigNode, "fineValue", I16T(fineValue));
+
+	sshsNodePutBool(biasConfigNode, "enabled", enabled);
+	sshsNodePutString(biasConfigNode, "sex", (sexN) ? ("N") : ("P"));
+	sshsNodePutString(biasConfigNode, "type", (typeNormal) ? ("Normal") : ("Cascode"));
+	sshsNodePutString(biasConfigNode, "currentLevel", (biasHigh) ? ("High") : ("Low"));
 }
 
 static void setDynapseBias(sshsNode biasNode, caerDeviceHandle cdh) {
@@ -1027,4 +1061,90 @@ static uint8_t generateBiasAddress(const char *biasName, const char *coreName) {
 
 	// Not possible.
 	return (UINT8_MAX);
+}
+
+static void generateDefaultBiases(sshsNode biasNode, uint8_t chipId) {
+	sshsNode chipBiasNode = sshsGetRelativeNode(biasNode, chipIDToName(chipId, true));
+
+	for (uint8_t coreId = 0; coreId < DYNAPSE_CONFIG_NUMCORES; coreId++) {
+		sshsNode coreBiasNode = sshsGetRelativeNode(chipBiasNode, coreIDToName(coreId, true));
+
+		createDynapseBiasSetting(coreBiasNode, "IF_BUF_P", 3, 80, true, true, false, true);
+		createDynapseBiasSetting(coreBiasNode, "IF_RFR_N", 3, 3, true, true, true, true);
+		createDynapseBiasSetting(coreBiasNode, "IF_NMDA_N", 7, 0, true, true, true, true);
+		createDynapseBiasSetting(coreBiasNode, "IF_DC_P", 1, 30, true, true, false, true);
+		createDynapseBiasSetting(coreBiasNode, "IF_TAU1_N", 7, 5, false, true, true, true);
+		createDynapseBiasSetting(coreBiasNode, "IF_TAU2_N", 6, 100, true, true, true, true);
+		createDynapseBiasSetting(coreBiasNode, "IF_THR_N", 4, 120, true, true, true, true);
+		createDynapseBiasSetting(coreBiasNode, "IF_AHW_P", 7, 0, true, true, false, true);
+		createDynapseBiasSetting(coreBiasNode, "IF_AHTAU_N", 7, 35, true, true, true, true);
+		createDynapseBiasSetting(coreBiasNode, "IF_AHTHR_N", 7, 0, true, true, true, true);
+		createDynapseBiasSetting(coreBiasNode, "IF_CASC_N", 7, 0, true, true, true, true);
+		createDynapseBiasSetting(coreBiasNode, "PULSE_PWLK_P", 3, 106, true, true, false, true);
+		createDynapseBiasSetting(coreBiasNode, "PS_WEIGHT_INH_S_N", 7, 0, true, true, true, true);
+		createDynapseBiasSetting(coreBiasNode, "PS_WEIGHT_INH_F_N", 7, 0, true, true, true, true);
+		createDynapseBiasSetting(coreBiasNode, "PS_WEIGHT_EXC_S_N", 7, 0, true, true, true, true);
+		createDynapseBiasSetting(coreBiasNode, "PS_WEIGHT_EXC_F_N", 7, 0, true, true, true, true);
+		createDynapseBiasSetting(coreBiasNode, "NPDPII_TAU_S_P", 7, 40, true, true, false, true);
+		createDynapseBiasSetting(coreBiasNode, "NPDPII_TAU_F_P", 7, 0, true, true, false, true);
+		createDynapseBiasSetting(coreBiasNode, "NPDPII_THR_S_P", 7, 40, true, true, false, true);
+		createDynapseBiasSetting(coreBiasNode, "NPDPII_THR_F_P", 7, 0, true, true, false, true);
+		createDynapseBiasSetting(coreBiasNode, "NPDPIE_TAU_S_P", 7, 0, true, true, false, true);
+		createDynapseBiasSetting(coreBiasNode, "NPDPIE_TAU_F_P", 7, 40, true, true, false, true);
+		createDynapseBiasSetting(coreBiasNode, "NPDPIE_THR_S_P", 7, 0, true, true, false, true);
+		createDynapseBiasSetting(coreBiasNode, "NPDPIE_THR_F_P", 7, 0, true, true, false, true);
+		createDynapseBiasSetting(coreBiasNode, "R2R_P", 4, 85, true, true, false, true);
+	}
+
+	sshsNode globalBiasNode = sshsGetRelativeNode(chipBiasNode, "Global/");
+
+	createDynapseBiasSetting(globalBiasNode, "D_BUFFER", 1, 2, true, true, false, true);
+	createDynapseBiasSetting(globalBiasNode, "D_SSP", 0, 7, true, true, false, true);
+	createDynapseBiasSetting(globalBiasNode, "D_SSN", 0, 15, true, true, false, true);
+	createDynapseBiasSetting(globalBiasNode, "U_BUFFER", 1, 2, true, true, false, true);
+	createDynapseBiasSetting(globalBiasNode, "U_SSP", 0, 7, true, true, false, true);
+	createDynapseBiasSetting(globalBiasNode, "U_SSN", 0, 15, true, true, false, true);
+}
+
+static void resetDefaultBiases(sshsNode biasNode, uint8_t chipId) {
+	sshsNode chipBiasNode = sshsGetRelativeNode(biasNode, chipIDToName(chipId, true));
+
+	for (uint8_t coreId = 0; coreId < DYNAPSE_CONFIG_NUMCORES; coreId++) {
+		sshsNode coreBiasNode = sshsGetRelativeNode(chipBiasNode, coreIDToName(coreId, true));
+
+		setDynapseBiasSetting(coreBiasNode, "IF_BUF_P", 3, 80, true, true, false, true);
+		setDynapseBiasSetting(coreBiasNode, "IF_RFR_N", 3, 3, true, true, true, true);
+		setDynapseBiasSetting(coreBiasNode, "IF_NMDA_N", 7, 0, true, true, true, true);
+		setDynapseBiasSetting(coreBiasNode, "IF_DC_P", 1, 30, true, true, false, true);
+		setDynapseBiasSetting(coreBiasNode, "IF_TAU1_N", 7, 5, false, true, true, true);
+		setDynapseBiasSetting(coreBiasNode, "IF_TAU2_N", 6, 100, true, true, true, true);
+		setDynapseBiasSetting(coreBiasNode, "IF_THR_N", 4, 120, true, true, true, true);
+		setDynapseBiasSetting(coreBiasNode, "IF_AHW_P", 7, 0, true, true, false, true);
+		setDynapseBiasSetting(coreBiasNode, "IF_AHTAU_N", 7, 35, true, true, true, true);
+		setDynapseBiasSetting(coreBiasNode, "IF_AHTHR_N", 7, 0, true, true, true, true);
+		setDynapseBiasSetting(coreBiasNode, "IF_CASC_N", 7, 0, true, true, true, true);
+		setDynapseBiasSetting(coreBiasNode, "PULSE_PWLK_P", 3, 106, true, true, false, true);
+		setDynapseBiasSetting(coreBiasNode, "PS_WEIGHT_INH_S_N", 7, 0, true, true, true, true);
+		setDynapseBiasSetting(coreBiasNode, "PS_WEIGHT_INH_F_N", 7, 0, true, true, true, true);
+		setDynapseBiasSetting(coreBiasNode, "PS_WEIGHT_EXC_S_N", 7, 0, true, true, true, true);
+		setDynapseBiasSetting(coreBiasNode, "PS_WEIGHT_EXC_F_N", 7, 0, true, true, true, true);
+		setDynapseBiasSetting(coreBiasNode, "NPDPII_TAU_S_P", 7, 40, true, true, false, true);
+		setDynapseBiasSetting(coreBiasNode, "NPDPII_TAU_F_P", 7, 0, true, true, false, true);
+		setDynapseBiasSetting(coreBiasNode, "NPDPII_THR_S_P", 7, 40, true, true, false, true);
+		setDynapseBiasSetting(coreBiasNode, "NPDPII_THR_F_P", 7, 0, true, true, false, true);
+		setDynapseBiasSetting(coreBiasNode, "NPDPIE_TAU_S_P", 7, 0, true, true, false, true);
+		setDynapseBiasSetting(coreBiasNode, "NPDPIE_TAU_F_P", 7, 40, true, true, false, true);
+		setDynapseBiasSetting(coreBiasNode, "NPDPIE_THR_S_P", 7, 0, true, true, false, true);
+		setDynapseBiasSetting(coreBiasNode, "NPDPIE_THR_F_P", 7, 0, true, true, false, true);
+		setDynapseBiasSetting(coreBiasNode, "R2R_P", 4, 85, true, true, false, true);
+	}
+
+	sshsNode globalBiasNode = sshsGetRelativeNode(chipBiasNode, "Global/");
+
+	setDynapseBiasSetting(globalBiasNode, "D_BUFFER", 1, 2, true, true, false, true);
+	setDynapseBiasSetting(globalBiasNode, "D_SSP", 0, 7, true, true, false, true);
+	setDynapseBiasSetting(globalBiasNode, "D_SSN", 0, 15, true, true, false, true);
+	setDynapseBiasSetting(globalBiasNode, "U_BUFFER", 1, 2, true, true, false, true);
+	setDynapseBiasSetting(globalBiasNode, "U_SSP", 0, 7, true, true, false, true);
+	setDynapseBiasSetting(globalBiasNode, "U_SSN", 0, 15, true, true, false, true);
 }
