@@ -41,7 +41,7 @@ IF (EDVS)
 ENDIF()
 
 IF (DAVIS)
-	ADD_LIBRARY(davis SHARED davis_common.c)
+	ADD_LIBRARY(davis SHARED davis.c)
 
 	SET_TARGET_PROPERTIES(davis
 		PROPERTIES
@@ -54,7 +54,7 @@ IF (DAVIS)
 ENDIF()
 
 IF (DYNAPSE)
-	ADD_LIBRARY(dynapse SHARED dynapse_common.c)
+	ADD_LIBRARY(dynapse SHARED dynapse.c)
 
 	SET_TARGET_PROPERTIES(dynapse
 		PROPERTIES
