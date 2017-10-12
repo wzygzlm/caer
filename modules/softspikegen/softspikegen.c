@@ -885,13 +885,31 @@ void ResetBiases(GenSpikeState state) {
 	uint8_t chipId = U8T(atomic_load(&state->chip_id));
 
 	for (uint8_t coreId = 0; coreId < 4; coreId++) {
+		caerDynapseSetBiasCore(state->sourceConfigNode, chipId, coreId, "IF_AHTAU_N", 7, 35, false);
+		caerDynapseSetBiasCore(state->sourceConfigNode, chipId, coreId, "IF_AHTHR_N", 7, 1, true);
+		caerDynapseSetBiasCore(state->sourceConfigNode, chipId, coreId, "IF_AHW_P", 7, 1, true);
+		caerDynapseSetBiasCore(state->sourceConfigNode, chipId, coreId, "IF_BUF_P", 3, 80, true);
+		caerDynapseSetBiasCore(state->sourceConfigNode, chipId, coreId, "IF_CASC_N", 7, 1, true);
 		caerDynapseSetBiasCore(state->sourceConfigNode, chipId, coreId, "IF_DC_P", 5, 2, true);
+		caerDynapseSetBiasCore(state->sourceConfigNode, chipId, coreId, "IF_NMDA_N", 7, 1, true);
 		caerDynapseSetBiasCore(state->sourceConfigNode, chipId, coreId, "IF_RFR_N", 2, 180, true);
 		caerDynapseSetBiasCore(state->sourceConfigNode, chipId, coreId, "IF_TAU1_N", 4, 225, false);
 		caerDynapseSetBiasCore(state->sourceConfigNode, chipId, coreId, "IF_TAU2_N", 4, 225, true);
 		caerDynapseSetBiasCore(state->sourceConfigNode, chipId, coreId, "IF_THR_N", 2, 180, true);
+		caerDynapseSetBiasCore(state->sourceConfigNode, chipId, coreId, "NPDPIE_TAU_F_P", 6, 150, true);
+		caerDynapseSetBiasCore(state->sourceConfigNode, chipId, coreId, "NPDPIE_TAU_S_P", 7, 40, true);
 		caerDynapseSetBiasCore(state->sourceConfigNode, chipId, coreId, "NPDPIE_THR_F_P", 0, 200, true);
+		caerDynapseSetBiasCore(state->sourceConfigNode, chipId, coreId, "NPDPIE_THR_S_P", 7, 0, true);
+		caerDynapseSetBiasCore(state->sourceConfigNode, chipId, coreId, "NPDPII_TAU_F_P", 7, 40, true);
+		caerDynapseSetBiasCore(state->sourceConfigNode, chipId, coreId, "NPDPII_TAU_S_P", 7, 40, true);
+		caerDynapseSetBiasCore(state->sourceConfigNode, chipId, coreId, "NPDPII_THR_F_P", 7, 40, true);
+		caerDynapseSetBiasCore(state->sourceConfigNode, chipId, coreId, "NPDPII_THR_S_P", 7, 40, true);
 		caerDynapseSetBiasCore(state->sourceConfigNode, chipId, coreId, "PS_WEIGHT_EXC_F_N", 0, 250, true);
+		caerDynapseSetBiasCore(state->sourceConfigNode, chipId, coreId, "PS_WEIGHT_EXC_S_N", 7, 1, true);
+		caerDynapseSetBiasCore(state->sourceConfigNode, chipId, coreId, "PS_WEIGHT_INH_F_N", 7, 1, true);
+		caerDynapseSetBiasCore(state->sourceConfigNode, chipId, coreId, "PS_WEIGHT_INH_S_N", 7, 0, true);
+		caerDynapseSetBiasCore(state->sourceConfigNode, chipId, coreId, "PULSE_PWLK_P", 3, 50, true);
+		caerDynapseSetBiasCore(state->sourceConfigNode, chipId, coreId, "R2R_P", 4, 85, true);
 	}
 }
 
