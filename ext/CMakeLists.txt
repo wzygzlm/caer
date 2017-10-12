@@ -7,10 +7,9 @@ SET(CAER_LIBDIRS ${CAER_LIBDIRS} ${MXML_LIBRARY_DIRS} PARENT_SCOPE)
 SET(CAER_C_LIBS ${CAER_C_LIBS} ${MXML_LIBRARIES} PARENT_SCOPE)
 
 # Support files to compile.
-SET(CAER_EXT_FILES
-	ext/slre/slre.c
-	ext/sshs/sshs.c
-	ext/sshs/sshs_helper.c
-	ext/sshs/sshs_node.c)
+SET(CAER_SSHS_FILES
+	ext/sshs/sshs.cpp
+	ext/sshs/sshs_helper.cpp
+	ext/sshs/sshs_node.cpp)
 
-SET(CAER_C_SRC_FILES ${CAER_C_SRC_FILES} ${CAER_EXT_FILES} PARENT_SCOPE)
+SET(CAER_CXX_SRC_FILES ${CAER_CXX_SRC_FILES} ${CAER_SSHS_FILES} PARENT_SCOPE)

@@ -1,6 +1,6 @@
 # Compile caer-ctl (CLI control utility)
 ADD_EXECUTABLE(caer-ctl
-	../../ext/sshs/sshs_helper.c
+	../../ext/sshs/sshs_helper.cpp
 	../ext/linenoise-ng/ConvertUTF.cpp
 	../ext/linenoise-ng/wcwidth.cpp
 	../ext/linenoise-ng/linenoise.cpp

@@ -20,7 +20,7 @@ static void sshsHelperAllocSprintf(char **strp, const char *format, ...) {
 	size_t printLength = (size_t) vsnprintf(NULL, 0, format, argptr);
 	va_end(argptr);
 
-	*strp = malloc(printLength + 1);
+	*strp = (char *) malloc(printLength + 1);
 	if (*strp == NULL) {
 		return;
 	}

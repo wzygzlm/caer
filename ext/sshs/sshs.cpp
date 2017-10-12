@@ -1,5 +1,7 @@
 #include "sshs_internal.h"
 #include "ext/slre/slre.h"
+#include <mutex>
+#include <regex>
 
 struct sshs_struct {
 	sshsNode root;
@@ -13,20 +15,20 @@ static bool sshsCheckAbsoluteNodePath(const char *absolutePath, size_t absoluteP
 static bool sshsCheckRelativeNodePath(const char *relativePath, size_t relativePathLength);
 
 static sshs sshsGlobal = NULL;
-static once_flag sshsGlobalIsInitialized = ONCE_FLAG_INIT;
+static std::once_flag sshsGlobalIsInitialized;
 
 static void sshsGlobalInitialize(void) {
 	sshsGlobal = sshsNew();
 }
 
 sshs sshsGetGlobal(void) {
-	call_once(&sshsGlobalIsInitialized, &sshsGlobalInitialize);
+	std::call_once(sshsGlobalIsInitialized, &sshsGlobalInitialize);
 
 	return (sshsGlobal);
 }
 
 static sshsErrorLogCallback sshsGlobalErrorLogCallback = NULL;
-static once_flag sshsGlobalErrorLogCallbackIsInitialized = ONCE_FLAG_INIT;
+static std::once_flag sshsGlobalErrorLogCallbackIsInitialized;
 
 static void sshsGlobalErrorLogCallbackInitialize(void) {
 	sshsGlobalErrorLogCallbackSetInternal(&sshsDefaultErrorLogCallback);
@@ -40,7 +42,7 @@ static void sshsGlobalErrorLogCallbackSetInternal(sshsErrorLogCallback error_log
 }
 
 sshsErrorLogCallback sshsGetGlobalErrorLogCallback(void) {
-	call_once(&sshsGlobalErrorLogCallbackIsInitialized, &sshsGlobalErrorLogCallbackInitialize);
+	std::call_once(sshsGlobalErrorLogCallbackIsInitialized, &sshsGlobalErrorLogCallbackInitialize);
 
 	return (sshsGlobalErrorLogCallback);
 }
@@ -50,7 +52,7 @@ sshsErrorLogCallback sshsGetGlobalErrorLogCallback(void) {
  * Set the global error callback preferably only once, before using SSHS.
  */
 void sshsSetGlobalErrorLogCallback(sshsErrorLogCallback error_log_cb) {
-	call_once(&sshsGlobalErrorLogCallbackIsInitialized, &sshsGlobalErrorLogCallbackInitialize);
+	std::call_once(sshsGlobalErrorLogCallbackIsInitialized, &sshsGlobalErrorLogCallbackInitialize);
 
 	// If NULL, set to default logging callback.
 	if (error_log_cb == NULL) {
@@ -62,7 +64,7 @@ void sshsSetGlobalErrorLogCallback(sshsErrorLogCallback error_log_cb) {
 }
 
 sshs sshsNew(void) {
-	sshs newSshs = malloc(sizeof(*newSshs));
+	sshs newSshs = (sshs) malloc(sizeof(*newSshs));
 	SSHS_MALLOC_CHECK_EXIT(newSshs);
 
 	// Create root node.
@@ -252,8 +254,8 @@ bool sshsEndTransaction(sshs st, char *nodePaths[], size_t nodePathsLength) {
 }
 
 #define ALLOWED_CHARS_REGEXP "([a-zA-Z-_\\d\\.:\\(\\)\\[\\]{}]+/)"
-static const char *sshsAbsoluteNodePathRegexp = "^/" ALLOWED_CHARS_REGEXP "*$";
-static const char *sshsRelativeNodePathRegexp = "^" ALLOWED_CHARS_REGEXP "+$";
+static const std::regex sshsAbsoluteNodePathRegexp("^/" ALLOWED_CHARS_REGEXP "*$");
+static const std::regex sshsRelativeNodePathRegexp("^" ALLOWED_CHARS_REGEXP "+$");
 
 static bool sshsCheckAbsoluteNodePath(const char *absolutePath, size_t absolutePathLength) {
 	if (absolutePath == NULL || absolutePathLength == 0) {
@@ -261,7 +263,7 @@ static bool sshsCheckAbsoluteNodePath(const char *absolutePath, size_t absoluteP
 		return (false);
 	}
 
-	if (slre_match(sshsAbsoluteNodePathRegexp, absolutePath, (int) absolutePathLength, NULL, 0, 0) <= 0) {
+	if (!std::regex_match(absolutePath, sshsAbsoluteNodePathRegexp)) {
 		char errorMsg[4096];
 		snprintf(errorMsg, 4096, "Invalid absolute node path format: '%s'.", absolutePath);
 		(*sshsGetGlobalErrorLogCallback())(errorMsg);
@@ -277,7 +279,7 @@ static bool sshsCheckRelativeNodePath(const char *relativePath, size_t relativeP
 		return (false);
 	}
 
-	if (slre_match(sshsRelativeNodePathRegexp, relativePath, (int) relativePathLength, NULL, 0, 0) <= 0) {
+	if (!std::regex_match(relativePath, sshsRelativeNodePathRegexp)) {
 		char errorMsg[4096];
 		snprintf(errorMsg, 4096, "Invalid relative node path format: '%s'.", relativePath);
 		(*sshsGetGlobalErrorLogCallback())(errorMsg);

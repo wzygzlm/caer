@@ -2,6 +2,8 @@
 #include "ext/uthash/uthash.h"
 #include "ext/uthash/utlist.h"
 #include <float.h>
+#include <mutex>
+#include <shared_mutex>
 
 struct sshs_node {
 	char *name;
@@ -11,8 +13,8 @@ struct sshs_node {
 	sshsNodeAttr attributes;
 	sshsNodeListener nodeListeners;
 	sshsNodeAttrListener attrListeners;
-	mtx_shared_t traversal_lock;
-	mtx_t node_lock;
+	std::shared_timed_mutex traversal_lock;
+	std::recursive_mutex node_lock;
 	UT_hash_handle hh;
 };
 
@@ -58,13 +60,13 @@ static bool sshsNodeFromXML(sshsNode node, int inFd, bool recursive, bool strict
 static void sshsNodeConsumeXML(sshsNode node, mxml_node_t *content, bool recursive);
 
 sshsNode sshsNodeNew(const char *nodeName, sshsNode parent) {
-	sshsNode newNode = malloc(sizeof(*newNode));
+	sshsNode newNode = (sshsNode) malloc(sizeof(*newNode));
 	SSHS_MALLOC_CHECK_EXIT(newNode);
 	memset(newNode, 0, sizeof(*newNode));
 
 	// Allocate full copy of string, so that we control the memory.
 	size_t nameLength = strlen(nodeName);
-	newNode->name = malloc(nameLength + 1);
+	newNode->name = (char *) malloc(nameLength + 1);
 	SSHS_MALLOC_CHECK_EXIT(newNode->name);
 
 	// Copy the string.
@@ -76,26 +78,11 @@ sshsNode sshsNodeNew(const char *nodeName, sshsNode parent) {
 	newNode->nodeListeners = NULL;
 	newNode->attrListeners = NULL;
 
-	if (mtx_shared_init(&newNode->traversal_lock) != thrd_success) {
-		// Locks are critical for thread-safety.
-		char errorMsg[4096];
-		snprintf(errorMsg, 4096, "Failed to initialize traversal_lock for node: '%s'.", nodeName);
-		(*sshsGetGlobalErrorLogCallback())(errorMsg);
-		exit(EXIT_FAILURE);
-	}
-	if (mtx_init(&newNode->node_lock, mtx_recursive) != thrd_success) {
-		// Locks are critical for thread-safety.
-		char errorMsg[4096];
-		snprintf(errorMsg, 4096, "Failed to initialize node_lock for node: '%s'.", nodeName);
-		(*sshsGetGlobalErrorLogCallback())(errorMsg);
-		exit(EXIT_FAILURE);
-	}
-
 	// Path is based on parent.
 	if (parent != NULL) {
 		// Either allocate string copy for full path.
 		size_t pathLength = strlen(sshsNodeGetPath(parent)) + nameLength + 1; // + 1 for trailing slash
-		newNode->path = malloc(pathLength + 1);
+		newNode->path = (char *) malloc(pathLength + 1);
 		SSHS_MALLOC_CHECK_EXIT(newNode->path);
 
 		// Generate string.
@@ -103,7 +90,7 @@ sshsNode sshsNodeNew(const char *nodeName, sshsNode parent) {
 	}
 	else {
 		// Or the root has an empty, constant path.
-		newNode->path = malloc(2);
+		newNode->path = (char *) malloc(2);
 		SSHS_MALLOC_CHECK_EXIT(newNode->path);
 
 		// Generate string.
@@ -115,9 +102,6 @@ sshsNode sshsNodeNew(const char *nodeName, sshsNode parent) {
 
 // children, attributes, and listeners must be cleaned up prior to this call.
 static void sshsNodeDestroy(sshsNode node) {
-	mtx_destroy(&node->node_lock);
-	mtx_shared_destroy(&node->traversal_lock);
-
 	free(node->path);
 	free(node->name);
 	free(node);
@@ -136,36 +120,35 @@ sshsNode sshsNodeGetParent(sshsNode node) {
 }
 
 sshsNode sshsNodeAddChild(sshsNode node, const char *childName) {
-	mtx_shared_lock_exclusive(&node->traversal_lock);
-
-	// Atomic putIfAbsent: returns null if nothing was there before and the
-	// node is the new one, or it returns the old node if already present.
 	sshsNode child = NULL, newChild = NULL;
-	HASH_FIND_STR(node->children, childName, child);
 
-	if (child == NULL) {
-		// Create new child node with appropriate name and parent.
-		newChild = sshsNodeNew(childName, node);
+	{
+		std::unique_lock<std::shared_timed_mutex> lock(node->traversal_lock);
 
-		// No node present, let's add it.
-		HASH_ADD_KEYPTR(hh, node->children, sshsNodeGetName(newChild), strlen(sshsNodeGetName(newChild)), newChild);
+		// Atomic putIfAbsent: returns null if nothing was there before and the
+		// node is the new one, or it returns the old node if already present.
+		HASH_FIND_STR(node->children, childName, child);
+
+		if (child == NULL) {
+			// Create new child node with appropriate name and parent.
+			newChild = sshsNodeNew(childName, node);
+
+			// No node present, let's add it.
+			HASH_ADD_KEYPTR(hh, node->children, sshsNodeGetName(newChild), strlen(sshsNodeGetName(newChild)), newChild);
+		}
 	}
-
-	mtx_shared_unlock_exclusive(&node->traversal_lock);
 
 	// If null was returned, then nothing was in the map beforehand, and
 	// thus the new node 'child' is the node that's now in the map.
 	if (child == NULL) {
 		// Listener support (only on new addition!).
-		mtx_lock(&node->node_lock);
+		std::lock_guard<std::recursive_mutex> lock(node->node_lock);
 
 		sshsNodeListener l;
 		LL_FOREACH(node->nodeListeners, l)
 		{
 			l->node_changed(node, l->userData, SSHS_CHILD_NODE_ADDED, childName);
 		}
-
-		mtx_unlock(&node->node_lock);
 
 		return (newChild);
 	}
@@ -174,46 +157,40 @@ sshsNode sshsNodeAddChild(sshsNode node, const char *childName) {
 }
 
 sshsNode sshsNodeGetChild(sshsNode node, const char* childName) {
-	mtx_shared_lock_shared(&node->traversal_lock);
+	std::shared_lock<std::shared_timed_mutex> lock(node->traversal_lock);
 
 	sshsNode child;
 	HASH_FIND_STR(node->children, childName, child);
-
-	mtx_shared_unlock_shared(&node->traversal_lock);
 
 	// Either null or an always valid value.
 	return (child);
 }
 
 static int sshsNodeCmp(const void *a, const void *b) {
-	const sshsNode *aa = a;
-	const sshsNode *bb = b;
+	const sshsNode *aa = (const sshsNode *) a;
+	const sshsNode *bb = (const sshsNode *) b;
 
 	return (strcmp(sshsNodeGetName(*aa), sshsNodeGetName(*bb)));
 }
 
 sshsNode *sshsNodeGetChildren(sshsNode node, size_t *numChildren) {
-	mtx_shared_lock_shared(&node->traversal_lock);
+	std::shared_lock<std::shared_timed_mutex> lock(node->traversal_lock);
 
 	size_t childrenCount = HASH_COUNT(node->children);
 
 	// If none, exit gracefully.
 	if (childrenCount == 0) {
-		mtx_shared_unlock_shared(&node->traversal_lock);
-
 		*numChildren = 0;
 		return (NULL);
 	}
 
-	sshsNode *children = malloc(childrenCount * sizeof(*children));
+	sshsNode *children = (sshsNode *) malloc(childrenCount * sizeof(*children));
 	SSHS_MALLOC_CHECK_EXIT(children);
 
 	size_t i = 0;
-	for (sshsNode n = node->children; n != NULL; n = n->hh.next) {
+	for (sshsNode n = node->children; n != NULL; n = (sshsNode) n->hh.next) {
 		children[i++] = n;
 	}
-
-	mtx_shared_unlock_shared(&node->traversal_lock);
 
 	// Sort by name.
 	qsort(children, childrenCount, sizeof(sshsNode), &sshsNodeCmp);
@@ -223,13 +200,13 @@ sshsNode *sshsNodeGetChildren(sshsNode node, size_t *numChildren) {
 }
 
 void sshsNodeAddNodeListener(sshsNode node, void *userData, sshsNodeChangeListener node_changed) {
-	sshsNodeListener listener = malloc(sizeof(*listener));
+	sshsNodeListener listener = (sshsNodeListener) malloc(sizeof(*listener));
 	SSHS_MALLOC_CHECK_EXIT(listener);
 
 	listener->node_changed = node_changed;
 	listener->userData = userData;
 
-	mtx_lock(&node->node_lock);
+	std::lock_guard<std::recursive_mutex> lock(node->node_lock);
 
 	// Search if we don't already have this exact listener, to avoid duplicates.
 	bool found = false;
@@ -248,12 +225,10 @@ void sshsNodeAddNodeListener(sshsNode node, void *userData, sshsNodeChangeListen
 	else {
 		free(listener);
 	}
-
-	mtx_unlock(&node->node_lock);
 }
 
 void sshsNodeRemoveNodeListener(sshsNode node, void *userData, sshsNodeChangeListener node_changed) {
-	mtx_lock(&node->node_lock);
+	std::lock_guard<std::recursive_mutex> lock(node->node_lock);
 
 	sshsNodeListener curr, curr_tmp;
 	LL_FOREACH_SAFE(node->nodeListeners, curr, curr_tmp)
@@ -263,12 +238,10 @@ void sshsNodeRemoveNodeListener(sshsNode node, void *userData, sshsNodeChangeLis
 			free(curr);
 		}
 	}
-
-	mtx_unlock(&node->node_lock);
 }
 
 void sshsNodeRemoveAllNodeListeners(sshsNode node) {
-	mtx_lock(&node->node_lock);
+	std::lock_guard<std::recursive_mutex> lock(node->node_lock);
 
 	sshsNodeListener curr, curr_tmp;
 	LL_FOREACH_SAFE(node->nodeListeners, curr, curr_tmp)
@@ -276,18 +249,16 @@ void sshsNodeRemoveAllNodeListeners(sshsNode node) {
 		LL_DELETE(node->nodeListeners, curr);
 		free(curr);
 	}
-
-	mtx_unlock(&node->node_lock);
 }
 
 void sshsNodeAddAttributeListener(sshsNode node, void *userData, sshsAttributeChangeListener attribute_changed) {
-	sshsNodeAttrListener listener = malloc(sizeof(*listener));
+	sshsNodeAttrListener listener = (sshsNodeAttrListener) malloc(sizeof(*listener));
 	SSHS_MALLOC_CHECK_EXIT(listener);
 
 	listener->attribute_changed = attribute_changed;
 	listener->userData = userData;
 
-	mtx_lock(&node->node_lock);
+	std::lock_guard<std::recursive_mutex> lock(node->node_lock);
 
 	// Search if we don't already have this exact listener, to avoid duplicates.
 	bool found = false;
@@ -306,12 +277,10 @@ void sshsNodeAddAttributeListener(sshsNode node, void *userData, sshsAttributeCh
 	else {
 		free(listener);
 	}
-
-	mtx_unlock(&node->node_lock);
 }
 
 void sshsNodeRemoveAttributeListener(sshsNode node, void *userData, sshsAttributeChangeListener attribute_changed) {
-	mtx_lock(&node->node_lock);
+	std::lock_guard<std::recursive_mutex> lock(node->node_lock);
 
 	sshsNodeAttrListener curr, curr_tmp;
 	LL_FOREACH_SAFE(node->attrListeners, curr, curr_tmp)
@@ -321,12 +290,10 @@ void sshsNodeRemoveAttributeListener(sshsNode node, void *userData, sshsAttribut
 			free(curr);
 		}
 	}
-
-	mtx_unlock(&node->node_lock);
 }
 
 void sshsNodeRemoveAllAttributeListeners(sshsNode node) {
-	mtx_lock(&node->node_lock);
+	std::lock_guard<std::recursive_mutex> lock(node->node_lock);
 
 	sshsNodeAttrListener curr, curr_tmp;
 	LL_FOREACH_SAFE(node->attrListeners, curr, curr_tmp)
@@ -334,16 +301,14 @@ void sshsNodeRemoveAllAttributeListeners(sshsNode node) {
 		LL_DELETE(node->attrListeners, curr);
 		free(curr);
 	}
-
-	mtx_unlock(&node->node_lock);
 }
 
 void sshsNodeTransactionLock(sshsNode node) {
-	mtx_lock(&node->node_lock);
+	node->node_lock.lock();
 }
 
 void sshsNodeTransactionUnlock(sshsNode node) {
-	mtx_unlock(&node->node_lock);
+	node->node_lock.unlock();
 }
 
 static bool sshsNodeCheckRange(enum sshs_node_attr_value_type type, union sshs_node_attr_value value,
@@ -458,7 +423,7 @@ void sshsNodeCreateAttribute(sshsNode node, const char *key, enum sshs_node_attr
 	}
 
 	size_t keyLength = strlen(key);
-	sshsNodeAttr newAttr = malloc(sizeof(*newAttr) + keyLength + 1);
+	sshsNodeAttr newAttr = (sshsNodeAttr) malloc(sizeof(*newAttr) + keyLength + 1);
 	SSHS_MALLOC_CHECK_EXIT(newAttr);
 	memset(newAttr, 0, sizeof(*newAttr));
 
@@ -487,7 +452,7 @@ void sshsNodeCreateAttribute(sshsNode node, const char *key, enum sshs_node_attr
 	size_t fullKeyLength = offsetof(struct sshs_node_attr, key) + keyLength
 		+ 1- offsetof(struct sshs_node_attr, value_type);
 
-	mtx_lock(&node->node_lock);
+	std::lock_guard<std::recursive_mutex> lock(node->node_lock);
 
 	sshsNodeAttr oldAttr;
 	HASH_FIND(hh, node->attributes, &newAttr->value_type, fullKeyLength, oldAttr);
@@ -538,11 +503,9 @@ void sshsNodeCreateAttribute(sshsNode node, const char *key, enum sshs_node_attr
 			sshsNodeFreeAttribute(newAttr);
 		}
 	}
-
-	mtx_unlock(&node->node_lock);
 }
 
-// Remember to 'mtx_unlock(&node->node_lock);' after this!
+// Remember to 'node->node_lock.unlock();' after this!
 static inline sshsNodeAttr sshsNodeFindAttribute(sshsNode node, const char *key, enum sshs_node_attr_value_type type) {
 	size_t keyLength = strlen(key);
 	size_t fullKeyLength = offsetof(struct sshs_node_attr, key) + keyLength
@@ -553,7 +516,7 @@ static inline sshsNodeAttr sshsNodeFindAttribute(sshsNode node, const char *key,
 	memcpy(searchKey, &type, sizeof(enum sshs_node_attr_value_type));
 	strcpy((char *) (searchKey + sizeof(enum sshs_node_attr_value_type)), key);
 
-	mtx_lock(&node->node_lock);
+	node->node_lock.lock();
 
 	sshsNodeAttr attr;
 	HASH_FIND(hh, node->attributes, searchKey, fullKeyLength, attr);
@@ -582,7 +545,7 @@ void sshsNodeRemoveAttribute(sshsNode node, const char *key, enum sshs_node_attr
 	// Verify that a valid attribute exists, else simply return
 	// without doing anything. Attribute was already deleted.
 	if (attr == NULL) {
-		mtx_unlock(&node->node_lock);
+		node->node_lock.unlock();
 		return;
 	}
 
@@ -596,13 +559,13 @@ void sshsNodeRemoveAttribute(sshsNode node, const char *key, enum sshs_node_attr
 		l->attribute_changed(node, l->userData, SSHS_ATTRIBUTE_REMOVED, key, type, attr->value);
 	}
 
-	mtx_unlock(&node->node_lock);
+	node->node_lock.unlock();
 
 	sshsNodeFreeAttribute(attr);
 }
 
 void sshsNodeRemoveAllAttributes(sshsNode node) {
-	mtx_lock(&node->node_lock);
+	std::lock_guard<std::recursive_mutex> lock(node->node_lock);
 
 	sshsNodeAttr currAttr, tmpAttr;
 	HASH_ITER(hh, node->attributes, currAttr, tmpAttr)
@@ -622,8 +585,6 @@ void sshsNodeRemoveAllAttributes(sshsNode node) {
 	}
 
 	HASH_CLEAR(hh, node->attributes);
-
-	mtx_unlock(&node->node_lock);
 }
 
 void sshsNodeClearSubTree(sshsNode startNode, bool clearStartNode) {
@@ -647,31 +608,31 @@ void sshsNodeClearSubTree(sshsNode startNode, bool clearStartNode) {
 // children, attributes, and listeners for the child to be removed
 // must be cleaned up prior to this call.
 static void sshsNodeRemoveChild(sshsNode node, const char *childName) {
-	mtx_shared_lock_exclusive(&node->traversal_lock);
-
 	sshsNode toDelete = NULL;
-	HASH_FIND_STR(node->children, childName, toDelete);
 
-	if (toDelete == NULL) {
-		mtx_shared_unlock_exclusive(&node->traversal_lock);
-		return;
-	}
-
-	// Remove attribute from node.
-	HASH_DELETE(hh, node->children, toDelete);
-
-	mtx_shared_unlock_exclusive(&node->traversal_lock);
-
-	mtx_lock(&node->node_lock);
-
-	// Listener support.
-	sshsNodeListener l;
-	LL_FOREACH(node->nodeListeners, l)
 	{
-		l->node_changed(node, l->userData, SSHS_CHILD_NODE_REMOVED, childName);
+		std::unique_lock<std::shared_timed_mutex> lock(node->traversal_lock);
+
+		HASH_FIND_STR(node->children, childName, toDelete);
+
+		if (toDelete == NULL) {
+			return;
+		}
+
+		// Remove attribute from node.
+		HASH_DELETE(hh, node->children, toDelete);
 	}
 
-	mtx_unlock(&node->node_lock);
+	{
+		std::lock_guard<std::recursive_mutex> lock(node->node_lock);
+
+		// Listener support.
+		sshsNodeListener l;
+		LL_FOREACH(node->nodeListeners, l)
+		{
+			l->node_changed(node, l->userData, SSHS_CHILD_NODE_REMOVED, childName);
+		}
+	}
 
 	sshsNodeDestroy(toDelete);
 }
@@ -679,8 +640,8 @@ static void sshsNodeRemoveChild(sshsNode node, const char *childName) {
 // children, attributes, and listeners for the children to be removed
 // must be cleaned up prior to this call.
 static void sshsNodeRemoveAllChildren(sshsNode node) {
-	mtx_shared_lock_exclusive(&node->traversal_lock);
-	mtx_lock(&node->node_lock);
+	std::unique_lock<std::shared_timed_mutex> lock(node->traversal_lock);
+	std::lock_guard<std::recursive_mutex> lockNode(node->node_lock);
 
 	sshsNode currChild, tmpChild;
 	HASH_ITER(hh, node->children, currChild, tmpChild)
@@ -699,9 +660,6 @@ static void sshsNodeRemoveAllChildren(sshsNode node) {
 	}
 
 	HASH_CLEAR(hh, node->children);
-
-	mtx_unlock(&node->node_lock);
-	mtx_shared_unlock_exclusive(&node->traversal_lock);
 }
 
 static void sshsNodeRemoveSubTree(sshsNode node) {
@@ -742,7 +700,7 @@ void sshsNodeRemoveNode(sshsNode node) {
 bool sshsNodeAttributeExists(sshsNode node, const char *key, enum sshs_node_attr_value_type type) {
 	sshsNodeAttr attr = sshsNodeFindAttribute(node, key, type);
 
-	mtx_unlock(&node->node_lock);
+	node->node_lock.unlock();
 
 	// If attr == NULL, the specified attribute was not found.
 	if (attr == NULL) {
@@ -764,14 +722,14 @@ bool sshsNodePutAttribute(sshsNode node, const char *key, enum sshs_node_attr_va
 	// Value must be present, so update old one, after checking range and flags.
 	if (attr->flags & SSHS_FLAGS_READ_ONLY) {
 		// Read-only flag set, cannot put new value!
-		mtx_unlock(&node->node_lock);
+		node->node_lock.unlock();
 		errno = EPERM;
 		return (false);
 	}
 
 	if (!sshsNodeCheckRange(type, value, attr->min, attr->max)) {
 		// New value out of range, cannot put new value!
-		mtx_unlock(&node->node_lock);
+		node->node_lock.unlock();
 		errno = ERANGE;
 		return (false);
 	}
@@ -804,7 +762,7 @@ bool sshsNodePutAttribute(sshsNode node, const char *key, enum sshs_node_attr_va
 		}
 	}
 
-	mtx_unlock(&node->node_lock);
+	node->node_lock.unlock();
 
 	// Free oldAttr's string memory, not used anymore.
 	if ((attr->flags & SSHS_FLAGS_NOTIFY_ONLY) == 0) {
@@ -868,7 +826,7 @@ union sshs_node_attr_value sshsNodeGetAttribute(sshsNode node, const char *key, 
 		value.string = valueCopy;
 	}
 
-	mtx_unlock(&node->node_lock);
+	node->node_lock.unlock();
 
 	// Return the final value.
 	return (value);
@@ -890,8 +848,8 @@ static inline bool strEndsWith(const char *str, const char *suffix) {
 }
 
 static int sshsNodeAttrCmp(const void *a, const void *b) {
-	const sshsNodeAttr *aa = a;
-	const sshsNodeAttr *bb = b;
+	const sshsNodeAttr *aa = (const sshsNodeAttr *) a;
+	const sshsNodeAttr *bb = (const sshsNodeAttr *) b;
 
 	// If key ends with "ListOptions", it gets put _before_ any other key.
 	bool aaIsListOptions = strEndsWith((*aa)->key, "ListOptions");
@@ -909,9 +867,9 @@ static int sshsNodeAttrCmp(const void *a, const void *b) {
 	}
 }
 
-// Remember to 'mtx_unlock(&node->node_lock);' after this!
+// Remember to 'node->node_lock.unlock();' after this!
 static sshsNodeAttr *sshsNodeGetAttributes(sshsNode node, size_t *numAttributes) {
-	mtx_lock(&node->node_lock);
+	std::lock_guard<std::recursive_mutex> lock(node->node_lock);
 
 	size_t attributeCount = HASH_COUNT(node->attributes);
 
@@ -922,11 +880,11 @@ static sshsNodeAttr *sshsNodeGetAttributes(sshsNode node, size_t *numAttributes)
 		return (NULL);
 	}
 
-	sshsNodeAttr *attributes = malloc(attributeCount * sizeof(*attributes));
+	sshsNodeAttr *attributes = (sshsNodeAttr *) malloc(attributeCount * sizeof(*attributes));
 	SSHS_MALLOC_CHECK_EXIT(attributes);
 
 	size_t i = 0;
-	for (sshsNodeAttr a = node->attributes; a != NULL; a = a->hh.next) {
+	for (sshsNodeAttr a = node->attributes; a != NULL; a = (sshsNodeAttr) a->hh.next) {
 		attributes[i++] = a;
 	}
 
@@ -948,14 +906,14 @@ bool sshsNodeUpdateReadOnlyAttribute(sshsNode node, const char *key, enum sshs_n
 	// Value must be present, so update old one, after checking range and flags.
 	if ((attr->flags & SSHS_FLAGS_READ_ONLY) == 0) {
 		// Read-only flag not set, cannot update read-only value!
-		mtx_unlock(&node->node_lock);
+		node->node_lock.unlock();
 		errno = EPERM;
 		return (false);
 	}
 
 	if (!sshsNodeCheckRange(type, value, attr->min, attr->max)) {
 		// New value out of range, cannot put new value!
-		mtx_unlock(&node->node_lock);
+		node->node_lock.unlock();
 		errno = ERANGE;
 		return (false);
 	}
@@ -986,7 +944,7 @@ bool sshsNodeUpdateReadOnlyAttribute(sshsNode node, const char *key, enum sshs_n
 		}
 	}
 
-	mtx_unlock(&node->node_lock);
+	node->node_lock.unlock();
 
 	// Free oldAttr's string memory, not used anymore.
 	if (type == SSHS_STRING) {
@@ -997,12 +955,15 @@ bool sshsNodeUpdateReadOnlyAttribute(sshsNode node, const char *key, enum sshs_n
 }
 
 void sshsNodeCreateBool(sshsNode node, const char *key, bool defaultValue, int flags, const char *description) {
-	sshsNodeCreateAttribute(node, key, SSHS_BOOL, SSHS_VALUE_BOOL(defaultValue), SSHS_RANGES_LONG(-1, -1), flags,
-		description);
+	union sshs_node_attr_value uValue = { .boolean = defaultValue };
+	struct sshs_node_attr_ranges ranges = { .min = { .i = -1 }, .max = { .i = -1 } };
+
+	sshsNodeCreateAttribute(node, key, SSHS_BOOL, uValue, ranges, flags, description);
 }
 
 bool sshsNodePutBool(sshsNode node, const char *key, bool value) {
-	return (sshsNodePutAttribute(node, key, SSHS_BOOL, SSHS_VALUE_BOOL(value)));
+	union sshs_node_attr_value uValue = { .boolean = value };
+	return (sshsNodePutAttribute(node, key, SSHS_BOOL, uValue));
 }
 
 bool sshsNodeGetBool(sshsNode node, const char *key) {
@@ -1011,12 +972,15 @@ bool sshsNodeGetBool(sshsNode node, const char *key) {
 
 void sshsNodeCreateByte(sshsNode node, const char *key, int8_t defaultValue, int8_t minValue, int8_t maxValue,
 	int flags, const char *description) {
-	sshsNodeCreateAttribute(node, key, SSHS_BYTE, SSHS_VALUE_BYTE(defaultValue), SSHS_RANGES_LONG(minValue, maxValue),
-		flags, description);
+	union sshs_node_attr_value uValue = { .ibyte = defaultValue };
+	struct sshs_node_attr_ranges ranges = { .min = { .i = minValue }, .max = { .i = maxValue } };
+
+	sshsNodeCreateAttribute(node, key, SSHS_BYTE, uValue, ranges, flags, description);
 }
 
 bool sshsNodePutByte(sshsNode node, const char *key, int8_t value) {
-	return (sshsNodePutAttribute(node, key, SSHS_BYTE, SSHS_VALUE_BYTE(value)));
+	union sshs_node_attr_value uValue = { .ibyte = value };
+	return (sshsNodePutAttribute(node, key, SSHS_BYTE, uValue));
 }
 
 int8_t sshsNodeGetByte(sshsNode node, const char *key) {
@@ -1025,12 +989,15 @@ int8_t sshsNodeGetByte(sshsNode node, const char *key) {
 
 void sshsNodeCreateShort(sshsNode node, const char *key, int16_t defaultValue, int16_t minValue, int16_t maxValue,
 	int flags, const char *description) {
-	sshsNodeCreateAttribute(node, key, SSHS_SHORT, SSHS_VALUE_SHORT(defaultValue), SSHS_RANGES_LONG(minValue, maxValue),
-		flags, description);
+	union sshs_node_attr_value uValue = { .ishort = defaultValue };
+	struct sshs_node_attr_ranges ranges = { .min = { .i = minValue }, .max = { .i = maxValue } };
+
+	sshsNodeCreateAttribute(node, key, SSHS_SHORT, uValue, ranges, flags, description);
 }
 
 bool sshsNodePutShort(sshsNode node, const char *key, int16_t value) {
-	return (sshsNodePutAttribute(node, key, SSHS_SHORT, SSHS_VALUE_SHORT(value)));
+	union sshs_node_attr_value uValue = { .ishort = value };
+	return (sshsNodePutAttribute(node, key, SSHS_SHORT, uValue));
 }
 
 int16_t sshsNodeGetShort(sshsNode node, const char *key) {
@@ -1039,12 +1006,15 @@ int16_t sshsNodeGetShort(sshsNode node, const char *key) {
 
 void sshsNodeCreateInt(sshsNode node, const char *key, int32_t defaultValue, int32_t minValue, int32_t maxValue,
 	int flags, const char *description) {
-	sshsNodeCreateAttribute(node, key, SSHS_INT, SSHS_VALUE_INT(defaultValue), SSHS_RANGES_LONG(minValue, maxValue),
-		flags, description);
+	union sshs_node_attr_value uValue = { .iint = defaultValue };
+	struct sshs_node_attr_ranges ranges = { .min = { .i = minValue }, .max = { .i = maxValue } };
+
+	sshsNodeCreateAttribute(node, key, SSHS_INT, uValue, ranges, flags, description);
 }
 
 bool sshsNodePutInt(sshsNode node, const char *key, int32_t value) {
-	return (sshsNodePutAttribute(node, key, SSHS_INT, SSHS_VALUE_INT(value)));
+	union sshs_node_attr_value uValue = { .iint = value };
+	return (sshsNodePutAttribute(node, key, SSHS_INT, uValue));
 }
 
 int32_t sshsNodeGetInt(sshsNode node, const char *key) {
@@ -1053,12 +1023,15 @@ int32_t sshsNodeGetInt(sshsNode node, const char *key) {
 
 void sshsNodeCreateLong(sshsNode node, const char *key, int64_t defaultValue, int64_t minValue, int64_t maxValue,
 	int flags, const char *description) {
-	sshsNodeCreateAttribute(node, key, SSHS_LONG, SSHS_VALUE_LONG(defaultValue), SSHS_RANGES_LONG(minValue, maxValue),
-		flags, description);
+	union sshs_node_attr_value uValue = { .ilong = defaultValue };
+	struct sshs_node_attr_ranges ranges = { .min = { .i = minValue }, .max = { .i = maxValue } };
+
+	sshsNodeCreateAttribute(node, key, SSHS_LONG, uValue, ranges, flags, description);
 }
 
 bool sshsNodePutLong(sshsNode node, const char *key, int64_t value) {
-	return (sshsNodePutAttribute(node, key, SSHS_LONG, SSHS_VALUE_LONG(value)));
+	union sshs_node_attr_value uValue = { .ilong = value };
+	return (sshsNodePutAttribute(node, key, SSHS_LONG, uValue));
 }
 
 int64_t sshsNodeGetLong(sshsNode node, const char *key) {
@@ -1067,12 +1040,15 @@ int64_t sshsNodeGetLong(sshsNode node, const char *key) {
 
 void sshsNodeCreateFloat(sshsNode node, const char *key, float defaultValue, float minValue, float maxValue, int flags,
 	const char *description) {
-	sshsNodeCreateAttribute(node, key, SSHS_FLOAT, SSHS_VALUE_FLOAT(defaultValue),
-		SSHS_RANGES_DOUBLE((double ) minValue, (double )maxValue), flags, description);
+	union sshs_node_attr_value uValue = { .ffloat = defaultValue };
+	struct sshs_node_attr_ranges ranges = { .min = { .d = minValue }, .max = { .d = maxValue } };
+
+	sshsNodeCreateAttribute(node, key, SSHS_FLOAT, uValue, ranges, flags, description);
 }
 
 bool sshsNodePutFloat(sshsNode node, const char *key, float value) {
-	return (sshsNodePutAttribute(node, key, SSHS_FLOAT, SSHS_VALUE_FLOAT(value)));
+	union sshs_node_attr_value uValue = { .ffloat = value };
+	return (sshsNodePutAttribute(node, key, SSHS_FLOAT, uValue));
 }
 
 float sshsNodeGetFloat(sshsNode node, const char *key) {
@@ -1081,12 +1057,15 @@ float sshsNodeGetFloat(sshsNode node, const char *key) {
 
 void sshsNodeCreateDouble(sshsNode node, const char *key, double defaultValue, double minValue, double maxValue,
 	int flags, const char *description) {
-	sshsNodeCreateAttribute(node, key, SSHS_DOUBLE, SSHS_VALUE_DOUBLE(defaultValue),
-		SSHS_RANGES_DOUBLE(minValue, maxValue), flags, description);
+	union sshs_node_attr_value uValue = { .ddouble = defaultValue };
+	struct sshs_node_attr_ranges ranges = { .min = { .d = minValue }, .max = { .d = maxValue } };
+
+	sshsNodeCreateAttribute(node, key, SSHS_DOUBLE, uValue, ranges, flags, description);
 }
 
 bool sshsNodePutDouble(sshsNode node, const char *key, double value) {
-	return (sshsNodePutAttribute(node, key, SSHS_DOUBLE, SSHS_VALUE_DOUBLE(value)));
+	union sshs_node_attr_value uValue = { .ddouble = value };
+	return (sshsNodePutAttribute(node, key, SSHS_DOUBLE, uValue));
 }
 
 double sshsNodeGetDouble(sshsNode node, const char *key) {
@@ -1095,12 +1074,15 @@ double sshsNodeGetDouble(sshsNode node, const char *key) {
 
 void sshsNodeCreateString(sshsNode node, const char *key, const char *defaultValue, size_t minLength, size_t maxLength,
 	int flags, const char *description) {
-	sshsNodeCreateAttribute(node, key, SSHS_STRING, SSHS_VALUE_STR((char * ) defaultValue),
-		SSHS_RANGES_LONG((int64_t ) minLength, (int64_t ) maxLength), flags, description);
+	union sshs_node_attr_value uValue = { .string = (char *) defaultValue };
+	struct sshs_node_attr_ranges ranges = { .min = { .i = minLength }, .max = { .i = maxLength } };
+
+	sshsNodeCreateAttribute(node, key, SSHS_STRING, uValue, ranges, flags, description);
 }
 
 bool sshsNodePutString(sshsNode node, const char *key, const char *value) {
-	return (sshsNodePutAttribute(node, key, SSHS_STRING, SSHS_VALUE_STR((char * ) value)));
+	union sshs_node_attr_value uValue = { .string = (char *) value };
+	return (sshsNodePutAttribute(node, key, SSHS_STRING, uValue));
 }
 
 // This is a copy of the string on the heap, remember to free() when done!
@@ -1204,11 +1186,11 @@ static void sshsNodeToXML(sshsNode node, int outFd, bool recursive) {
 }
 
 static mxml_node_t *sshsNodeGenerateXML(sshsNode node, bool recursive) {
-	mxml_node_t *this = mxmlNewElement(MXML_NO_PARENT, "node");
+	mxml_node_t *thisNode = mxmlNewElement(MXML_NO_PARENT, "node");
 
 	// First this node's name and full path.
-	mxmlElementSetAttr(this, "name", sshsNodeGetName(node));
-	mxmlElementSetAttr(this, "path", sshsNodeGetPath(node));
+	mxmlElementSetAttr(thisNode, "name", sshsNodeGetName(node));
+	mxmlElementSetAttr(thisNode, "path", sshsNodeGetPath(node));
 
 	size_t numAttributes;
 	sshsNodeAttr *attributes = sshsNodeGetAttributes(node, &numAttributes);
@@ -1224,7 +1206,7 @@ static mxml_node_t *sshsNodeGenerateXML(sshsNode node, bool recursive) {
 		char *value = sshsHelperValueToStringConverter(attributes[i]->value_type, attributes[i]->value);
 		SSHS_MALLOC_CHECK_EXIT(value);
 
-		mxml_node_t *attr = mxmlNewElement(this, "attr");
+		mxml_node_t *attr = mxmlNewElement(thisNode, "attr");
 		mxmlElementSetAttr(attr, "key", attributes[i]->key);
 		mxmlElementSetAttr(attr, "type", type);
 		mxmlNewText(attr, 0, value);
@@ -1232,7 +1214,7 @@ static mxml_node_t *sshsNodeGenerateXML(sshsNode node, bool recursive) {
 		free(value);
 	}
 
-	mtx_unlock(&node->node_lock);
+	node->node_lock.unlock();
 
 	free(attributes);
 
@@ -1245,7 +1227,7 @@ static mxml_node_t *sshsNodeGenerateXML(sshsNode node, bool recursive) {
 			mxml_node_t *child = sshsNodeGenerateXML(children[i], recursive);
 
 			if (mxmlGetFirstChild(child) != NULL) {
-				mxmlAdd(this, MXML_ADD_AFTER, MXML_ADD_TO_PARENT, child);
+				mxmlAdd(thisNode, MXML_ADD_AFTER, MXML_ADD_TO_PARENT, child);
 			}
 			else {
 				// Free memory if not adding.
@@ -1256,7 +1238,7 @@ static mxml_node_t *sshsNodeGenerateXML(sshsNode node, bool recursive) {
 		free(children);
 	}
 
-	return (this);
+	return (thisNode);
 }
 
 bool sshsNodeImportNodeFromXML(sshsNode node, int inFd, bool strict) {
@@ -1286,7 +1268,7 @@ static mxml_node_t **sshsNodeXMLFilterChildNodes(mxml_node_t *node, const char *
 	}
 
 	// Now allocate appropriate memory for list.
-	mxml_node_t **filteredNodes = malloc(matchedChildren * sizeof(mxml_node_t *));
+	mxml_node_t **filteredNodes = (mxml_node_t **) malloc(matchedChildren * sizeof(mxml_node_t *));
 	SSHS_MALLOC_CHECK_EXIT(filteredNodes);
 
 	// Go thorough again and collect the matching nodes.
@@ -1509,7 +1491,7 @@ const char **sshsNodeGetChildNames(sshsNode node, size_t *numNames) {
 		return (NULL);
 	}
 
-	const char **childNames = malloc(numChildren * sizeof(*childNames));
+	const char **childNames = (const char **) malloc(numChildren * sizeof(*childNames));
 	SSHS_MALLOC_CHECK_EXIT(childNames);
 
 	// Copy pointers to name string over. Safe because nodes are never deleted.
@@ -1528,14 +1510,14 @@ const char **sshsNodeGetAttributeKeys(sshsNode node, size_t *numKeys) {
 	sshsNodeAttr *attributes = sshsNodeGetAttributes(node, &numAttributes);
 
 	if (attributes == NULL) {
-		mtx_unlock(&node->node_lock);
+		node->node_lock.unlock();
 
 		*numKeys = 0;
 		errno = ENOENT;
 		return (NULL);
 	}
 
-	const char **attributeKeys = malloc(numAttributes * sizeof(*attributeKeys));
+	const char **attributeKeys = (const char **) malloc(numAttributes * sizeof(*attributeKeys));
 	SSHS_MALLOC_CHECK_EXIT(attributeKeys);
 
 	// Copy pointers to key string over. Safe because attributes are never deleted.
@@ -1543,7 +1525,7 @@ const char **sshsNodeGetAttributeKeys(sshsNode node, size_t *numKeys) {
 		attributeKeys[i] = attributes[i]->key;
 	}
 
-	mtx_unlock(&node->node_lock);
+	node->node_lock.unlock();
 
 	free(attributes);
 
@@ -1556,7 +1538,7 @@ enum sshs_node_attr_value_type *sshsNodeGetAttributeTypes(sshsNode node, const c
 	sshsNodeAttr *attributes = sshsNodeGetAttributes(node, &numAttributes);
 
 	if (attributes == NULL) {
-		mtx_unlock(&node->node_lock);
+		node->node_lock.unlock();
 
 		*numTypes = 0;
 		errno = ENOENT;
@@ -1564,7 +1546,8 @@ enum sshs_node_attr_value_type *sshsNodeGetAttributeTypes(sshsNode node, const c
 	}
 
 	// There are at most 8 types for one specific attribute key.
-	enum sshs_node_attr_value_type *attributeTypes = malloc(8 * sizeof(*attributeTypes));
+	enum sshs_node_attr_value_type *attributeTypes = (enum sshs_node_attr_value_type *) malloc(
+		8 * sizeof(*attributeTypes));
 	SSHS_MALLOC_CHECK_EXIT(attributeTypes);
 
 	// Check each attribute if it matches, and save its type if true.
@@ -1576,7 +1559,7 @@ enum sshs_node_attr_value_type *sshsNodeGetAttributeTypes(sshsNode node, const c
 		}
 	}
 
-	mtx_unlock(&node->node_lock);
+	node->node_lock.unlock();
 
 	free(attributes);
 
@@ -1600,7 +1583,7 @@ struct sshs_node_attr_ranges sshsNodeGetAttributeRanges(sshsNode node, const cha
 	union sshs_node_attr_range minRange = attr->min;
 	union sshs_node_attr_range maxRange = attr->max;
 
-	mtx_unlock(&node->node_lock);
+	node->node_lock.unlock();
 
 	struct sshs_node_attr_ranges result = { .min = minRange, .max = maxRange };
 
@@ -1615,7 +1598,7 @@ int sshsNodeGetAttributeFlags(sshsNode node, const char *key, enum sshs_node_att
 
 	int flags = attr->flags;
 
-	mtx_unlock(&node->node_lock);
+	node->node_lock.unlock();
 
 	return (flags);
 }
@@ -1629,7 +1612,7 @@ char *sshsNodeGetAttributeDescription(sshsNode node, const char *key, enum sshs_
 	char *descriptionCopy = strdup(attr->description);
 	SSHS_MALLOC_CHECK_EXIT(descriptionCopy);
 
-	mtx_unlock(&node->node_lock);
+	node->node_lock.unlock();
 
 	return (descriptionCopy);
 }
