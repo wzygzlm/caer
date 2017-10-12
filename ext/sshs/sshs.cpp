@@ -1,5 +1,4 @@
 #include "sshs_internal.h"
-#include "ext/slre/slre.h"
 #include <mutex>
 #include <regex>
 
