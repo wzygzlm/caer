@@ -334,9 +334,9 @@ int spikeGenThread(void *spikeGenState) {
 
 	thrd_set_name("SpikeGenThread");
 
-	while (atomic_load_explicit(&state->running, // the loop
-		memory_order_acquire)) {
-		if (!atomic_load(&state->doStim)) {
+	while (atomic_load_explicit(&state->running, memory_order_relaxed)) {
+		if (!atomic_load(&state->doStim) && !atomic_load(&state->setCam) && !atomic_load(&state->setCamSingle) &&
+			!atomic_load(&state->clearCam) && !atomic_load(&state->clearAllCam) && !atomic_load(&state->loadDefaultBiases)) {
 			struct timespec noStimSleep = { .tv_sec = 0, .tv_nsec = 1000000 };
 			thrd_sleep(&noStimSleep, NULL);
 			continue;
@@ -357,6 +357,7 @@ int spikeGenThread(void *spikeGenState) {
 		else if (state->setCamSingle == false && CamSetedSingle == 1) {
 			CamSetedSingle = 0;
 		}
+
 		if (state->clearCam == true && CamCleared == 0) {
 			ClearCam(state);
 			CamCleared = 1;
@@ -364,6 +365,7 @@ int spikeGenThread(void *spikeGenState) {
 		else if (state->clearCam == false && CamCleared == 1) {
 			CamCleared = 0;
 		}
+
 		if (state->clearAllCam == true && CamAllCleared == 0) {
 			ClearAllCam(state);
 			CamAllCleared = 1;
@@ -371,6 +373,7 @@ int spikeGenThread(void *spikeGenState) {
 		else if (state->clearAllCam == false && CamAllCleared == 1) {
 			CamAllCleared = 0;
 		}
+
 		if (state->loadDefaultBiases == true && BiasesLoaded == 0) {
 			ResetBiases(state);
 			BiasesLoaded = 1;
@@ -380,7 +383,6 @@ int spikeGenThread(void *spikeGenState) {
 		}
 
 		/* generate spikes*/
-
 		if (state->stim_type == STIM_REGULAR) {
 			spiketrainReg(state);
 		}
@@ -461,7 +463,6 @@ int spikeGenThread(void *spikeGenState) {
 		else if (state->stim_type == STIM_ETF) {
 			spiketrainETF(state);
 		}
-
 	}
 
 	return (thrd_success);
