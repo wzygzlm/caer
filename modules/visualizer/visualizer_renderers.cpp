@@ -8,6 +8,7 @@
 #include <libcaercpp/events/imu6.hpp>
 #include <libcaercpp/events/point2d.hpp>
 #include <libcaercpp/events/point4d.hpp>
+#include <libcaercpp/events/matrix4x4.hpp> // Render camera pose
 #include <libcaercpp/events/spike.hpp>
 #include <libcaercpp/devices/davis.hpp> // Only for constants.
 #include <libcaercpp/devices/dynapse.hpp> // Only for constants.
@@ -33,6 +34,12 @@ static const struct caer_visualizer_renderer_info rendererPoint2DEvents("2D_Poin
 static bool caerVisualizerRendererSpikeEvents(caerVisualizerPublicState state, caerEventPacketContainer container);
 static const struct caer_visualizer_renderer_info rendererSpikeEvents("Spikes", &caerVisualizerRendererSpikeEvents);
 
+static void *caerVisualizerRendererMatrix4x4EventsPoseStateInit(caerVisualizerPublicState state);
+static bool caerVisualizerRendererMatrix4x4EventsPose(caerVisualizerPublicState state,
+	caerEventPacketContainer container);
+static const struct caer_visualizer_renderer_info rendererMatrix4x4EventsPose("Camera_pose",
+	&caerVisualizerRendererMatrix4x4EventsPose, false, &caerVisualizerRendererMatrix4x4EventsPoseStateInit, nullptr);
+
 static void *caerVisualizerRendererSpikeEventsRasterStateInit(caerVisualizerPublicState state);
 static bool caerVisualizerRendererSpikeEventsRaster(caerVisualizerPublicState state,
 	caerEventPacketContainer container);
@@ -48,11 +55,11 @@ static const struct caer_visualizer_renderer_info rendererPolarityAndFrameEvents
 	&caerVisualizerRendererPolarityAndFrameEventsStateExit);
 
 const std::string caerVisualizerRendererListOptionsString =
-	"None,Polarity,Frame,IMU_6-axes,2D_Points,Spikes,Spikes_Raster_Plot,Polarity_and_Frames";
+	"None,Polarity,Frame,IMU_6-axes,2D_Points,Spikes,Spikes_Raster_Plot,Polarity_and_Frames,Camera_pose";
 
 const struct caer_visualizer_renderer_info caerVisualizerRendererList[] = { { "None", nullptr }, rendererPolarityEvents,
 	rendererFrameEvents, rendererIMU6Events, rendererPoint2DEvents, rendererSpikeEvents, rendererSpikeEventsRaster,
-	rendererPolarityAndFrameEvents };
+	rendererPolarityAndFrameEvents, rendererMatrix4x4EventsPose };
 
 const size_t caerVisualizerRendererListLength = (sizeof(caerVisualizerRendererList)
 	/ sizeof(struct caer_visualizer_renderer_info));
@@ -435,6 +442,77 @@ static bool caerVisualizerRendererSpikeEvents(caerVisualizerPublicState state, c
 
 	return (true);
 }
+
+// Matrix4x4
+// How many timestemps and neurons to show per chip.
+#define WORLD_X 640
+#define WORLD_Y 480
+
+static void *caerVisualizerRendererMatrix4x4EventsPoseStateInit(caerVisualizerPublicState state) {
+	// Reset render size to allow for more neurons and timesteps to be displayed.
+	caerVisualizerResetRenderSize(state, WORLD_X, WORLD_Y);
+
+	//int time[1024];
+
+	return (CAER_VISUALIZER_RENDER_INIT_NO_MEM); // No allocated memory.
+}
+
+static bool caerVisualizerRendererMatrix4x4EventsPose(caerVisualizerPublicState state,
+	caerEventPacketContainer container) {
+	UNUSED_ARGUMENT(state);
+
+	caerEventPacketHeader matrix4x4PacketHeader = caerEventPacketContainerFindEventPacketByType(container, MATRIX4x4_EVENT);
+
+	if (matrix4x4PacketHeader == NULL || caerEventPacketHeaderGetEventValid(matrix4x4PacketHeader) == 0) {
+		return (false);
+	}
+
+	const libcaer::events::Matrix4x4EventPacket matrix4x4Packet(matrix4x4PacketHeader, false);
+
+	// find max and min TS, event packets MUST be ordered by time, that's
+	// an invariant property, so we can just select first and last event.
+	// Also time is always positive, so we can use unsigned ints.
+	uint32_t minTimestamp = U32T(matrix4x4Packet[0].getTimestamp());
+	uint32_t maxTimestamp = U32T(matrix4x4Packet[-1].getTimestamp());
+
+	// time span, +1 to divide space correctly in scaleX.
+	uint32_t timeSpan = 1024;//maxTimestamp - minTimestamp + 1;
+
+	//int* time = (int *) state->renderState;
+
+	// Get render sizes, subtract 2px for middle borders.
+	float zoomFactor = state->renderZoomFactor.load(std::memory_order_relaxed);
+
+	float sizeX = (float) (state->renderSizeX - 2) * zoomFactor;
+	float sizeY = (float) (state->renderSizeY - 2) * zoomFactor;
+
+	// Two plots in each of X and Y directions.
+	float scaleX = (sizeX / 2.0f) / (float) timeSpan;
+	float scaleY = (sizeY / 2.0f) / (float) WORLD_Y;
+
+	std::vector<sf::Vertex> vertices((size_t) matrix4x4Packet.getEventNumber() * 4);
+
+	for (const auto &matrixEvent : matrix4x4Packet) {
+
+		int times = U32T(matrixEvent.getTimestamp());
+
+		// X is based on time.
+		uint32_t plotX = U32T(floorf((float ) times * scaleX));
+
+		float m00 = matrixEvent.getM00();
+		float m01 = matrixEvent.getM01();
+		caerLog(CAER_LOG_ERROR, __func__, "m00 %f", m00);
+		sfml::Helpers::addPixelVertices(vertices, plotX, m00, zoomFactor, sf::Color::White, false);
+		sfml::Helpers::addPixelVertices(vertices, plotX, m01, zoomFactor, sf::Color::Red, false);
+
+	}
+
+	state->renderWindow->draw(vertices.data(), vertices.size(), sf::Quads);
+
+	return (true);
+}
+
+
 
 // How many timestemps and neurons to show per chip.
 #define SPIKE_RASTER_PLOT_TIMESTEPS 500
