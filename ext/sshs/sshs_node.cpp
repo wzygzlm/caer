@@ -1,32 +1,31 @@
 #include "sshs_internal.h"
-#include "ext/uthash/uthash.h"
-#include "ext/uthash/utlist.h"
 #include <float.h>
+
+#include <vector>
+#include <map>
 #include <mutex>
 #include <shared_mutex>
 
 struct sshs_node {
-	char *name;
-	char *path;
+	std::string name;
+	std::string path;
 	sshsNode parent;
-	sshsNode children;
-	sshsNodeAttr attributes;
+	std::map<std::string, sshsNode> children;
+	std::map<std::string, sshsNodeAttr> attributes;
 	sshsNodeListener nodeListeners;
 	sshsNodeAttrListener attrListeners;
 	std::shared_timed_mutex traversal_lock;
 	std::recursive_mutex node_lock;
-	UT_hash_handle hh;
 };
 
 struct sshs_node_attr {
-	UT_hash_handle hh;
 	union sshs_node_attr_range min;
 	union sshs_node_attr_range max;
 	int flags;
-	char *description;
+	std::string description;
 	union sshs_node_attr_value value;
 	enum sshs_node_attr_value_type value_type;
-	char key[];
+	std::string key;
 };
 
 struct sshs_node_listener {
