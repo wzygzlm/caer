@@ -8,7 +8,6 @@
 #include <libcaercpp/events/imu6.hpp>
 #include <libcaercpp/events/point2d.hpp>
 #include <libcaercpp/events/point4d.hpp>
-#include <libcaercpp/events/point3d.hpp>   // 3d renderer
 #include <libcaercpp/events/spike.hpp>
 #include <libcaercpp/devices/davis.hpp> // Only for constants.
 #include <libcaercpp/devices/dynapse.hpp> // Only for constants.

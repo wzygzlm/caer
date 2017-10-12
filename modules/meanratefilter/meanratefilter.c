@@ -9,11 +9,11 @@
 #include "ext/buffers.h"
 #include "ext/portable_time.h"
 #include "ext/colorjet/colorjet.h"
-#include "modules/ini/dynapse_common.h"
 #include <time.h>
 #include <libcaer/devices/dynapse.h>
 #include <libcaer/events/spike.h>
 #include <libcaer/events/frame.h> //display
+#include "modules/ini/dynapse_utils.h"
 
 struct MRFilter_state {
 	sshsNode dynapseConfigNode;
