@@ -1075,7 +1075,7 @@ double sshsNodeGetDouble(sshsNode node, const char *key) {
 void sshsNodeCreateString(sshsNode node, const char *key, const char *defaultValue, size_t minLength, size_t maxLength,
 	int flags, const char *description) {
 	union sshs_node_attr_value uValue = { .string = (char *) defaultValue };
-	struct sshs_node_attr_ranges ranges = { .min = { .i = minLength }, .max = { .i = maxLength } };
+	struct sshs_node_attr_ranges ranges = { .min = { .i = (int64_t) minLength }, .max = { .i = (int64_t) maxLength } };
 
 	sshsNodeCreateAttribute(node, key, SSHS_STRING, uValue, ranges, flags, description);
 }
