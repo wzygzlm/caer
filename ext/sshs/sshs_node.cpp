@@ -385,6 +385,7 @@ void sshsNodeCreateAttribute(sshsNode node, const char *key, enum sshs_node_attr
 		newAttr.value = defaultValue;
 	}
 
+	newAttr.value_type = type;
 	newAttr.min = minValue;
 	newAttr.max = maxValue;
 	newAttr.flags = flags;
