@@ -1167,9 +1167,39 @@ static bool sortByCopyNeeded(const int16_t a, const int16_t b) {
 static void mergeActiveStreamDeps() {
 	std::shared_ptr<DependencyNode> mergeResult = std::make_shared<DependencyNode>(0, -1, nullptr);
 
+	// First merge all input-originated stream's dependency trees to the global tree.
 	for (const auto &st : glMainloopData.streams) {
-		// Merge the current stream's dependency tree to the global tree.
-		mergeDependencyTrees(mergeResult, st.dependencies);
+		if (!st.isProcessor) {
+			mergeDependencyTrees(mergeResult, st.dependencies);
+		}
+	}
+
+	// Then get all processor-originated stream's dependency trees and merge them,
+	// but only if the origin processor for that stream does exist somewhere in the
+	// end result dependency tree.
+	std::queue<std::reference_wrapper<const ActiveStreams>> processorStreams;
+	for (const auto &st : glMainloopData.streams) {
+		if (st.isProcessor) {
+			processorStreams.push(st);
+		}
+	}
+
+	while (!processorStreams.empty()) {
+		const ActiveStreams &stream = processorStreams.front();
+		processorStreams.pop();
+
+		uint16_t streamSourceId = stream.sourceId;
+		const auto originExists = IDExistsInDependencyTree(mergeResult.get(), streamSourceId, false);
+
+		if (originExists.first == nullptr) {
+			// Node for this stream's origin doesn't yet exist in dependency tree,
+			// continue with others first.
+			processorStreams.push(stream);
+			continue;
+		}
+
+		// Merge stream as usual.
+		mergeDependencyTrees(mergeResult, stream.dependencies);
 	}
 
 	// Now generate the final traversal order over all modules by going

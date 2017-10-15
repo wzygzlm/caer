@@ -11,10 +11,10 @@
 #include "ext/portable_time.h"
 #include <libcaer/devices/dynapse.h>
 #include "ext/colorjet/colorjet.h"
-#include "modules/ini/dynapse_common.h"
+#include "modules/ini/dynapse_utils.h"
 
 struct RSFilter_state {
-	caerInputDynapseState eventSourceModuleState;
+	caerDeviceHandle eventSourceModuleState;
 	sshsNode eventSourceConfigNode;
 	int16_t sourceID;
 	// user settings
@@ -31,7 +31,7 @@ static bool caerReservoirInit(caerModuleData moduleData);
 static void caerReservoirRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out);
 static void caerReservoirConfig(caerModuleData moduleData);
 static void caerReservoirExit(caerModuleData moduleData);
-static void caerReservoirReset(caerModuleData moduleData, uint16_t resetCallSourceID);
+static void caerReservoirReset(caerModuleData moduleData, int16_t resetCallSourceID);
 
 static struct caer_module_functions caerReservoirFunctions = { .moduleInit = &caerReservoirInit, .moduleRun =
 	&caerReservoirRun, .moduleConfig = &caerReservoirConfig, .moduleExit = &caerReservoirExit, .moduleReset =
@@ -42,7 +42,7 @@ static const struct caer_event_stream_in moduleInputs[] = { { .type = SPIKE_EVEN
 static const struct caer_module_info moduleInfo = { .version = 1, .name = "Reservoir", .description =
 	"Reservoir of neurons", .type = CAER_MODULE_OUTPUT, .memSize = sizeof(struct RSFilter_state), .functions =
 	&caerReservoirFunctions, .inputStreams = moduleInputs, .inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(moduleInputs),
-	.outputStreams = NULL, .outputStreamsSize = NULL };
+	.outputStreams = NULL, .outputStreamsSize = 0 };
 
 caerModuleInfo caerModuleGetInfo(void) {
 	return (&moduleInfo);
@@ -63,7 +63,7 @@ static bool caerReservoirInit(caerModuleData moduleData) {
 	free(inputs);
 
 	// create user parameters
-	sshsNodeCreateFloat(moduleData->moduleNode, "ieratio", 5, 0.0, 10.0, SSHS_FLAGS_NORMAL, "Excitatory to inhibitory connectivity ratio");
+	sshsNodeCreateFloat(moduleData->moduleNode, "ieratio", 5.0f, 0.0f, 10.0f, SSHS_FLAGS_NORMAL, "Excitatory to inhibitory connectivity ratio");
 
 	// Add config listeners last, to avoid having them dangling if Init doesn't succeed.
 	sshsNodeAddAttributeListener(moduleData->moduleNode, moduleData, &caerModuleConfigDefaultListener);
@@ -104,10 +104,7 @@ static void caerReservoirRun(caerModuleData moduleData, caerEventPacketContainer
 	if (state->eventSourceModuleState == NULL || state->eventSourceConfigNode == NULL) {
 		return;
 	}
-	caerInputDynapseState stateSource = state->eventSourceModuleState;
-	if (stateSource->deviceState == NULL) {
-		return;
-	}
+
 	// --- end usb handle
 
 	if (state->init == false) {
@@ -125,11 +122,11 @@ static void caerReservoirRun(caerModuleData moduleData, caerEventPacketContainer
 		caerDynapseSetBiasCore(state->eventSourceConfigNode, DYNAPSE_CONFIG_DYNAPSE_U3, 0, "IF_THR_N", 7, 0, true);
 
 		// Select chip to operate on
-		caerDeviceConfigSet(state->eventSourceModuleState->deviceState, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, DYNAPSE_CONFIG_DYNAPSE_U0);
+		caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, DYNAPSE_CONFIG_DYNAPSE_U0);
 
 		// Clear all cam for that particular chip
 		caerLog(CAER_LOG_NOTICE, __func__, "Started clearing CAM ");
-		caerDeviceConfigSet(state->eventSourceModuleState->deviceState, DYNAPSE_CONFIG_CLEAR_CAM, DYNAPSE_CONFIG_DYNAPSE_U0, 0);
+		caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_CLEAR_CAM, DYNAPSE_CONFIG_DYNAPSE_U0, 0);
 		caerLog(CAER_LOG_NOTICE, __func__, "CAM cleared");
 
 		// program connections for input stimulus
@@ -139,7 +136,7 @@ static void caerReservoirRun(caerModuleData moduleData, caerEventPacketContainer
 		uint16_t preAddress = 1;
 		caerLog(CAER_LOG_NOTICE, __func__, "Started programming cam for input stimulus.. one every two neurons in the first core");
 		for (neuronId = 0; neuronId < neuronToStim; neuronId = neuronId+2) {
-			caerDynapseWriteCam(state->eventSourceModuleState->deviceState, preAddress, neuronId, 0, DYNAPSE_CONFIG_CAMTYPE_F_EXC);
+			caerDynapseWriteCam(state->eventSourceModuleState, preAddress, neuronId, 0, DYNAPSE_CONFIG_CAMTYPE_F_EXC);
 		}
 		caerLog(CAER_LOG_NOTICE, __func__, "CAM programmed successfully.");
 
@@ -219,7 +216,7 @@ static void caerReservoirExit(caerModuleData moduleData) {
 	RSFilterState state = moduleData->moduleState;
 }
 
-static void caerReservoirReset(caerModuleData moduleData, uint16_t resetCallSourceID) {
+static void caerReservoirReset(caerModuleData moduleData, int16_t resetCallSourceID) {
 	UNUSED_ARGUMENT(resetCallSourceID);
 
 	RSFilterState state = moduleData->moduleState;

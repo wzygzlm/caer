@@ -1,15 +1,17 @@
 /* NullHop Zynq Interface cAER module
  *  Author: federico.corradi@inilabs.com
  */
-#include "main.h"
-#include <libcaer/events/frame.h>
 
-#include "nullhopinterface.h"
+//const char * caerNullHopWrapper(uint16_t moduleID, int * hist_packet, bool * haveimg, int * result);
+
+#include "main.h"
 #include "base/mainloop.h"
 #include "base/module.h"
 #include "wrapper.h"
 #include <sys/types.h>
 #include <sys/wait.h>
+
+#include <libcaer/events/frame.h>
 
 struct nullhopwrapper_state {
 	double detThreshold;
@@ -19,8 +21,7 @@ struct nullhopwrapper_state {
 typedef struct nullhopwrapper_state *nullhopwrapperState;
 
 static bool caerNullHopWrapperInit(caerModuleData moduleData);
-static void caerNullHopWrapperRun(caerModuleData moduleData, size_t argsNumber,
-		va_list args);
+static void caerNullHopWrapperRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out);
 static void caerNullHopWrapperExit(caerModuleData moduleData);
 
 static struct caer_module_functions caerNullHopWrapperFunctions = {
@@ -28,21 +29,34 @@ static struct caer_module_functions caerNullHopWrapperFunctions = {
 				&caerNullHopWrapperRun, .moduleConfig =
 		NULL, .moduleExit = &caerNullHopWrapperExit };
 
-const char * caerNullHopWrapper(uint16_t moduleID,
-		int * imagestreamer, bool * haveimg, int* result) {
 
-	caerModuleData moduleData = caerMainloopFindModule(moduleID,
-			"caerNullHopWrapper", CAER_MODULE_PROCESSOR);
-	caerModuleSM(&caerNullHopWrapperFunctions, moduleData,
-			sizeof(struct nullhopwrapper_state), 3, imagestreamer, haveimg, result);
+static const struct caer_event_stream_in moduleInputs[] = {
+    { .type = FRAME_EVENT, .number = 1, .readOnly = true }
+};
 
-	return (NULL);
+static const struct caer_module_info moduleInfo = {
+	.version = 1, .name = "Nullhop Interface",
+	.description = "NullHop interface",
+	.type = CAER_MODULE_OUTPUT,
+	.memSize = sizeof(struct nullhopwrapper_state),
+	.functions = &caerNullHopWrapperFunctions,
+	.inputStreams = moduleInputs,
+	.inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(moduleInputs),
+	.outputStreams = NULL,
+	.outputStreamsSize = 0
+};
+
+// init
+
+caerModuleInfo caerModuleGetInfo(void) {
+    return (&moduleInfo);
 }
 
 static bool caerNullHopWrapperInit(caerModuleData moduleData) {
 
 	nullhopwrapperState state = moduleData->moduleState;
-	sshsNodePutDoubleIfAbsent(moduleData->moduleNode, "detThreshold", 0.5);
+	sshsNodeCreateDouble(moduleData->moduleNode, "detThreshold", 0.5, 0.1, 1, SSHS_FLAGS_NORMAL, "Detection Threshold");
+
 	state->detThreshold = sshsNodeGetDouble(moduleData->moduleNode,
 			"detThreshold");
 
@@ -59,14 +73,17 @@ static void caerNullHopWrapperExit(caerModuleData moduleData) {
 	//deleteMyClass(state->cpp_class); //free memory block
 }
 
-static void caerNullHopWrapperRun(caerModuleData moduleData, size_t argsNumber,
-		va_list args) {
-	UNUSED_ARGUMENT(argsNumber);
-	int * imagestreamer_hists = va_arg(args, int*);
-	bool * haveimg = va_arg(args, bool*);
-	int * result = va_arg(args, int*);
+static void caerNullHopWrapperRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out) {
 
-	if (imagestreamer_hists == NULL) {
+	caerFrameEventPacketConst frameIn =
+			(caerFrameEventPacketConst) caerEventPacketContainerFindEventPacketByTypeConst(in, FRAME_EVENT);
+
+
+	//int * imagestreamer_hists = va_arg(args, int*);
+	//bool * haveimg = va_arg(args, bool*);
+	//int * result = va_arg(args, int*);
+
+	if (frameIn == NULL) {
 		return;
 	}
 
@@ -76,10 +93,6 @@ static void caerNullHopWrapperRun(caerModuleData moduleData, size_t argsNumber,
 	state->detThreshold = sshsNodeGetDouble(moduleData->moduleNode,
 			"detThreshold");
 
-	if(haveimg[0] == true){
+	zs_driver_classify_image(state->cpp_class, frameIn);
 
-		result[0] = zs_driver_classify_image(state->cpp_class, imagestreamer_hists) + 1;
-	}
-
-	return;
 }

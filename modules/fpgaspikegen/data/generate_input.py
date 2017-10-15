@@ -18,7 +18,7 @@ def make_stim_linear(neuronAddress, coreDest, virtualSourceChip, freqStart, freq
     
     #make address
     core_d = coreDest # to all cores    
-    address = (neuronAddress << 6) & 0xff | core_d & 0xf | (virtualSourceChip << 4) & 0x30
+    address = ( (neuronAddress & 0xff) << 6) | core_d & 0xf | (virtualSourceChip << 4) & 0x30
     
     #now generates
     addresses = []

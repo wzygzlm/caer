@@ -9,7 +9,6 @@
 #include "base/module.h"
 #include <libcaer/events/spike.h>
 #include <libcaer/devices/dynapse.h>
-#include "modules/ini/dynapse_common.h"
 
 struct HWFilter_state {
 	// user settings
@@ -22,7 +21,7 @@ struct HWFilter_state {
 	int chipID;
 	bool programTestPattern;
 	// usb utils
-	caerInputDynapseState eventSourceModuleState;
+	caerDeviceHandle eventSourceModuleState;
 	sshsNode eventSourceConfigNode;
 	int16_t sourceID;
 };
@@ -134,7 +133,6 @@ static void caerPoissonSpikeGenModuleConfig(caerModuleData moduleData) {
 	caerModuleConfigUpdateReset(moduleData);
 
 	HWFilterState state = moduleData->moduleState;
-	caerInputDynapseState stateSource = state->eventSourceModuleState;
 
 	// this will update parameters, from user input
 	bool newUpdate = sshsNodeGetBool(moduleData->moduleNode, "Update");
@@ -148,13 +146,13 @@ static void caerPoissonSpikeGenModuleConfig(caerModuleData moduleData) {
 	// Change run state if necessary
 	if (newRun && !state->run) {
 		state->run = true;
-		caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_POISSONSPIKEGEN, DYNAPSE_CONFIG_POISSONSPIKEGEN_RUN, 1);
+		caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_POISSONSPIKEGEN, DYNAPSE_CONFIG_POISSONSPIKEGEN_RUN, 1);
 		state->chipID = sshsNodeGetInt(moduleData->moduleNode, "Chip_ID");
-		caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_POISSONSPIKEGEN, DYNAPSE_CONFIG_POISSONSPIKEGEN_CHIPID, state->chipID);
+		caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_POISSONSPIKEGEN, DYNAPSE_CONFIG_POISSONSPIKEGEN_CHIPID, state->chipID);
 	}
 	else if (!newRun && state->run) {
 		state->run = false;
-		caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_POISSONSPIKEGEN, DYNAPSE_CONFIG_POISSONSPIKEGEN_RUN,
+		caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_POISSONSPIKEGEN, DYNAPSE_CONFIG_POISSONSPIKEGEN_RUN,
 				    0);
 	}
 
@@ -170,7 +168,7 @@ static void caerPoissonSpikeGenModuleConfig(caerModuleData moduleData) {
 			// otherwise, just update the single address/rate pair from the gui
 			state->neuronAddr = (uint32_t)sshsNodeGetInt(moduleData->moduleNode, "Target_neuron_address");
 			state->rateHz = sshsNodeGetDouble(moduleData->moduleNode, "Rate_Hz");
-			caerDynapseWritePoissonSpikeRate(stateSource->deviceState, state->neuronAddr, state->rateHz);
+			caerDynapseWritePoissonSpikeRate(state->eventSourceModuleState, state->neuronAddr, state->rateHz);
 		}
 	}
 	else if (!newUpdate && state->update) {
@@ -189,22 +187,20 @@ static void caerPoissonSpikeGenModuleConfig(caerModuleData moduleData) {
 // program a hard coded test pattern for easy visual verification of the poisson spike generator
 void loadProgramTestPattern(caerModuleData moduleData) {
 	HWFilterState state = moduleData->moduleState;
-	caerInputDynapseState stateSource = state->eventSourceModuleState;
 
 	state->chipID = sshsNodeGetInt(moduleData->moduleNode, "Chip_ID");
-	caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_POISSONSPIKEGEN, DYNAPSE_CONFIG_POISSONSPIKEGEN_CHIPID, state->chipID);
+	caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_POISSONSPIKEGEN, DYNAPSE_CONFIG_POISSONSPIKEGEN_CHIPID, state->chipID);
 
 
 	for (uint32_t i = 0; i < DYNAPSE_CONFIG_NUMNEURONS; i++) {
-		caerDynapseWriteCam(stateSource->deviceState, 0, i, 0, DYNAPSE_CONFIG_CAMTYPE_F_EXC );
+		caerDynapseWriteCam(state->eventSourceModuleState, 0, i, 0, DYNAPSE_CONFIG_CAMTYPE_F_EXC );
 	}
-	caerDynapseWritePoissonSpikeRate(stateSource->deviceState, (uint32_t)0, (double)10.0);
+	caerDynapseWritePoissonSpikeRate(state->eventSourceModuleState, (uint32_t)0, (double)10.0);
 }
 
 
 void loadRatesFromFile(caerModuleData moduleData, char* fileName) {
 	HWFilterState state = moduleData->moduleState;
-	caerInputDynapseState stateSource = state->eventSourceModuleState;
 
 	FILE *fp = fopen(fileName, "r");
 
@@ -248,7 +244,7 @@ void loadRatesFromFile(caerModuleData moduleData, char* fileName) {
 
 	// Now we can write the rates to the poisson generator on the dynap-se
 	for (uint32_t i = 0; i < 1024; i++) {
-		caerDynapseWritePoissonSpikeRate(stateSource->deviceState, i, rateArray[i]);
+		caerDynapseWritePoissonSpikeRate(state->eventSourceModuleState, i, rateArray[i]);
 	}
 }
 

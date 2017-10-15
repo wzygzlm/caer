@@ -32,7 +32,7 @@ static void caerVisualizerEventHandlerNeuronMonitor(caerVisualizerPublicState st
 		float positionY = (float) event.mouseButton.y;
 
 		// Adjust coordinates according to zoom factor.
-		float currentZoomFactor = sshsNodeGetFloat(state->visualizerConfigNode, "zoomFactor");
+		float currentZoomFactor = state->renderZoomFactor.load();
 		if (currentZoomFactor > 1.0f) {
 			positionX = floorf(positionX / currentZoomFactor);
 			positionY = floorf(positionY / currentZoomFactor);
@@ -49,12 +49,14 @@ static void caerVisualizerEventHandlerNeuronMonitor(caerVisualizerPublicState st
 		uint8_t coreId = caerSpikeEventGetSourceCoreID(&val);
 		uint32_t neuronId = caerSpikeEventGetNeuronID(&val);
 
-		// TODO: switch to using SSHS fully, move monitorneu filter into device config.
-		int16_t sourceId = sshsNodeGetShort(state->eventSourceConfigNode, "moduleId");
-		caerDeviceHandle *sourceState = (caerDeviceHandle *) caerMainloopGetSourceState(sourceId);
+		// Set value via SSHS.
+		sshsNode neuronMonitorNode = sshsGetRelativeNode(state->eventSourceConfigNode, "NeuronMonitor/");
 
-		caerDeviceConfigSet(*sourceState, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, U32T(chipId));
-		caerDeviceConfigSet(*sourceState, DYNAPSE_CONFIG_MONITOR_NEU, coreId, neuronId);
+		char monitorKey[] = "Ux_Cy";
+		monitorKey[1] = (char) (48 + chipId);
+		monitorKey[4] = (char) (48 + coreId);
+
+		sshsNodePutShort(neuronMonitorNode, monitorKey, I16T(neuronId));
 
 		caerLog(CAER_LOG_NOTICE, "Visualizer", "Monitoring neuron - chip ID: %d, core ID: %d, neuron ID: %d.", chipId,
 			coreId, neuronId);

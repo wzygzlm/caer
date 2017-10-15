@@ -8,31 +8,54 @@
 extern "C" {
 #endif
 
-static inline const char *chipIDToName(int16_t chipID, bool withEndSlash) {
+static inline const char *chipIDToName(uint8_t chipID, bool withEndSlash) {
 	switch (chipID) {
 		case DYNAPSE_CONFIG_DYNAPSE_U0: {
-			return ((withEndSlash) ? ("DYNAPSE_CONFIG_DYNAPSE_U0/") : ("DYNAPSE_CONFIG_DYNAPSE_U0"));
+			return ((withEndSlash) ? ("U0/") : ("U0"));
 			break;
 		}
 		case DYNAPSE_CONFIG_DYNAPSE_U1: {
-			return ((withEndSlash) ? ("DYNAPSE_CONFIG_DYNAPSE_U1/") : ("DYNAPSE_CONFIG_DYNAPSE_U1"));
+			return ((withEndSlash) ? ("U1/") : ("U1"));
 			break;
 		}
 		case DYNAPSE_CONFIG_DYNAPSE_U2: {
-			return ((withEndSlash) ? ("DYNAPSE_CONFIG_DYNAPSE_U2/") : ("DYNAPSE_CONFIG_DYNAPSE_U2"));
+			return ((withEndSlash) ? ("U2/") : ("U2"));
 			break;
 		}
 		case DYNAPSE_CONFIG_DYNAPSE_U3: {
-			return ((withEndSlash) ? ("DYNAPSE_CONFIG_DYNAPSE_U3/") : ("DYNAPSE_CONFIG_DYNAPSE_U3"));
+			return ((withEndSlash) ? ("U3/") : ("U3"));
 			break;
 		}
 		case DYNAPSE_CHIP_DYNAPSE: {
-			return ((withEndSlash) ? ("DYNAPSEFX2/") : ("DYNAPSEFX2"));
+			return ((withEndSlash) ? ("DYNAPSE/") : ("DYNAPSE"));
 			break;
 		}
 	}
 
-	return ((withEndSlash) ? ("Unknown/") : ("Unknown"));
+	return ((withEndSlash) ? ("Unsupported/") : ("Unsupported"));
+}
+
+static inline const char *coreIDToName(uint8_t coreID, bool withEndSlash) {
+	switch (coreID) {
+		case 0: {
+			return ((withEndSlash) ? ("C0/") : ("C0"));
+			break;
+		}
+		case 1: {
+			return ((withEndSlash) ? ("C1/") : ("C1"));
+			break;
+		}
+		case 2: {
+			return ((withEndSlash) ? ("C2/") : ("C2"));
+			break;
+		}
+		case 3: {
+			return ((withEndSlash) ? ("C3/") : ("C3"));
+			break;
+		}
+	}
+
+	return ((withEndSlash) ? ("Unsupported/") : ("Unsupported"));
 }
 
 /**
@@ -64,33 +87,15 @@ static inline void caerDynapseSetBiasCore(sshsNode dynapseNode, uint8_t chipId, 
 		return;
 	}
 
-	size_t biasNameLength = strlen(biasName);
-	// +3 for Cx_, +1 for closing /, +1 for terminating NUL char.
-	char biasNameWithCore[biasNameLength + 3 + 1 + 1];
+	// Biases are in their own sub-nodes. Generate full path.
+	size_t nodePathLength = (size_t) snprintf(NULL, 0, "bias/U%d/C%d/%s/", chipId, coreId, biasName);
 
-	biasNameWithCore[0] = 'C';
-	if (coreId == 0)
-		biasNameWithCore[1] = '0';
-	else if (coreId == 1)
-		biasNameWithCore[1] = '1';
-	else if (coreId == 2)
-		biasNameWithCore[1] = '2';
-	else if (coreId == 3)
-		biasNameWithCore[1] = '3';
-	biasNameWithCore[2] = '_';
+	char nodePath[nodePathLength + 1];
+	snprintf(nodePath, nodePathLength + 1, "bias/U%d/C%d/%s/", chipId, coreId, biasName);
+	nodePath[nodePathLength] = '\0';
 
-	strcpy(&biasNameWithCore[3], biasName);
-
-	biasNameWithCore[biasNameLength + 3] = '/';
-	biasNameWithCore[biasNameLength + 3 + 1] = '\0';
-
-	// Device related configuration has its own sub-node.
-	sshsNode deviceConfigNodeLP = sshsGetRelativeNode(dynapseNode, chipIDToName(chipId, true));
-
-	sshsNode biasNodeLP = sshsGetRelativeNode(deviceConfigNodeLP, "bias/");
-
-	// Create configuration node for this particular bias.
-	sshsNode biasConfigNode = sshsGetRelativeNode(biasNodeLP, biasNameWithCore);
+	// Get configuration node for this particular bias.
+	sshsNode biasConfigNode = sshsGetRelativeNode(dynapseNode, nodePath);
 
 	// Write bias settings.
 	sshsNodePutByte(biasConfigNode, "coarseValue", I8T(coarseValue));
@@ -126,33 +131,15 @@ static inline void caerDynapseGetBiasCore(sshsNode dynapseNode, uint8_t chipId, 
 		return;
 	}
 
-	size_t biasNameLength = strlen(biasName);
-	// +3 for Cx_, +1 for closing /, +1 for terminating NUL char.
-	char biasNameWithCore[biasNameLength + 3 + 1 + 1];
+	// Biases are in their own sub-nodes. Generate full path.
+	size_t nodePathLength = (size_t) snprintf(NULL, 0, "bias/U%d/C%d/%s/", chipId, coreId, biasName);
 
-	biasNameWithCore[0] = 'C';
-	if (coreId == 0)
-		biasNameWithCore[1] = '0';
-	else if (coreId == 1)
-		biasNameWithCore[1] = '1';
-	else if (coreId == 2)
-		biasNameWithCore[1] = '2';
-	else if (coreId == 3)
-		biasNameWithCore[1] = '3';
-	biasNameWithCore[2] = '_';
+	char nodePath[nodePathLength + 1];
+	snprintf(nodePath, nodePathLength + 1, "bias/U%d/C%d/%s/", chipId, coreId, biasName);
+	nodePath[nodePathLength] = '\0';
 
-	strcpy(&biasNameWithCore[3], biasName);
-
-	biasNameWithCore[biasNameLength + 3] = '/';
-	biasNameWithCore[biasNameLength + 3 + 1] = '\0';
-
-	// Device related configuration has its own sub-node.
-	sshsNode deviceConfigNodeLP = sshsGetRelativeNode(dynapseNode, chipIDToName(chipId, true));
-
-	sshsNode biasNodeLP = sshsGetRelativeNode(deviceConfigNodeLP, "bias/");
-
-	// Create configuration node for this particular bias.
-	sshsNode biasConfigNode = sshsGetRelativeNode(biasNodeLP, biasNameWithCore);
+	// Get configuration node for this particular bias.
+	sshsNode biasConfigNode = sshsGetRelativeNode(dynapseNode, nodePath);
 
 	// Read bias settings.
 	int8_t coarse = sshsNodeGetByte(biasConfigNode, "coarseValue");

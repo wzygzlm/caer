@@ -9,11 +9,13 @@
 #include <libcaercpp/events/point2d.hpp>
 #include <libcaercpp/events/point4d.hpp>
 #include <libcaercpp/events/spike.hpp>
+#include <libcaercpp/devices/davis.hpp> // Only for constants.
 #include <libcaercpp/devices/dynapse.hpp> // Only for constants.
 
+static void *caerVisualizerRendererPolarityEventsStateInit(caerVisualizerPublicState state);
 static bool caerVisualizerRendererPolarityEvents(caerVisualizerPublicState state, caerEventPacketContainer container);
 static const struct caer_visualizer_renderer_info rendererPolarityEvents("Polarity",
-	&caerVisualizerRendererPolarityEvents);
+	&caerVisualizerRendererPolarityEvents, false, &caerVisualizerRendererPolarityEventsStateInit, nullptr);
 
 static void *caerVisualizerRendererFrameEventsStateInit(caerVisualizerPublicState state);
 static void caerVisualizerRendererFrameEventsStateExit(caerVisualizerPublicState state);
@@ -37,23 +39,30 @@ static bool caerVisualizerRendererSpikeEventsRaster(caerVisualizerPublicState st
 static const struct caer_visualizer_renderer_info rendererSpikeEventsRaster("Spikes_Raster_Plot",
 	&caerVisualizerRendererSpikeEventsRaster, false, &caerVisualizerRendererSpikeEventsRasterStateInit, nullptr);
 
-static bool caerVisualizerRendererETF4D(caerVisualizerPublicState state, caerEventPacketContainer container);
-static const struct caer_visualizer_renderer_info rendererETF4D("ETF4D", &caerVisualizerRendererETF4D);
-
+static void *caerVisualizerRendererPolarityAndFrameEventsStateInit(caerVisualizerPublicState state);
+static void caerVisualizerRendererPolarityAndFrameEventsStateExit(caerVisualizerPublicState state);
 static bool caerVisualizerRendererPolarityAndFrameEvents(caerVisualizerPublicState state,
 	caerEventPacketContainer container);
 static const struct caer_visualizer_renderer_info rendererPolarityAndFrameEvents("Polarity_and_Frames",
-	&caerVisualizerRendererPolarityAndFrameEvents);
+	&caerVisualizerRendererPolarityAndFrameEvents, false, &caerVisualizerRendererPolarityAndFrameEventsStateInit,
+	&caerVisualizerRendererPolarityAndFrameEventsStateExit);
 
 const std::string caerVisualizerRendererListOptionsString =
-	"None,Polarity,Frame,IMU_6-axes,2D_Points,Spikes,Spikes_Raster_Plot,ETF4D,Polarity_and_Frames";
+	"None,Polarity,Frame,IMU_6-axes,2D_Points,Spikes,Spikes_Raster_Plot,Polarity_and_Frames";
 
 const struct caer_visualizer_renderer_info caerVisualizerRendererList[] = { { "None", nullptr }, rendererPolarityEvents,
 	rendererFrameEvents, rendererIMU6Events, rendererPoint2DEvents, rendererSpikeEvents, rendererSpikeEventsRaster,
-	rendererETF4D, rendererPolarityAndFrameEvents };
+	rendererPolarityAndFrameEvents };
 
 const size_t caerVisualizerRendererListLength = (sizeof(caerVisualizerRendererList)
 	/ sizeof(struct caer_visualizer_renderer_info));
+
+static void *caerVisualizerRendererPolarityEventsStateInit(caerVisualizerPublicState state) {
+	sshsNodeCreateBool(state->visualizerConfigNode, "DoubleSpacedAddresses", false, SSHS_FLAGS_NORMAL,
+		"Space DVS addresses apart by doubling them, this is useful for the CDAVIS sensor to put them as they are in the pixel array.");
+
+	return (CAER_VISUALIZER_RENDER_INIT_NO_MEM); // No allocated memory.
+}
 
 static bool caerVisualizerRendererPolarityEvents(caerVisualizerPublicState state, caerEventPacketContainer container) {
 	UNUSED_ARGUMENT(state);
@@ -66,6 +75,8 @@ static bool caerVisualizerRendererPolarityEvents(caerVisualizerPublicState state
 		return (false);
 	}
 
+	bool doubleSpacedAddresses = sshsNodeGetBool(state->visualizerConfigNode, "DoubleSpacedAddresses");
+
 	const libcaer::events::PolarityEventPacket polarityPacket(polarityPacketHeader, false);
 
 	std::vector<sf::Vertex> vertices((size_t) polarityPacket.getEventValid() * 4);
@@ -76,8 +87,16 @@ static bool caerVisualizerRendererPolarityEvents(caerVisualizerPublicState state
 			continue; // Skip invalid events.
 		}
 
+		uint16_t x = polarityEvent.getX();
+		uint16_t y = polarityEvent.getY();
+
+		if (doubleSpacedAddresses) {
+			x = U16T(x << 1);
+			y = U16T(y << 1);
+		}
+
 		// ON polarity (green), OFF polarity (red).
-		sfml::Helpers::addPixelVertices(vertices, sf::Vector2f(polarityEvent.getX(), polarityEvent.getY()),
+		sfml::Helpers::addPixelVertices(vertices, x, y, state->renderZoomFactor.load(std::memory_order_relaxed),
 			(polarityEvent.getPolarity()) ? (sf::Color::Green) : (sf::Color::Red));
 	}
 
@@ -87,26 +106,32 @@ static bool caerVisualizerRendererPolarityEvents(caerVisualizerPublicState state
 }
 
 struct renderer_frame_events_state {
-	sf::Sprite sprite;
-	sf::Texture texture;
-	std::vector<uint8_t> pixels;
+	sf::Sprite sprite[DAVIS_APS_ROI_REGIONS_MAX];
+	sf::Texture texture[DAVIS_APS_ROI_REGIONS_MAX];
+	std::vector<uint8_t> pixels[DAVIS_APS_ROI_REGIONS_MAX];
 };
 
 typedef struct renderer_frame_events_state *rendererFrameEventsState;
 
 static void *caerVisualizerRendererFrameEventsStateInit(caerVisualizerPublicState state) {
+	// Add configuration for ROI region.
+	sshsNodeCreate(state->visualizerConfigNode, "ROIRegion", -1, -1, 7, SSHS_FLAGS_NORMAL,
+		"Selects which ROI region to display. '-1' disables this and renders all of [0,1,2,3].");
+
 	// Allocate memory via C++ for renderer state, since we use C++ objects directly.
 	rendererFrameEventsState renderState = new renderer_frame_events_state();
 
-	// Create texture representing frame, set smoothing.
-	renderState->texture.create(state->renderSizeX, state->renderSizeY);
-	renderState->texture.setSmooth(false);
+	for (size_t i = 0; i < DAVIS_APS_ROI_REGIONS_MAX; i++) {
+		// Create texture representing frame, set smoothing.
+		renderState->texture[i].create(state->renderSizeX, state->renderSizeY);
+		renderState->texture[i].setSmooth(false);
 
-	// Assign texture to sprite.
-	renderState->sprite.setTexture(renderState->texture);
+		// Assign texture to sprite.
+		renderState->sprite[i].setTexture(renderState->texture[i]);
 
-	// 32-bit RGBA pixels (8-bit per channel), standard CG layout.
-	renderState->pixels.reserve(state->renderSizeX * state->renderSizeY * 4);
+		// 32-bit RGBA pixels (8-bit per channel), standard CG layout.
+		renderState->pixels[i].reserve(state->renderSizeX * state->renderSizeY * 4);
+	}
 
 	return (renderState);
 }
@@ -118,7 +143,7 @@ static void caerVisualizerRendererFrameEventsStateExit(caerVisualizerPublicState
 }
 
 static bool caerVisualizerRendererFrameEvents(caerVisualizerPublicState state, caerEventPacketContainer container) {
-	UNUSED_ARGUMENT(state);
+	rendererFrameEventsState renderState = (rendererFrameEventsState) state->renderState;
 
 	caerEventPacketHeader framePacketHeader = caerEventPacketContainerFindEventPacketByType(container, FRAME_EVENT);
 
@@ -127,66 +152,85 @@ static bool caerVisualizerRendererFrameEvents(caerVisualizerPublicState state, c
 		return (false);
 	}
 
+	int roiRegionSelect = sshsNodeGetInt(state->visualizerConfigNode, "ROIRegion");
+
 	const libcaer::events::FrameEventPacket framePacket(framePacketHeader, false);
 
-	// Render only the last, valid frame.
-	auto rIter = framePacket.crbegin();
-	while (rIter != framePacket.crend()) {
-		if (rIter->isValid()) {
-			break;
-		}
+	// Get last valid frame for each possible ROI region.
+	const libcaer::events::FrameEvent *frames[DAVIS_APS_ROI_REGIONS_MAX] = { nullptr };
 
-		rIter++;
-	}
-
-	// Only operate on the last, valid frame. At least one must exist (see check above).
-	const libcaer::events::FrameEvent &frameEvent = *rIter;
-
-	rendererFrameEventsState renderState = (rendererFrameEventsState) state->renderState;
-
-	// 32-bit RGBA pixels (8-bit per channel), standard CG layout.
-	switch (frameEvent.getChannelNumber()) {
-		case libcaer::events::FrameEvent::colorChannels::GRAYSCALE: {
-			for (size_t srcIdx = 0, dstIdx = 0; srcIdx < frameEvent.getPixelsMaxIndex();) {
-				uint8_t greyValue = frameEvent.getPixelArrayUnsafe()[srcIdx++] >> 8;
-				renderState->pixels[dstIdx++] = greyValue; // R
-				renderState->pixels[dstIdx++] = greyValue; // G
-				renderState->pixels[dstIdx++] = greyValue; // B
-				renderState->pixels[dstIdx++] = UINT8_MAX; // A
+	for (const auto &frame : framePacket) {
+		if (frame.isValid()) {
+			if (roiRegionSelect == -1) {
+				if (frame.getROIIdentifier() < DAVIS_APS_ROI_REGIONS_MAX) {
+					frames[frame.getROIIdentifier()] = &frame;
+				}
 			}
-			break;
-		}
-
-		case libcaer::events::FrameEvent::colorChannels::RGB: {
-			for (size_t srcIdx = 0, dstIdx = 0; srcIdx < frameEvent.getPixelsMaxIndex();) {
-				renderState->pixels[dstIdx++] = frameEvent.getPixelArrayUnsafe()[srcIdx++] >> 8; // R
-				renderState->pixels[dstIdx++] = frameEvent.getPixelArrayUnsafe()[srcIdx++] >> 8; // G
-				renderState->pixels[dstIdx++] = frameEvent.getPixelArrayUnsafe()[srcIdx++] >> 8; // B
-				renderState->pixels[dstIdx++] = UINT8_MAX; // A
+			else {
+				if (frame.getROIIdentifier() == roiRegionSelect) {
+					frames[0] = &frame;
+				}
 			}
-			break;
-		}
-
-		case libcaer::events::FrameEvent::colorChannels::RGBA: {
-			for (size_t srcIdx = 0, dstIdx = 0; srcIdx < frameEvent.getPixelsMaxIndex();) {
-				renderState->pixels[dstIdx++] = frameEvent.getPixelArrayUnsafe()[srcIdx++] >> 8; // R
-				renderState->pixels[dstIdx++] = frameEvent.getPixelArrayUnsafe()[srcIdx++] >> 8; // G
-				renderState->pixels[dstIdx++] = frameEvent.getPixelArrayUnsafe()[srcIdx++] >> 8; // B
-				renderState->pixels[dstIdx++] = frameEvent.getPixelArrayUnsafe()[srcIdx++] >> 8; // A
-			}
-			break;
 		}
 	}
 
-	renderState->texture.update(renderState->pixels.data(), U32T(frameEvent.getLengthX()),
-		U32T(frameEvent.getLengthY()), U32T(frameEvent.getPositionX()), U32T(frameEvent.getPositionY()));
+	// Only operate on the last, valid frame for each ROI region. At least one must exist (see check above).
+	for (size_t i = 0; i < DAVIS_APS_ROI_REGIONS_MAX; i++) {
+		// Skip non existent ROI regions.
+		if (frames[i] == nullptr) {
+			continue;
+		}
 
-	renderState->sprite.setTextureRect(
-		sf::IntRect(frameEvent.getPositionX(), frameEvent.getPositionY(), frameEvent.getLengthX(),
-			frameEvent.getLengthY()));
-	renderState->sprite.setPosition(frameEvent.getPositionX(), frameEvent.getPositionY());
+		// 32-bit RGBA pixels (8-bit per channel), standard CG layout.
+		switch (frames[i]->getChannelNumber()) {
+			case libcaer::events::FrameEvent::colorChannels::GRAYSCALE: {
+				for (size_t srcIdx = 0, dstIdx = 0; srcIdx < frames[i]->getPixelsMaxIndex();) {
+					uint8_t greyValue = U8T(frames[i]->getPixelArrayUnsafe()[srcIdx++] >> 8);
+					renderState->pixels[i][dstIdx++] = greyValue; // R
+					renderState->pixels[i][dstIdx++] = greyValue; // G
+					renderState->pixels[i][dstIdx++] = greyValue; // B
+					renderState->pixels[i][dstIdx++] = UINT8_MAX; // A
+				}
+				break;
+			}
 
-	state->renderWindow->draw(renderState->sprite);
+			case libcaer::events::FrameEvent::colorChannels::RGB: {
+				for (size_t srcIdx = 0, dstIdx = 0; srcIdx < frames[i]->getPixelsMaxIndex();) {
+					renderState->pixels[i][dstIdx++] = U8T(frames[i]->getPixelArrayUnsafe()[srcIdx++] >> 8); // R
+					renderState->pixels[i][dstIdx++] = U8T(frames[i]->getPixelArrayUnsafe()[srcIdx++] >> 8); // G
+					renderState->pixels[i][dstIdx++] = U8T(frames[i]->getPixelArrayUnsafe()[srcIdx++] >> 8); // B
+					renderState->pixels[i][dstIdx++] = UINT8_MAX; // A
+				}
+				break;
+			}
+
+			case libcaer::events::FrameEvent::colorChannels::RGBA: {
+				for (size_t srcIdx = 0, dstIdx = 0; srcIdx < frames[i]->getPixelsMaxIndex();) {
+					renderState->pixels[i][dstIdx++] = U8T(frames[i]->getPixelArrayUnsafe()[srcIdx++] >> 8); // R
+					renderState->pixels[i][dstIdx++] = U8T(frames[i]->getPixelArrayUnsafe()[srcIdx++] >> 8); // G
+					renderState->pixels[i][dstIdx++] = U8T(frames[i]->getPixelArrayUnsafe()[srcIdx++] >> 8); // B
+					renderState->pixels[i][dstIdx++] = U8T(frames[i]->getPixelArrayUnsafe()[srcIdx++] >> 8); // A
+				}
+				break;
+			}
+		}
+
+		renderState->texture[i].update(renderState->pixels[i].data(), U32T(frames[i]->getLengthX()),
+			U32T(frames[i]->getLengthY()), U32T(frames[i]->getPositionX()), U32T(frames[i]->getPositionY()));
+
+		renderState->sprite[i].setTextureRect(
+			sf::IntRect(frames[i]->getPositionX(), frames[i]->getPositionY(), frames[i]->getLengthX(),
+				frames[i]->getLengthY()));
+
+		float zoomFactor = state->renderZoomFactor.load(std::memory_order_relaxed);
+
+		renderState->sprite[i].setPosition((float) frames[i]->getPositionX() * zoomFactor,
+			(float) frames[i]->getPositionY() * zoomFactor);
+
+		renderState->sprite[i].setScale(zoomFactor, zoomFactor);
+
+		state->renderWindow->draw(renderState->sprite[i]);
+	}
 
 	return (true);
 }
@@ -203,11 +247,13 @@ static bool caerVisualizerRendererIMU6Events(caerVisualizerPublicState state, ca
 
 	const libcaer::events::IMU6EventPacket imu6Packet(imu6PacketHeader, false);
 
-	float scaleFactorAccel = 30;
-	float scaleFactorGyro = 15;
-	float lineThickness = 4;
-	float maxSizeX = (float) state->renderSizeX;
-	float maxSizeY = (float) state->renderSizeY;
+	float zoomFactor = state->renderZoomFactor.load(std::memory_order_relaxed);
+
+	float scaleFactorAccel = 30 * zoomFactor;
+	float scaleFactorGyro = 15 * zoomFactor;
+	float lineThickness = 4 * zoomFactor;
+	float maxSizeX = (float) state->renderSizeX * zoomFactor;
+	float maxSizeY = (float) state->renderSizeY * zoomFactor;
 
 	sf::Color accelColor = sf::Color::Green;
 	sf::Color gyroColor = sf::Color::Magenta;
@@ -217,6 +263,7 @@ static bool caerVisualizerRendererIMU6Events(caerVisualizerPublicState state, ca
 
 	float accelX = 0, accelY = 0, accelZ = 0;
 	float gyroX = 0, gyroY = 0, gyroZ = 0;
+	float temp = 0;
 
 	// Iterate over valid IMU events and average them.
 	// This somewhat smoothes out the rendering.
@@ -228,6 +275,8 @@ static bool caerVisualizerRendererIMU6Events(caerVisualizerPublicState state, ca
 		gyroX += imu6Event.getGyroX();
 		gyroY += imu6Event.getGyroY();
 		gyroZ += imu6Event.getGyroZ();
+
+		temp += imu6Event.getTemp();
 	}
 
 	// Normalize values.
@@ -240,6 +289,8 @@ static bool caerVisualizerRendererIMU6Events(caerVisualizerPublicState state, ca
 	gyroX /= (float) validEvents;
 	gyroY /= (float) validEvents;
 	gyroZ /= (float) validEvents;
+
+	temp /= (float) validEvents;
 
 	// Acceleration X, Y as lines. Z as a circle.
 	float accelXScaled = centerPointX - accelX * scaleFactorAccel;
@@ -265,18 +316,6 @@ static bool caerVisualizerRendererIMU6Events(caerVisualizerPublicState state, ca
 
 	state->renderWindow->draw(accelCircle);
 
-	// TODO: enhance IMU renderer with more text info.
-	if (state->font != nullptr) {
-		char valStr[128];
-		snprintf(valStr, 128, "%.2f,%.2f g", (double) accelX, (double) accelY);
-
-		sf::Text accelText(valStr, *state->font, 20);
-		sfml::Helpers::setTextColor(accelText, accelColor);
-		accelText.setPosition(sf::Vector2f(accelXScaled, accelYScaled));
-
-		state->renderWindow->draw(accelText);
-	}
-
 	// Gyroscope pitch(X), yaw(Y), roll(Z) as lines.
 	float gyroXScaled = centerPointY + gyroX * scaleFactorGyro;
 	RESET_LIMIT_POS(gyroXScaled, maxSizeY - 2 - lineThickness);
@@ -295,6 +334,29 @@ static bool caerVisualizerRendererIMU6Events(caerVisualizerPublicState state, ca
 	sfml::Line gyroLine2(sf::Vector2f(centerPointX, centerPointY - 20), sf::Vector2f(gyroZScaled, centerPointY - 20),
 		lineThickness, gyroColor);
 	state->renderWindow->draw(gyroLine2);
+
+	// TODO: enhance IMU renderer with more text info.
+	if (state->font != nullptr) {
+		char valStr[128];
+
+		// Acceleration X/Y.
+		snprintf(valStr, 128, "%.2f,%.2f g", (double) accelX, (double) accelY);
+
+		sf::Text accelText(valStr, *state->font, 30);
+		sfml::Helpers::setTextColor(accelText, accelColor);
+		accelText.setPosition(sf::Vector2f(accelXScaled, accelYScaled));
+
+		state->renderWindow->draw(accelText);
+
+		// Temperature.
+		snprintf(valStr, 128, "Temp: %.2f C", (double) temp);
+
+		sf::Text tempText(valStr, *state->font, 30);
+		sfml::Helpers::setTextColor(tempText, sf::Color::White);
+		tempText.setPosition(sf::Vector2f(0, 0));
+
+		state->renderWindow->draw(tempText);
+	}
 
 	return (true);
 }
@@ -319,8 +381,8 @@ static bool caerVisualizerRendererPoint2DEvents(caerVisualizerPublicState state,
 		}
 
 		// Render points in color blue.
-		sfml::Helpers::addPixelVertices(vertices, sf::Vector2f(point2DEvent.getX(), point2DEvent.getY()),
-			sf::Color::Blue);
+		sfml::Helpers::addPixelVertices(vertices, point2DEvent.getX(), point2DEvent.getY(),
+			state->renderZoomFactor.load(std::memory_order_relaxed), sf::Color::Blue);
 	}
 
 	state->renderWindow->draw(vertices.data(), vertices.size(), sf::Quads);
@@ -364,9 +426,9 @@ static bool caerVisualizerRendererSpikeEvents(caerVisualizerPublicState state, c
 
 		// Render spikes with different colors based on core ID.
 		uint8_t coreId = spikeEvent.getSourceCoreID();
-		sfml::Helpers::addPixelVertices(vertices,
-			sf::Vector2f(libcaer::devices::dynapse::spikeEventGetX(spikeEvent),
-				libcaer::devices::dynapse::spikeEventGetY(spikeEvent)), dynapseCoreIdToColor(coreId));
+		sfml::Helpers::addPixelVertices(vertices, libcaer::devices::dynapse::spikeEventGetX(spikeEvent),
+			libcaer::devices::dynapse::spikeEventGetY(spikeEvent), state->renderZoomFactor.load(std::memory_order_relaxed),
+			dynapseCoreIdToColor(coreId));
 	}
 
 	state->renderWindow->draw(vertices.data(), vertices.size(), sf::Quads);
@@ -409,12 +471,14 @@ static bool caerVisualizerRendererSpikeEventsRaster(caerVisualizerPublicState st
 	uint32_t timeSpan = maxTimestamp - minTimestamp + 1;
 
 	// Get render sizes, subtract 2px for middle borders.
-	uint32_t sizeX = state->renderSizeX - 2;
-	uint32_t sizeY = state->renderSizeY - 2;
+	float zoomFactor = state->renderZoomFactor.load(std::memory_order_relaxed);
+
+	float sizeX = (float) (state->renderSizeX - 2) * zoomFactor;
+	float sizeY = (float) (state->renderSizeY - 2) * zoomFactor;
 
 	// Two plots in each of X and Y directions.
-	float scaleX = ((float) (sizeX / 2)) / ((float) timeSpan);
-	float scaleY = ((float) (sizeY / 2)) / ((float) DYNAPSE_CONFIG_NUMNEURONS);
+	float scaleX = (sizeX / 2.0f) / (float) timeSpan;
+	float scaleY = (sizeY / 2.0f) / (float) DYNAPSE_CONFIG_NUMNEURONS;
 
 	std::vector<sf::Vertex> vertices((size_t) spikePacket.getEventNumber() * 4);
 
@@ -450,96 +514,32 @@ static bool caerVisualizerRendererSpikeEventsRaster(caerVisualizerPublicState st
 		// DYNAPSE_CONFIG_DYNAPSE_U0 no changes.
 
 		// Draw pixels of raster plot (some neurons might be merged due to aliasing).
-		sfml::Helpers::addPixelVertices(vertices, sf::Vector2f(plotX, plotY), dynapseCoreIdToColor(coreId));
+		sfml::Helpers::addPixelVertices(vertices, plotX, plotY, zoomFactor, dynapseCoreIdToColor(coreId), false);
 	}
 
 	state->renderWindow->draw(vertices.data(), vertices.size(), sf::Quads);
 
 	// Draw middle borders, only once!
-	sfml::Line horizontalBorderLine(sf::Vector2f(0, state->renderSizeY / 2),
-		sf::Vector2f(state->renderSizeX, state->renderSizeY / 2), 2, sf::Color::White);
+	sfml::Line horizontalBorderLine(sf::Vector2f(0, (state->renderSizeY * zoomFactor) / 2),
+		sf::Vector2f((state->renderSizeX * zoomFactor), (state->renderSizeY * zoomFactor) / 2),
+		2 * zoomFactor, sf::Color::White);
 	state->renderWindow->draw(horizontalBorderLine);
 
-	sfml::Line verticalBorderLine(sf::Vector2f(state->renderSizeX / 2, 0),
-		sf::Vector2f(state->renderSizeX / 2, state->renderSizeY), 2, sf::Color::White);
+	sfml::Line verticalBorderLine(sf::Vector2f((state->renderSizeX * zoomFactor) / 2, 0),
+		sf::Vector2f((state->renderSizeX * zoomFactor) / 2, (state->renderSizeY * zoomFactor)),
+		2 * zoomFactor, sf::Color::White);
 	state->renderWindow->draw(verticalBorderLine);
 
 	return (true);
 }
 
-// TODO: what is this? Nowhere is a 4D event generated, nor is it needed as only X/Y/Z are used here.
-static bool caerVisualizerRendererETF4D(caerVisualizerPublicState state, caerEventPacketContainer container) {
-	UNUSED_ARGUMENT(state);
+static void *caerVisualizerRendererPolarityAndFrameEventsStateInit(caerVisualizerPublicState state) {
+	caerVisualizerRendererPolarityEventsStateInit(state);
+	return (caerVisualizerRendererFrameEventsStateInit(state));
+}
 
-	caerEventPacketHeader point4DPacketHeader = caerEventPacketContainerFindEventPacketByType(container, POINT4D_EVENT);
-
-	if (point4DPacketHeader == NULL || caerEventPacketHeaderGetEventValid(point4DPacketHeader) == 0) {
-		return (false);
-	}
-
-	const libcaer::events::Point4DEventPacket point4DPacket(point4DPacketHeader, false);
-
-	// get bitmap's size
-	uint32_t sizeX = state->renderSizeX;
-	uint32_t sizeY = state->renderSizeY;
-
-	float maxMean = 0;
-
-	for (const auto &point4DEvent : point4DPacket) {
-		if (!point4DEvent.isValid()) {
-			continue; // Skip invalid events.
-		}
-
-		float mean = point4DEvent.getZ();
-		if (mean > maxMean) {
-			maxMean = mean;
-		}
-	}
-
-	float scaleX = ((float) sizeX) / 5.0f;
-	float scaleY = ((float) sizeY) / maxMean;
-
-	std::vector<sf::Vertex> vertices((size_t) point4DPacket.getEventValid() * 4);
-
-	int counter = 0;
-	for (const auto &point4DEvent : point4DPacket) {
-		if (!point4DEvent.isValid()) {
-			continue; // Skip invalid events.
-		}
-
-		float coreX = point4DEvent.getX();
-		float coreY = point4DEvent.getY();
-		float mean = point4DEvent.getZ();
-
-		uint32_t plotY = U32T(floorf(mean * scaleY));
-
-		uint32_t plotX = U32T(roundf((float ) counter * scaleX));
-
-		uint8_t coreId = 0; // Core ID 0 is default, doesn't get checked.
-		if (coreX == 0.0f && coreY == 1.0f) {
-			coreId = 1;
-		}
-		else if (coreX == 1.0f && coreY == 0.0f) {
-			coreId = 2;
-		}
-		else if (coreX == 1.0f && coreY == 1.0f) {
-			coreId = 3;
-		}
-
-		sfml::Helpers::addPixelVertices(vertices, sf::Vector2f(sizeX - plotX, plotY), dynapseCoreIdToColor(coreId));
-
-		// Reset counter, must reset at -1 of value used in scale.
-		if (counter == 4) {
-			counter = 0;
-		}
-		else {
-			counter++;
-		}
-	}
-
-	state->renderWindow->draw(vertices.data(), vertices.size(), sf::Quads);
-
-	return (true);
+static void caerVisualizerRendererPolarityAndFrameEventsStateExit(caerVisualizerPublicState state) {
+	caerVisualizerRendererFrameEventsStateExit(state);
 }
 
 static bool caerVisualizerRendererPolarityAndFrameEvents(caerVisualizerPublicState state,

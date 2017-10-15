@@ -1,15 +1,17 @@
 #ifndef __ZS_BACKEND_INTERFACE_H__
 #define __ZS_BACKEND_INTERFACE_H__
 
-//#define FPGA_MODE //TODO REPLACE
+
 
 #include "stdio.h"
 #include "iostream"
 #include "string.h"
 #include <vector>
+#include "cstdint"
+#include "inttypes.h"
 
 #ifdef FPGA_MODE
-#include "zsaxidmalib.hpp"
+#include "zs_axi_dma_lib.hpp"
 #endif
 
 class zs_backend_interface {
@@ -17,8 +19,8 @@ class zs_backend_interface {
 public:
     zs_backend_interface();
 
-    bool write(std::vector<uint64_t> *array);
-    std::vector<uint64_t> read();
+    bool write(const std::vector<uint64_t> *array);
+    void read(std::vector<uint64_t> &read_array);
 
     void print_sw_to_zs_words(std::vector<uint64_t> array);
 

@@ -57,15 +57,6 @@ union sshs_node_attr_value {
 	char *string;
 };
 
-#define SSHS_VALUE_BOOL(x)   (union sshs_node_attr_value) { .boolean = x }
-#define SSHS_VALUE_BYTE(x)   (union sshs_node_attr_value) { .ibyte = x }
-#define SSHS_VALUE_SHORT(x)  (union sshs_node_attr_value) { .ishort = x }
-#define SSHS_VALUE_INT(x)    (union sshs_node_attr_value) { .iint = x }
-#define SSHS_VALUE_LONG(x)   (union sshs_node_attr_value) { .ilong = x }
-#define SSHS_VALUE_FLOAT(x)  (union sshs_node_attr_value) { .ffloat = x }
-#define SSHS_VALUE_DOUBLE(x) (union sshs_node_attr_value) { .ddouble = x }
-#define SSHS_VALUE_STR(x)    (union sshs_node_attr_value) { .string = x }
-
 union sshs_node_attr_range {
 	int64_t i;
 	double d;
@@ -75,9 +66,6 @@ struct sshs_node_attr_ranges {
 	union sshs_node_attr_range min;
 	union sshs_node_attr_range max;
 };
-
-#define SSHS_RANGES_LONG(MIV, MAV) (struct sshs_node_attr_ranges) { .min = { .i = MIV }, .max = { .i = MAV } }
-#define SSHS_RANGES_DOUBLE(MIV, MAV) (struct sshs_node_attr_ranges) { .min = { .d = MIV }, .max = { .d = MAV } }
 
 enum sshs_node_attr_flags {
 	SSHS_FLAGS_NORMAL = 0,

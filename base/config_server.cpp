@@ -7,6 +7,7 @@
 #include <thread>
 #include <mutex>
 #include <shared_mutex>
+#include <regex>
 
 #include <boost/asio.hpp>
 #include <boost/format.hpp>
@@ -715,6 +716,13 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 			// Check module name.
 			if (moduleName == "caer") {
 				caerConfigSendError(client, "Name is reserved for system use.");
+				break;
+			}
+
+			const std::regex moduleNameRegex("^[a-zA-Z-_\\d\\.:\\(\\)\\[\\]{}]+$");
+
+			if (!std::regex_match(moduleName, moduleNameRegex)) {
+				caerConfigSendError(client, "Name uses invalid characters.");
 				break;
 			}
 
