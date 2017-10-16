@@ -35,7 +35,6 @@ The following modules can currently be selected to be built: <br />
 -DBAFILTER=1 -- Filter background activity (uncorrelated noise). <br />
 -DFRAMEENHANCER=1 -- Demosaic/enhance frames. <br />
 -DCAMERACALIBRATION=1 -- Calculate and apply single camera lens calibration. <br />
--DPOSEESTIMATION=1 -- Estimate pose of camera relative to special markers. <br />
 -DSTATISTICS=1 -- Print statistics to console. <br />
 -DVISUALIZER=1 -- Open windows in which to visualize data. <br />
 -DINPUT_FILE=1 -- Get input from an AEDAT file. <br />
@@ -43,20 +42,12 @@ The following modules can currently be selected to be built: <br />
 -DINPUT_NETWORK=1 -- Read input from a network stream. <br />
 -DOUTPUT_NETWORK=1 -- Send data out via network. <br />
 -DROTATE=1 -- Rotate events. <br />
--DMEDIANTRACKER=1 -- Track points of high event activity. <br />
--DRECTANGULARTRACKER=1 -- Track clusters of events. <br />
--DDYNAMICRECTANGULARTRACKER=1 -- Track a variable number of clusters of events. <br />
--DSPIKEFEATURES=1 -- Create frames which represents decay of polarity events. <br />
--DMEANRATEFILTER=1 -- Measure mean rate of spike events. <br />
 -DSYNAPSERECONFIG=1 -- Enable Davis240C to Dynap-se mapping  <br />
 -DFPGASPIKEGEN=1 -- Enable FPGA spike generator Dynap-se <br />
 -DPOISSONSPIKEGEN=1 -- Enable FPGA Poisson spike generator for Dynap-se <br />
 
 To enable all just type: <br />
- cmake -DDVS128=1 -DEDVS=1 -DDAVIS=1 -DDYNAPSE=1 -DBAFILTER=1 -DFRAMEENHANCER=1 -DCAMERACALIBRATION=1  
- -DPOSEESTIMATION=1 -DSTATISTICS=1  -DVISUALIZER=1 -DINPUT_FILE=1 -DOUTPUT_FILE=1 -DINPUT_NETWORK=1  
- -DOUTPUT_NETWORK=1 -DROTATE=1 -DMEDIANTRACKER=1  -DRECTANGULARTRACKER=1 -DDYNAMICRECTANGULARTRACKER=1  
- -DSPIKEFEATURES=1  -DMEANRATEFILTER=1 -DSYNAPSERECONFIG=1 -DFPGASPIKEGEN=1 -DPOISSONSPIKEGEN=1 .
+ cmake -DDVS128=1 -DEDVS=1 -DDAVIS=1 -DDYNAPSE=1 -DBAFILTER=1 -DFRAMEENHANCER=1 -DCAMERACALIBRATION=1 -DSTATISTICS=1  -DVISUALIZER=1 -DINPUT_FILE=1 -DOUTPUT_FILE=1 -DINPUT_NETWORK=1 -DOUTPUT_NETWORK=1 -DROTATE=1  -DMEANRATEFILTER=1 -DSYNAPSERECONFIG=1 -DFPGASPIKEGEN=1 -DPOISSONSPIKEGEN=1 .
 <br />
 2) build:
 <br />

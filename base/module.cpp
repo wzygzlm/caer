@@ -352,6 +352,7 @@ void caerUpdateModulesInformation() {
 	std::vector<std::string> searchPaths;
 	boost::algorithm::split(searchPaths, modulesSearchPath, boost::is_any_of("|"));
 
+	// Search is recursive for binary shared libraries.
 	const std::regex moduleRegex("\\w+\\.(so|dll|dylib)");
 
 	for (const auto &sPath : searchPaths) {

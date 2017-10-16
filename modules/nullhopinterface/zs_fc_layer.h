@@ -14,12 +14,14 @@ class zs_fc_layer {
    public:
 
       zs_fc_layer(int layer_idx, FILE* net_file);
+      zs_fc_layer();
 
-      std::vector<std::vector<int>> weights;
-      std::vector<int> biases;
+      std::vector<std::vector<int16_t>> weights;
+      std::vector<int32_t> biases;
       int num_output_channels;
       int pooling_enabled;
       int relu_enabled;
+      int uncompressed_input_size;
    private:
       int layer_idx;
       int compression_enabled;
@@ -27,9 +29,9 @@ class zs_fc_layer {
       int num_input_channels;
       int num_input_columns;
       int num_input_rows;
-
-
       int padding;
+      int cnn_stride;
+
       int num_weight;
       int num_biases;
 
@@ -51,9 +53,9 @@ class zs_fc_layer {
       void set_layer_config(FILE*l_net_file, int l_layer_idx);
       void initialize_layer(int l_layer_idx, int l_compression_enabled, int l_kernel_size, int l_num_input_channels,
                int l_num_input_columns, int l_num_input_rows, int l_num_output_channels, int l_pooling_enabled,
-               int l_relu_enabled, int l_padding, int l_num_weight, int l_num_biases);
-      std::vector<int> read_biases(FILE* l_net_file);
-      std::vector<std::vector<int>> read_weights(FILE* l_net_file);
+               int l_relu_enabled, int l_padding, int l_num_weight, int l_num_biases, int l_cnn_stride);
+      void read_biases(FILE* l_net_file, std::vector<int32_t> &biases);
+      void read_weights(FILE* l_net_file, std::vector<std::vector<int16_t>> &weights);
 };
 
 #endif

@@ -6,7 +6,6 @@
 #include "base/mainloop.h"
 #include "base/module.h"
 #include <libcaer/devices/dynapse.h>
-#include "modules/ini/dynapse_common.h"
 
 #include <libcaer/events/spike.h>
 
@@ -23,7 +22,7 @@ struct HWFilter_state {
 	bool writeSram;
 	bool repeat;
 	// usb utils
-	caerInputDynapseState eventSourceModuleState;
+	caerDeviceHandle eventSourceModuleState;
 	sshsNode eventSourceConfigNode;
 	int16_t sourceID;
 	int16_t ChipID;
@@ -35,7 +34,7 @@ static bool caerFpgaSpikeGenModuleInit(caerModuleData moduleData);
 static void caerFpgaSpikeGenModuleRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out);
 static void caerFpgaSpikeGenModuleConfig(caerModuleData moduleData);
 static void caerFpgaSpikeGenModuleExit(caerModuleData moduleData);
-static void caerFpgaSpikeGenModuleReset(caerModuleData moduleData, uint16_t resetCallSourceID);
+static void caerFpgaSpikeGenModuleReset(caerModuleData moduleData, int16_t resetCallSourceID);
 void fixedIsiFileToSram(caerModuleData moduleData, char* fileName);
 void variableIsiFileToSram(caerModuleData moduleData, char* fileName);
 
@@ -57,7 +56,7 @@ static const struct caer_module_info moduleInfo = {
 	.inputStreams = moduleInputs,
 	.inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(moduleInputs),
 	.outputStreams = NULL,
-	.outputStreamsSize = NULL
+	.outputStreamsSize = 0
 };
 
 // init
@@ -133,7 +132,6 @@ static void caerFpgaSpikeGenModuleConfig(caerModuleData moduleData) {
 	caerModuleConfigUpdateReset(moduleData);
 
 	HWFilterState state = moduleData->moduleState;
-	caerInputDynapseState stateSource = state->eventSourceModuleState;
 
 	// this will update parameters, from user input
 	bool newRun = sshsNodeGetBool(moduleData->moduleNode, "Run");
@@ -169,29 +167,29 @@ static void caerFpgaSpikeGenModuleConfig(caerModuleData moduleData) {
 		state->repeat = sshsNodeGetBool(moduleData->moduleNode, "Repeat");
 
 		int retval;
-		retval = caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_SPIKEGEN, DYNAPSE_CONFIG_SPIKEGEN, state->isi);
+		retval = caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_SPIKEGEN, DYNAPSE_CONFIG_SPIKEGEN, state->isi);
 		if ( retval == 0 ) {
 			caerLog(CAER_LOG_NOTICE, __func__, "ISI failed to update");
 		}
-		retval = caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_SPIKEGEN, DYNAPSE_CONFIG_SPIKEGEN_ISI, state->isi);
+		retval = caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_SPIKEGEN, DYNAPSE_CONFIG_SPIKEGEN_ISI, state->isi);
 		if ( retval == 0 ) {
 			caerLog(CAER_LOG_NOTICE, __func__, "ISI failed to update");
 		}
-		retval = caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_SPIKEGEN, DYNAPSE_CONFIG_SPIKEGEN_ISIBASE, state->isiBase);
+		retval = caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_SPIKEGEN, DYNAPSE_CONFIG_SPIKEGEN_ISIBASE, state->isiBase);
 		if ( retval == 0 ) {
 			caerLog(CAER_LOG_NOTICE, __func__, "ISI base failed to update");
 		}
-		retval = caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_SPIKEGEN, DYNAPSE_CONFIG_SPIKEGEN_VARMODE, state->varMode);
+		retval = caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_SPIKEGEN, DYNAPSE_CONFIG_SPIKEGEN_VARMODE, state->varMode);
 		if ( retval == 0 ) {
 			caerLog(CAER_LOG_NOTICE, __func__, "varMode failed to update");
 		}
-		retval = caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_SPIKEGEN, DYNAPSE_CONFIG_SPIKEGEN_BASEADDR, state->baseAddr);
+		retval = caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_SPIKEGEN, DYNAPSE_CONFIG_SPIKEGEN_BASEADDR, state->baseAddr);
 		if ( retval == 0 ) {
 			caerLog(CAER_LOG_NOTICE, __func__, "Base address failed to update");
 		}
-		caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_SPIKEGEN, DYNAPSE_CONFIG_SPIKEGEN_REPEAT, state->repeat);
+		caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_SPIKEGEN, DYNAPSE_CONFIG_SPIKEGEN_REPEAT, state->repeat);
 
-		retval = caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_SPIKEGEN, DYNAPSE_CONFIG_SPIKEGEN_RUN, state->run);
+		retval = caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_SPIKEGEN, DYNAPSE_CONFIG_SPIKEGEN_RUN, state->run);
 		if ( retval == 0 ) {
 			caerLog(CAER_LOG_NOTICE, __func__, "run status failed to update");
 		}
@@ -205,7 +203,6 @@ static void caerFpgaSpikeGenModuleConfig(caerModuleData moduleData) {
 
 void fixedIsiFileToSram(caerModuleData moduleData, char* fileName) {
 	HWFilterState state = moduleData->moduleState;
-	caerInputDynapseState stateSource = state->eventSourceModuleState;
 
 	FILE *fp = fopen(fileName, "r");
 
@@ -246,7 +243,7 @@ void fixedIsiFileToSram(caerModuleData moduleData, char* fileName) {
 
 	/* update stim count with lenght of lines */
 	state->stimCount = lines - 1;
-	int retval = caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_SPIKEGEN, DYNAPSE_CONFIG_SPIKEGEN_STIMCOUNT, state->stimCount);
+	int retval = caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_SPIKEGEN, DYNAPSE_CONFIG_SPIKEGEN_STIMCOUNT, state->stimCount);
 	if ( retval == 0 ) {
 		caerLog(CAER_LOG_NOTICE, __func__, "stimcount failed to update");
 	}
@@ -254,7 +251,7 @@ void fixedIsiFileToSram(caerModuleData moduleData, char* fileName) {
 	caerLog(CAER_LOG_NOTICE, __func__, "Wrote spike train of length %u to memory with base address %u\n", lines, state->baseAddr);
 
 	// write them to the dynapse
-	caerDynapseWriteSramWords(stateSource->deviceState, spikeTrain, state->baseAddr, lines);
+	caerDynapseWriteSramWords(state->eventSourceModuleState, spikeTrain, state->baseAddr, lines);
 
 	free(spikeTrain);
 	
@@ -263,7 +260,6 @@ void fixedIsiFileToSram(caerModuleData moduleData, char* fileName) {
 
 void variableIsiFileToSram(caerModuleData moduleData, char* fileName) {
 	HWFilterState state = moduleData->moduleState;
-	caerInputDynapseState stateSource = state->eventSourceModuleState;
 
 	FILE *fp = fopen(fileName, "r");
 
@@ -304,7 +300,7 @@ void variableIsiFileToSram(caerModuleData moduleData, char* fileName) {
 
 	/* update stim count with lenght from file */
 	state->stimCount = lines - 1;
-	int retval = caerDeviceConfigSet(stateSource->deviceState, DYNAPSE_CONFIG_SPIKEGEN, DYNAPSE_CONFIG_SPIKEGEN_STIMCOUNT, state->stimCount);
+	int retval = caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_SPIKEGEN, DYNAPSE_CONFIG_SPIKEGEN_STIMCOUNT, state->stimCount);
 	if ( retval == 0 ) {
 		caerLog(CAER_LOG_NOTICE, __func__, "stimcount failed to update");
 	}
@@ -312,7 +308,7 @@ void variableIsiFileToSram(caerModuleData moduleData, char* fileName) {
 	caerLog(CAER_LOG_NOTICE, __func__, "Wrote spike train of length %u to memory with base address %u\n", lines, state->baseAddr);
 
 	// write them to the dynapse
-	caerDynapseWriteSramWords(stateSource->deviceState, spikeTrain, state->baseAddr, 2*lines);
+	caerDynapseWriteSramWords(state->eventSourceModuleState, spikeTrain, state->baseAddr, 2*lines);
 
 	free(spikeTrain);
 
@@ -327,7 +323,7 @@ static void caerFpgaSpikeGenModuleExit(caerModuleData moduleData) {
 
 }
 
-static void caerFpgaSpikeGenModuleReset(caerModuleData moduleData, uint16_t resetCallSourceID) {
+static void caerFpgaSpikeGenModuleReset(caerModuleData moduleData, int16_t resetCallSourceID) {
 	UNUSED_ARGUMENT(resetCallSourceID);
 
 	HWFilterState state = moduleData->moduleState;
