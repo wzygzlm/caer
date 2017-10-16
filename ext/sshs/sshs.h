@@ -58,8 +58,13 @@ union sshs_node_attr_value {
 };
 
 union sshs_node_attr_range {
-	int64_t i;
-	double d;
+	int8_t ibyteRange;
+	int16_t ishortRange;
+	int32_t iintRange;
+	int64_t ilongRange;
+	float ffloatRange;
+	double ddoubleRange;
+	size_t stringRange;
 };
 
 struct sshs_node_attr_ranges {

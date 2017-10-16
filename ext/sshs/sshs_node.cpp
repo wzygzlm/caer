@@ -281,26 +281,26 @@ static bool sshsNodeCheckRange(enum sshs_node_attr_value_type type, union sshs_n
 			return (true);
 
 		case SSHS_BYTE:
-			return (value.ibyte >= min.i && value.ibyte <= max.i);
+			return (value.ibyte >= min.ibyteRange && value.ibyte <= max.ibyteRange);
 
 		case SSHS_SHORT:
-			return (value.ishort >= min.i && value.ishort <= max.i);
+			return (value.ishort >= min.ishortRange && value.ishort <= max.ishortRange);
 
 		case SSHS_INT:
-			return (value.iint >= min.i && value.iint <= max.i);
+			return (value.iint >= min.iintRange && value.iint <= max.iintRange);
 
 		case SSHS_LONG:
-			return (value.ilong >= min.i && value.ilong <= max.i);
+			return (value.ilong >= min.ilongRange && value.ilong <= max.ilongRange);
 
 		case SSHS_FLOAT:
-			return (value.ffloat >= (float) min.d && value.ffloat <= (float) max.d);
+			return (value.ffloat >= min.ffloatRange && value.ffloat <= max.ffloatRange);
 
 		case SSHS_DOUBLE:
-			return (value.ddouble >= min.d && value.ddouble <= max.d);
+			return (value.ddouble >= min.ddoubleRange && value.ddouble <= max.ddoubleRange);
 
 		case SSHS_STRING: {
 			size_t stringLength = strlen(value.string);
-			return (stringLength >= (size_t) min.i && stringLength <= (size_t) max.i);
+			return (stringLength >= min.stringRange && stringLength <= max.stringRange);
 		}
 
 		case SSHS_UNKNOWN:
@@ -319,11 +319,11 @@ void sshsNodeCreateAttribute(sshsNode node, const char *key, enum sshs_node_attr
 	// have to restrict that to from 0 to INT32_MAX for languages like Java
 	// that only support integer string lengths. It's also reasonable.
 	if (type == SSHS_STRING) {
-		if (minValue.i < 0 || minValue.i > INT32_MAX) {
+		if (minValue.stringRange > INT32_MAX) {
 			char errorMsg[1024];
 			snprintf(errorMsg, 1024,
 				"sshsNodeCreateAttribute(): attribute '%s' of type 'string' has a minimum range value of '%" PRIi64 "' outside allowed limits. "
-				"Please make sure the value is positive, between 0 and %" PRIi32 "!", key, minValue.i, INT32_MAX);
+				"Please make sure the value is positive, between 0 and %" PRIi32 "!", key, minValue.stringRange, INT32_MAX);
 
 			(*sshsGetGlobalErrorLogCallback())(errorMsg);
 
@@ -331,11 +331,11 @@ void sshsNodeCreateAttribute(sshsNode node, const char *key, enum sshs_node_attr
 			exit(EXIT_FAILURE);
 		}
 
-		if (maxValue.i < 0 || maxValue.i > INT32_MAX) {
+		if (maxValue.stringRange > INT32_MAX) {
 			char errorMsg[1024];
 			snprintf(errorMsg, 1024,
 				"sshsNodeCreateAttribute(): attribute '%s' of type 'string' has a maximum range value of '%" PRIi64 "' outside allowed limits. "
-				"Please make sure the value is positive, between 0 and %" PRIi32 "!", key, maxValue.i, INT32_MAX);
+				"Please make sure the value is positive, between 0 and %" PRIi32 "!", key, maxValue.stringRange, INT32_MAX);
 
 			(*sshsGetGlobalErrorLogCallback())(errorMsg);
 
@@ -759,14 +759,21 @@ bool sshsNodeUpdateReadOnlyAttribute(sshsNode node, const char *key, enum sshs_n
 }
 
 void sshsNodeCreateBool(sshsNode node, const char *key, bool defaultValue, int flags, const char *description) {
-	union sshs_node_attr_value uValue = { .boolean = defaultValue };
-	struct sshs_node_attr_ranges ranges = { .min = { .i = -1 }, .max = { .i = -1 } };
+	union sshs_node_attr_value uValue;
+	uValue.boolean = defaultValue;
+
+	// No range for booleans.
+	struct sshs_node_attr_ranges ranges;
+	ranges.min.ibyteRange = 0;
+	ranges.max.ibyteRange = 0;
 
 	sshsNodeCreateAttribute(node, key, SSHS_BOOL, uValue, ranges, flags, description);
 }
 
 bool sshsNodePutBool(sshsNode node, const char *key, bool value) {
-	union sshs_node_attr_value uValue = { .boolean = value };
+	union sshs_node_attr_value uValue;
+	uValue.boolean = value;
+
 	return (sshsNodePutAttribute(node, key, SSHS_BOOL, uValue));
 }
 
@@ -776,14 +783,20 @@ bool sshsNodeGetBool(sshsNode node, const char *key) {
 
 void sshsNodeCreateByte(sshsNode node, const char *key, int8_t defaultValue, int8_t minValue, int8_t maxValue,
 	int flags, const char *description) {
-	union sshs_node_attr_value uValue = { .ibyte = defaultValue };
-	struct sshs_node_attr_ranges ranges = { .min = { .i = minValue }, .max = { .i = maxValue } };
+	union sshs_node_attr_value uValue;
+	uValue.ibyte = defaultValue;
+
+	struct sshs_node_attr_ranges ranges;
+	ranges.min.ibyteRange = minValue;
+	ranges.max.ibyteRange = maxValue;
 
 	sshsNodeCreateAttribute(node, key, SSHS_BYTE, uValue, ranges, flags, description);
 }
 
 bool sshsNodePutByte(sshsNode node, const char *key, int8_t value) {
-	union sshs_node_attr_value uValue = { .ibyte = value };
+	union sshs_node_attr_value uValue;
+	uValue.ibyte = value;
+
 	return (sshsNodePutAttribute(node, key, SSHS_BYTE, uValue));
 }
 
@@ -793,14 +806,20 @@ int8_t sshsNodeGetByte(sshsNode node, const char *key) {
 
 void sshsNodeCreateShort(sshsNode node, const char *key, int16_t defaultValue, int16_t minValue, int16_t maxValue,
 	int flags, const char *description) {
-	union sshs_node_attr_value uValue = { .ishort = defaultValue };
-	struct sshs_node_attr_ranges ranges = { .min = { .i = minValue }, .max = { .i = maxValue } };
+	union sshs_node_attr_value uValue;
+	uValue.ishort = defaultValue;
+
+	struct sshs_node_attr_ranges ranges;
+	ranges.min.ishortRange = minValue;
+	ranges.max.ishortRange = maxValue;
 
 	sshsNodeCreateAttribute(node, key, SSHS_SHORT, uValue, ranges, flags, description);
 }
 
 bool sshsNodePutShort(sshsNode node, const char *key, int16_t value) {
-	union sshs_node_attr_value uValue = { .ishort = value };
+	union sshs_node_attr_value uValue;
+	uValue.ishort = value;
+
 	return (sshsNodePutAttribute(node, key, SSHS_SHORT, uValue));
 }
 
@@ -810,14 +829,20 @@ int16_t sshsNodeGetShort(sshsNode node, const char *key) {
 
 void sshsNodeCreateInt(sshsNode node, const char *key, int32_t defaultValue, int32_t minValue, int32_t maxValue,
 	int flags, const char *description) {
-	union sshs_node_attr_value uValue = { .iint = defaultValue };
-	struct sshs_node_attr_ranges ranges = { .min = { .i = minValue }, .max = { .i = maxValue } };
+	union sshs_node_attr_value uValue;
+	uValue.iint = defaultValue;
+
+	struct sshs_node_attr_ranges ranges;
+	ranges.min.iintRange = minValue;
+	ranges.max.iintRange = maxValue;
 
 	sshsNodeCreateAttribute(node, key, SSHS_INT, uValue, ranges, flags, description);
 }
 
 bool sshsNodePutInt(sshsNode node, const char *key, int32_t value) {
-	union sshs_node_attr_value uValue = { .iint = value };
+	union sshs_node_attr_value uValue;
+	uValue.iint = value;
+
 	return (sshsNodePutAttribute(node, key, SSHS_INT, uValue));
 }
 
@@ -827,14 +852,20 @@ int32_t sshsNodeGetInt(sshsNode node, const char *key) {
 
 void sshsNodeCreateLong(sshsNode node, const char *key, int64_t defaultValue, int64_t minValue, int64_t maxValue,
 	int flags, const char *description) {
-	union sshs_node_attr_value uValue = { .ilong = defaultValue };
-	struct sshs_node_attr_ranges ranges = { .min = { .i = minValue }, .max = { .i = maxValue } };
+	union sshs_node_attr_value uValue;
+	uValue.ilong = defaultValue;
+
+	struct sshs_node_attr_ranges ranges;
+	ranges.min.ilongRange = minValue;
+	ranges.max.ilongRange = maxValue;
 
 	sshsNodeCreateAttribute(node, key, SSHS_LONG, uValue, ranges, flags, description);
 }
 
 bool sshsNodePutLong(sshsNode node, const char *key, int64_t value) {
-	union sshs_node_attr_value uValue = { .ilong = value };
+	union sshs_node_attr_value uValue;
+	uValue.ilong = value;
+
 	return (sshsNodePutAttribute(node, key, SSHS_LONG, uValue));
 }
 
@@ -844,14 +875,20 @@ int64_t sshsNodeGetLong(sshsNode node, const char *key) {
 
 void sshsNodeCreateFloat(sshsNode node, const char *key, float defaultValue, float minValue, float maxValue, int flags,
 	const char *description) {
-	union sshs_node_attr_value uValue = { .ffloat = defaultValue };
-	struct sshs_node_attr_ranges ranges = { .min = { .d = (double) minValue }, .max = { .d = (double) maxValue } };
+	union sshs_node_attr_value uValue;
+	uValue.ffloat = defaultValue;
+
+	struct sshs_node_attr_ranges ranges;
+	ranges.min.ffloatRange = minValue;
+	ranges.max.ffloatRange = maxValue;
 
 	sshsNodeCreateAttribute(node, key, SSHS_FLOAT, uValue, ranges, flags, description);
 }
 
 bool sshsNodePutFloat(sshsNode node, const char *key, float value) {
-	union sshs_node_attr_value uValue = { .ffloat = value };
+	union sshs_node_attr_value uValue;
+	uValue.ffloat = value;
+
 	return (sshsNodePutAttribute(node, key, SSHS_FLOAT, uValue));
 }
 
@@ -861,14 +898,20 @@ float sshsNodeGetFloat(sshsNode node, const char *key) {
 
 void sshsNodeCreateDouble(sshsNode node, const char *key, double defaultValue, double minValue, double maxValue,
 	int flags, const char *description) {
-	union sshs_node_attr_value uValue = { .ddouble = defaultValue };
-	struct sshs_node_attr_ranges ranges = { .min = { .d = minValue }, .max = { .d = maxValue } };
+	union sshs_node_attr_value uValue;
+	uValue.ddouble = defaultValue;
+
+	struct sshs_node_attr_ranges ranges;
+	ranges.min.ddoubleRange = minValue;
+	ranges.max.ddoubleRange = maxValue;
 
 	sshsNodeCreateAttribute(node, key, SSHS_DOUBLE, uValue, ranges, flags, description);
 }
 
 bool sshsNodePutDouble(sshsNode node, const char *key, double value) {
-	union sshs_node_attr_value uValue = { .ddouble = value };
+	union sshs_node_attr_value uValue;
+	uValue.ddouble = value;
+
 	return (sshsNodePutAttribute(node, key, SSHS_DOUBLE, uValue));
 }
 
@@ -878,14 +921,20 @@ double sshsNodeGetDouble(sshsNode node, const char *key) {
 
 void sshsNodeCreateString(sshsNode node, const char *key, const char *defaultValue, size_t minLength, size_t maxLength,
 	int flags, const char *description) {
-	union sshs_node_attr_value uValue = { .string = (char *) defaultValue };
-	struct sshs_node_attr_ranges ranges = { .min = { .i = (int64_t) minLength }, .max = { .i = (int64_t) maxLength } };
+	union sshs_node_attr_value uValue;
+	uValue.string = (char *) defaultValue;
+
+	struct sshs_node_attr_ranges ranges;
+	ranges.min.stringRange = minLength;
+	ranges.max.stringRange = maxLength;
 
 	sshsNodeCreateAttribute(node, key, SSHS_STRING, uValue, ranges, flags, description);
 }
 
 bool sshsNodePutString(sshsNode node, const char *key, const char *value) {
-	union sshs_node_attr_value uValue = { .string = (char *) value };
+	union sshs_node_attr_value uValue;
+	uValue.string = (char *) value;
+
 	return (sshsNodePutAttribute(node, key, SSHS_STRING, uValue));
 }
 
@@ -1360,7 +1409,9 @@ struct sshs_node_attr_ranges sshsNodeGetAttributeRanges(sshsNode node, const cha
 
 	sshs_node_attr &attr = node->attributes[key];
 
-	struct sshs_node_attr_ranges result = { .min = attr.min, .max = attr.max };
+	struct sshs_node_attr_ranges result;
+	result.min = attr.min;
+	result.max = attr.max;
 
 	return (result);
 }
