@@ -2,11 +2,10 @@
 #define SSHS_INTERNAL_H_
 
 // Implementation relevant common includes.
-#include "sshs.h"
+#include "sshs.hpp"
 #include <string.h>
 #include <stdarg.h>
 #include <mxml.h>
-#include <string>
 
 // Terminate process on failed memory allocation.
 #define SSHS_MALLOC_CHECK_EXIT(ptr) \

@@ -383,10 +383,10 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 				break;
 			}
 
-			union sshs_node_attr_value result = sshsNodeGetAttribute(wantedNode, (const char *) key,
+			const sshs_value result = sshsNodeGetAttribute(wantedNode, (const char *) key,
 				(enum sshs_node_attr_value_type) type);
 
-			char *resultStr = sshsHelperValueToStringConverter((enum sshs_node_attr_value_type) type, result);
+			const std::string resultStr = sshsHelperValueToStringConverter(result);
 
 			if (resultStr == NULL) {
 				// Send back error message to client.

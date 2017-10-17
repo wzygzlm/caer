@@ -38,296 +38,6 @@ static inline bool findBool(InIter begin, InIter end, const Elem &val) {
 	return (true);
 }
 
-class sshs_value {
-private:
-	enum sshs_node_attr_value_type type;
-	union {
-		bool boolean;
-		int8_t ibyte;
-		int16_t ishort;
-		int32_t iint;
-		int64_t ilong;
-		float ffloat;
-		double ddouble;
-	} value;
-	std::string valueString; // Separate for easy memory management.
-
-public:
-	sshs_value() {
-		type = SSHS_UNKNOWN;
-		value.ilong = 0;
-	}
-
-	enum sshs_node_attr_value_type getType() const noexcept {
-		return (type);
-	}
-
-	bool getBool() const {
-		if (type != SSHS_BOOL) {
-			throw new std::runtime_error("SSHS: value type does not match requested type.");
-		}
-
-		return (value.boolean);
-	}
-
-	void setBool(bool v) noexcept {
-		type = SSHS_BOOL;
-		value.boolean = v;
-	}
-
-	int8_t getByte() const {
-		if (type != SSHS_BYTE) {
-			throw new std::runtime_error("SSHS: value type does not match requested type.");
-		}
-
-		return (value.ibyte);
-	}
-
-	void setByte(int8_t v) noexcept {
-		type = SSHS_BYTE;
-		value.ibyte = v;
-	}
-
-	int16_t getShort() const {
-		if (type != SSHS_SHORT) {
-			throw new std::runtime_error("SSHS: value type does not match requested type.");
-		}
-
-		return (value.ishort);
-	}
-
-	void setShort(int16_t v) noexcept {
-		type = SSHS_SHORT;
-		value.ishort = v;
-	}
-
-	int32_t getInt() const {
-		if (type != SSHS_INT) {
-			throw new std::runtime_error("SSHS: value type does not match requested type.");
-		}
-
-		return (value.iint);
-	}
-
-	void setInt(int32_t v) noexcept {
-		type = SSHS_INT;
-		value.iint = v;
-	}
-
-	int64_t getLong() const {
-		if (type != SSHS_LONG) {
-			throw new std::runtime_error("SSHS: value type does not match requested type.");
-		}
-
-		return (value.ilong);
-	}
-
-	void setLong(int64_t v) noexcept {
-		type = SSHS_LONG;
-		value.ilong = v;
-	}
-
-	float getFloat() const {
-		if (type != SSHS_FLOAT) {
-			throw new std::runtime_error("SSHS: value type does not match requested type.");
-		}
-
-		return (value.ffloat);
-	}
-
-	void setFloat(float v) noexcept {
-		type = SSHS_FLOAT;
-		value.ffloat = v;
-	}
-
-	double getDouble() const {
-		if (type != SSHS_DOUBLE) {
-			throw new std::runtime_error("SSHS: value type does not match requested type.");
-		}
-
-		return (value.ddouble);
-	}
-
-	void setDouble(double v) noexcept {
-		type = SSHS_DOUBLE;
-		value.ddouble = v;
-	}
-
-	const std::string &getString() const {
-		if (type != SSHS_STRING) {
-			throw new std::runtime_error("SSHS: value type does not match requested type.");
-		}
-
-		return (valueString);
-	}
-
-	void setString(const std::string &v) noexcept {
-		type = SSHS_STRING;
-		valueString = v;
-	}
-
-	void fromCUnion(union sshs_node_attr_value vu, enum sshs_node_attr_value_type tu) {
-		switch (tu) {
-			case SSHS_BOOL:
-				setBool(vu.boolean);
-				break;
-
-			case SSHS_BYTE:
-				setByte(vu.ibyte);
-				break;
-
-			case SSHS_SHORT:
-				setShort(vu.ishort);
-				break;
-
-			case SSHS_INT:
-				setInt(vu.iint);
-				break;
-
-			case SSHS_LONG:
-				setLong(vu.ilong);
-				break;
-
-			case SSHS_FLOAT:
-				setFloat(vu.ffloat);
-				break;
-
-			case SSHS_DOUBLE:
-				setDouble(vu.ddouble);
-				break;
-
-			case SSHS_STRING:
-				setString(vu.string);
-				break;
-
-			case SSHS_UNKNOWN:
-			default:
-				throw new std::runtime_error("SSHS: provided union value type does not match any valid type.");
-				break;
-		}
-	}
-
-	union sshs_node_attr_value toCUnion(bool readOnlyString = false) const {
-		union sshs_node_attr_value vu;
-
-		switch (type) {
-			case SSHS_BOOL:
-				vu.boolean = getBool();
-				break;
-
-			case SSHS_BYTE:
-				vu.ibyte = getByte();
-				break;
-
-			case SSHS_SHORT:
-				vu.ishort = getShort();
-				break;
-
-			case SSHS_INT:
-				vu.iint = getInt();
-				break;
-
-			case SSHS_LONG:
-				vu.ilong = getLong();
-				break;
-
-			case SSHS_FLOAT:
-				vu.ffloat = getFloat();
-				break;
-
-			case SSHS_DOUBLE:
-				vu.ddouble = getDouble();
-				break;
-
-			case SSHS_STRING:
-				if (readOnlyString) {
-					vu.string = const_cast<char *>(getString().c_str());
-				}
-				else {
-					vu.string = strdup(getString().c_str());
-				}
-				break;
-
-			case SSHS_UNKNOWN:
-			default:
-				throw new std::runtime_error("SSHS: internal value type does not match any valid type.");
-				break;
-		}
-
-		return (vu);
-	}
-
-	// Comparison operators.
-	bool operator==(const sshs_value &rhs) const {
-		switch (type) {
-			case SSHS_BOOL:
-				return (getBool() == rhs.getBool());
-
-			case SSHS_BYTE:
-				return (getByte() == rhs.getByte());
-
-			case SSHS_SHORT:
-				return (getShort() == rhs.getShort());
-
-			case SSHS_INT:
-				return (getInt() == rhs.getInt());
-
-			case SSHS_LONG:
-				return (getLong() == rhs.getLong());
-
-			case SSHS_FLOAT:
-				return (getFloat() == rhs.getFloat());
-
-			case SSHS_DOUBLE:
-				return (getDouble() == rhs.getDouble());
-
-			case SSHS_STRING:
-				return (getString() == rhs.getString());
-
-			case SSHS_UNKNOWN:
-			default:
-				return (false);
-		}
-	}
-
-	bool operator!=(const sshs_value &rhs) const {
-		return (!this->operator==(rhs));
-	}
-
-	bool valueInRange(union sshs_node_attr_range min, union sshs_node_attr_range max) const {
-		switch (type) {
-			case SSHS_BOOL:
-				// No check for bool, because no range exists.
-				return (true);
-
-			case SSHS_BYTE:
-				return (value.ibyte >= min.ibyteRange && value.ibyte <= max.ibyteRange);
-
-			case SSHS_SHORT:
-				return (value.ishort >= min.ishortRange && value.ishort <= max.ishortRange);
-
-			case SSHS_INT:
-				return (value.iint >= min.iintRange && value.iint <= max.iintRange);
-
-			case SSHS_LONG:
-				return (value.ilong >= min.ilongRange && value.ilong <= max.ilongRange);
-
-			case SSHS_FLOAT:
-				return (value.ffloat >= min.ffloatRange && value.ffloat <= max.ffloatRange);
-
-			case SSHS_DOUBLE:
-				return (value.ddouble >= min.ddoubleRange && value.ddouble <= max.ddoubleRange);
-
-			case SSHS_STRING:
-				return (valueString.length() >= min.stringRange && valueString.length() <= max.stringRange);
-
-			case SSHS_UNKNOWN:
-			default:
-				return (false);
-		}
-	}
-};
-
 class sshs_node_attr {
 public:
 	union sshs_node_attr_range min;
@@ -617,8 +327,7 @@ void sshsNodeCreateAttribute(sshsNode node, const std::string &key, const sshs_v
 		snprintf(errorMsg, 1024,
 			"sshsNodeCreateAttribute(): attribute '%s' of type '%s' has default value '%s' that is out of specified range. "
 				"Please make sure the default value is within the given range!", key.c_str(),
-			sshsHelperTypeToStringConverter(defaultValue.getType()),
-			sshsHelperValueToStringConverter(defaultValue.getType(), defaultValue.toCUnion()));
+			sshsHelperTypeToStringConverter(defaultValue.getType()), sshsHelperValueToStringConverter(defaultValue));
 
 		(*sshsGetGlobalErrorLogCallback())(errorMsg);
 
@@ -875,7 +584,8 @@ bool sshsNodePutAttribute(sshsNode node, const std::string &key, const sshs_valu
 	return (true);
 }
 
-sshs_value sshsNodeGetAttribute(sshsNode node, const std::string &key, enum sshs_node_attr_value_type type = SSHS_UNKNOWN) {
+sshs_value sshsNodeGetAttribute(sshsNode node, const std::string &key, enum sshs_node_attr_value_type type =
+	SSHS_UNKNOWN) {
 	std::lock_guard<std::recursive_mutex> lockNode(node->node_lock);
 
 	if (!sshsNodeAttributeExists(node, key, type)) {
@@ -886,7 +596,8 @@ sshs_value sshsNodeGetAttribute(sshsNode node, const std::string &key, enum sshs
 	return (node->attributes[key].value);
 }
 
-void sshsNodeCreateBool(sshsNode node, const std::string &key, bool defaultValue, int flags, const std::string &description) {
+void sshsNodeCreateBool(sshsNode node, const std::string &key, bool defaultValue, int flags,
+	const std::string &description) {
 	sshs_value uValue;
 	uValue.setBool(defaultValue);
 
@@ -932,8 +643,8 @@ int8_t sshsNodeGetByte(sshsNode node, const std::string &key) {
 	return (sshsNodeGetAttribute(node, key).getByte());
 }
 
-void sshsNodeCreateShort(sshsNode node, const std::string &key, int16_t defaultValue, int16_t minValue, int16_t maxValue,
-	int flags, const std::string &description) {
+void sshsNodeCreateShort(sshsNode node, const std::string &key, int16_t defaultValue, int16_t minValue,
+	int16_t maxValue, int flags, const std::string &description) {
 	sshs_value uValue;
 	uValue.setShort(defaultValue);
 
@@ -941,14 +652,14 @@ void sshsNodeCreateShort(sshsNode node, const std::string &key, int16_t defaultV
 	ranges.min.ishortRange = minValue;
 	ranges.max.ishortRange = maxValue;
 
-	sshsNodeCreateAttribute(node, key,  uValue, ranges, flags, description);
+	sshsNodeCreateAttribute(node, key, uValue, ranges, flags, description);
 }
 
 bool sshsNodePutShort(sshsNode node, const std::string &key, int16_t value) {
 	sshs_value uValue;
 	uValue.setShort(value);
 
-	return (sshsNodePutAttribute(node, key,  uValue));
+	return (sshsNodePutAttribute(node, key, uValue));
 }
 
 int16_t sshsNodeGetShort(sshsNode node, const std::string &key) {
@@ -969,7 +680,7 @@ void sshsNodeCreateInt(sshsNode node, const std::string &key, int32_t defaultVal
 
 bool sshsNodePutInt(sshsNode node, const std::string &key, int32_t value) {
 	sshs_value uValue;
-	uValue.setInt( value);
+	uValue.setInt(value);
 
 	return (sshsNodePutAttribute(node, key, uValue));
 }
@@ -992,7 +703,7 @@ void sshsNodeCreateLong(sshsNode node, const std::string &key, int64_t defaultVa
 
 bool sshsNodePutLong(sshsNode node, const std::string &key, int64_t value) {
 	sshs_value uValue;
-	uValue.setLong( value);
+	uValue.setLong(value);
 
 	return (sshsNodePutAttribute(node, key, uValue));
 }
@@ -1001,8 +712,8 @@ int64_t sshsNodeGetLong(sshsNode node, const std::string &key) {
 	return (sshsNodeGetAttribute(node, key).getLong());
 }
 
-void sshsNodeCreateFloat(sshsNode node, const std::string &key, float defaultValue, float minValue, float maxValue, int flags,
-	const std::string &description) {
+void sshsNodeCreateFloat(sshsNode node, const std::string &key, float defaultValue, float minValue, float maxValue,
+	int flags, const std::string &description) {
 	sshs_value uValue;
 	uValue.setFloat(defaultValue);
 
@@ -1017,7 +728,7 @@ bool sshsNodePutFloat(sshsNode node, const std::string &key, float value) {
 	sshs_value uValue;
 	uValue.setFloat(value);
 
-	return (sshsNodePutAttribute(node, key,  uValue));
+	return (sshsNodePutAttribute(node, key, uValue));
 }
 
 float sshsNodeGetFloat(sshsNode node, const std::string &key) {
@@ -1033,22 +744,22 @@ void sshsNodeCreateDouble(sshsNode node, const std::string &key, double defaultV
 	ranges.min.ddoubleRange = minValue;
 	ranges.max.ddoubleRange = maxValue;
 
-	sshsNodeCreateAttribute(node, key,  uValue, ranges, flags, description);
+	sshsNodeCreateAttribute(node, key, uValue, ranges, flags, description);
 }
 
 bool sshsNodePutDouble(sshsNode node, const std::string &key, double value) {
 	sshs_value uValue;
 	uValue.setDouble(value);
 
-	return (sshsNodePutAttribute(node, key,  uValue));
+	return (sshsNodePutAttribute(node, key, uValue));
 }
 
 double sshsNodeGetDouble(sshsNode node, const std::string &key) {
 	return (sshsNodeGetAttribute(node, key).getDouble());
 }
 
-void sshsNodeCreateString(sshsNode node, const std::string &key, const std::string &defaultValue, size_t minLength, size_t maxLength,
-	int flags, const std::string &description) {
+void sshsNodeCreateString(sshsNode node, const std::string &key, const std::string &defaultValue, size_t minLength,
+	size_t maxLength, int flags, const std::string &description) {
 	sshs_value uValue;
 	uValue.setString(defaultValue);
 
@@ -1183,16 +894,13 @@ static mxml_node_t *sshsNodeGenerateXML(sshsNode node, bool recursive) {
 				continue;
 			}
 
-			const char *type = sshsHelperTypeToStringConverter(attr.second.value.getType());
-			char *value = sshsHelperValueToStringConverter(attr.second.value.getType(), attr.second.value.toCUnion());
-			SSHS_MALLOC_CHECK_EXIT(value);
+			const std::string type = sshsHelperTypeToStringConverter(attr.second.value.getType());
+			const std::string value = sshsHelperValueToStringConverter(attr.second.value);
 
 			mxml_node_t *xmlAttr = mxmlNewElement(thisNode, "attr");
 			mxmlElementSetAttr(xmlAttr, "key", attr.first.c_str());
-			mxmlElementSetAttr(xmlAttr, "type", type);
-			mxmlNewText(xmlAttr, 0, value);
-
-			free(value);
+			mxmlElementSetAttr(xmlAttr, "type", type.c_str());
+			mxmlNewText(xmlAttr, 0, value.c_str());
 		}
 	}
 
@@ -1381,13 +1089,8 @@ bool sshsNodeStringToAttributeConverter(sshsNode node, const char *key, const ch
 		return (false);
 	}
 
-	union sshs_node_attr_value value;
-	bool conversionSuccess = sshsHelperStringToValueConverter(type, valueStr, &value);
-
-	if (!conversionSuccess) {
-		errno = EINVAL;
-		return (false);
-	}
+	sshs_value value;
+	value = sshsHelperStringToValueConverter(type, valueStr);
 
 	// IFF attribute already exists, we update it using sshsNodePut(), else
 	// we create the attribute with maximum range and a default description.
@@ -1397,7 +1100,7 @@ bool sshsNodeStringToAttributeConverter(sshsNode node, const char *key, const ch
 	bool result = false;
 
 	if (sshsNodeAttributeExists(node, key, type)) {
-		result = sshsNodePutAttribute(node, key, type, value);
+		result = sshsNodePutAttribute(node, key, value);
 	}
 	else {
 		// Create never fails!
@@ -1405,43 +1108,43 @@ bool sshsNodeStringToAttributeConverter(sshsNode node, const char *key, const ch
 
 		switch (type) {
 			case SSHS_BOOL:
-				sshsNodeCreateBool(node, key, value.boolean, SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT,
+				sshsNodeCreateBool(node, key, value.getBool(), SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT,
 					"XML loaded value.");
 				break;
 
 			case SSHS_BYTE:
-				sshsNodeCreateByte(node, key, value.ibyte, INT8_MIN, INT8_MAX, SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT,
-					"XML loaded value.");
+				sshsNodeCreateByte(node, key, value.getByte(), INT8_MIN, INT8_MAX,
+					SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT, "XML loaded value.");
 				break;
 
 			case SSHS_SHORT:
-				sshsNodeCreateShort(node, key, value.ishort, INT16_MIN, INT16_MAX,
+				sshsNodeCreateShort(node, key, value.getShort(), INT16_MIN, INT16_MAX,
 					SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT, "XML loaded value.");
 				break;
 
 			case SSHS_INT:
-				sshsNodeCreateInt(node, key, value.iint, INT32_MIN, INT32_MAX, SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT,
-					"XML loaded value.");
+				sshsNodeCreateInt(node, key, value.getInt(), INT32_MIN, INT32_MAX,
+					SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT, "XML loaded value.");
 				break;
 
 			case SSHS_LONG:
-				sshsNodeCreateLong(node, key, value.ilong, INT64_MIN, INT64_MAX,
+				sshsNodeCreateLong(node, key, value.getLong(), INT64_MIN, INT64_MAX,
 					SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT, "XML loaded value.");
 				break;
 
 			case SSHS_FLOAT:
-				sshsNodeCreateFloat(node, key, value.ffloat, -FLT_MAX, FLT_MAX,
+				sshsNodeCreateFloat(node, key, value.getFloat(), -FLT_MAX, FLT_MAX,
 					SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT, "XML loaded value.");
 				break;
 
 			case SSHS_DOUBLE:
-				sshsNodeCreateDouble(node, key, value.ddouble, -DBL_MAX, DBL_MAX,
+				sshsNodeCreateDouble(node, key, value.getDouble(), -DBL_MAX, DBL_MAX,
 					SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT, "XML loaded value.");
 				break;
 
 			case SSHS_STRING:
-				sshsNodeCreateString(node, key, value.string, 0, INT32_MAX, SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT,
-					"XML loaded value.");
+				sshsNodeCreateString(node, key, value.getString(), 0, INT32_MAX,
+					SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT, "XML loaded value.");
 				break;
 
 			case SSHS_UNKNOWN:
@@ -1449,11 +1152,6 @@ bool sshsNodeStringToAttributeConverter(sshsNode node, const char *key, const ch
 				result = false;
 				break;
 		}
-	}
-
-	// Free string copy from helper.
-	if (type == SSHS_STRING) {
-		free(value.string);
 	}
 
 	return (result);

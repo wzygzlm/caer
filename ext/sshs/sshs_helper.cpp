@@ -1,37 +1,6 @@
 #include "sshs_internal.h"
 
-#if defined(__GNUC__) || defined(__clang__)
-	#if defined(__USE_MINGW_ANSI_STDIO)
-		#define ATTRIBUTE_FORMAT(N) __attribute__ ((format (gnu_printf, N, (N+1))))
-	#else
-		#define ATTRIBUTE_FORMAT(N) __attribute__ ((format (printf, N, (N+1))))
-	#endif
-#else
-	#define ATTRIBUTE_FORMAT(N)
-#endif
-
-static void sshsHelperAllocSprintf(char **strp, const char *format, ...) ATTRIBUTE_FORMAT(2);
-
-// Put NULL in *strp on failure (memory allocation failure).
-static void sshsHelperAllocSprintf(char **strp, const char *format, ...) {
-	va_list argptr;
-
-	va_start(argptr, format);
-	size_t printLength = (size_t) vsnprintf(NULL, 0, format, argptr);
-	va_end(argptr);
-
-	*strp = (char *) malloc(printLength + 1);
-	if (*strp == NULL) {
-		return;
-	}
-
-	va_start(argptr, format);
-	vsnprintf(*strp, printLength + 1, format, argptr);
-	va_end(argptr);
-}
-
-// Return NULL on unknown type. Do not free returned strings!
-const char *sshsHelperTypeToStringConverter(enum sshs_node_attr_value_type type) {
+std::string sshsHelperTypeToStringConverter(enum sshs_node_attr_value_type type)  {
 	// Convert the value and its type into a string for XML output.
 	switch (type) {
 		case SSHS_BOOL:
@@ -60,186 +29,118 @@ const char *sshsHelperTypeToStringConverter(enum sshs_node_attr_value_type type)
 
 		case SSHS_UNKNOWN:
 		default:
-			return (NULL); // UNKNOWN TYPE.
+			throw new std::runtime_error("sshsHelperTypeToStringConverter(): invalid type given.");
 	}
 }
 
-// Return -1 on unknown type.
-enum sshs_node_attr_value_type sshsHelperStringToTypeConverter(const char *typeString) {
-	if (typeString == NULL) {
-		return (SSHS_UNKNOWN); // NULL STRING.
-	}
-
+enum sshs_node_attr_value_type sshsHelperStringToTypeConverter(const std::string &typeString) {
 	// Convert the value string back into the internal type representation.
-	if (strcmp(typeString, "bool") == 0) {
+	if (typeString == "bool") {
 		return (SSHS_BOOL);
 	}
-	else if (strcmp(typeString, "byte") == 0) {
+	else if (typeString == "byte") {
 		return (SSHS_BYTE);
 	}
-	else if (strcmp(typeString, "short") == 0) {
+	else if (typeString == "short") {
 		return (SSHS_SHORT);
 	}
-	else if (strcmp(typeString, "int") == 0) {
+	else if (typeString == "int") {
 		return (SSHS_INT);
 	}
-	else if (strcmp(typeString, "long") == 0) {
+	else if (typeString == "long") {
 		return (SSHS_LONG);
 	}
-	else if (strcmp(typeString, "float") == 0) {
+	else if (typeString == "float") {
 		return (SSHS_FLOAT);
 	}
-	else if (strcmp(typeString, "double") == 0) {
+	else if (typeString == "double") {
 		return (SSHS_DOUBLE);
 	}
-	else if (strcmp(typeString, "string") == 0) {
+	else if (typeString == "string") {
 		return (SSHS_STRING);
 	}
 
 	return (SSHS_UNKNOWN); // UNKNOWN TYPE.
 }
 
-// Return NULL on failure (either memory allocation or unknown type / faulty conversion).
-// Strings returned by this function need to be free()'d after use!
-char *sshsHelperValueToStringConverter(enum sshs_node_attr_value_type type, union sshs_node_attr_value value) {
+std::string sshsHelperValueToStringConverter(const sshs_value &val) {
 	// Convert the value and its type into a string for XML output.
-	char *valueString;
-
-	switch (type) {
+	switch (val.getType()) {
 		case SSHS_BOOL:
 			// Manually generate true or false.
-			if (value.boolean) {
-				valueString = strdup("true");
-			}
-			else {
-				valueString = strdup("false");
-			}
-
-			break;
+			return ((val.getBool()) ? ("true") : ("false"));
 
 		case SSHS_BYTE:
-			sshsHelperAllocSprintf(&valueString, "%" PRIi8, value.ibyte);
-			break;
+			return (std::to_string(val.getByte()));
 
 		case SSHS_SHORT:
-			sshsHelperAllocSprintf(&valueString, "%" PRIi16, value.ishort);
-			break;
+			return (std::to_string(val.getShort()));
 
 		case SSHS_INT:
-			sshsHelperAllocSprintf(&valueString, "%" PRIi32, value.iint);
-			break;
+			return (std::to_string(val.getInt()));
 
 		case SSHS_LONG:
-			sshsHelperAllocSprintf(&valueString, "%" PRIi64, value.ilong);
-			break;
+			return (std::to_string(val.getLong()));
 
 		case SSHS_FLOAT:
-			sshsHelperAllocSprintf(&valueString, "%g", (double) value.ffloat);
-			break;
+			return (std::to_string(val.getFloat()));
 
 		case SSHS_DOUBLE:
-			sshsHelperAllocSprintf(&valueString, "%g", value.ddouble);
-			break;
+			return (std::to_string(val.getDouble()));
 
 		case SSHS_STRING:
-			valueString = strdup(value.string);
-			break;
+			return (val.getString());
 
 		case SSHS_UNKNOWN:
 		default:
-			valueString = NULL; // UNKNOWN TYPE.
-			break;
+			throw new std::runtime_error("sshsHelperValueToStringConverter(): value has invalid type.");
 	}
-
-	return (valueString);
 }
 
 // Return false on failure (unknown type / faulty conversion), the content of
 // value is undefined. For the STRING type, the returned value.string is a copy
 // of the input string. Remember to free() it after use!
-bool sshsHelperStringToValueConverter(enum sshs_node_attr_value_type type, const char *valueString,
-	union sshs_node_attr_value *value) {
-	if (valueString == NULL || value == NULL) {
-		// It is possible for a string value to be NULL, namely when it is
-		// an empty string in the XML file. Handle this case here.
-		if (type == SSHS_STRING && valueString == NULL && value != NULL) {
-			value->string = strdup("");
-			if (value->string == NULL) {
-				return (false); // MALLOC FAILURE.
-			}
-
-			return (true);
-		}
-
-		return (false); // NULL STRING.
-	}
+sshs_value sshsHelperStringToValueConverter(enum sshs_node_attr_value_type type, const std::string &valueString) {
+	sshs_value value;
 
 	switch (type) {
 		case SSHS_BOOL:
 			// Boolean uses custom true/false strings.
-			if (strcmp(valueString, "true") == 0) {
-				value->boolean = true;
-			}
-			else {
-				value->boolean = false;
-			}
-
+			value.setBool(valueString == "true");
 			break;
 
 		case SSHS_BYTE:
-			if (sscanf(valueString, "%" SCNi8, &value->ibyte) != 1) {
-				return (false); // CONVERSION FAILURE.
-			}
-
+			value.setByte((int8_t) std::stoi(valueString));
 			break;
 
 		case SSHS_SHORT:
-			if (sscanf(valueString, "%" SCNi16, &value->ishort) != 1) {
-				return (false); // CONVERSION FAILURE.
-			}
-
+			value.setShort((int16_t) std::stoi(valueString));
 			break;
 
 		case SSHS_INT:
-			if (sscanf(valueString, "%" SCNi32, &value->iint) != 1) {
-				return (false); // CONVERSION FAILURE.
-			}
-
+			value.setInt((int32_t) std::stol(valueString));
 			break;
 
 		case SSHS_LONG:
-			if (sscanf(valueString, "%" SCNi64, &value->ilong) != 1) {
-				return (false); // CONVERSION FAILURE.
-			}
-
+			value.setLong((int64_t) std::stoll(valueString));
 			break;
 
 		case SSHS_FLOAT:
-			if (sscanf(valueString, "%g", &value->ffloat) != 1) {
-				return (false); // CONVERSION FAILURE.
-			}
-
+			value.setFloat(std::stof(valueString));
 			break;
 
 		case SSHS_DOUBLE:
-			if (sscanf(valueString, "%lg", &value->ddouble) != 1) {
-				return (false); // CONVERSION FAILURE.
-			}
-
+			value.setDouble(std::stod(valueString));
 			break;
 
 		case SSHS_STRING:
-			value->string = strdup(valueString);
-			if (value->string == NULL) {
-				return (false); // MALLOC FAILURE.
-			}
-
+			value.setString(valueString);
 			break;
 
 		case SSHS_UNKNOWN:
 		default:
-			return (false); // UNKNOWN TYPE.
+			break;
 	}
 
-	return (true);
+	return (value);
 }
