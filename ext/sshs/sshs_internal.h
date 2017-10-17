@@ -6,6 +6,7 @@
 #include <string.h>
 #include <stdarg.h>
 #include <mxml.h>
+#include <string>
 
 // Terminate process on failed memory allocation.
 #define SSHS_MALLOC_CHECK_EXIT(ptr) \
