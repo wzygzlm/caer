@@ -170,6 +170,14 @@ int sshsNodeGetAttributeFlags(sshsNode node, const char *key, enum sshs_node_att
 char *sshsNodeGetAttributeDescription(sshsNode node, const char *key, enum sshs_node_attr_value_type type)
 	CAER_SYMBOL_EXPORT;
 
+// Helper functions
+const char *sshsHelperTypeToStringConverter(enum sshs_node_attr_value_type type) CAER_SYMBOL_EXPORT;
+enum sshs_node_attr_value_type sshsHelperStringToTypeConverter(const char *typeString) CAER_SYMBOL_EXPORT;
+char *sshsHelperValueToStringConverter(enum sshs_node_attr_value_type type, union sshs_node_attr_value value)
+	CAER_SYMBOL_EXPORT;
+bool sshsHelperStringToValueConverter(enum sshs_node_attr_value_type type, const char *valueString,
+	union sshs_node_attr_value *value) CAER_SYMBOL_EXPORT;
+
 // SSHS
 typedef struct sshs_struct *sshs;
 typedef void (*sshsErrorLogCallback)(const char *msg);

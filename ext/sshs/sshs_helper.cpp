@@ -1,6 +1,6 @@
 #include "sshs_internal.h"
 
-std::string sshsHelperTypeToStringConverter(enum sshs_node_attr_value_type type)  {
+std::string sshsHelperCppTypeToStringConverter(enum sshs_node_attr_value_type type)  {
 	// Convert the value and its type into a string for XML output.
 	switch (type) {
 		case SSHS_BOOL:
@@ -33,7 +33,7 @@ std::string sshsHelperTypeToStringConverter(enum sshs_node_attr_value_type type)
 	}
 }
 
-enum sshs_node_attr_value_type sshsHelperStringToTypeConverter(const std::string &typeString) {
+enum sshs_node_attr_value_type sshsHelperCppStringToTypeConverter(const std::string &typeString) {
 	// Convert the value string back into the internal type representation.
 	if (typeString == "bool") {
 		return (SSHS_BOOL);
@@ -63,7 +63,7 @@ enum sshs_node_attr_value_type sshsHelperStringToTypeConverter(const std::string
 	return (SSHS_UNKNOWN); // UNKNOWN TYPE.
 }
 
-std::string sshsHelperValueToStringConverter(const sshs_value &val) {
+std::string sshsHelperCppValueToStringConverter(const sshs_value &val) {
 	// Convert the value and its type into a string for XML output.
 	switch (val.getType()) {
 		case SSHS_BOOL:
@@ -100,7 +100,7 @@ std::string sshsHelperValueToStringConverter(const sshs_value &val) {
 // Return false on failure (unknown type / faulty conversion), the content of
 // value is undefined. For the STRING type, the returned value.string is a copy
 // of the input string. Remember to free() it after use!
-sshs_value sshsHelperStringToValueConverter(enum sshs_node_attr_value_type type, const std::string &valueString) {
+sshs_value sshsHelperCppStringToValueConverter(enum sshs_node_attr_value_type type, const std::string &valueString) {
 	sshs_value value;
 
 	switch (type) {

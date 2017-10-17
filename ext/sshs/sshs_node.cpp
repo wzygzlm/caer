@@ -14,7 +14,7 @@
 static inline void sshsNodeError(const std::string &funcName, const std::string &key,
 	enum sshs_node_attr_value_type type, const std::string &msg) {
 	boost::format errorMsg = boost::format("%s(): attribute '%s' (type '%s'): %s.") % funcName % key
-		% sshsHelperTypeToStringConverter(type) % msg;
+		% sshsHelperCppTypeToStringConverter(type) % msg;
 
 	(*sshsGetGlobalErrorLogCallback())(errorMsg.str().c_str());
 
@@ -37,44 +37,6 @@ static inline bool findBool(InIter begin, InIter end, const Elem &val) {
 
 	return (true);
 }
-
-class sshs_node_attr {
-public:
-	union sshs_node_attr_range min;
-	union sshs_node_attr_range max;
-	int flags;
-	std::string description;
-	sshs_value value;
-};
-
-class sshs_node_listener {
-private:
-	sshsNodeChangeListener nodeChanged;
-	void *userData;
-
-public:
-	sshs_node_listener(sshsNodeChangeListener _listener, void *_userData) :
-			nodeChanged(_listener),
-			userData(_userData) {
-	}
-
-	sshsNodeChangeListener getListener() const noexcept {
-		return (nodeChanged);
-	}
-
-	void *getUserData() const noexcept {
-		return (userData);
-	}
-
-	// Comparison operators.
-	bool operator==(const sshs_node_listener &rhs) const noexcept {
-		return ((nodeChanged == rhs.nodeChanged) && (userData == rhs.userData));
-	}
-
-	bool operator!=(const sshs_node_listener &rhs) const noexcept {
-		return ((nodeChanged != rhs.nodeChanged) || (userData != rhs.userData));
-	}
-};
 
 class sshs_node_attr_listener {
 private:
@@ -327,7 +289,7 @@ void sshsNodeCreateAttribute(sshsNode node, const std::string &key, const sshs_v
 		snprintf(errorMsg, 1024,
 			"sshsNodeCreateAttribute(): attribute '%s' of type '%s' has default value '%s' that is out of specified range. "
 				"Please make sure the default value is within the given range!", key.c_str(),
-			sshsHelperTypeToStringConverter(defaultValue.getType()), sshsHelperValueToStringConverter(defaultValue));
+			sshsHelperCppTypeToStringConverter(defaultValue.getType()), sshsHelperCppValueToStringConverter(defaultValue));
 
 		(*sshsGetGlobalErrorLogCallback())(errorMsg);
 
@@ -341,7 +303,7 @@ void sshsNodeCreateAttribute(sshsNode node, const std::string &key, const sshs_v
 		char errorMsg[1024];
 		snprintf(errorMsg, 1024, "Attribute '%s' of type '%s' has the NOTIFY_ONLY flag set, but is not of type BOOL. "
 			"Only booleans may have this flag set!", key.c_str(),
-			sshsHelperTypeToStringConverter(defaultValue.getType()));
+			sshsHelperCppTypeToStringConverter(defaultValue.getType()));
 
 		(*sshsGetGlobalErrorLogCallback())(errorMsg);
 
@@ -894,8 +856,8 @@ static mxml_node_t *sshsNodeGenerateXML(sshsNode node, bool recursive) {
 				continue;
 			}
 
-			const std::string type = sshsHelperTypeToStringConverter(attr.second.value.getType());
-			const std::string value = sshsHelperValueToStringConverter(attr.second.value);
+			const std::string type = sshsHelperCppTypeToStringConverter(attr.second.value.getType());
+			const std::string value = sshsHelperCppValueToStringConverter(attr.second.value);
 
 			mxml_node_t *xmlAttr = mxmlNewElement(thisNode, "attr");
 			mxmlElementSetAttr(xmlAttr, "key", attr.first.c_str());
@@ -1082,7 +1044,7 @@ static void sshsNodeConsumeXML(sshsNode node, mxml_node_t *content, bool recursi
 bool sshsNodeStringToAttributeConverter(sshsNode node, const char *key, const char *typeStr, const char *valueStr) {
 	// Parse the values according to type and put them in the node.
 	enum sshs_node_attr_value_type type;
-	type = sshsHelperStringToTypeConverter(typeStr);
+	type = sshsHelperCppStringToTypeConverter(typeStr);
 
 	if (type == SSHS_UNKNOWN) {
 		errno = EINVAL;
@@ -1090,7 +1052,7 @@ bool sshsNodeStringToAttributeConverter(sshsNode node, const char *key, const ch
 	}
 
 	sshs_value value;
-	value = sshsHelperStringToValueConverter(type, valueStr);
+	value = sshsHelperCppStringToValueConverter(type, valueStr);
 
 	// IFF attribute already exists, we update it using sshsNodePut(), else
 	// we create the attribute with maximum range and a default description.
