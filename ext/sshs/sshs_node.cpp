@@ -21,14 +21,265 @@ static inline bool findBool(InIter begin, InIter end, const Elem &val) {
 	return (true);
 }
 
+class sshs_value {
+private:
+	enum sshs_node_attr_value_type type;
+	union {
+		bool boolean;
+		int8_t ibyte;
+		int16_t ishort;
+		int32_t iint;
+		int64_t ilong;
+		float ffloat;
+		double ddouble;
+	} value;
+	std::string valueString; // Separate for easy memory management.
+
+public:
+	sshs_value() {
+		type = SSHS_UNKNOWN;
+		value.ilong = 0;
+	}
+
+	enum sshs_node_attr_value_type getType() const noexcept {
+		return (type);
+	}
+
+	bool getBool() const {
+		if (type != SSHS_BOOL) {
+			throw new std::runtime_error("SSHS: value type does not match requested type.");
+		}
+
+		return (value.boolean);
+	}
+
+	void setBool(bool v) noexcept {
+		type = SSHS_BOOL;
+		value.boolean = v;
+	}
+
+	int8_t getByte() const {
+		if (type != SSHS_BYTE) {
+			throw new std::runtime_error("SSHS: value type does not match requested type.");
+		}
+
+		return (value.ibyte);
+	}
+
+	void setByte(int8_t v) noexcept {
+		type = SSHS_BYTE;
+		value.ibyte = v;
+	}
+
+	int16_t getShort() const {
+		if (type != SSHS_SHORT) {
+			throw new std::runtime_error("SSHS: value type does not match requested type.");
+		}
+
+		return (value.ishort);
+	}
+
+	void setShort(int16_t v) noexcept{
+		type = SSHS_SHORT;
+		value.ishort = v;
+	}
+
+	int32_t getInt() const {
+		if (type != SSHS_INT) {
+			throw new std::runtime_error("SSHS: value type does not match requested type.");
+		}
+
+		return (value.iint);
+	}
+
+	void setInt(int32_t v) noexcept {
+		type = SSHS_INT;
+		value.iint = v;
+	}
+
+	int64_t getLong() const {
+		if (type != SSHS_LONG) {
+			throw new std::runtime_error("SSHS: value type does not match requested type.");
+		}
+
+		return (value.ilong);
+	}
+
+	void setLong(int64_t v) noexcept {
+		type = SSHS_LONG;
+		value.ilong = v;
+	}
+
+	float getFloat() const {
+		if (type != SSHS_FLOAT) {
+			throw new std::runtime_error("SSHS: value type does not match requested type.");
+		}
+
+		return (value.ffloat);
+	}
+
+	void setFloat(float v) noexcept {
+		type = SSHS_FLOAT;
+		value.ffloat = v;
+	}
+
+	double getDouble() const {
+		if (type != SSHS_DOUBLE) {
+			throw new std::runtime_error("SSHS: value type does not match requested type.");
+		}
+
+		return (value.ddouble);
+	}
+
+	void setDouble(double v) noexcept {
+		type = SSHS_DOUBLE;
+		value.ddouble = v;
+	}
+
+	const std::string &getString() const {
+		if (type != SSHS_STRING) {
+			throw new std::runtime_error("SSHS: value type does not match requested type.");
+		}
+
+		return (valueString);
+	}
+
+	void setString(const std::string &v) noexcept {
+		type = SSHS_STRING;
+		valueString = v;
+	}
+
+	void fromCUnion(union sshs_node_attr_value vu, enum sshs_node_attr_value_type tu) {
+		switch (tu) {
+			case SSHS_BOOL:
+				setBool(vu.boolean);
+				break;
+
+			case SSHS_BYTE:
+				setByte(vu.ibyte);
+				break;
+
+			case SSHS_SHORT:
+				setShort(vu.ishort);
+				break;
+
+			case SSHS_INT:
+				setInt(vu.iint);
+				break;
+
+			case SSHS_LONG:
+				setLong(vu.ilong);
+				break;
+
+			case SSHS_FLOAT:
+				setFloat(vu.ffloat);
+				break;
+
+			case SSHS_DOUBLE:
+				setDouble(vu.ddouble);
+				break;
+
+			case SSHS_STRING:
+				setString(vu.string);
+				break;
+
+			case SSHS_UNKNOWN:
+			default:
+				throw new std::runtime_error("SSHS: provided union value type does not match any valid type.");
+				break;
+		}
+	}
+
+	union sshs_node_attr_value toCUnion() const {
+		union sshs_node_attr_value vu;
+
+		switch (type) {
+			case SSHS_BOOL:
+				vu.boolean = getBool();
+				break;
+
+			case SSHS_BYTE:
+				vu.ibyte = getByte();
+				break;
+
+			case SSHS_SHORT:
+				vu.ishort = getShort();
+				break;
+
+			case SSHS_INT:
+				vu.iint = getInt();
+				break;
+
+			case SSHS_LONG:
+				vu.ilong = getLong();
+				break;
+
+			case SSHS_FLOAT:
+				vu.ffloat = getFloat();
+				break;
+
+			case SSHS_DOUBLE:
+				vu.ddouble = getDouble();
+				break;
+
+			case SSHS_STRING:
+				vu.string = strdup(getString().c_str());
+				break;
+
+			case SSHS_UNKNOWN:
+			default:
+				throw new std::runtime_error("SSHS: internal value type does not match any valid type.");
+				break;
+		}
+
+		return (vu);
+	}
+
+	// Comparison operators.
+	bool operator==(const sshs_value &rhs) const {
+		switch (type) {
+			case SSHS_BOOL:
+				return (getBool() == rhs.getBool());
+
+			case SSHS_BYTE:
+				return (getByte() == rhs.getByte());
+
+			case SSHS_SHORT:
+				return (getShort() == rhs.getShort());
+
+			case SSHS_INT:
+				return (getInt() == rhs.getInt());
+
+			case SSHS_LONG:
+				return (getLong() == rhs.getLong());
+
+			case SSHS_FLOAT:
+				return (getFloat() == rhs.getFloat());
+
+			case SSHS_DOUBLE:
+				return (getDouble() == rhs.getDouble());
+
+			case SSHS_STRING:
+				return (getString() == rhs.getString());
+
+			case SSHS_UNKNOWN:
+			default:
+				return (false);
+		}
+	}
+
+	bool operator!=(const sshs_value &rhs) const {
+		return (!this->operator==(rhs));
+	}
+};
+
 class sshs_node_attr {
 public:
 	union sshs_node_attr_range min;
 	union sshs_node_attr_range max;
 	int flags;
 	std::string description;
-	union sshs_node_attr_value value;
-	enum sshs_node_attr_value_type value_type;
+	sshs_value value;
 };
 
 class sshs_node_listener {
@@ -323,7 +574,8 @@ void sshsNodeCreateAttribute(sshsNode node, const char *key, enum sshs_node_attr
 			char errorMsg[1024];
 			snprintf(errorMsg, 1024,
 				"sshsNodeCreateAttribute(): attribute '%s' of type 'string' has a minimum range value of '%" PRIi64 "' outside allowed limits. "
-				"Please make sure the value is positive, between 0 and %" PRIi32 "!", key, minValue.stringRange, INT32_MAX);
+				"Please make sure the value is positive, between 0 and %" PRIi32 "!", key, minValue.stringRange,
+				INT32_MAX);
 
 			(*sshsGetGlobalErrorLogCallback())(errorMsg);
 
@@ -335,7 +587,8 @@ void sshsNodeCreateAttribute(sshsNode node, const char *key, enum sshs_node_attr
 			char errorMsg[1024];
 			snprintf(errorMsg, 1024,
 				"sshsNodeCreateAttribute(): attribute '%s' of type 'string' has a maximum range value of '%" PRIi64 "' outside allowed limits. "
-				"Please make sure the value is positive, between 0 and %" PRIi32 "!", key, maxValue.stringRange, INT32_MAX);
+				"Please make sure the value is positive, between 0 and %" PRIi32 "!", key, maxValue.stringRange,
+				INT32_MAX);
 
 			(*sshsGetGlobalErrorLogCallback())(errorMsg);
 
@@ -374,18 +627,7 @@ void sshsNodeCreateAttribute(sshsNode node, const char *key, enum sshs_node_attr
 
 	sshs_node_attr newAttr;
 
-	if (type == SSHS_STRING) {
-		// Make a copy of the string so we own the memory internally.
-		char *valueCopy = strdup(defaultValue.string);
-		SSHS_MALLOC_CHECK_EXIT(valueCopy);
-
-		newAttr.value.string = valueCopy;
-	}
-	else {
-		newAttr.value = defaultValue;
-	}
-
-	newAttr.value_type = type;
+	newAttr.value.fromCUnion(defaultValue, type);
 	newAttr.min = minValue;
 	newAttr.max = maxValue;
 	newAttr.flags = flags;
@@ -643,63 +885,15 @@ bool sshsNodePutAttribute(sshsNode node, const char *key, enum sshs_node_attr_va
 	return (true);
 }
 
-static bool sshsNodeCheckAttributeValueChanged(enum sshs_node_attr_value_type type, union sshs_node_attr_value oldValue,
-	union sshs_node_attr_value newValue) {
-	// Check that the two values changed, that there is a difference between then.
-	switch (type) {
-		case SSHS_BOOL:
-			return (oldValue.boolean != newValue.boolean);
-
-		case SSHS_BYTE:
-			return (oldValue.ibyte != newValue.ibyte);
-
-		case SSHS_SHORT:
-			return (oldValue.ishort != newValue.ishort);
-
-		case SSHS_INT:
-			return (oldValue.iint != newValue.iint);
-
-		case SSHS_LONG:
-			return (oldValue.ilong != newValue.ilong);
-
-		case SSHS_FLOAT:
-			return (oldValue.ffloat != newValue.ffloat);
-
-		case SSHS_DOUBLE:
-			return (oldValue.ddouble != newValue.ddouble);
-
-		case SSHS_STRING:
-			return (strcmp(oldValue.string, newValue.string) != 0);
-
-		case SSHS_UNKNOWN:
-		default:
-			return (false);
-	}
-}
-
-union sshs_node_attr_value sshsNodeGetAttribute(sshsNode node, const char *key, enum sshs_node_attr_value_type type) {
+sshs_value sshsNodeGetAttribute(sshsNode node, const char *key, enum sshs_node_attr_value_type type) {
 	std::lock_guard<std::recursive_mutex> lockNode(node->node_lock);
 
 	if (!node->attributes.count(key)) {
 		sshsNodeNoAttributeError(key, type, "sshsNodeGetAttribute");
 	}
 
-	sshs_node_attr &attr = node->attributes[key];
-
-	// Copy the value while still holding the lock, to ensure accessing it is
-	// still possible and the value behind it valid.
-	union sshs_node_attr_value value = attr.value;
-
-	// For strings, make a copy on the heap to give out.
-	if (type == SSHS_STRING) {
-		char *valueCopy = strdup(value.string);
-		SSHS_MALLOC_CHECK_EXIT(valueCopy);
-
-		value.string = valueCopy;
-	}
-
 	// Return the final value.
-	return (value);
+	return (node->attributes[key].value);
 }
 
 // Only used to update read-only attributes, special call for module internal use only.
@@ -1055,8 +1249,8 @@ static mxml_node_t *sshsNodeGenerateXML(sshsNode node, bool recursive) {
 				continue;
 			}
 
-			const char *type = sshsHelperTypeToStringConverter(attr.second.value_type);
-			char *value = sshsHelperValueToStringConverter(attr.second.value_type, attr.second.value);
+			const char *type = sshsHelperTypeToStringConverter(attr.second.value.getType());
+			char *value = sshsHelperValueToStringConverter(attr.second.value.getType(), attr.second.value.toCUnion());
 			SSHS_MALLOC_CHECK_EXIT(value);
 
 			mxml_node_t *xmlAttr = mxmlNewElement(thisNode, "attr");
@@ -1393,7 +1587,7 @@ enum sshs_node_attr_value_type *sshsNodeGetAttributeTypes(sshsNode node, const c
 	SSHS_MALLOC_CHECK_EXIT(attributeTypes);
 
 	// Check each attribute if it matches, and save its type if true.
-	attributeTypes[0] = node->attributes[key].value_type;
+	attributeTypes[0] = node->attributes[key].value.getType();
 
 	*numTypes = 1;
 	return (attributeTypes);
