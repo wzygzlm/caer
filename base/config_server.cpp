@@ -618,38 +618,38 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 			switch (type) {
 				case SSHS_BOOL:
 				case SSHS_BYTE:
-					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%" PRIi8, ranges.min.ibyteRange);
-					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%" PRIi8, ranges.max.ibyteRange);
+					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%" PRIi8, ranges.min.ibyteRange) + 1; // Terminating NUL byte.
+					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%" PRIi8, ranges.max.ibyteRange) + 1; // Terminating NUL byte.
 					break;
 
 				case SSHS_SHORT:
-					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%" PRIi16, ranges.min.ishortRange);
-					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%" PRIi16, ranges.max.ishortRange);
+					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%" PRIi16, ranges.min.ishortRange) + 1; // Terminating NUL byte.
+					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%" PRIi16, ranges.max.ishortRange) + 1; // Terminating NUL byte.
 					break;
 
 				case SSHS_INT:
-					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%" PRIi32, ranges.min.iintRange);
-					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%" PRIi32, ranges.max.iintRange);
+					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%" PRIi32, ranges.min.iintRange) + 1; // Terminating NUL byte.
+					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%" PRIi32, ranges.max.iintRange) + 1; // Terminating NUL byte.
 					break;
 
 				case SSHS_LONG:
-					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%" PRIi64, ranges.min.ilongRange);
-					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%" PRIi64, ranges.max.ilongRange);
+					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%" PRIi64, ranges.min.ilongRange) + 1; // Terminating NUL byte.
+					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%" PRIi64, ranges.max.ilongRange) + 1; // Terminating NUL byte.
 					break;
 
 				case SSHS_FLOAT:
-					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%g", (double) ranges.min.ffloatRange);
-					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%g", (double) ranges.max.ffloatRange);
+					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%g", (double) ranges.min.ffloatRange) + 1; // Terminating NUL byte.
+					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%g", (double) ranges.max.ffloatRange) + 1; // Terminating NUL byte.
 					break;
 
 				case SSHS_DOUBLE:
-					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%g", ranges.min.ddoubleRange);
-					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%g", ranges.max.ddoubleRange);
+					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%g", ranges.min.ddoubleRange) + 1; // Terminating NUL byte.
+					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%g", ranges.max.ddoubleRange) + 1; // Terminating NUL byte.
 					break;
 
 				case SSHS_STRING:
-					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%zu", ranges.min.stringRange);
-					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%zu", ranges.max.stringRange);
+					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%zu", ranges.min.stringRange) + 1; // Terminating NUL byte.
+					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%zu", ranges.max.stringRange) + 1; // Terminating NUL byte.
 					break;
 			}
 
