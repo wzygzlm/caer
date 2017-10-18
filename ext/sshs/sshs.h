@@ -100,7 +100,6 @@ const char *sshsNodeGetName(sshsNode node) CAER_SYMBOL_EXPORT;
 const char *sshsNodeGetPath(sshsNode node) CAER_SYMBOL_EXPORT;
 sshsNode sshsNodeGetParent(sshsNode node) CAER_SYMBOL_EXPORT;
 sshsNode *sshsNodeGetChildren(sshsNode node, size_t *numChildren) CAER_SYMBOL_EXPORT; // Walk all children.
-void sshsNodeGetChildrenDone(sshsNode *children, size_t numChildren) CAER_SYMBOL_EXPORT; // Cleanup.
 
 void sshsNodeAddNodeListener(sshsNode node, void *userData, sshsNodeChangeListener node_changed) CAER_SYMBOL_EXPORT;
 void sshsNodeRemoveNodeListener(sshsNode node, void *userData, sshsNodeChangeListener node_changed) CAER_SYMBOL_EXPORT;

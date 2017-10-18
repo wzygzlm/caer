@@ -1661,7 +1661,7 @@ static int caerMainloopRunner() {
 	}
 
 	// Free temporary configuration nodes array.
-	sshsNodeGetChildrenDone(modules, modulesSize);
+	free(modules);
 
 	// At this point we have a map with all the valid modules and their info.
 	// If that map is empty, there was nothing valid present.

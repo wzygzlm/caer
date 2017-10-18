@@ -398,7 +398,8 @@ sshsNode sshsNodeGetChild(sshsNode node, const char* childName) {
 	}
 }
 
-// Remember to call 'sshsNodeGetChildrenDone()' once finished, to free memory and unlock access.
+// Remember to free the resulting array. This returns references to nodes,
+// and as such must be carefully mediated with any sshsNodeRemoveNode() calls.
 sshsNode *sshsNodeGetChildren(sshsNode node, size_t *numChildren) {
 	std::shared_lock<std::shared_timed_mutex> lock(node->traversal_lock);
 
@@ -415,26 +416,11 @@ sshsNode *sshsNodeGetChildren(sshsNode node, size_t *numChildren) {
 
 	size_t i = 0;
 	for (const auto &n : node->children) {
-		// Lock children so they cannot be deleted.
-		n.second->node_lock.lock();
-
 		children[i++] = n.second;
 	}
 
 	*numChildren = childrenCount;
 	return (children);
-}
-
-void sshsNodeGetChildrenDone(sshsNode *children, size_t numChildren) {
-	if (children == nullptr) {
-		return;
-	}
-
-	for (size_t i = 0; i < numChildren; i++) {
-		children[i]->node_lock.unlock();
-	}
-
-	free(children);
 }
 
 void sshsNodeAddNodeListener(sshsNode node, void *userData, sshsNodeChangeListener node_changed) {
@@ -494,6 +480,8 @@ void sshsNodeTransactionUnlock(sshsNode node) {
 }
 
 void sshsNodeClearSubTree(sshsNode startNode, bool clearStartNode) {
+	std::lock_guard<std::recursive_mutex> lockNode(startNode->node_lock);
+
 	// Clear this node's attributes, if requested.
 	if (clearStartNode) {
 		sshsNodeRemoveAllAttributes(startNode);
@@ -508,7 +496,44 @@ void sshsNodeClearSubTree(sshsNode startNode, bool clearStartNode) {
 		sshsNodeClearSubTree(children[i], true);
 	}
 
-	sshsNodeGetChildrenDone(children, numChildren);
+	free(children);
+}
+
+// Eliminates this node and any children. Nobody can have a reference, or
+// be in the process of getting one, to this node or any of its children.
+// You need to make sure of this in your application!
+void sshsNodeRemoveNode(sshsNode node) {
+	std::lock_guard<std::recursive_mutex> lockNode(node->node_lock);
+
+	// Now we can clear the subtree from all attribute related data.
+	sshsNodeClearSubTree(node, true);
+
+	// And finally remove the node related data and the node itself.
+	sshsNodeRemoveSubTree(node);
+
+	// If this is the root node (parent == nullptr), it isn't fully removed.
+	if (sshsNodeGetParent(node) != nullptr) {
+		// Unlink this node from the parent.
+		// This also destroys the memory associated with the node.
+		// Any later access is illegal!
+		sshsNodeRemoveChild(sshsNodeGetParent(node), sshsNodeGetName(node));
+	}
+}
+
+static void sshsNodeRemoveSubTree(sshsNode node) {
+	// Recurse down first, we remove from the bottom up.
+	size_t numChildren;
+	sshsNode *children = sshsNodeGetChildren(node, &numChildren);
+
+	for (size_t i = 0; i < numChildren; i++) {
+		sshsNodeRemoveSubTree(children[i]);
+	}
+
+	free(children);
+
+	// Delete node listeners and children.
+	sshsNodeRemoveAllChildren(node);
+	sshsNodeRemoveAllNodeListeners(node);
 }
 
 // children, attributes, and listeners for the child to be removed
@@ -543,48 +568,13 @@ static void sshsNodeRemoveAllChildren(sshsNode node) {
 
 	for (const auto &child : node->children) {
 		for (const auto &l : node->nodeListeners) {
-			(*l.getListener())(node, l.getUserData(), SSHS_CHILD_NODE_REMOVED, child.second->name.c_str());
+			(*l.getListener())(node, l.getUserData(), SSHS_CHILD_NODE_REMOVED, child.first.c_str());
 		}
 
 		sshsNodeDestroy(child.second);
 	}
 
 	node->children.clear();
-}
-
-static void sshsNodeRemoveSubTree(sshsNode node) {
-	// Recurse down first, we remove from the bottom up.
-	size_t numChildren;
-	sshsNode *children = sshsNodeGetChildren(node, &numChildren);
-
-	for (size_t i = 0; i < numChildren; i++) {
-		sshsNodeRemoveSubTree(children[i]);
-	}
-
-	sshsNodeGetChildrenDone(children, numChildren);
-
-	// Delete node listeners and children.
-	sshsNodeRemoveAllChildren(node);
-	sshsNodeRemoveAllNodeListeners(node);
-}
-
-// Eliminates this node and any children. Nobody can have a reference, or
-// be in the process of getting one, to this node or any of its children.
-// You need to make sure of this in your application!
-void sshsNodeRemoveNode(sshsNode node) {
-	// Now we can clear the subtree from all attribute related data.
-	sshsNodeClearSubTree(node, true);
-
-	// And finally remove the node related data and the node itself.
-	sshsNodeRemoveSubTree(node);
-
-	// If this is the root node (parent == nullptr), it isn't fully removed.
-	if (sshsNodeGetParent(node) != nullptr) {
-		// Unlink this node from the parent.
-		// This also destroys the memory associated with the node.
-		// Any later access is illegal!
-		sshsNodeRemoveChild(sshsNodeGetParent(node), sshsNodeGetName(node));
-	}
 }
 
 void sshsNodeCreateAttribute(sshsNode node, const char *key, enum sshs_node_attr_value_type type,
@@ -952,7 +942,7 @@ static mxml_node_t *sshsNodeGenerateXML(sshsNode node, bool recursive) {
 			}
 		}
 
-		sshsNodeGetChildrenDone(children, numChildren);
+		free(children);
 	}
 
 	return (thisNode);
@@ -1221,27 +1211,44 @@ bool sshsNodeStringToAttributeConverter(sshsNode node, const char *key, const ch
 
 // Remember to free the resulting array.
 const char **sshsNodeGetChildNames(sshsNode node, size_t *numNames) {
-	size_t numChildren;
-	sshsNode *children = sshsNodeGetChildren(node, &numChildren);
+	std::shared_lock<std::shared_timed_mutex> lock(node->traversal_lock);
 
-	if (children == nullptr) {
+	if (node->children.empty()) {
 		*numNames = 0;
 		errno = ENOENT;
 		return (nullptr);
 	}
 
-	const char **childNames = (const char **) malloc(numChildren * sizeof(*childNames));
-	sshsMemoryCheck(childNames, __func__);
+	size_t numChildren = node->children.size();
 
-	// Copy pointers to name string over. Safe because nodes are never deleted.
-	for (size_t i = 0; i < numChildren; i++) {
-		childNames[i] = sshsNodeGetName(children[i]);
+	// Nodes can be deleted, so we copy the string's contents into
+	// memory that will be guaranteed to exist.
+	size_t childNamesLength = 0;
+
+	for (const auto &child : node->children) {
+		// Length plus one for terminating NUL byte.
+		childNamesLength += child.first.length() + 1;
 	}
 
-	sshsNodeGetChildrenDone(children, numChildren);
+	char **childNames = (char **) malloc((numChildren * sizeof(char *)) + childNamesLength);
+	sshsMemoryCheck(childNames, __func__);
+
+	size_t offset = (numChildren * sizeof(char *));
+
+	size_t i = 0;
+	for (const auto &child : node->children) {
+		// We have all the memory, so now copy the strings over and set the
+		// pointers as if an array of pointers was the only result.
+		childNames[i] = (char *) (((uint8_t *) childNames) + offset);
+		strcpy(childNames[i], child.first.c_str());
+
+		// Length plus one for terminating NUL byte.
+		offset += child.first.length() + 1;
+		i++;
+	}
 
 	*numNames = numChildren;
-	return (childNames);
+	return (const_cast<const char **>(childNames));
 }
 
 // Remember to free the resulting array.
@@ -1256,17 +1263,34 @@ const char **sshsNodeGetAttributeKeys(sshsNode node, size_t *numKeys) {
 
 	size_t numAttributes = node->attributes.size();
 
-	const char **attributeKeys = (const char **) malloc(numAttributes * sizeof(*attributeKeys));
+	// Attributes can be deleted, so we copy the key string's contents into
+	// memory that will be guaranteed to exist.
+	size_t attributeKeysLength = 0;
+
+	for (const auto &attr : node->attributes) {
+		// Length plus one for terminating NUL byte.
+		attributeKeysLength += attr.first.length() + 1;
+	}
+
+	char **attributeKeys = (char **) malloc((numAttributes * sizeof(char *)) + attributeKeysLength);
 	sshsMemoryCheck(attributeKeys, __func__);
 
-	// Copy pointers to key string over. Safe because attributes are never deleted.
+	size_t offset = (numAttributes * sizeof(char *));
+
 	size_t i = 0;
 	for (const auto &attr : node->attributes) {
-		attributeKeys[i++] = attr.first.c_str();
+		// We have all the memory, so now copy the strings over and set the
+		// pointers as if an array of pointers was the only result.
+		attributeKeys[i] = (char *) (((uint8_t *) attributeKeys) + offset);
+		strcpy(attributeKeys[i], attr.first.c_str());
+
+		// Length plus one for terminating NUL byte.
+		offset += attr.first.length() + 1;
+		i++;
 	}
 
 	*numKeys = numAttributes;
-	return (attributeKeys);
+	return (const_cast<const char **>(attributeKeys));
 }
 
 // Remember to free the resulting array.
