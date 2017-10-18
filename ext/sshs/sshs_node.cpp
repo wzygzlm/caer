@@ -46,6 +46,10 @@ public:
 	int flags;
 	std::string description;
 	sshs_value value;
+
+	bool isFlagSet(int flag) const noexcept {
+		return ((flags & flag) == flag);
+	}
 };
 
 class sshs_node_listener {
@@ -142,16 +146,9 @@ public:
 		// have to restrict that to from 0 to INT32_MAX for languages like Java
 		// that only support integer string lengths. It's also reasonable.
 		if (defaultValue.getType() == SSHS_STRING) {
-			if (minValue.stringRange > INT32_MAX) {
-				boost::format errorMsg = boost::format("minimum range value of '%" PRIi64 "' outside allowed limits. "
-				"Please make sure the value is positive, between 0 and %" PRIi32 "!") % minValue.stringRange % INT32_MAX;
-
-				sshsNodeError("sshsNodeCreateAttribute", key, SSHS_STRING, errorMsg.str());
-			}
-
-			if (maxValue.stringRange > INT32_MAX) {
-				boost::format errorMsg = boost::format("maximum range value of '%" PRIi64 "' outside allowed limits. "
-				"Please make sure the value is positive, between 0 and %" PRIi32 "!") % maxValue.stringRange % INT32_MAX;
+			if ((minValue.stringRange > INT32_MAX) || (maxValue.stringRange > INT32_MAX)) {
+				boost::format errorMsg = boost::format("minimum/maximum string range value outside allowed limits. "
+				"Please make sure the value is positive, between 0 and %d!") % INT32_MAX;
 
 				sshsNodeError("sshsNodeCreateAttribute", key, SSHS_STRING, errorMsg.str());
 			}
@@ -171,7 +168,7 @@ public:
 		if ((flags & SSHS_FLAGS_NOTIFY_ONLY) && defaultValue.getType() != SSHS_BOOL) {
 			// Fail on wrong notify-only flag usage.
 			sshsNodeError("sshsNodeCreateAttribute", key, defaultValue.getType(),
-				"the NOTIFY_ONLY flag is set, but attribute is not of type BOOL. Only booleans may have this flag set!");
+				"the NOTIFY_ONLY flag is set, but attribute is not of type BOOL. Only booleans can have this flag set!");
 		}
 
 		sshs_node_attr newAttr;
@@ -198,6 +195,7 @@ public:
 		else {
 			const sshs_value &oldAttrValue = attributes[key].value;
 
+			// To simplify things, we don't support multiple types per key (though the API does).
 			if (oldAttrValue.getType() != newAttr.value.getType()) {
 				boost::format errorMsg = boost::format(
 					"value with this key already exists and has a different type of '%s'")
@@ -274,7 +272,7 @@ public:
 		return (true);
 	}
 
-	sshs_value getAttribute(const std::string &key, enum sshs_node_attr_value_type type) {
+	const sshs_value getAttribute(const std::string &key, enum sshs_node_attr_value_type type) {
 		std::lock_guard<std::recursive_mutex> lockNode(node_lock);
 
 		if (!attributeExists(key, type)) {
@@ -295,8 +293,8 @@ public:
 		sshs_node_attr &attr = attributes[key];
 
 		// Value must be present, so update old one, after checking range and flags.
-		if ((!forceReadOnlyUpdate && (attr.flags & SSHS_FLAGS_READ_ONLY))
-			|| (forceReadOnlyUpdate && (attr.flags & SSHS_FLAGS_READ_ONLY) == 0)) {
+		if ((!forceReadOnlyUpdate && attr.isFlagSet(SSHS_FLAGS_READ_ONLY))
+			|| (forceReadOnlyUpdate && !attr.isFlagSet(SSHS_FLAGS_READ_ONLY))) {
 			// Read-only flag set, cannot put new value!
 			errno = EPERM;
 			return (false);
@@ -907,7 +905,7 @@ static mxml_node_t *sshsNodeGenerateXML(sshsNode node, bool recursive) {
 		// Then it's attributes (key:value pairs).
 		for (const auto &attr : node->attributes) {
 			// If an attribute is marked NO_EXPORT, we skip it.
-			if ((attr.second.flags & SSHS_FLAGS_NO_EXPORT)) {
+			if (attr.second.isFlagSet(SSHS_FLAGS_NO_EXPORT)) {
 				continue;
 			}
 
@@ -1200,6 +1198,7 @@ bool sshsNodeStringToAttributeConverter(sshsNode node, const char *key, const ch
 	return (result);
 }
 
+// Remember to free the resulting array.
 const char **sshsNodeGetChildNames(sshsNode node, size_t *numNames) {
 	size_t numChildren;
 	sshsNode *children = sshsNodeGetChildren(node, &numChildren);
@@ -1218,12 +1217,13 @@ const char **sshsNodeGetChildNames(sshsNode node, size_t *numNames) {
 		childNames[i] = sshsNodeGetName(children[i]);
 	}
 
-	free(children);
+	sshsNodeGetChildrenDone(children, numChildren);
 
 	*numNames = numChildren;
 	return (childNames);
 }
 
+// Remember to free the resulting array.
 const char **sshsNodeGetAttributeKeys(sshsNode node, size_t *numKeys) {
 	std::lock_guard<std::recursive_mutex> lockNode(node->node_lock);
 
@@ -1248,6 +1248,7 @@ const char **sshsNodeGetAttributeKeys(sshsNode node, size_t *numKeys) {
 	return (attributeKeys);
 }
 
+// Remember to free the resulting array.
 enum sshs_node_attr_value_type *sshsNodeGetAttributeTypes(sshsNode node, const char *key, size_t *numTypes) {
 	std::lock_guard<std::recursive_mutex> lockNode(node->node_lock);
 
@@ -1258,10 +1259,11 @@ enum sshs_node_attr_value_type *sshsNodeGetAttributeTypes(sshsNode node, const c
 	}
 
 	// There is at most 1 type for one specific attribute key.
-	enum sshs_node_attr_value_type *attributeTypes = (enum sshs_node_attr_value_type *) malloc(sizeof(*attributeTypes));
+	enum sshs_node_attr_value_type *attributeTypes = (enum sshs_node_attr_value_type *) malloc(1 * sizeof(*attributeTypes));
 	sshsMemoryCheck(attributeTypes, __func__);
 
 	// Check each attribute if it matches, and save its type if true.
+	// We only support one type per attribute key here.
 	attributeTypes[0] = node->attributes[key].value.getType();
 
 	*numTypes = 1;
@@ -1273,7 +1275,7 @@ struct sshs_node_attr_ranges sshsNodeGetAttributeRanges(sshsNode node, const cha
 	std::lock_guard<std::recursive_mutex> lockNode(node->node_lock);
 
 	if (!sshsNodeAttributeExists(node, key, type)) {
-		sshsNodeErrorNoAttribute("sshsNodeGetAttributeRanges", key, SSHS_UNKNOWN);
+		sshsNodeErrorNoAttribute("sshsNodeGetAttributeRanges", key, type);
 	}
 
 	sshs_node_attr &attr = node->attributes[key];
@@ -1289,7 +1291,7 @@ int sshsNodeGetAttributeFlags(sshsNode node, const char *key, enum sshs_node_att
 	std::lock_guard<std::recursive_mutex> lockNode(node->node_lock);
 
 	if (!sshsNodeAttributeExists(node, key, type)) {
-		sshsNodeErrorNoAttribute("sshsNodeGetAttributeFlags", key, SSHS_UNKNOWN);
+		sshsNodeErrorNoAttribute("sshsNodeGetAttributeFlags", key, type);
 	}
 
 	sshs_node_attr &attr = node->attributes[key];
@@ -1297,11 +1299,12 @@ int sshsNodeGetAttributeFlags(sshsNode node, const char *key, enum sshs_node_att
 	return (attr.flags);
 }
 
+// Remember to free the resulting string.
 char *sshsNodeGetAttributeDescription(sshsNode node, const char *key, enum sshs_node_attr_value_type type) {
 	std::lock_guard<std::recursive_mutex> lockNode(node->node_lock);
 
 	if (!sshsNodeAttributeExists(node, key, type)) {
-		sshsNodeErrorNoAttribute("sshsNodeGetAttributeDescription", key, SSHS_UNKNOWN);
+		sshsNodeErrorNoAttribute("sshsNodeGetAttributeDescription", key, type);
 	}
 
 	sshs_node_attr &attr = node->attributes[key];
