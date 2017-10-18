@@ -16,3 +16,4 @@ core*
 *.so*
 *.dll*
 *.a
+*.gch
