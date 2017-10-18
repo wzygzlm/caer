@@ -423,8 +423,8 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 			}
 
 			// Put given value into config node. Node, attr and type are already verified.
-			if (!sshsNodeStringToAttributeConverter(wantedNode, (const char *) key,
-				sshsHelperTypeToStringConverter((enum sshs_node_attr_value_type) type), (const char *) value)) {
+			const char *typeStr = sshsHelperTypeToStringConverter((enum sshs_node_attr_value_type) type);
+			if (!sshsNodeStringToAttributeConverter(wantedNode, (const char *) key, typeStr, (const char *) value)) {
 				// Send back correct error message to client.
 				if (errno == EINVAL) {
 					caerConfigSendError(client, "Impossible to convert value according to type.");
