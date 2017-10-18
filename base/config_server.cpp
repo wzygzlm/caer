@@ -776,6 +776,8 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 				usedModuleIDs.push_back(moduleID);
 			}
 
+			sshsNodeGetChildrenDone(rootNodes, rootNodesSize);
+
 			vectorSortUnique(usedModuleIDs);
 
 			size_t idx = 0;

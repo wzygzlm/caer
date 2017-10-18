@@ -398,6 +398,7 @@ sshsNode sshsNodeGetChild(sshsNode node, const char* childName) {
 	}
 }
 
+// Remember to call 'sshsNodeGetChildrenDone()' once finished, to free memory and unlock access.
 sshsNode *sshsNodeGetChildren(sshsNode node, size_t *numChildren) {
 	std::shared_lock<std::shared_timed_mutex> lock(node->traversal_lock);
 
@@ -414,11 +415,26 @@ sshsNode *sshsNodeGetChildren(sshsNode node, size_t *numChildren) {
 
 	size_t i = 0;
 	for (const auto &n : node->children) {
+		// Lock children so they cannot be deleted.
+		n.second->node_lock.lock();
+
 		children[i++] = n.second;
 	}
 
 	*numChildren = childrenCount;
 	return (children);
+}
+
+void sshsNodeGetChildrenDone(sshsNode *children, size_t numChildren) {
+	if (children == nullptr) {
+		return;
+	}
+
+	for (size_t i = 0; i < numChildren; i++) {
+		children[i]->node_lock.unlock();
+	}
+
+	free(children);
 }
 
 void sshsNodeAddNodeListener(sshsNode node, void *userData, sshsNodeChangeListener node_changed) {
@@ -492,7 +508,7 @@ void sshsNodeClearSubTree(sshsNode startNode, bool clearStartNode) {
 		sshsNodeClearSubTree(children[i], true);
 	}
 
-	free(children);
+	sshsNodeGetChildrenDone(children, numChildren);
 }
 
 // children, attributes, and listeners for the child to be removed
@@ -545,7 +561,7 @@ static void sshsNodeRemoveSubTree(sshsNode node) {
 		sshsNodeRemoveSubTree(children[i]);
 	}
 
-	free(children);
+	sshsNodeGetChildrenDone(children, numChildren);
 
 	// Delete node listeners and children.
 	sshsNodeRemoveAllChildren(node);
@@ -936,7 +952,7 @@ static mxml_node_t *sshsNodeGenerateXML(sshsNode node, bool recursive) {
 			}
 		}
 
-		free(children);
+		sshsNodeGetChildrenDone(children, numChildren);
 	}
 
 	return (thisNode);
