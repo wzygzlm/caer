@@ -73,7 +73,7 @@ public:
 	}
 
 	bool operator!=(const sshs_node_listener &rhs) const noexcept {
-		return ((nodeChanged != rhs.nodeChanged) || (userData != rhs.userData));
+		return (!this->operator==(rhs));
 	}
 };
 
@@ -102,7 +102,7 @@ public:
 	}
 
 	bool operator!=(const sshs_node_attr_listener &rhs) const noexcept {
-		return ((attributeChanged != rhs.attributeChanged) || (userData != rhs.userData));
+		return (!this->operator==(rhs));
 	}
 };
 
