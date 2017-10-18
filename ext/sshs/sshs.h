@@ -197,8 +197,8 @@ bool sshsExistsNode(sshs st, const char *nodePath) CAER_SYMBOL_EXPORT;
 sshsNode sshsGetNode(sshs st, const char *nodePath) CAER_SYMBOL_EXPORT;
 bool sshsExistsRelativeNode(sshsNode node, const char *nodePath) CAER_SYMBOL_EXPORT;
 sshsNode sshsGetRelativeNode(sshsNode node, const char *nodePath) CAER_SYMBOL_EXPORT;
-bool sshsBeginTransaction(sshs st, char *nodePaths[], size_t nodePathsLength) CAER_SYMBOL_EXPORT;
-bool sshsEndTransaction(sshs st, char *nodePaths[], size_t nodePathsLength) CAER_SYMBOL_EXPORT;
+bool sshsBeginTransaction(sshs st, const char *nodePaths[], size_t nodePathsLength) CAER_SYMBOL_EXPORT;
+bool sshsEndTransaction(sshs st, const char *nodePaths[], size_t nodePathsLength) CAER_SYMBOL_EXPORT;
 
 #ifdef __cplusplus
 }
