@@ -423,11 +423,8 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 			}
 
 			// Put given value into config node. Node, attr and type are already verified.
-			char *typeStr = sshsHelperTypeToStringConverter((enum sshs_node_attr_value_type) type);
-			bool conversionResult = sshsNodeStringToAttributeConverter(wantedNode, (const char *) key, (const char *) typeStr, (const char *) value);
-			free(typeStr);
-
-			if (!conversionResult) {
+			if (!sshsNodeStringToAttributeConverter(wantedNode, (const char *) key,
+				sshsHelperTypeToStringConverter((enum sshs_node_attr_value_type) type), (const char *) value)) {
 				// Send back correct error message to client.
 				if (errno == EINVAL) {
 					caerConfigSendError(client, "Impossible to convert value according to type.");
@@ -574,20 +571,18 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 			size_t typesLength = 0;
 
 			for (size_t i = 0; i < numTypes; i++) {
-				char *typeString = sshsHelperTypeToStringConverter(attrTypes[i]);
+				const char *typeString = sshsHelperTypeToStringConverter(attrTypes[i]);
 				typesLength += strlen(typeString) + 1; // +1 for terminating NUL byte.
-				free(typeString);
 			}
 
 			// Allocate a buffer for the types and copy them over.
 			char typesBuffer[typesLength];
 
 			for (size_t i = 0, acc = 0; i < numTypes; i++) {
-				char *typeString = sshsHelperTypeToStringConverter(attrTypes[i]);
+				const char *typeString = sshsHelperTypeToStringConverter(attrTypes[i]);
 				size_t len = strlen(typeString) + 1;
 				memcpy(typesBuffer + acc, typeString, len);
 				acc += len;
-				free(typeString);
 			}
 
 			free(attrTypes);

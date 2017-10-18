@@ -178,7 +178,7 @@ char *sshsNodeGetAttributeDescription(sshsNode node, const char *key, enum sshs_
 	CAER_SYMBOL_EXPORT;
 
 // Helper functions
-char *sshsHelperTypeToStringConverter(enum sshs_node_attr_value_type type) CAER_SYMBOL_EXPORT;
+const char *sshsHelperTypeToStringConverter(enum sshs_node_attr_value_type type) CAER_SYMBOL_EXPORT;
 enum sshs_node_attr_value_type sshsHelperStringToTypeConverter(const char *typeString) CAER_SYMBOL_EXPORT;
 char *sshsHelperValueToStringConverter(enum sshs_node_attr_value_type type, union sshs_node_attr_value value)
 	CAER_SYMBOL_EXPORT;

@@ -1,31 +1,28 @@
 #include "sshs_internal.hpp"
 
-std::string sshsHelperCppTypeToStringConverter(enum sshs_node_attr_value_type type) {
+static const std::string typeStrings[] = {
+	"bool",
+	"byte",
+	"short",
+	"int",
+	"long",
+	"float",
+	"double",
+	"string"
+};
+
+const std::string sshsHelperCppTypeToStringConverter(enum sshs_node_attr_value_type type) {
 	// Convert the value and its type into a string for XML output.
 	switch (type) {
 		case SSHS_BOOL:
-			return ("bool");
-
 		case SSHS_BYTE:
-			return ("byte");
-
 		case SSHS_SHORT:
-			return ("short");
-
 		case SSHS_INT:
-			return ("int");
-
 		case SSHS_LONG:
-			return ("long");
-
 		case SSHS_FLOAT:
-			return ("float");
-
 		case SSHS_DOUBLE:
-			return ("double");
-
 		case SSHS_STRING:
-			return ("string");
+			return (typeStrings[type]);
 
 		case SSHS_UNKNOWN:
 		default:
@@ -35,28 +32,28 @@ std::string sshsHelperCppTypeToStringConverter(enum sshs_node_attr_value_type ty
 
 enum sshs_node_attr_value_type sshsHelperCppStringToTypeConverter(const std::string &typeString) {
 	// Convert the value string back into the internal type representation.
-	if (typeString == "bool") {
+	if (typeString == typeStrings[SSHS_BOOL]) {
 		return (SSHS_BOOL);
 	}
-	else if (typeString == "byte") {
+	else if (typeString == typeStrings[SSHS_BYTE]) {
 		return (SSHS_BYTE);
 	}
-	else if (typeString == "short") {
+	else if (typeString == typeStrings[SSHS_SHORT]) {
 		return (SSHS_SHORT);
 	}
-	else if (typeString == "int") {
+	else if (typeString == typeStrings[SSHS_INT]) {
 		return (SSHS_INT);
 	}
-	else if (typeString == "long") {
+	else if (typeString == typeStrings[SSHS_LONG]) {
 		return (SSHS_LONG);
 	}
-	else if (typeString == "float") {
+	else if (typeString == typeStrings[SSHS_FLOAT]) {
 		return (SSHS_FLOAT);
 	}
-	else if (typeString == "double") {
+	else if (typeString == typeStrings[SSHS_DOUBLE]) {
 		return (SSHS_DOUBLE);
 	}
-	else if (typeString == "string") {
+	else if (typeString == typeStrings[SSHS_STRING]) {
 		return (SSHS_STRING);
 	}
 
@@ -150,14 +147,9 @@ sshs_value sshsHelperCppStringToValueConverter(enum sshs_node_attr_value_type ty
  * C11 wrappers for external use.
  */
 
-// Remember to free the resulting string!
-char *sshsHelperTypeToStringConverter(enum sshs_node_attr_value_type type) {
-	const std::string typeString = sshsHelperCppTypeToStringConverter(type);
-
-	char *resultString = strdup(typeString.c_str());
-	sshsMemoryCheck(resultString, __func__);
-
-	return (resultString);
+// Do not free or modify the resulting string in any way!
+const char *sshsHelperTypeToStringConverter(enum sshs_node_attr_value_type type) {
+	return (sshsHelperCppTypeToStringConverter(type).c_str());
 }
 
 enum sshs_node_attr_value_type sshsHelperStringToTypeConverter(const char *typeString) {
