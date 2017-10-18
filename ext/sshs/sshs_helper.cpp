@@ -1,6 +1,6 @@
-#include "sshs_internal.h"
+#include "sshs_internal.hpp"
 
-std::string sshsHelperCppTypeToStringConverter(enum sshs_node_attr_value_type type)  {
+std::string sshsHelperCppTypeToStringConverter(enum sshs_node_attr_value_type type) {
 	// Convert the value and its type into a string for XML output.
 	switch (type) {
 		case SSHS_BOOL:
@@ -29,7 +29,7 @@ std::string sshsHelperCppTypeToStringConverter(enum sshs_node_attr_value_type ty
 
 		case SSHS_UNKNOWN:
 		default:
-			throw new std::runtime_error("sshsHelperTypeToStringConverter(): invalid type given.");
+			throw new std::runtime_error("sshsHelperCppTypeToStringConverter(): invalid type given.");
 	}
 }
 
@@ -93,7 +93,7 @@ std::string sshsHelperCppValueToStringConverter(const sshs_value &val) {
 
 		case SSHS_UNKNOWN:
 		default:
-			throw new std::runtime_error("sshsHelperValueToStringConverter(): value has invalid type.");
+			throw new std::runtime_error("sshsHelperCppValueToStringConverter(): value has invalid type.");
 	}
 }
 
@@ -139,8 +139,45 @@ sshs_value sshsHelperCppStringToValueConverter(enum sshs_node_attr_value_type ty
 
 		case SSHS_UNKNOWN:
 		default:
+			throw new std::runtime_error("sshsHelperCppStringToValueConverter(): invalid type given.");
 			break;
 	}
 
 	return (value);
+}
+
+/**
+ * C11 wrappers for external use.
+ */
+
+// Remember to free the resulting string!
+char *sshsHelperTypeToStringConverter(enum sshs_node_attr_value_type type) {
+	const std::string typeString = sshsHelperCppTypeToStringConverter(type);
+
+	char *resultString = strdup(typeString.c_str());
+	sshsMemoryCheck(resultString, __func__);
+
+	return (resultString);
+}
+
+enum sshs_node_attr_value_type sshsHelperStringToTypeConverter(const char *typeString) {
+	return (sshsHelperCppStringToTypeConverter(typeString));
+}
+
+// Remember to free the resulting string!
+char *sshsHelperValueToStringConverter(enum sshs_node_attr_value_type type, union sshs_node_attr_value value) {
+	sshs_value val;
+	val.fromCUnion(value, type);
+
+	const std::string typeString = sshsHelperCppValueToStringConverter(val);
+
+	char *resultString = strdup(typeString.c_str());
+	sshsMemoryCheck(resultString, __func__);
+
+	return (resultString);
+}
+
+// Remember to free the resulting union's "string" member, if the type was SSHS_STRING!
+union sshs_node_attr_value sshsHelperStringToValueConverter(enum sshs_node_attr_value_type type, const char *valueString) {
+	return (sshsHelperCppStringToValueConverter(type, valueString).toCUnion());
 }

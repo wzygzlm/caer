@@ -383,10 +383,10 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 				break;
 			}
 
-			const sshs_value result = sshsNodeGetAttribute(wantedNode, (const char *) key,
+			union sshs_node_attr_value result = sshsNodeGetAttribute(wantedNode, (const char *) key,
 				(enum sshs_node_attr_value_type) type);
 
-			const std::string resultStr = sshsHelperValueToStringConverter(result);
+			char *resultStr = sshsHelperValueToStringConverter((enum sshs_node_attr_value_type) type, result);
 
 			if (resultStr == NULL) {
 				// Send back error message to client.
@@ -423,8 +423,11 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 			}
 
 			// Put given value into config node. Node, attr and type are already verified.
-			const char *typeStr = sshsHelperTypeToStringConverter((enum sshs_node_attr_value_type) type);
-			if (!sshsNodeStringToAttributeConverter(wantedNode, (const char *) key, typeStr, (const char *) value)) {
+			char *typeStr = sshsHelperTypeToStringConverter((enum sshs_node_attr_value_type) type);
+			bool conversionResult = sshsNodeStringToAttributeConverter(wantedNode, (const char *) key, (const char *) typeStr, (const char *) value);
+			free(typeStr);
+
+			if (!conversionResult) {
 				// Send back correct error message to client.
 				if (errno == EINVAL) {
 					caerConfigSendError(client, "Impossible to convert value according to type.");
@@ -571,18 +574,20 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 			size_t typesLength = 0;
 
 			for (size_t i = 0; i < numTypes; i++) {
-				const char *typeString = sshsHelperTypeToStringConverter(attrTypes[i]);
+				char *typeString = sshsHelperTypeToStringConverter(attrTypes[i]);
 				typesLength += strlen(typeString) + 1; // +1 for terminating NUL byte.
+				free(typeString);
 			}
 
 			// Allocate a buffer for the types and copy them over.
 			char typesBuffer[typesLength];
 
 			for (size_t i = 0, acc = 0; i < numTypes; i++) {
-				const char *typeString = sshsHelperTypeToStringConverter(attrTypes[i]);
+				char *typeString = sshsHelperTypeToStringConverter(attrTypes[i]);
 				size_t len = strlen(typeString) + 1;
 				memcpy(typesBuffer + acc, typeString, len);
 				acc += len;
+				free(typeString);
 			}
 
 			free(attrTypes);

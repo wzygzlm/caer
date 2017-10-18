@@ -565,9 +565,11 @@ static void handleInputLine(const char *buf, size_t bufLength) {
 	}
 
 	// Display results.
+	char *typeStr = sshsHelperTypeToStringConverter((enum sshs_node_attr_value_type) type);
 	boost::format resultMsg = boost::format("Result: action=%s, type=%s, msgLength=%" PRIu16 ", msg='%s'.")
-		% actionString % sshsHelperTypeToStringConverter((enum sshs_node_attr_value_type) type) % msgLength
-		% (dataBuffer + 4);
+		% actionString % typeStr % msgLength % (dataBuffer + 4);
+	free(typeStr);
+
 	std::cout << resultMsg.str() << std::endl;
 }
 

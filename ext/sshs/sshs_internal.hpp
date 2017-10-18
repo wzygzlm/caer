@@ -1,19 +1,34 @@
-#ifndef SSHS_INTERNAL_H_
-#define SSHS_INTERNAL_H_
+#ifndef SSHS_INTERNAL_HPP_
+#define SSHS_INTERNAL_HPP_
 
 // Implementation relevant common includes.
-#include "sshs.hpp"
-#include <string.h>
-#include <stdarg.h>
-#include <mxml.h>
+#include "sshs.h"
+#include <cstring>
+#include <string>
+#include <stdexcept>
+#include <boost/format.hpp>
+
+// C linkage to guarantee no name mangling.
+extern "C" {
+// Internal functions.
+sshsNode sshsNodeNew(const char *nodeName, sshsNode parent);
+sshsNode sshsNodeAddChild(sshsNode node, const char *childName);
+sshsNode sshsNodeGetChild(sshsNode node, const char *childName);
+void sshsNodeTransactionLock(sshsNode node);
+void sshsNodeTransactionUnlock(sshsNode node);
+}
 
 // Terminate process on failed memory allocation.
-#define SSHS_MALLOC_CHECK_EXIT(ptr) \
-	if ((ptr) == NULL) { \
-		(*sshsGetGlobalErrorLogCallback())("Unable to allocate memory."); \
-		exit(EXIT_FAILURE); \
-	}
+template<typename T>
+static inline void sshsMemoryCheck(T *ptr, const std::string &funcName) {
+	if (ptr == nullptr) {
+		boost::format errorMsg = boost::format("%s(): unable to allocate memory.") % funcName;
 
+		(*sshsGetGlobalErrorLogCallback())(errorMsg.str().c_str());
+
+		exit(EXIT_FAILURE);
+	}
+}
 
 class sshs_value {
 private:
@@ -143,6 +158,39 @@ public:
 		valueString = v;
 	}
 
+	bool inRange(union sshs_node_attr_range min, union sshs_node_attr_range max) const {
+		switch (type) {
+			case SSHS_BOOL:
+				// No check for bool, because no range exists.
+				return (true);
+
+			case SSHS_BYTE:
+				return (value.ibyte >= min.ibyteRange && value.ibyte <= max.ibyteRange);
+
+			case SSHS_SHORT:
+				return (value.ishort >= min.ishortRange && value.ishort <= max.ishortRange);
+
+			case SSHS_INT:
+				return (value.iint >= min.iintRange && value.iint <= max.iintRange);
+
+			case SSHS_LONG:
+				return (value.ilong >= min.ilongRange && value.ilong <= max.ilongRange);
+
+			case SSHS_FLOAT:
+				return (value.ffloat >= min.ffloatRange && value.ffloat <= max.ffloatRange);
+
+			case SSHS_DOUBLE:
+				return (value.ddouble >= min.ddoubleRange && value.ddouble <= max.ddoubleRange);
+
+			case SSHS_STRING:
+				return (valueString.length() >= min.stringRange && valueString.length() <= max.stringRange);
+
+			case SSHS_UNKNOWN:
+			default:
+				return (false);
+		}
+	}
+
 	void fromCUnion(union sshs_node_attr_value vu, enum sshs_node_attr_value_type tu) {
 		switch (tu) {
 			case SSHS_BOOL:
@@ -222,6 +270,7 @@ public:
 				}
 				else {
 					vu.string = strdup(getString().c_str());
+					sshsMemoryCheck(vu.string, "sshs_value.toCUnion");
 				}
 				break;
 
@@ -270,95 +319,12 @@ public:
 	bool operator!=(const sshs_value &rhs) const {
 		return (!this->operator==(rhs));
 	}
-
-	bool valueInRange(union sshs_node_attr_range min, union sshs_node_attr_range max) const {
-		switch (type) {
-			case SSHS_BOOL:
-				// No check for bool, because no range exists.
-				return (true);
-
-			case SSHS_BYTE:
-				return (value.ibyte >= min.ibyteRange && value.ibyte <= max.ibyteRange);
-
-			case SSHS_SHORT:
-				return (value.ishort >= min.ishortRange && value.ishort <= max.ishortRange);
-
-			case SSHS_INT:
-				return (value.iint >= min.iintRange && value.iint <= max.iintRange);
-
-			case SSHS_LONG:
-				return (value.ilong >= min.ilongRange && value.ilong <= max.ilongRange);
-
-			case SSHS_FLOAT:
-				return (value.ffloat >= min.ffloatRange && value.ffloat <= max.ffloatRange);
-
-			case SSHS_DOUBLE:
-				return (value.ddouble >= min.ddoubleRange && value.ddouble <= max.ddoubleRange);
-
-			case SSHS_STRING:
-				return (valueString.length() >= min.stringRange && valueString.length() <= max.stringRange);
-
-			case SSHS_UNKNOWN:
-			default:
-				return (false);
-		}
-	}
-};
-
-
-
-class sshs_node_attr {
-public:
-	union sshs_node_attr_range min;
-	union sshs_node_attr_range max;
-	int flags;
-	std::string description;
-	sshs_value value;
-};
-
-class sshs_node_listener {
-private:
-	sshsNodeChangeListener nodeChanged;
-	void *userData;
-
-public:
-	sshs_node_listener(sshsNodeChangeListener _listener, void *_userData) :
-			nodeChanged(_listener),
-			userData(_userData) {
-	}
-
-	sshsNodeChangeListener getListener() const noexcept {
-		return (nodeChanged);
-	}
-
-	void *getUserData() const noexcept {
-		return (userData);
-	}
-
-	// Comparison operators.
-	bool operator==(const sshs_node_listener &rhs) const noexcept {
-		return ((nodeChanged == rhs.nodeChanged) && (userData == rhs.userData));
-	}
-
-	bool operator!=(const sshs_node_listener &rhs) const noexcept {
-		return ((nodeChanged != rhs.nodeChanged) || (userData != rhs.userData));
-	}
 };
 
 // C++ helper functions.
-// Helper functions
 std::string sshsHelperCppTypeToStringConverter(enum sshs_node_attr_value_type type);
 enum sshs_node_attr_value_type sshsHelperCppStringToTypeConverter(const std::string &typeString);
 std::string sshsHelperCppValueToStringConverter(const sshs_value &val);
 sshs_value sshsHelperCppStringToValueConverter(enum sshs_node_attr_value_type type, const std::string &valueString);
 
-sshsNode sshsNodeNew(const char *nodeName, sshsNode parent);
-sshsNode sshsNodeAddChild(sshsNode node, const char *childName);
-sshsNode sshsNodeGetChild(sshsNode node, const char* childName);
-void sshsNodeTransactionLock(sshsNode node);
-void sshsNodeTransactionUnlock(sshsNode node);
-
-// SSHS
-sshsErrorLogCallback sshsGetGlobalErrorLogCallback(void);
-
-#endif /* SSHS_INTERNAL_H_ */
+#endif /* SSHS_INTERNAL_HPP_ */

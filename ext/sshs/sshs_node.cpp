@@ -1,25 +1,26 @@
-#include "sshs_internal.h"
-#include <float.h>
+#include "sshs_internal.hpp"
 
+#include <cfloat>
+#include <memory>
+#include <algorithm>
 #include <vector>
 #include <map>
 #include <mutex>
 #include <shared_mutex>
-#include <memory>
-#include <algorithm>
-#include <boost/variant.hpp>
-#include <boost/format.hpp>
+#include <mxml.h>
 
 // We don't care about unlocking anything here, as we exit hard on error anyway.
 static inline void sshsNodeError(const std::string &funcName, const std::string &key,
-	enum sshs_node_attr_value_type type, const std::string &msg) {
+	enum sshs_node_attr_value_type type, const std::string &msg, bool fatal = true) {
 	boost::format errorMsg = boost::format("%s(): attribute '%s' (type '%s'): %s.") % funcName % key
 		% sshsHelperCppTypeToStringConverter(type) % msg;
 
 	(*sshsGetGlobalErrorLogCallback())(errorMsg.str().c_str());
 
-	// This is a critical usage error that *must* be fixed!
-	exit(EXIT_FAILURE);
+	if (fatal) {
+		// This is a critical usage error that *must* be fixed!
+		exit(EXIT_FAILURE);
+	}
 }
 
 static inline void sshsNodeErrorNoAttribute(const std::string &funcName, const std::string &key,
@@ -37,6 +38,44 @@ static inline bool findBool(InIter begin, InIter end, const Elem &val) {
 
 	return (true);
 }
+
+class sshs_node_attr {
+public:
+	union sshs_node_attr_range min;
+	union sshs_node_attr_range max;
+	int flags;
+	std::string description;
+	sshs_value value;
+};
+
+class sshs_node_listener {
+private:
+	sshsNodeChangeListener nodeChanged;
+	void *userData;
+
+public:
+	sshs_node_listener(sshsNodeChangeListener _listener, void *_userData) :
+			nodeChanged(_listener),
+			userData(_userData) {
+	}
+
+	sshsNodeChangeListener getListener() const noexcept {
+		return (nodeChanged);
+	}
+
+	void *getUserData() const noexcept {
+		return (userData);
+	}
+
+	// Comparison operators.
+	bool operator==(const sshs_node_listener &rhs) const noexcept {
+		return ((nodeChanged == rhs.nodeChanged) && (userData == rhs.userData));
+	}
+
+	bool operator!=(const sshs_node_listener &rhs) const noexcept {
+		return ((nodeChanged != rhs.nodeChanged) || (userData != rhs.userData));
+	}
+};
 
 class sshs_node_attr_listener {
 private:
@@ -80,7 +119,7 @@ public:
 	std::shared_timed_mutex traversal_lock;
 	std::recursive_mutex node_lock;
 
-	sshs_node(std::string _name, sshsNode _parent) :
+	sshs_node(const std::string &_name, sshsNode _parent) :
 			name(_name),
 			parent(_parent) {
 		// Path is based on parent.
@@ -91,6 +130,201 @@ public:
 			// Or the root has an empty, constant path.
 			path = "/";
 		}
+	}
+
+	void createAttribute(const std::string &key, const sshs_value &defaultValue,
+		const struct sshs_node_attr_ranges &ranges, int flags, const std::string &description) {
+		// Parse range struct.
+		union sshs_node_attr_range minValue = ranges.min;
+		union sshs_node_attr_range maxValue = ranges.max;
+
+		// Strings are special, their length range goes from 0 to SIZE_MAX, but we
+		// have to restrict that to from 0 to INT32_MAX for languages like Java
+		// that only support integer string lengths. It's also reasonable.
+		if (defaultValue.getType() == SSHS_STRING) {
+			if (minValue.stringRange > INT32_MAX) {
+				boost::format errorMsg = boost::format("minimum range value of '%" PRIi64 "' outside allowed limits. "
+				"Please make sure the value is positive, between 0 and %" PRIi32 "!") % minValue.stringRange % INT32_MAX;
+
+				sshsNodeError("sshsNodeCreateAttribute", key, SSHS_STRING, errorMsg.str());
+			}
+
+			if (maxValue.stringRange > INT32_MAX) {
+				boost::format errorMsg = boost::format("maximum range value of '%" PRIi64 "' outside allowed limits. "
+				"Please make sure the value is positive, between 0 and %" PRIi32 "!") % maxValue.stringRange % INT32_MAX;
+
+				sshsNodeError("sshsNodeCreateAttribute", key, SSHS_STRING, errorMsg.str());
+			}
+		}
+
+		// Check that value conforms to range limits.
+		if (!defaultValue.inRange(minValue, maxValue)) {
+			// Fail on wrong default value. Must be within range!
+			boost::format errorMsg = boost::format("default value '%s' is out of specified range. "
+				"Please make sure the default value is within the given range!")
+				% sshsHelperCppValueToStringConverter(defaultValue);
+
+			sshsNodeError("sshsNodeCreateAttribute", key, defaultValue.getType(), errorMsg.str());
+		}
+
+		// Restrict NOTIFY_ONLY flag to booleans only, for button-like behavior.
+		if ((flags & SSHS_FLAGS_NOTIFY_ONLY) && defaultValue.getType() != SSHS_BOOL) {
+			// Fail on wrong notify-only flag usage.
+			sshsNodeError("sshsNodeCreateAttribute", key, defaultValue.getType(),
+				"the NOTIFY_ONLY flag is set, but attribute is not of type BOOL. Only booleans may have this flag set!");
+		}
+
+		sshs_node_attr newAttr;
+
+		newAttr.value = defaultValue;
+
+		newAttr.min = minValue;
+		newAttr.max = maxValue;
+		newAttr.flags = flags;
+		newAttr.description = description;
+
+		std::lock_guard<std::recursive_mutex> lock(node_lock);
+
+		// Add if not present. Else update value (below).
+		if (!attributes.count(key)) {
+			attributes[key] = newAttr;
+
+			// Listener support. Call only on change, which is always the case here.
+			for (const auto &l : attrListeners) {
+				(*l.getListener())(this, l.getUserData(), SSHS_ATTRIBUTE_ADDED, key.c_str(), newAttr.value.getType(),
+					newAttr.value.toCUnion(true));
+			}
+		}
+		else {
+			const sshs_value &oldAttrValue = attributes[key].value;
+
+			if (oldAttrValue.getType() != newAttr.value.getType()) {
+				boost::format errorMsg = boost::format(
+					"value with this key already exists and has a different type of '%s'")
+					% sshsHelperCppTypeToStringConverter(oldAttrValue.getType());
+
+				sshsNodeError("sshsNodeCreateAttribute", key, newAttr.value.getType(), errorMsg.str());
+			}
+
+			// Check if the current value is still fine and within range; if it is
+			// we use it, else just use the new value.
+			if (oldAttrValue.inRange(minValue, maxValue)) {
+				// Only update value, then use newAttr. No listeners called since this
+				// is by definition the old value and as such nothing can have changed.
+				newAttr.value = oldAttrValue;
+				attributes[key] = newAttr;
+			}
+			else {
+				// If the old value is not in range anymore, the new value must be different,
+				// since it is guaranteed to be inside the new range. So we call the listeners.
+				attributes[key] = newAttr;
+
+				// Listener support. Call only on change, which is always the case here.
+				for (const auto &l : attrListeners) {
+					(*l.getListener())(this, l.getUserData(), SSHS_ATTRIBUTE_MODIFIED, key.c_str(),
+						newAttr.value.getType(), newAttr.value.toCUnion(true));
+				}
+			}
+		}
+	}
+
+	void removeAttribute(const std::string &key, enum sshs_node_attr_value_type type) {
+		std::lock_guard<std::recursive_mutex> lock(node_lock);
+
+		if (!attributeExists(key, type)) {
+			// Ignore calls on non-existent attributes for remove, as it is used
+			// to clean-up attributes before re-creating them in a consistent way.
+			return;
+		}
+
+		sshs_node_attr &attr = attributes[key];
+
+		// Listener support.
+		for (const auto &l : attrListeners) {
+			(*l.getListener())(this, l.getUserData(), SSHS_ATTRIBUTE_REMOVED, key.c_str(), attr.value.getType(),
+				attr.value.toCUnion(true));
+		}
+
+		// Remove attribute from node.
+		attributes.erase(key);
+	}
+
+	void removeAllAttributes() {
+		std::lock_guard<std::recursive_mutex> lock(node_lock);
+
+		for (const auto &attr : attributes) {
+			for (const auto &l : attrListeners) {
+				(*l.getListener())(this, l.getUserData(), SSHS_ATTRIBUTE_REMOVED, attr.first.c_str(),
+					attr.second.value.getType(), attr.second.value.toCUnion(true));
+			}
+		}
+
+		attributes.clear();
+	}
+
+	bool attributeExists(const std::string &key, enum sshs_node_attr_value_type type) {
+		std::lock_guard<std::recursive_mutex> lockNode(node_lock);
+
+		if ((!attributes.count(key)) || (attributes[key].value.getType() != type)) {
+			errno = ENOENT;
+			return (false);
+		}
+
+		// The specified attribute exists and has a matching type.
+		return (true);
+	}
+
+	sshs_value getAttribute(const std::string &key, enum sshs_node_attr_value_type type) {
+		std::lock_guard<std::recursive_mutex> lockNode(node_lock);
+
+		if (!attributeExists(key, type)) {
+			sshsNodeErrorNoAttribute("sshsNodeGetAttribute", key, type);
+		}
+
+		// Return a copy of the final value.
+		return (attributes[key].value);
+	}
+
+	bool putAttribute(const std::string &key, const sshs_value &value, bool forceReadOnlyUpdate = false) {
+		std::lock_guard<std::recursive_mutex> lockNode(node_lock);
+
+		if (!attributeExists(key, value.getType())) {
+			sshsNodeErrorNoAttribute("sshsNodePutAttribute", key, value.getType());
+		}
+
+		sshs_node_attr &attr = attributes[key];
+
+		// Value must be present, so update old one, after checking range and flags.
+		if ((!forceReadOnlyUpdate && (attr.flags & SSHS_FLAGS_READ_ONLY))
+			|| (forceReadOnlyUpdate && (attr.flags & SSHS_FLAGS_READ_ONLY) == 0)) {
+			// Read-only flag set, cannot put new value!
+			errno = EPERM;
+			return (false);
+		}
+
+		if (!value.inRange(attr.min, attr.max)) {
+			// New value out of range, cannot put new value!
+			errno = ERANGE;
+			return (false);
+		}
+
+		// Key and valueType have to be the same, so only update the value
+		// itself with the new one, and save the old one for later.
+		const sshs_value attrValueOld = attr.value;
+
+		attr.value = value;
+
+		// Let's check if anything changed with this update and call
+		// the appropriate listeners if needed.
+		if (attrValueOld != attr.value) {
+			// Listener support. Call only on change, which is always the case here.
+			for (const auto &l : attrListeners) {
+				(*l.getListener())(this, l.getUserData(), SSHS_ATTRIBUTE_MODIFIED, key.c_str(), attr.value.getType(),
+					attr.value.toCUnion(true));
+			}
+		}
+
+		return (true);
 	}
 };
 
@@ -107,7 +341,7 @@ static void sshsNodeConsumeXML(sshsNode node, mxml_node_t *content, bool recursi
 
 sshsNode sshsNodeNew(const char *nodeName, sshsNode parent) {
 	sshsNode newNode = new sshs_node(nodeName, parent);
-	SSHS_MALLOC_CHECK_EXIT(newNode);
+	sshsMemoryCheck(newNode, __func__);
 
 	return (newNode);
 }
@@ -178,7 +412,7 @@ sshsNode *sshsNodeGetChildren(sshsNode node, size_t *numChildren) {
 	}
 
 	sshsNode *children = (sshsNode *) malloc(childrenCount * sizeof(*children));
-	SSHS_MALLOC_CHECK_EXIT(children);
+	sshsMemoryCheck(children, __func__);
 
 	size_t i = 0;
 	for (const auto &n : node->children) {
@@ -243,157 +477,6 @@ void sshsNodeTransactionLock(sshsNode node) {
 
 void sshsNodeTransactionUnlock(sshsNode node) {
 	node->node_lock.unlock();
-}
-
-void sshsNodeCreateAttribute(sshsNode node, const std::string &key, const sshs_value &defaultValue,
-	const struct sshs_node_attr_ranges &ranges, int flags, const std::string &description) {
-	// Parse range struct.
-	union sshs_node_attr_range minValue = ranges.min;
-	union sshs_node_attr_range maxValue = ranges.max;
-
-	// Strings are special, their length range goes from 0 to SIZE_MAX, but we
-	// have to restrict that to from 0 to INT32_MAX for languages like Java
-	// that only support integer string lengths. It's also reasonable.
-	if (defaultValue.getType() == SSHS_STRING) {
-		if (minValue.stringRange > INT32_MAX) {
-			char errorMsg[1024];
-			snprintf(errorMsg, 1024,
-				"sshsNodeCreateAttribute(): attribute '%s' of type 'string' has a minimum range value of '%" PRIi64 "' outside allowed limits. "
-				"Please make sure the value is positive, between 0 and %" PRIi32 "!", key.c_str(), minValue.stringRange,
-				INT32_MAX);
-
-			(*sshsGetGlobalErrorLogCallback())(errorMsg);
-
-			// This is a critical usage error that *must* be fixed!
-			exit(EXIT_FAILURE);
-		}
-
-		if (maxValue.stringRange > INT32_MAX) {
-			char errorMsg[1024];
-			snprintf(errorMsg, 1024,
-				"sshsNodeCreateAttribute(): attribute '%s' of type 'string' has a maximum range value of '%" PRIi64 "' outside allowed limits. "
-				"Please make sure the value is positive, between 0 and %" PRIi32 "!", key.c_str(), maxValue.stringRange,
-				INT32_MAX);
-
-			(*sshsGetGlobalErrorLogCallback())(errorMsg);
-
-			// This is a critical usage error that *must* be fixed!
-			exit(EXIT_FAILURE);
-		}
-	}
-
-	// Check that value conforms to range limits.
-	if (!defaultValue.valueInRange(minValue, maxValue)) {
-		// Fail on wrong default value. Must be within range!
-		char errorMsg[1024];
-		snprintf(errorMsg, 1024,
-			"sshsNodeCreateAttribute(): attribute '%s' of type '%s' has default value '%s' that is out of specified range. "
-				"Please make sure the default value is within the given range!", key.c_str(),
-			sshsHelperCppTypeToStringConverter(defaultValue.getType()), sshsHelperCppValueToStringConverter(defaultValue));
-
-		(*sshsGetGlobalErrorLogCallback())(errorMsg);
-
-		// This is a critical usage error that *must* be fixed!
-		exit(EXIT_FAILURE);
-	}
-
-	// Restrict NOTIFY_ONLY flag to booleans only, for button-like behavior.
-	if ((flags & SSHS_FLAGS_NOTIFY_ONLY) && defaultValue.getType() != SSHS_BOOL) {
-		// Fail on wrong notify-only flag usage.
-		char errorMsg[1024];
-		snprintf(errorMsg, 1024, "Attribute '%s' of type '%s' has the NOTIFY_ONLY flag set, but is not of type BOOL. "
-			"Only booleans may have this flag set!", key.c_str(),
-			sshsHelperCppTypeToStringConverter(defaultValue.getType()));
-
-		(*sshsGetGlobalErrorLogCallback())(errorMsg);
-
-		// This is a critical usage error that *must* be fixed!
-		exit(EXIT_FAILURE);
-	}
-
-	sshs_node_attr newAttr;
-
-	newAttr.value = defaultValue;
-
-	newAttr.min = minValue;
-	newAttr.max = maxValue;
-	newAttr.flags = flags;
-	newAttr.description = description;
-
-	std::lock_guard<std::recursive_mutex> lock(node->node_lock);
-
-	// Add if not present. Else update value (below).
-	if (!node->attributes.count(key)) {
-		node->attributes[key] = newAttr;
-
-		// Listener support. Call only on change, which is always the case here.
-		for (const auto &l : node->attrListeners) {
-			(*l.getListener())(node, l.getUserData(), SSHS_ATTRIBUTE_ADDED, key.c_str(), newAttr.value.getType(),
-				newAttr.value.toCUnion(true));
-		}
-	}
-	else {
-		const sshs_value &oldAttrValue = node->attributes[key].value;
-
-		if (oldAttrValue.getType() != newAttr.value.getType()) {
-			throw new std::runtime_error("Called create with same key but different types, not supported.");
-		}
-
-		// Check if the current value is still fine and within range; if it is
-		// we use it, else just use the new value.
-		if (oldAttrValue.valueInRange(minValue, maxValue)) {
-			// Only update value, then use newAttr. No listeners called since this
-			// is by definition the old value and as such nothing can have changed.
-			newAttr.value = oldAttrValue;
-			node->attributes[key] = newAttr;
-		}
-		else {
-			// If the old value is not in range anymore, the new value must be different,
-			// since it is guaranteed to be inside the new range. So we call the listeners.
-			node->attributes[key] = newAttr;
-
-			// Listener support. Call only on change, which is always the case here.
-			for (const auto &l : node->attrListeners) {
-				(*l.getListener())(node, l.getUserData(), SSHS_ATTRIBUTE_MODIFIED, key.c_str(), newAttr.value.getType(),
-					newAttr.value.toCUnion(true));
-			}
-		}
-	}
-}
-
-void sshsNodeRemoveAttribute(sshsNode node, const std::string &key) {
-	std::lock_guard<std::recursive_mutex> lock(node->node_lock);
-
-	try {
-		sshs_node_attr &attr = node->attributes.at(key);
-
-		// Listener support.
-		for (const auto &l : node->attrListeners) {
-			(*l.getListener())(node, l.getUserData(), SSHS_ATTRIBUTE_REMOVED, key.c_str(), attr.value.getType(),
-				attr.value.toCUnion(true));
-		}
-	}
-	catch (const std::out_of_range &) {
-		// Verify that a valid attribute exists, else simply return
-		// without doing anything. Attribute was already deleted.
-		return;
-	}
-
-	// Remove attribute from node.
-	node->attributes.erase(key);
-}
-
-void sshsNodeRemoveAllAttributes(sshsNode node) {
-	std::lock_guard<std::recursive_mutex> lock(node->node_lock);
-
-	for (const auto &attr : node->attributes) {
-		for (const auto &l : node->attrListeners) {
-			(*l.getListener())(node, l.getUserData(), SSHS_ATTRIBUTE_REMOVED, attr.first.c_str(),
-				attr.second.value.getType(), attr.second.value.toCUnion(true));
-		}
-	}
-
-	node->attributes.clear();
 }
 
 void sshsNodeClearSubTree(sshsNode startNode, bool clearStartNode) {
@@ -490,100 +573,72 @@ void sshsNodeRemoveNode(sshsNode node) {
 	}
 }
 
-bool sshsNodeAttributeExists(sshsNode node, const std::string &key,
-	enum sshs_node_attr_value_type type = SSHS_UNKNOWN) {
-	std::lock_guard<std::recursive_mutex> lockNode(node->node_lock);
+void sshsNodeCreateAttribute(sshsNode node, const char *key, enum sshs_node_attr_value_type type,
+	union sshs_node_attr_value defaultValue, const struct sshs_node_attr_ranges ranges, int flags,
+	const char *description) {
+	sshs_value val;
+	val.fromCUnion(defaultValue, type);
 
-	if ((!node->attributes.count(key)) || (type != SSHS_UNKNOWN && node->attributes[key].value.getType() != type)) {
-		errno = ENOENT;
-		return (false);
-	}
-
-	// The specified attribute exists and has a matching type.
-	return (true);
+	node->createAttribute(key, val, ranges, flags, description);
 }
 
-bool sshsNodePutAttribute(sshsNode node, const std::string &key, const sshs_value &value, bool forceReadOnlyUpdate =
-	false) {
-	std::lock_guard<std::recursive_mutex> lockNode(node->node_lock);
-
-	if (!sshsNodeAttributeExists(node, key, value.getType())) {
-		sshsNodeErrorNoAttribute("sshsNodePutAttribute", key, value.getType());
-	}
-
-	sshs_node_attr &attr = node->attributes[key];
-
-	// Value must be present, so update old one, after checking range and flags.
-	if ((!forceReadOnlyUpdate && (attr.flags & SSHS_FLAGS_READ_ONLY))
-		|| (forceReadOnlyUpdate && (attr.flags & SSHS_FLAGS_READ_ONLY) == 0)) {
-		// Read-only flag set, cannot put new value!
-		errno = EPERM;
-		return (false);
-	}
-
-	if (!value.valueInRange(attr.min, attr.max)) {
-		// New value out of range, cannot put new value!
-		errno = ERANGE;
-		return (false);
-	}
-
-	// Key and valueType have to be the same, so only update the value
-	// itself with the new one, and save the old one for later.
-	const sshs_value attrValueOld = attr.value;
-
-	attr.value = value;
-
-	// Let's check if anything changed with this update and call
-	// the appropriate listeners if needed.
-	if (attrValueOld != attr.value) {
-		// Listener support. Call only on change, which is always the case here.
-		for (const auto &l : node->attrListeners) {
-			(*l.getListener())(node, l.getUserData(), SSHS_ATTRIBUTE_MODIFIED, key.c_str(), attr.value.getType(),
-				attr.value.toCUnion(true));
-		}
-	}
-
-	return (true);
+void sshsNodeRemoveAttribute(sshsNode node, const char *key, enum sshs_node_attr_value_type type) {
+	node->removeAttribute(key, type);
 }
 
-sshs_value sshsNodeGetAttribute(sshsNode node, const std::string &key, enum sshs_node_attr_value_type type =
-	SSHS_UNKNOWN) {
-	std::lock_guard<std::recursive_mutex> lockNode(node->node_lock);
-
-	if (!sshsNodeAttributeExists(node, key, type)) {
-		sshsNodeErrorNoAttribute("sshsNodeGetAttribute", key, type);
-	}
-
-	// Return the final value.
-	return (node->attributes[key].value);
+void sshsNodeRemoveAllAttributes(sshsNode node) {
+	node->removeAllAttributes();
 }
 
-void sshsNodeCreateBool(sshsNode node, const std::string &key, bool defaultValue, int flags,
-	const std::string &description) {
+bool sshsNodeAttributeExists(sshsNode node, const char *key, enum sshs_node_attr_value_type type) {
+	return (node->attributeExists(key, type));
+}
+
+bool sshsNodePutAttribute(sshsNode node, const char *key, enum sshs_node_attr_value_type type,
+	union sshs_node_attr_value value) {
+	sshs_value val;
+	val.fromCUnion(value, type);
+
+	return (node->putAttribute(key, val));
+}
+
+union sshs_node_attr_value sshsNodeGetAttribute(sshsNode node, const char *key, enum sshs_node_attr_value_type type) {
+	return (node->getAttribute(key, type).toCUnion());
+}
+
+bool sshsNodeUpdateReadOnlyAttribute(sshsNode node, const char *key, enum sshs_node_attr_value_type type,
+	union sshs_node_attr_value value) {
+	sshs_value val;
+	val.fromCUnion(value, type);
+
+	return (node->putAttribute(key, val, true));
+}
+
+void sshsNodeCreateBool(sshsNode node, const char *key, bool defaultValue, int flags, const char *description) {
 	sshs_value uValue;
 	uValue.setBool(defaultValue);
 
 	// No range for booleans.
 	struct sshs_node_attr_ranges ranges;
-	ranges.min.ibyteRange = 0;
-	ranges.max.ibyteRange = 0;
+	ranges.min.ilongRange = 0;
+	ranges.max.ilongRange = 0;
 
-	sshsNodeCreateAttribute(node, key, uValue, ranges, flags, description);
+	node->createAttribute(key, uValue, ranges, flags, description);
 }
 
-bool sshsNodePutBool(sshsNode node, const std::string &key, bool value) {
+bool sshsNodePutBool(sshsNode node, const char *key, bool value) {
 	sshs_value uValue;
 	uValue.setBool(value);
 
-	return (sshsNodePutAttribute(node, key, uValue));
+	return (node->putAttribute(key, uValue));
 }
 
-bool sshsNodeGetBool(sshsNode node, const std::string &key) {
-	return (sshsNodeGetAttribute(node, key).getBool());
+bool sshsNodeGetBool(sshsNode node, const char *key) {
+	return (node->getAttribute(key, SSHS_BOOL).getBool());
 }
 
-void sshsNodeCreateByte(sshsNode node, const std::string &key, int8_t defaultValue, int8_t minValue, int8_t maxValue,
-	int flags, const std::string &description) {
+void sshsNodeCreateByte(sshsNode node, const char *key, int8_t defaultValue, int8_t minValue, int8_t maxValue,
+	int flags, const char *description) {
 	sshs_value uValue;
 	uValue.setByte(defaultValue);
 
@@ -591,22 +646,22 @@ void sshsNodeCreateByte(sshsNode node, const std::string &key, int8_t defaultVal
 	ranges.min.ibyteRange = minValue;
 	ranges.max.ibyteRange = maxValue;
 
-	sshsNodeCreateAttribute(node, key, uValue, ranges, flags, description);
+	node->createAttribute(key, uValue, ranges, flags, description);
 }
 
-bool sshsNodePutByte(sshsNode node, const std::string &key, int8_t value) {
+bool sshsNodePutByte(sshsNode node, const char *key, int8_t value) {
 	sshs_value uValue;
 	uValue.setByte(value);
 
-	return (sshsNodePutAttribute(node, key, uValue));
+	return (node->putAttribute(key, uValue));
 }
 
-int8_t sshsNodeGetByte(sshsNode node, const std::string &key) {
-	return (sshsNodeGetAttribute(node, key).getByte());
+int8_t sshsNodeGetByte(sshsNode node, const char *key) {
+	return (node->getAttribute(key, SSHS_BYTE).getByte());
 }
 
-void sshsNodeCreateShort(sshsNode node, const std::string &key, int16_t defaultValue, int16_t minValue,
-	int16_t maxValue, int flags, const std::string &description) {
+void sshsNodeCreateShort(sshsNode node, const char *key, int16_t defaultValue, int16_t minValue, int16_t maxValue,
+	int flags, const char *description) {
 	sshs_value uValue;
 	uValue.setShort(defaultValue);
 
@@ -614,22 +669,22 @@ void sshsNodeCreateShort(sshsNode node, const std::string &key, int16_t defaultV
 	ranges.min.ishortRange = minValue;
 	ranges.max.ishortRange = maxValue;
 
-	sshsNodeCreateAttribute(node, key, uValue, ranges, flags, description);
+	node->createAttribute(key, uValue, ranges, flags, description);
 }
 
-bool sshsNodePutShort(sshsNode node, const std::string &key, int16_t value) {
+bool sshsNodePutShort(sshsNode node, const char *key, int16_t value) {
 	sshs_value uValue;
 	uValue.setShort(value);
 
-	return (sshsNodePutAttribute(node, key, uValue));
+	return (node->putAttribute(key, uValue));
 }
 
-int16_t sshsNodeGetShort(sshsNode node, const std::string &key) {
-	return (sshsNodeGetAttribute(node, key).getShort());
+int16_t sshsNodeGetShort(sshsNode node, const char *key) {
+	return (node->getAttribute(key, SSHS_SHORT).getShort());
 }
 
-void sshsNodeCreateInt(sshsNode node, const std::string &key, int32_t defaultValue, int32_t minValue, int32_t maxValue,
-	int flags, const std::string &description) {
+void sshsNodeCreateInt(sshsNode node, const char *key, int32_t defaultValue, int32_t minValue, int32_t maxValue,
+	int flags, const char *description) {
 	sshs_value uValue;
 	uValue.setInt(defaultValue);
 
@@ -637,22 +692,22 @@ void sshsNodeCreateInt(sshsNode node, const std::string &key, int32_t defaultVal
 	ranges.min.iintRange = minValue;
 	ranges.max.iintRange = maxValue;
 
-	sshsNodeCreateAttribute(node, key, uValue, ranges, flags, description);
+	node->createAttribute(key, uValue, ranges, flags, description);
 }
 
-bool sshsNodePutInt(sshsNode node, const std::string &key, int32_t value) {
+bool sshsNodePutInt(sshsNode node, const char *key, int32_t value) {
 	sshs_value uValue;
 	uValue.setInt(value);
 
-	return (sshsNodePutAttribute(node, key, uValue));
+	return (node->putAttribute(key, uValue));
 }
 
-int32_t sshsNodeGetInt(sshsNode node, const std::string &key) {
-	return (sshsNodeGetAttribute(node, key).getInt());
+int32_t sshsNodeGetInt(sshsNode node, const char *key) {
+	return (node->getAttribute(key, SSHS_INT).getInt());
 }
 
-void sshsNodeCreateLong(sshsNode node, const std::string &key, int64_t defaultValue, int64_t minValue, int64_t maxValue,
-	int flags, const std::string &description) {
+void sshsNodeCreateLong(sshsNode node, const char *key, int64_t defaultValue, int64_t minValue, int64_t maxValue,
+	int flags, const char *description) {
 	sshs_value uValue;
 	uValue.setLong(defaultValue);
 
@@ -660,22 +715,22 @@ void sshsNodeCreateLong(sshsNode node, const std::string &key, int64_t defaultVa
 	ranges.min.ilongRange = minValue;
 	ranges.max.ilongRange = maxValue;
 
-	sshsNodeCreateAttribute(node, key, uValue, ranges, flags, description);
+	node->createAttribute(key, uValue, ranges, flags, description);
 }
 
-bool sshsNodePutLong(sshsNode node, const std::string &key, int64_t value) {
+bool sshsNodePutLong(sshsNode node, const char *key, int64_t value) {
 	sshs_value uValue;
 	uValue.setLong(value);
 
-	return (sshsNodePutAttribute(node, key, uValue));
+	return (node->putAttribute(key, uValue));
 }
 
-int64_t sshsNodeGetLong(sshsNode node, const std::string &key) {
-	return (sshsNodeGetAttribute(node, key).getLong());
+int64_t sshsNodeGetLong(sshsNode node, const char *key) {
+	return (node->getAttribute(key, SSHS_LONG).getLong());
 }
 
-void sshsNodeCreateFloat(sshsNode node, const std::string &key, float defaultValue, float minValue, float maxValue,
-	int flags, const std::string &description) {
+void sshsNodeCreateFloat(sshsNode node, const char *key, float defaultValue, float minValue, float maxValue, int flags,
+	const char *description) {
 	sshs_value uValue;
 	uValue.setFloat(defaultValue);
 
@@ -683,22 +738,22 @@ void sshsNodeCreateFloat(sshsNode node, const std::string &key, float defaultVal
 	ranges.min.ffloatRange = minValue;
 	ranges.max.ffloatRange = maxValue;
 
-	sshsNodeCreateAttribute(node, key, uValue, ranges, flags, description);
+	node->createAttribute(key, uValue, ranges, flags, description);
 }
 
-bool sshsNodePutFloat(sshsNode node, const std::string &key, float value) {
+bool sshsNodePutFloat(sshsNode node, const char *key, float value) {
 	sshs_value uValue;
 	uValue.setFloat(value);
 
-	return (sshsNodePutAttribute(node, key, uValue));
+	return (node->putAttribute(key, uValue));
 }
 
-float sshsNodeGetFloat(sshsNode node, const std::string &key) {
-	return (sshsNodeGetAttribute(node, key).getFloat());
+float sshsNodeGetFloat(sshsNode node, const char *key) {
+	return (node->getAttribute(key, SSHS_FLOAT).getFloat());
 }
 
-void sshsNodeCreateDouble(sshsNode node, const std::string &key, double defaultValue, double minValue, double maxValue,
-	int flags, const std::string &description) {
+void sshsNodeCreateDouble(sshsNode node, const char *key, double defaultValue, double minValue, double maxValue,
+	int flags, const char *description) {
 	sshs_value uValue;
 	uValue.setDouble(defaultValue);
 
@@ -706,22 +761,22 @@ void sshsNodeCreateDouble(sshsNode node, const std::string &key, double defaultV
 	ranges.min.ddoubleRange = minValue;
 	ranges.max.ddoubleRange = maxValue;
 
-	sshsNodeCreateAttribute(node, key, uValue, ranges, flags, description);
+	node->createAttribute(key, uValue, ranges, flags, description);
 }
 
-bool sshsNodePutDouble(sshsNode node, const std::string &key, double value) {
+bool sshsNodePutDouble(sshsNode node, const char *key, double value) {
 	sshs_value uValue;
 	uValue.setDouble(value);
 
-	return (sshsNodePutAttribute(node, key, uValue));
+	return (node->putAttribute(key, uValue));
 }
 
-double sshsNodeGetDouble(sshsNode node, const std::string &key) {
-	return (sshsNodeGetAttribute(node, key).getDouble());
+double sshsNodeGetDouble(sshsNode node, const char *key) {
+	return (node->getAttribute(key, SSHS_DOUBLE).getDouble());
 }
 
-void sshsNodeCreateString(sshsNode node, const std::string &key, const std::string &defaultValue, size_t minLength,
-	size_t maxLength, int flags, const std::string &description) {
+void sshsNodeCreateString(sshsNode node, const char *key, const char *defaultValue, size_t minLength, size_t maxLength,
+	int flags, const char *description) {
 	sshs_value uValue;
 	uValue.setString(defaultValue);
 
@@ -729,19 +784,19 @@ void sshsNodeCreateString(sshsNode node, const std::string &key, const std::stri
 	ranges.min.stringRange = minLength;
 	ranges.max.stringRange = maxLength;
 
-	sshsNodeCreateAttribute(node, key, uValue, ranges, flags, description);
+	node->createAttribute(key, uValue, ranges, flags, description);
 }
 
-bool sshsNodePutString(sshsNode node, const std::string &key, const std::string &value) {
+bool sshsNodePutString(sshsNode node, const char *key, const char *value) {
 	sshs_value uValue;
 	uValue.setString(value);
 
-	return (sshsNodePutAttribute(node, key, uValue));
+	return (node->putAttribute(key, uValue));
 }
 
 // This is a copy of the string on the heap, remember to free() when done!
-std::string sshsNodeGetString(sshsNode node, const std::string &key) {
-	return (sshsNodeGetAttribute(node, key).getString());
+char *sshsNodeGetString(sshsNode node, const char *key) {
+	return (node->getAttribute(key, SSHS_STRING).toCUnion().string);
 }
 
 void sshsNodeExportNodeToXML(sshsNode node, int outFd) {
@@ -917,7 +972,7 @@ static mxml_node_t **sshsNodeXMLFilterChildNodes(mxml_node_t *node, const char *
 
 	// Now allocate appropriate memory for list.
 	mxml_node_t **filteredNodes = (mxml_node_t **) malloc(matchedChildren * sizeof(mxml_node_t *));
-	SSHS_MALLOC_CHECK_EXIT(filteredNodes);
+	sshsMemoryCheck(filteredNodes, __func__);
 
 	// Go thorough again and collect the matching nodes.
 	size_t i = 0;
@@ -1002,11 +1057,10 @@ static void sshsNodeConsumeXML(sshsNode node, mxml_node_t *content, bool recursi
 				continue;
 			}
 
-			char errorMsg[1024];
-			snprintf(errorMsg, 1024, "Failed to convert attribute '%s' of type '%s' with value '%s' from XML.", key,
-				type, value);
+			boost::format errorMsg = boost::format("failed to convert attribute from XML, value string was '%s'")
+				% value;
 
-			(*sshsGetGlobalErrorLogCallback())(errorMsg);
+			sshsNodeError("sshsNodeConsumeXML", key, sshsHelperCppStringToTypeConverter(type), errorMsg.str(), false);
 		}
 	}
 
@@ -1052,7 +1106,17 @@ bool sshsNodeStringToAttributeConverter(sshsNode node, const char *key, const ch
 	}
 
 	sshs_value value;
-	value = sshsHelperCppStringToValueConverter(type, valueStr);
+	try {
+		value = sshsHelperCppStringToValueConverter(type, valueStr);
+	}
+	catch (const std::invalid_argument &) {
+		errno = EINVAL;
+		return (false);
+	}
+	catch (const std::out_of_range &) {
+		errno = EINVAL;
+		return (false);
+	}
 
 	// IFF attribute already exists, we update it using sshsNodePut(), else
 	// we create the attribute with maximum range and a default description.
@@ -1061,52 +1125,69 @@ bool sshsNodeStringToAttributeConverter(sshsNode node, const char *key, const ch
 	// enabled later by calling sshsNodeCreate*() again as needed.
 	bool result = false;
 
-	if (sshsNodeAttributeExists(node, key, type)) {
-		result = sshsNodePutAttribute(node, key, value);
+	if (node->attributeExists(key, type)) {
+		result = node->putAttribute(key, value);
 	}
 	else {
-		// Create never fails!
+		// Create never fails, it may exit the program, but not fail!
 		result = true;
+		struct sshs_node_attr_ranges ranges;
 
 		switch (type) {
 			case SSHS_BOOL:
-				sshsNodeCreateBool(node, key, value.getBool(), SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT,
+				ranges.min.ilongRange = 0;
+				ranges.max.ilongRange = 0;
+				node->createAttribute(key, value, ranges, SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT,
 					"XML loaded value.");
 				break;
 
 			case SSHS_BYTE:
-				sshsNodeCreateByte(node, key, value.getByte(), INT8_MIN, INT8_MAX,
-					SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT, "XML loaded value.");
+				ranges.min.ibyteRange = INT8_MIN;
+				ranges.max.ibyteRange = INT8_MAX;
+				node->createAttribute(key, value, ranges, SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT,
+					"XML loaded value.");
 				break;
 
 			case SSHS_SHORT:
-				sshsNodeCreateShort(node, key, value.getShort(), INT16_MIN, INT16_MAX,
-					SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT, "XML loaded value.");
+				ranges.min.ishortRange = INT16_MIN;
+				ranges.max.ishortRange = INT16_MAX;
+				node->createAttribute(key, value, ranges, SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT,
+					"XML loaded value.");
 				break;
 
 			case SSHS_INT:
-				sshsNodeCreateInt(node, key, value.getInt(), INT32_MIN, INT32_MAX,
-					SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT, "XML loaded value.");
+				ranges.min.iintRange = INT32_MIN;
+				ranges.max.iintRange = INT32_MAX;
+				node->createAttribute(key, value, ranges, SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT,
+					"XML loaded value.");
 				break;
 
 			case SSHS_LONG:
-				sshsNodeCreateLong(node, key, value.getLong(), INT64_MIN, INT64_MAX,
-					SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT, "XML loaded value.");
+				ranges.min.ilongRange = INT64_MIN;
+				ranges.max.ilongRange = INT64_MAX;
+				node->createAttribute(key, value, ranges, SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT,
+					"XML loaded value.");
 				break;
 
 			case SSHS_FLOAT:
-				sshsNodeCreateFloat(node, key, value.getFloat(), -FLT_MAX, FLT_MAX,
-					SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT, "XML loaded value.");
+				ranges.min.ffloatRange = -FLT_MAX;
+				ranges.max.ffloatRange = FLT_MAX;
+				node->createAttribute(key, value, ranges, SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT,
+					"XML loaded value.");
 				break;
 
 			case SSHS_DOUBLE:
-				sshsNodeCreateDouble(node, key, value.getDouble(), -DBL_MAX, DBL_MAX,
-					SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT, "XML loaded value.");
+				ranges.min.ddoubleRange = -DBL_MAX;
+				ranges.max.ddoubleRange = DBL_MAX;
+				node->createAttribute(key, value, ranges, SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT,
+					"XML loaded value.");
 				break;
 
 			case SSHS_STRING:
-				sshsNodeCreateString(node, key, value.getString(), 0, INT32_MAX,
-					SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT, "XML loaded value.");
+				ranges.min.stringRange = 0;
+				ranges.max.stringRange = INT32_MAX;
+				node->createAttribute(key, value, ranges, SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT,
+					"XML loaded value.");
 				break;
 
 			case SSHS_UNKNOWN:
@@ -1130,7 +1211,7 @@ const char **sshsNodeGetChildNames(sshsNode node, size_t *numNames) {
 	}
 
 	const char **childNames = (const char **) malloc(numChildren * sizeof(*childNames));
-	SSHS_MALLOC_CHECK_EXIT(childNames);
+	sshsMemoryCheck(childNames, __func__);
 
 	// Copy pointers to name string over. Safe because nodes are never deleted.
 	for (size_t i = 0; i < numChildren; i++) {
@@ -1155,7 +1236,7 @@ const char **sshsNodeGetAttributeKeys(sshsNode node, size_t *numKeys) {
 	size_t numAttributes = node->attributes.size();
 
 	const char **attributeKeys = (const char **) malloc(numAttributes * sizeof(*attributeKeys));
-	SSHS_MALLOC_CHECK_EXIT(attributeKeys);
+	sshsMemoryCheck(attributeKeys, __func__);
 
 	// Copy pointers to key string over. Safe because attributes are never deleted.
 	size_t i = 0;
@@ -1167,7 +1248,7 @@ const char **sshsNodeGetAttributeKeys(sshsNode node, size_t *numKeys) {
 	return (attributeKeys);
 }
 
-enum sshs_node_attr_value_type *sshsNodeGetAttributeTypes(sshsNode node, const std::string &key, size_t *numTypes) {
+enum sshs_node_attr_value_type *sshsNodeGetAttributeTypes(sshsNode node, const char *key, size_t *numTypes) {
 	std::lock_guard<std::recursive_mutex> lockNode(node->node_lock);
 
 	if (!node->attributes.count(key)) {
@@ -1178,7 +1259,7 @@ enum sshs_node_attr_value_type *sshsNodeGetAttributeTypes(sshsNode node, const s
 
 	// There is at most 1 type for one specific attribute key.
 	enum sshs_node_attr_value_type *attributeTypes = (enum sshs_node_attr_value_type *) malloc(sizeof(*attributeTypes));
-	SSHS_MALLOC_CHECK_EXIT(attributeTypes);
+	sshsMemoryCheck(attributeTypes, __func__);
 
 	// Check each attribute if it matches, and save its type if true.
 	attributeTypes[0] = node->attributes[key].value.getType();
@@ -1187,10 +1268,11 @@ enum sshs_node_attr_value_type *sshsNodeGetAttributeTypes(sshsNode node, const s
 	return (attributeTypes);
 }
 
-struct sshs_node_attr_ranges sshsNodeGetAttributeRanges(sshsNode node, const std::string &key) {
+struct sshs_node_attr_ranges sshsNodeGetAttributeRanges(sshsNode node, const char *key,
+	enum sshs_node_attr_value_type type) {
 	std::lock_guard<std::recursive_mutex> lockNode(node->node_lock);
 
-	if (!sshsNodeAttributeExists(node, key)) {
+	if (!sshsNodeAttributeExists(node, key, type)) {
 		sshsNodeErrorNoAttribute("sshsNodeGetAttributeRanges", key, SSHS_UNKNOWN);
 	}
 
@@ -1203,10 +1285,10 @@ struct sshs_node_attr_ranges sshsNodeGetAttributeRanges(sshsNode node, const std
 	return (result);
 }
 
-int sshsNodeGetAttributeFlags(sshsNode node, const std::string &key) {
+int sshsNodeGetAttributeFlags(sshsNode node, const char *key, enum sshs_node_attr_value_type type) {
 	std::lock_guard<std::recursive_mutex> lockNode(node->node_lock);
 
-	if (!sshsNodeAttributeExists(node, key)) {
+	if (!sshsNodeAttributeExists(node, key, type)) {
 		sshsNodeErrorNoAttribute("sshsNodeGetAttributeFlags", key, SSHS_UNKNOWN);
 	}
 
@@ -1215,17 +1297,17 @@ int sshsNodeGetAttributeFlags(sshsNode node, const std::string &key) {
 	return (attr.flags);
 }
 
-char *sshsNodeGetAttributeDescription(sshsNode node, const std::string &key) {
+char *sshsNodeGetAttributeDescription(sshsNode node, const char *key, enum sshs_node_attr_value_type type) {
 	std::lock_guard<std::recursive_mutex> lockNode(node->node_lock);
 
-	if (!sshsNodeAttributeExists(node, key)) {
+	if (!sshsNodeAttributeExists(node, key, type)) {
 		sshsNodeErrorNoAttribute("sshsNodeGetAttributeDescription", key, SSHS_UNKNOWN);
 	}
 
 	sshs_node_attr &attr = node->attributes[key];
 
 	char *descriptionCopy = strdup(attr.description.c_str());
-	SSHS_MALLOC_CHECK_EXIT(descriptionCopy);
+	sshsMemoryCheck(descriptionCopy, __func__);
 
 	return (descriptionCopy);
 }

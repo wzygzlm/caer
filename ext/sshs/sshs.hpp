@@ -3,10 +3,6 @@
 
 #include "sshs.h"
 
-#include <string>
-#include <cstring>
-#include <stdexcept>
-
 inline void sshsNodeCreate(sshsNode node, const char *key, bool defaultValue, int flags, const char *description) {
 	sshsNodeCreateBool(node, key, defaultValue, flags, description);
 }

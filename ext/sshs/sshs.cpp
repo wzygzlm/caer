@@ -1,6 +1,7 @@
-#include "sshs_internal.h"
+#include "sshs_internal.hpp"
 #include <mutex>
 #include <regex>
+#include <mxml.h>
 
 struct sshs_struct {
 	sshsNode root;
@@ -13,7 +14,7 @@ static void sshsDefaultErrorLogCallback(const char *msg);
 static bool sshsCheckAbsoluteNodePath(const char *absolutePath, size_t absolutePathLength);
 static bool sshsCheckRelativeNodePath(const char *relativePath, size_t relativePathLength);
 
-static sshs sshsGlobal = NULL;
+static sshs sshsGlobal = nullptr;
 static std::once_flag sshsGlobalIsInitialized;
 
 static void sshsGlobalInitialize(void) {
@@ -26,7 +27,7 @@ sshs sshsGetGlobal(void) {
 	return (sshsGlobal);
 }
 
-static sshsErrorLogCallback sshsGlobalErrorLogCallback = NULL;
+static sshsErrorLogCallback sshsGlobalErrorLogCallback = nullptr;
 static std::once_flag sshsGlobalErrorLogCallbackIsInitialized;
 
 static void sshsGlobalErrorLogCallbackInitialize(void) {
@@ -53,8 +54,8 @@ sshsErrorLogCallback sshsGetGlobalErrorLogCallback(void) {
 void sshsSetGlobalErrorLogCallback(sshsErrorLogCallback error_log_cb) {
 	std::call_once(sshsGlobalErrorLogCallbackIsInitialized, &sshsGlobalErrorLogCallbackInitialize);
 
-	// If NULL, set to default logging callback.
-	if (error_log_cb == NULL) {
+	// If nullptr, set to default logging callback.
+	if (error_log_cb == nullptr) {
 		sshsGlobalErrorLogCallbackSetInternal(&sshsDefaultErrorLogCallback);
 	}
 	else {
@@ -64,10 +65,10 @@ void sshsSetGlobalErrorLogCallback(sshsErrorLogCallback error_log_cb) {
 
 sshs sshsNew(void) {
 	sshs newSshs = (sshs) malloc(sizeof(*newSshs));
-	SSHS_MALLOC_CHECK_EXIT(newSshs);
+	sshsMemoryCheck(newSshs, __func__);
 
 	// Create root node.
-	newSshs->root = sshsNodeNew("", NULL);
+	newSshs->root = sshsNodeNew("", nullptr);
 
 	return (newSshs);
 }
@@ -93,19 +94,19 @@ bool sshsExistsNode(sshs st, const char *nodePath) {
 	strcpy(nodePathCopy, nodePath);
 
 	// Search (or create) viable node iteratively.
-	char *tokenSavePtr = NULL, *nextName = NULL, *currName = nodePathCopy;
-	while ((nextName = strtok_r(currName, "/", &tokenSavePtr)) != NULL) {
+	char *tokenSavePtr = nullptr, *nextName = nullptr, *currName = nodePathCopy;
+	while ((nextName = strtok_r(currName, "/", &tokenSavePtr)) != nullptr) {
 		sshsNode next = sshsNodeGetChild(curr, nextName);
 
 		// If node doesn't exist, return that.
-		if (next == NULL) {
+		if (next == nullptr) {
 			errno = ENOENT;
 			return (false);
 		}
 
 		curr = next;
 
-		currName = NULL;
+		currName = nullptr;
 	}
 
 	// We got to the end, so the node exists.
@@ -117,7 +118,7 @@ sshsNode sshsGetNode(sshs st, const char *nodePath) {
 
 	if (!sshsCheckAbsoluteNodePath(nodePath, nodePathLength)) {
 		errno = EINVAL;
-		return (NULL);
+		return (nullptr);
 	}
 
 	// First node is the root.
@@ -133,18 +134,18 @@ sshsNode sshsGetNode(sshs st, const char *nodePath) {
 	strcpy(nodePathCopy, nodePath);
 
 	// Search (or create) viable node iteratively.
-	char *tokenSavePtr = NULL, *nextName = NULL, *currName = nodePathCopy;
-	while ((nextName = strtok_r(currName, "/", &tokenSavePtr)) != NULL) {
+	char *tokenSavePtr = nullptr, *nextName = nullptr, *currName = nodePathCopy;
+	while ((nextName = strtok_r(currName, "/", &tokenSavePtr)) != nullptr) {
 		sshsNode next = sshsNodeGetChild(curr, nextName);
 
 		// Create next node in path if not existing.
-		if (next == NULL) {
+		if (next == nullptr) {
 			next = sshsNodeAddChild(curr, nextName);
 		}
 
 		curr = next;
 
-		currName = NULL;
+		currName = nullptr;
 	}
 
 	// 'curr' now contains the specified node.
@@ -167,19 +168,19 @@ bool sshsExistsRelativeNode(sshsNode node, const char *nodePath) {
 	strcpy(nodePathCopy, nodePath);
 
 	// Search (or create) viable node iteratively.
-	char *tokenSavePtr = NULL, *nextName = NULL, *currName = nodePathCopy;
-	while ((nextName = strtok_r(currName, "/", &tokenSavePtr)) != NULL) {
+	char *tokenSavePtr = nullptr, *nextName = nullptr, *currName = nodePathCopy;
+	while ((nextName = strtok_r(currName, "/", &tokenSavePtr)) != nullptr) {
 		sshsNode next = sshsNodeGetChild(curr, nextName);
 
 		// If node doesn't exist, return that.
-		if (next == NULL) {
+		if (next == nullptr) {
 			errno = ENOENT;
 			return (false);
 		}
 
 		curr = next;
 
-		currName = NULL;
+		currName = nullptr;
 	}
 
 	// We got to the end, so the node exists.
@@ -191,7 +192,7 @@ sshsNode sshsGetRelativeNode(sshsNode node, const char *nodePath) {
 
 	if (!sshsCheckRelativeNodePath(nodePath, nodePathLength)) {
 		errno = EINVAL;
-		return (NULL);
+		return (nullptr);
 	}
 
 	// Start with the given node.
@@ -202,18 +203,18 @@ sshsNode sshsGetRelativeNode(sshsNode node, const char *nodePath) {
 	strcpy(nodePathCopy, nodePath);
 
 	// Search (or create) viable node iteratively.
-	char *tokenSavePtr = NULL, *nextName = NULL, *currName = nodePathCopy;
-	while ((nextName = strtok_r(currName, "/", &tokenSavePtr)) != NULL) {
+	char *tokenSavePtr = nullptr, *nextName = nullptr, *currName = nodePathCopy;
+	while ((nextName = strtok_r(currName, "/", &tokenSavePtr)) != nullptr) {
 		sshsNode next = sshsNodeGetChild(curr, nextName);
 
 		// Create next node in path if not existing.
-		if (next == NULL) {
+		if (next == nullptr) {
 			next = sshsNodeAddChild(curr, nextName);
 		}
 
 		curr = next;
 
-		currName = NULL;
+		currName = nullptr;
 	}
 
 	// 'curr' now contains the specified node.
@@ -257,7 +258,7 @@ static const std::regex sshsAbsoluteNodePathRegexp("^/" ALLOWED_CHARS_REGEXP "*$
 static const std::regex sshsRelativeNodePathRegexp("^" ALLOWED_CHARS_REGEXP "+$");
 
 static bool sshsCheckAbsoluteNodePath(const char *absolutePath, size_t absolutePathLength) {
-	if (absolutePath == NULL || absolutePathLength == 0) {
+	if (absolutePath == nullptr || absolutePathLength == 0) {
 		(*sshsGetGlobalErrorLogCallback())("Node path cannot be null.");
 		return (false);
 	}
@@ -273,7 +274,7 @@ static bool sshsCheckAbsoluteNodePath(const char *absolutePath, size_t absoluteP
 }
 
 static bool sshsCheckRelativeNodePath(const char *relativePath, size_t relativePathLength) {
-	if (relativePath == NULL || relativePathLength == 0) {
+	if (relativePath == nullptr || relativePathLength == 0) {
 		(*sshsGetGlobalErrorLogCallback())("Node path cannot be null.");
 		return (false);
 	}
