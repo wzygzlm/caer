@@ -11,7 +11,7 @@ static const std::string typeStrings[] = {
 	"string"
 };
 
-const std::string sshsHelperCppTypeToStringConverter(enum sshs_node_attr_value_type type) {
+const std::string &sshsHelperCppTypeToStringConverter(enum sshs_node_attr_value_type type) {
 	// Convert the value and its type into a string for XML output.
 	switch (type) {
 		case SSHS_BOOL:
@@ -171,5 +171,10 @@ char *sshsHelperValueToStringConverter(enum sshs_node_attr_value_type type, unio
 
 // Remember to free the resulting union's "string" member, if the type was SSHS_STRING!
 union sshs_node_attr_value sshsHelperStringToValueConverter(enum sshs_node_attr_value_type type, const char *valueString) {
+	if ((type == SSHS_STRING) && (valueString == nullptr)) {
+		// Empty string.
+		valueString = "";
+	}
+
 	return (sshsHelperCppStringToValueConverter(type, valueString).toCUnion());
 }

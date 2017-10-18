@@ -148,7 +148,7 @@ public:
 		if (defaultValue.getType() == SSHS_STRING) {
 			if ((minValue.stringRange > INT32_MAX) || (maxValue.stringRange > INT32_MAX)) {
 				boost::format errorMsg = boost::format("minimum/maximum string range value outside allowed limits. "
-				"Please make sure the value is positive, between 0 and %d!") % INT32_MAX;
+					"Please make sure the value is positive, between 0 and %d!") % INT32_MAX;
 
 				sshsNodeError("sshsNodeCreateAttribute", key, SSHS_STRING, errorMsg.str());
 			}
@@ -526,8 +526,8 @@ static void sshsNodeRemoveChild(sshsNode node, const char *childName) {
 		}
 	}
 	catch (const std::out_of_range &) {
-		// Verify that a valid attribute exists, else simply return
-		// without doing anything. Attribute was already deleted.
+		// Verify that a valid node exists, else simply return
+		// without doing anything. Node was already deleted.
 		return;
 	}
 
@@ -1119,6 +1119,11 @@ bool sshsNodeStringToAttributeConverter(sshsNode node, const char *key, const ch
 		return (false);
 	}
 
+	if ((type == SSHS_STRING) && (valueStr == nullptr)) {
+		// Empty string.
+		valueStr = "";
+	}
+
 	sshs_value value;
 	try {
 		value = sshsHelperCppStringToValueConverter(type, valueStr);
@@ -1275,7 +1280,8 @@ enum sshs_node_attr_value_type *sshsNodeGetAttributeTypes(sshsNode node, const c
 	}
 
 	// There is at most 1 type for one specific attribute key.
-	enum sshs_node_attr_value_type *attributeTypes = (enum sshs_node_attr_value_type *) malloc(1 * sizeof(*attributeTypes));
+	enum sshs_node_attr_value_type *attributeTypes = (enum sshs_node_attr_value_type *) malloc(
+		1 * sizeof(*attributeTypes));
 	sshsMemoryCheck(attributeTypes, __func__);
 
 	// Check each attribute if it matches, and save its type if true.

@@ -322,7 +322,7 @@ public:
 };
 
 // C++ helper functions.
-const std::string sshsHelperCppTypeToStringConverter(enum sshs_node_attr_value_type type);
+const std::string &sshsHelperCppTypeToStringConverter(enum sshs_node_attr_value_type type);
 enum sshs_node_attr_value_type sshsHelperCppStringToTypeConverter(const std::string &typeString);
 std::string sshsHelperCppValueToStringConverter(const sshs_value &val);
 sshs_value sshsHelperCppStringToValueConverter(enum sshs_node_attr_value_type type, const std::string &valueString);
