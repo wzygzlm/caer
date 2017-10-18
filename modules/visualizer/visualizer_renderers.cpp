@@ -444,27 +444,42 @@ static bool caerVisualizerRendererSpikeEvents(caerVisualizerPublicState state, c
 }
 
 // Matrix4x4
-// How many timestemps and neurons to show per chip.
+// How many ts and points will be drawn
 #define WORLD_X 640
 #define WORLD_Y 480
+
+struct caer_visualizer_pose_matrix {
+	caerMatrix4x4EventPacket mem;
+	int currentCounter;
+	int worldXPosition;
+};
+
+typedef struct caer_visualizer_pose_matrix *caerVisualizerPoseMatrix;
 
 static void *caerVisualizerRendererMatrix4x4EventsPoseStateInit(caerVisualizerPublicState state) {
 	// Reset render size to allow for more neurons and timesteps to be displayed.
 	caerVisualizerResetRenderSize(state, WORLD_X, WORLD_Y);
 
-	//int time[1024];
+	caerVisualizerPoseMatrix mem;
 
-	return (CAER_VISUALIZER_RENDER_INIT_NO_MEM); // No allocated memory.
+	return (mem); // No allocated memory.
 }
 
 static bool caerVisualizerRendererMatrix4x4EventsPose(caerVisualizerPublicState state,
 	caerEventPacketContainer container) {
 	UNUSED_ARGUMENT(state);
 
-	caerEventPacketHeader matrix4x4PacketHeader = caerEventPacketContainerFindEventPacketByType(container, MATRIX4x4_EVENT);
+	caerMatrix4x4EventPacket pkg = (caerMatrix4x4EventPacket) caerEventPacketContainerFindEventPacketByType(container, MATRIX4x4_EVENT);
+	caerEventPacketHeader matrix4x4PacketHeader = &pkg->packetHeader;
 
 	if (matrix4x4PacketHeader == NULL || caerEventPacketHeaderGetEventValid(matrix4x4PacketHeader) == 0) {
 		return (false);
+	}
+
+	caerVisualizerPoseMatrix memInt = (caerVisualizerPoseMatrix) state->renderState;
+	if(memInt->mem == nullptr){
+		memInt->mem = (caerMatrix4x4EventPacket) caerMatrix4x4EventPacketAllocate(WORLD_X, 0,
+			caerEventPacketHeaderGetEventTSOverflow(&pkg->packetHeader));
 	}
 
 	const libcaer::events::Matrix4x4EventPacket matrix4x4Packet(matrix4x4PacketHeader, false);
@@ -477,8 +492,6 @@ static bool caerVisualizerRendererMatrix4x4EventsPose(caerVisualizerPublicState 
 
 	// time span, +1 to divide space correctly in scaleX.
 	uint32_t timeSpan = 1024;//maxTimestamp - minTimestamp + 1;
-
-	//int* time = (int *) state->renderState;
 
 	// Get render sizes, subtract 2px for middle borders.
 	float zoomFactor = state->renderZoomFactor.load(std::memory_order_relaxed);
@@ -499,12 +512,37 @@ static bool caerVisualizerRendererMatrix4x4EventsPose(caerVisualizerPublicState 
 		// X is based on time.
 		uint32_t plotX = U32T(floorf((float ) times * scaleX));
 
-		float m00 = matrixEvent.getM00();
-		float m01 = matrixEvent.getM01();
-		caerLog(CAER_LOG_ERROR, __func__, "m00 %f", m00);
-		sfml::Helpers::addPixelVertices(vertices, plotX, m00, zoomFactor, sf::Color::White, false);
-		sfml::Helpers::addPixelVertices(vertices, plotX, m01, zoomFactor, sf::Color::Red, false);
+		float m00 = matrixEvent.getM00()*scaleY;
+		float m01 = matrixEvent.getM01()*scaleY;
 
+		// what x position to update
+		memInt->currentCounter += 1;
+		if(memInt->currentCounter == (int) sizeX){
+			memInt->currentCounter = 0;
+		}
+
+		caerLog(CAER_LOG_ERROR, __func__, "sizeX %f", sizeX);
+
+		memInt->worldXPosition += 1;
+		if(memInt->worldXPosition == WORLD_X){
+			memInt->worldXPosition = 0;
+		}
+		/*caerMatrix4x4Event thisEvent = caerMatrix4x4EventPacketGetEvent(memInt[0]->mem, memInt[0]->worldXPosition);
+		caerMatrix4x4EventSetM00(thisEvent, m00);
+
+		// draw all points
+		int cc = 0;
+		for(size_t i = 0; i < memInt[0]->worldXPosition; i++){
+			caerMatrix4x4Event thisEvent = caerMatrix4x4EventPacketGetEvent(memInt[0]->mem, i);
+			float mm00 = caerMatrix4x4EventGetM00(thisEvent);
+			if(cc <= memInt[0]->currentCounter){
+				break;
+			}else{
+				sfml::Helpers::addPixelVertices(vertices, plotX+cc, mm00, zoomFactor, sf::Color::White, false);
+				sfml::Helpers::addPixelVertices(vertices, plotX+cc, m01, zoomFactor, sf::Color::Red, false);
+			}
+			cc+=1;
+		}*/
 	}
 
 	state->renderWindow->draw(vertices.data(), vertices.size(), sf::Quads);
