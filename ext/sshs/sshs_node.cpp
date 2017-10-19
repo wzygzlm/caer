@@ -831,8 +831,16 @@ static bool sshsNodeToXML(sshsNode node, const std::string &fileName, bool recur
 	xmlTree.put_child("sshs.node", sshsNodeGenerateXML(node, recursive));
 
 	try {
-		boost::property_tree::xml_parser::xml_writer_settings<std::string> xmlIndent(' ', XML_INDENT_SPACES);
-		boost::property_tree::write_xml(outStream, xmlTree, xmlIndent);
+		boost::property_tree::xml_parser::xml_writer_settings<boost::property_tree::ptree::key_type> xmlIndent(' ',
+		XML_INDENT_SPACES);
+
+		// We manually call write_xml_element() here instead of write_xml() because
+		// the latter always prepends the XML declaration, which we don't want.
+		boost::property_tree::xml_parser::write_xml_element(outStream, boost::property_tree::ptree::key_type(), xmlTree,
+			-1, xmlIndent);
+		if (!outStream) {
+			throw boost::property_tree::xml_parser_error("write error.", fileName, 0);
+		}
 	}
 	catch (const boost::property_tree::xml_parser_error &ex) {
 		const std::string errorMsg = std::string("Failed to write XML to output stream. Exception: ") + ex.what();
@@ -925,7 +933,8 @@ static bool sshsNodeFromXML(sshsNode node, const std::string &fileName, bool rec
 	}
 
 	try {
-		boost::property_tree::read_xml(inStream, xmlTree, boost::property_tree::xml_parser::trim_whitespace);
+		boost::property_tree::xml_parser::read_xml(inStream, xmlTree,
+			boost::property_tree::xml_parser::trim_whitespace);
 	}
 	catch (const boost::property_tree::xml_parser_error &ex) {
 		const std::string errorMsg = std::string("Failed to load XML from input stream. Exception: ") + ex.what();
