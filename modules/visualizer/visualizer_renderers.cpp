@@ -8,6 +8,7 @@
 #include <libcaercpp/events/imu6.hpp>
 #include <libcaercpp/events/point2d.hpp>
 #include <libcaercpp/events/point4d.hpp>
+#include <libcaercpp/events/matrix4x4.hpp> // Render camera pose
 #include <libcaercpp/events/spike.hpp>
 #include <libcaercpp/devices/davis.hpp> // Only for constants.
 #include <libcaercpp/devices/dynapse.hpp> // Only for constants.
@@ -33,6 +34,14 @@ static const struct caer_visualizer_renderer_info rendererPoint2DEvents("2D_Poin
 static bool caerVisualizerRendererSpikeEvents(caerVisualizerPublicState state, caerEventPacketContainer container);
 static const struct caer_visualizer_renderer_info rendererSpikeEvents("Spikes", &caerVisualizerRendererSpikeEvents);
 
+static void *caerVisualizerRendererMatrix4x4EventsPoseStateInit(caerVisualizerPublicState state);
+static void caerVisualizerRendererMatrix4x4EventsPoseStateExit(caerVisualizerPublicState state);
+static bool caerVisualizerRendererMatrix4x4EventsPose(caerVisualizerPublicState state,
+	caerEventPacketContainer container);
+static const struct caer_visualizer_renderer_info rendererMatrix4x4EventsPose("Camera_pose",
+	&caerVisualizerRendererMatrix4x4EventsPose, false, &caerVisualizerRendererMatrix4x4EventsPoseStateInit,
+	&caerVisualizerRendererMatrix4x4EventsPoseStateExit);
+
 static void *caerVisualizerRendererSpikeEventsRasterStateInit(caerVisualizerPublicState state);
 static bool caerVisualizerRendererSpikeEventsRaster(caerVisualizerPublicState state,
 	caerEventPacketContainer container);
@@ -48,11 +57,11 @@ static const struct caer_visualizer_renderer_info rendererPolarityAndFrameEvents
 	&caerVisualizerRendererPolarityAndFrameEventsStateExit);
 
 const std::string caerVisualizerRendererListOptionsString =
-	"None,Polarity,Frame,IMU_6-axes,2D_Points,Spikes,Spikes_Raster_Plot,Polarity_and_Frames";
+	"None,Polarity,Frame,IMU_6-axes,2D_Points,Spikes,Spikes_Raster_Plot,Polarity_and_Frames,Camera_pose";
 
 const struct caer_visualizer_renderer_info caerVisualizerRendererList[] = { { "None", nullptr }, rendererPolarityEvents,
 	rendererFrameEvents, rendererIMU6Events, rendererPoint2DEvents, rendererSpikeEvents, rendererSpikeEventsRaster,
-	rendererPolarityAndFrameEvents };
+	rendererPolarityAndFrameEvents, rendererMatrix4x4EventsPose };
 
 const size_t caerVisualizerRendererListLength = (sizeof(caerVisualizerRendererList)
 	/ sizeof(struct caer_visualizer_renderer_info));
@@ -427,10 +436,323 @@ static bool caerVisualizerRendererSpikeEvents(caerVisualizerPublicState state, c
 		// Render spikes with different colors based on core ID.
 		uint8_t coreId = spikeEvent.getSourceCoreID();
 		sfml::Helpers::addPixelVertices(vertices, libcaer::devices::dynapse::spikeEventGetX(spikeEvent),
-			libcaer::devices::dynapse::spikeEventGetY(spikeEvent), state->renderZoomFactor.load(std::memory_order_relaxed),
-			dynapseCoreIdToColor(coreId));
+			libcaer::devices::dynapse::spikeEventGetY(spikeEvent),
+			state->renderZoomFactor.load(std::memory_order_relaxed), dynapseCoreIdToColor(coreId));
 	}
 
+	state->renderWindow->draw(vertices.data(), vertices.size(), sf::Quads);
+
+	return (true);
+}
+
+// Matrix4x4
+// How many ts and points will be drawn
+// what is the size of the plot (can be zoomed)
+#define WORLD_X 640
+#define WORLD_Y 480
+#define TIMETOT 3000000
+#define NUMPACKETS 30000
+
+struct caer_visualizer_pose_matrix {
+	caerMatrix4x4EventPacket mem;
+	int currentCounter;
+	int worldXPosition;
+	int firstTs;
+};
+
+typedef struct caer_visualizer_pose_matrix *caerVisualizerPoseMatrix;
+
+static void *caerVisualizerRendererMatrix4x4EventsPoseStateInit(caerVisualizerPublicState state) {
+	// Reset render size to allow for more neurons and timesteps to be displayed.
+	caerVisualizerResetRenderSize(state, WORLD_X, WORLD_Y);
+
+	caerVisualizerPoseMatrix mem = new caer_visualizer_pose_matrix();
+
+	return (mem); // No allocated memory.
+}
+
+static void caerVisualizerRendererMatrix4x4EventsPoseStateExit(caerVisualizerPublicState state) {
+	delete (state->renderState);
+}
+
+static bool caerVisualizerRendererMatrix4x4EventsPose(caerVisualizerPublicState state,
+	caerEventPacketContainer container) {
+	UNUSED_ARGUMENT(state);
+
+	caerMatrix4x4EventPacket pkg = (caerMatrix4x4EventPacket) caerEventPacketContainerFindEventPacketByType(container,
+		MATRIX4x4_EVENT);
+	caerEventPacketHeader matrix4x4PacketHeader = &pkg->packetHeader;
+
+	if (matrix4x4PacketHeader == NULL || caerEventPacketHeaderGetEventValid(matrix4x4PacketHeader) == 0) {
+		return (false);
+	}
+
+	caerVisualizerPoseMatrix memInt = (caerVisualizerPoseMatrix) state->renderState;
+	if (memInt->mem == nullptr) {
+		memInt->mem = (caerMatrix4x4EventPacket) caerMatrix4x4EventPacketAllocate(NUMPACKETS, 0,
+			caerEventPacketHeaderGetEventTSOverflow(&pkg->packetHeader));
+		memInt->firstTs = INT_MAX; // max it will be fixed to its real value at first step
+	}
+
+	const libcaer::events::Matrix4x4EventPacket matrix4x4Packet(matrix4x4PacketHeader, false);
+
+	// find max and min TS, event packets MUST be ordered by time, that's
+	// an invariant property, so we can just select first and last event.
+	// Also time is always positive, so we can use unsigned ints.
+	uint32_t minTimestamp = U32T(matrix4x4Packet[0].getTimestamp());
+	if (minTimestamp < memInt->firstTs) {
+		memInt->firstTs = minTimestamp;
+	}
+	uint32_t maxTimestamp = U32T(matrix4x4Packet[-1].getTimestamp());
+
+	// time span, +1 to divide space correctly in scaleX.
+	uint32_t timeSpan = maxTimestamp - memInt->firstTs + 1;
+	if (timeSpan >= TIMETOT) {
+		memInt->firstTs = maxTimestamp;
+		// invalidate events to clear plot
+		for (size_t pn = 0; pn < NUMPACKETS; pn++) {
+			caerMatrix4x4Event thisEvent = caerMatrix4x4EventPacketGetEvent(memInt->mem, pn);
+			if(caerMatrix4x4EventIsValid(thisEvent)){
+				caerMatrix4x4EventInvalidate(thisEvent, memInt->mem);
+			}
+		}
+	}
+
+	// Get render sizes, subtract 2px for middle borders.
+	float zoomFactor = state->renderZoomFactor.load(std::memory_order_relaxed);
+
+	float sizeX = (float) (state->renderSizeX - 2) * zoomFactor;
+	float sizeY = (float) (state->renderSizeY - 2) * zoomFactor;
+
+	// Two plots in each of X and Y directions.
+	float scaleX = (sizeX) / (float) TIMETOT;
+	float scaleY = (sizeY / 2.0f) / (float) WORLD_Y;
+
+	for (const auto &matrixEvent : matrix4x4Packet) {
+
+		// only show valid events
+		if (!matrixEvent.isValid()) {
+			continue;
+		}
+
+		int ts = matrixEvent.getTimestamp();
+		ts = ts - memInt->firstTs;
+
+		// X is based on time.
+		int32_t plotX = (int) floorf((float) ts * scaleX);
+
+		float m00 = matrixEvent.getM00();
+		float m01 = matrixEvent.getM01();
+		float m02 = matrixEvent.getM02();
+		float m03 = matrixEvent.getM03();
+
+		float m10 = matrixEvent.getM10();
+		float m11 = matrixEvent.getM11();
+		float m12 = matrixEvent.getM12();
+		float m13 = matrixEvent.getM13();
+
+		float m20 = matrixEvent.getM20();
+		float m21 = matrixEvent.getM21();
+		float m22 = matrixEvent.getM22();
+		float m23 = matrixEvent.getM23();
+
+		float m30 = matrixEvent.getM30();
+		float m31 = matrixEvent.getM31();
+		float m32 = matrixEvent.getM32();
+		float m33 = matrixEvent.getM33();
+
+		// what x position to update
+		memInt->currentCounter += 1;
+		if (memInt->currentCounter == (int) sizeX) {
+			memInt->currentCounter = 0;
+		}
+
+		// x position
+		if (memInt->worldXPosition == NUMPACKETS) {
+			memInt->worldXPosition = 0;
+		}
+
+		caerMatrix4x4Event thisEvent = caerMatrix4x4EventPacketGetEvent(memInt->mem, memInt->worldXPosition);
+		caerMatrix4x4EventSetM00(thisEvent, m00);
+		caerMatrix4x4EventSetM01(thisEvent, m01);
+		caerMatrix4x4EventSetM02(thisEvent, m02);
+		caerMatrix4x4EventSetM03(thisEvent, m03);
+		caerMatrix4x4EventSetM10(thisEvent, m10);
+		caerMatrix4x4EventSetM11(thisEvent, m11);
+		caerMatrix4x4EventSetM12(thisEvent, m12);
+		caerMatrix4x4EventSetM13(thisEvent, m13);
+		caerMatrix4x4EventSetM20(thisEvent, m20);
+		caerMatrix4x4EventSetM21(thisEvent, m21);
+		caerMatrix4x4EventSetM22(thisEvent, m22);
+		caerMatrix4x4EventSetM23(thisEvent, m23);
+		caerMatrix4x4EventSetM30(thisEvent, m30);
+		caerMatrix4x4EventSetM31(thisEvent, m31);
+		caerMatrix4x4EventSetM32(thisEvent, m32);
+		caerMatrix4x4EventSetM33(thisEvent, m33);
+
+		// set timestamp accordingly
+		caerMatrix4x4EventSetTimestamp(thisEvent, plotX);
+
+		// validate event
+		caerMatrix4x4EventValidate(thisEvent, memInt->mem);
+
+		//increment counter
+		memInt->worldXPosition += 1;
+
+	}
+
+	// init vertices
+	std::vector<sf::Vertex> vertices((size_t) matrix4x4Packet.getEventNumber() * 4);
+
+	// draw all points
+	for (size_t i = 0; i < memInt->worldXPosition; i++) {
+		caerMatrix4x4Event thisEvent = caerMatrix4x4EventPacketGetEvent(memInt->mem, i);
+		if (caerMatrix4x4EventIsValid(thisEvent)) {
+
+			float mm00 = caerMatrix4x4EventGetM00(thisEvent);
+			float mm01 = caerMatrix4x4EventGetM01(thisEvent);
+			float mm02 = caerMatrix4x4EventGetM02(thisEvent);
+			float mm03 = caerMatrix4x4EventGetM03(thisEvent);
+
+			float mm10 = caerMatrix4x4EventGetM10(thisEvent);
+			float mm11 = caerMatrix4x4EventGetM11(thisEvent);
+			float mm12 = caerMatrix4x4EventGetM12(thisEvent);
+			float mm13 = caerMatrix4x4EventGetM13(thisEvent);
+
+			float mm20 = caerMatrix4x4EventGetM20(thisEvent);
+			float mm21 = caerMatrix4x4EventGetM21(thisEvent);
+			float mm22 = caerMatrix4x4EventGetM22(thisEvent);
+			float mm23 = caerMatrix4x4EventGetM23(thisEvent);
+
+			float mm30 = caerMatrix4x4EventGetM30(thisEvent);
+			float mm31 = caerMatrix4x4EventGetM31(thisEvent);
+			float mm32 = caerMatrix4x4EventGetM32(thisEvent);
+			float mm33 = caerMatrix4x4EventGetM33(thisEvent);
+
+			// set timestamp, i.e. position on X
+			float plotX = caerMatrix4x4EventGetTimestamp(thisEvent);
+
+			if (mm00 >= 0) {
+				sfml::Helpers::addPixelVertices(vertices, plotX, ((mm00) * (WORLD_Y) + (WORLD_Y / 2)) * scaleY,
+					zoomFactor, sf::Color::White, false);
+			}
+			else {
+				sfml::Helpers::addPixelVertices(vertices, plotX, ((mm00 * (-1)) * (WORLD_Y) - (WORLD_Y / 2)) * scaleY,
+					zoomFactor, sf::Color::White, false);
+			}
+			if (mm01 >= 0) {
+				sfml::Helpers::addPixelVertices(vertices, plotX, ((mm01) * (WORLD_Y) + (WORLD_Y / 2)) * scaleY,
+					zoomFactor, sf::Color::White, false);
+			}
+			else {
+				sfml::Helpers::addPixelVertices(vertices, plotX, ((mm01 * (-1)) * (WORLD_Y) - (WORLD_Y / 2)) * scaleY,
+					zoomFactor, sf::Color::White, false);
+			}
+			if (mm02 >= 0) {
+				sfml::Helpers::addPixelVertices(vertices, plotX, ((mm02) * (WORLD_Y) + (WORLD_Y / 2)) * scaleY,
+					zoomFactor, sf::Color::White, false);
+			}
+			else {
+				sfml::Helpers::addPixelVertices(vertices, plotX, ((mm02 * (-1)) * (WORLD_Y) - (WORLD_Y / 2)) * scaleY,
+					zoomFactor, sf::Color::White, false);
+			}
+			if (mm03 >= 0) {
+				sfml::Helpers::addPixelVertices(vertices, plotX, ((mm03) * (WORLD_Y) + (WORLD_Y / 2)) * scaleY,
+					zoomFactor, sf::Color::White, false);
+			}
+			else {
+				sfml::Helpers::addPixelVertices(vertices, plotX, ((mm03 * (-1)) * (WORLD_Y) - (WORLD_Y / 2)) * scaleY,
+					zoomFactor, sf::Color::White, false);
+			}
+
+			if (mm10 >= 0) {
+				sfml::Helpers::addPixelVertices(vertices, plotX, ((mm10) * (WORLD_Y) + (WORLD_Y / 2)) * scaleY,
+					zoomFactor, sf::Color::Blue, false);
+			}
+			else {
+				sfml::Helpers::addPixelVertices(vertices, plotX, ((mm10 * (-1)) * (WORLD_Y) - (WORLD_Y / 2)) * scaleY,
+					zoomFactor, sf::Color::Blue, false);
+			}
+			if (mm11 >= 0) {
+				sfml::Helpers::addPixelVertices(vertices, plotX, ((mm11) * (WORLD_Y) + (WORLD_Y / 2)) * scaleY,
+					zoomFactor, sf::Color::Blue, false);
+			}
+			else {
+				sfml::Helpers::addPixelVertices(vertices, plotX, ((mm11 * (-1)) * (WORLD_Y) - (WORLD_Y / 2)) * scaleY,
+					zoomFactor, sf::Color::Blue, false);
+			}
+			if (mm12 >= 0) {
+				sfml::Helpers::addPixelVertices(vertices, plotX, ((mm12) * (WORLD_Y) + (WORLD_Y / 2)) * scaleY,
+					zoomFactor, sf::Color::Blue, false);
+			}
+			else {
+				sfml::Helpers::addPixelVertices(vertices, plotX, ((mm12 * (-1)) * (WORLD_Y) - (WORLD_Y / 2)) * scaleY,
+					zoomFactor, sf::Color::Blue, false);
+			}
+			if (mm13 >= 0) {
+				sfml::Helpers::addPixelVertices(vertices, plotX, ((mm13) * (WORLD_Y) + (WORLD_Y / 2)) * scaleY,
+					zoomFactor, sf::Color::Blue, false);
+			}
+			else {
+				sfml::Helpers::addPixelVertices(vertices, plotX, ((mm13 * (-1)) * (WORLD_Y) - (WORLD_Y / 2)) * scaleY,
+					zoomFactor, sf::Color::Blue, false);
+			}
+
+			if (mm20 >= 0) {
+				sfml::Helpers::addPixelVertices(vertices, plotX, ((mm20) * (WORLD_Y) + (WORLD_Y / 2)) * scaleY,
+					zoomFactor, sf::Color::Red, false);
+			}
+			else {
+				sfml::Helpers::addPixelVertices(vertices, plotX, ((mm20 * (-1)) * (WORLD_Y) - (WORLD_Y / 2)) * scaleY,
+					zoomFactor, sf::Color::Red, false);
+			}
+			if (mm21 >= 0) {
+				sfml::Helpers::addPixelVertices(vertices, plotX, ((mm21) * (WORLD_Y) + (WORLD_Y / 2)) * scaleY,
+					zoomFactor, sf::Color::Red, false);
+			}
+			else {
+				sfml::Helpers::addPixelVertices(vertices, plotX, ((mm21 * (-1)) * (WORLD_Y) - (WORLD_Y / 2)) * scaleY,
+					zoomFactor, sf::Color::Red, false);
+			}
+			if (mm22 >= 0) {
+				sfml::Helpers::addPixelVertices(vertices, plotX, ((mm22) * (WORLD_Y) + (WORLD_Y / 2)) * scaleY,
+					zoomFactor, sf::Color::Red, false);
+			}
+			else {
+				sfml::Helpers::addPixelVertices(vertices, plotX, ((mm22 * (-1)) * (WORLD_Y) - (WORLD_Y / 2)) * scaleY,
+					zoomFactor, sf::Color::Red, false);
+			}
+			if (mm23 >= 0) {
+				sfml::Helpers::addPixelVertices(vertices, plotX, ((mm23) * (WORLD_Y) + (WORLD_Y / 2)) * scaleY,
+					zoomFactor, sf::Color::Red, false);
+			}
+			else {
+				sfml::Helpers::addPixelVertices(vertices, plotX, ((mm23 * (-1)) * (WORLD_Y) - (WORLD_Y / 2)) * scaleY,
+					zoomFactor, sf::Color::Red, false);
+			}
+
+			/*if(m30 >= 0){
+			 sfml::Helpers::addPixelVertices(vertices, plotX, ((mm30)*(WORLD_Y)+(WORLD_Y/2))*scaleY, zoomFactor, sf::Color::Yellow, false);
+			 }else{
+			 sfml::Helpers::addPixelVertices(vertices, plotX, ((mm30*(-1))*(WORLD_Y)-(WORLD_Y/2))*scaleY, zoomFactor, sf::Color::Yellow, false);
+			 }
+			 if(m31 >= 0){
+			 sfml::Helpers::addPixelVertices(vertices, plotX, ((mm31)*(WORLD_Y)+(WORLD_Y/2))*scaleY, zoomFactor, sf::Color::Yellow, false);
+			 }else{
+			 sfml::Helpers::addPixelVertices(vertices, plotX, ((mm31*(-1))*(WORLD_Y)-(WORLD_Y/2))*scaleY, zoomFactor, sf::Color::Yellow, false);
+			 }
+			 if(m32 >= 0){
+			 sfml::Helpers::addPixelVertices(vertices, plotX, ((mm32)*(WORLD_Y)+(WORLD_Y/2))*scaleY, zoomFactor, sf::Color::Yellow, false);
+			 }else{
+			 sfml::Helpers::addPixelVertices(vertices, plotX, ((mm32*(-1))*(WORLD_Y)-(WORLD_Y/2))*scaleY, zoomFactor, sf::Color::Yellow, false);
+			 }
+			 if(m33 >= 0){
+			 sfml::Helpers::addPixelVertices(vertices, plotX, ((mm33)*(WORLD_Y)+(WORLD_Y/2))*scaleY, zoomFactor, sf::Color::Yellow, false);
+			 }else{
+			 sfml::Helpers::addPixelVertices(vertices, plotX, ((mm33*(-1))*(WORLD_Y)-(WORLD_Y/2))*scaleY, zoomFactor, sf::Color::Yellow, false);
+			 }*/
+		}// only valid events
+	}
 	state->renderWindow->draw(vertices.data(), vertices.size(), sf::Quads);
 
 	return (true);
@@ -521,13 +843,13 @@ static bool caerVisualizerRendererSpikeEventsRaster(caerVisualizerPublicState st
 
 	// Draw middle borders, only once!
 	sfml::Line horizontalBorderLine(sf::Vector2f(0, (state->renderSizeY * zoomFactor) / 2),
-		sf::Vector2f((state->renderSizeX * zoomFactor), (state->renderSizeY * zoomFactor) / 2),
-		2 * zoomFactor, sf::Color::White);
+		sf::Vector2f((state->renderSizeX * zoomFactor), (state->renderSizeY * zoomFactor) / 2), 2 * zoomFactor,
+		sf::Color::White);
 	state->renderWindow->draw(horizontalBorderLine);
 
 	sfml::Line verticalBorderLine(sf::Vector2f((state->renderSizeX * zoomFactor) / 2, 0),
-		sf::Vector2f((state->renderSizeX * zoomFactor) / 2, (state->renderSizeY * zoomFactor)),
-		2 * zoomFactor, sf::Color::White);
+		sf::Vector2f((state->renderSizeX * zoomFactor) / 2, (state->renderSizeY * zoomFactor)), 2 * zoomFactor,
+		sf::Color::White);
 	state->renderWindow->draw(verticalBorderLine);
 
 	return (true);
