@@ -335,7 +335,7 @@ static void sshsNodeRemoveAllChildren(sshsNode node);
 #define XML_INDENT_SPACES 4
 
 static bool sshsNodeToXML(sshsNode node, const std::string &fileName, bool recursive);
-static void sshsNodeGenerateXML(sshsNode node, boost::property_tree::ptree &content, bool recursive);
+static boost::property_tree::ptree sshsNodeGenerateXML(sshsNode node, bool recursive);
 static bool sshsNodeFromXML(sshsNode node, const std::string &fileName, bool recursive, bool strict);
 static void sshsNodeConsumeXML(sshsNode node, const boost::property_tree::ptree &content, bool recursive);
 
@@ -828,8 +828,7 @@ static bool sshsNodeToXML(sshsNode node, const std::string &fileName, bool recur
 	xmlTree.put("sshs.<xmlattr>.version", "1.0");
 
 	// Generate recursive XML for all nodes.
-	auto &rootNode = xmlTree.put("sshs.node", "");
-	sshsNodeGenerateXML(node, rootNode, recursive);
+	xmlTree.put_child("sshs.node", sshsNodeGenerateXML(node, recursive));
 
 	try {
 		boost::property_tree::xml_parser::xml_writer_settings<std::string> xmlIndent(' ', XML_INDENT_SPACES);
@@ -844,40 +843,55 @@ static bool sshsNodeToXML(sshsNode node, const std::string &fileName, bool recur
 	return (true);
 }
 
-static void sshsNodeGenerateXML(sshsNode node, boost::property_tree::ptree &content, bool recursive) {
-	content.put("<xmlattr>.name", node->name);
-	content.put("<xmlattr>.path", node->path);
+static boost::property_tree::ptree sshsNodeGenerateXML(sshsNode node, bool recursive) {
+	boost::property_tree::ptree content;
 
-	{
-		std::lock_guard<std::recursive_mutex> lockNode(node->node_lock);
-
-		// Then it's attributes (key:value pairs).
-		for (const auto &attr : node->attributes) {
-			// If an attribute is marked NO_EXPORT, we skip it.
-			if (attr.second.isFlagSet(SSHS_FLAGS_NO_EXPORT)) {
-				continue;
-			}
-
-			const std::string type = sshsHelperCppTypeToStringConverter(attr.second.value.getType());
-			const std::string value = sshsHelperCppValueToStringConverter(attr.second.value);
-
-			auto &attrNode = content.add("attr", value);
-			attrNode.put("<xmlattr>.key", attr.first);
-			attrNode.put("<xmlattr>.type", type);
-		}
-	}
-
-	// And lastly recurse down to the children.
+	// First recurse down all the way to the leaf children, where attributes are kept.
 	if (recursive) {
 		std::shared_lock<std::shared_timed_mutex> lock(node->traversal_lock);
 
 		for (const auto &child : node->children) {
-			auto &childNode = content.add("node", "");
-			sshsNodeGenerateXML(child.second, childNode, recursive);
+			auto childContent = sshsNodeGenerateXML(child.second, recursive);
 
-			// TODO: eliminate nodes with no children.
+			if (!childContent.empty()) {
+				// Only add in nodes that have content (attributes or other nodes).
+				content.add_child("node", childContent);
+			}
 		}
 	}
+
+	std::lock_guard<std::recursive_mutex> lockNode(node->node_lock);
+
+	// Then it's attributes (key:value pairs).
+	auto attrFirstIterator = content.begin();
+	for (const auto &attr : node->attributes) {
+		// If an attribute is marked NO_EXPORT, we skip it.
+		if (attr.second.isFlagSet(SSHS_FLAGS_NO_EXPORT)) {
+			continue;
+		}
+
+		const std::string type = sshsHelperCppTypeToStringConverter(attr.second.value.getType());
+		const std::string value = sshsHelperCppValueToStringConverter(attr.second.value);
+
+		boost::property_tree::ptree attrNode(value);
+		attrNode.put("<xmlattr>.key", attr.first);
+		attrNode.put("<xmlattr>.type", type);
+
+		// Attributes should be in order, but at the start of the node (before
+		// other nodes), so we insert() them instead of just adding to the back.
+		attrFirstIterator = content.insert(attrFirstIterator,
+			boost::property_tree::ptree::value_type("attr", attrNode));
+		attrFirstIterator++;
+	}
+
+	if (!content.empty()) {
+		// Only add elements (name, path) if the node has any content
+		// (attributes or othern odes), so that empty nodes are really empty.
+		content.put("<xmlattr>.name", node->name);
+		content.put("<xmlattr>.path", node->path);
+	}
+
+	return (content);
 }
 
 bool sshsNodeImportNodeFromXML(sshsNode node, const char *fileName, bool strict) {
