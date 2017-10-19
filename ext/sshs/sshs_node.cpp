@@ -828,7 +828,8 @@ static bool sshsNodeToXML(sshsNode node, const std::string &fileName, bool recur
 	xmlTree.put("sshs.<xmlattr>.version", "1.0");
 
 	// Generate recursive XML for all nodes.
-	sshsNodeGenerateXML(node, xmlTree.get_child("sshs.node"), recursive);
+	auto &rootNode = xmlTree.put("sshs.node", "");
+	sshsNodeGenerateXML(node, rootNode, recursive);
 
 	try {
 		boost::property_tree::xml_parser::xml_writer_settings<std::string> xmlIndent(' ', XML_INDENT_SPACES);
@@ -847,34 +848,34 @@ static void sshsNodeGenerateXML(sshsNode node, boost::property_tree::ptree &cont
 	content.put("<xmlattr>.name", node->name);
 	content.put("<xmlattr>.path", node->path);
 
-//	{
-//		std::lock_guard<std::recursive_mutex> lockNode(node->node_lock);
-//
-//		// Then it's attributes (key:value pairs).
-//		for (const auto &attr : node->attributes) {
-//			// If an attribute is marked NO_EXPORT, we skip it.
-//			if (attr.second.isFlagSet(SSHS_FLAGS_NO_EXPORT)) {
-//				continue;
-//			}
-//
-//			const std::string type = sshsHelperCppTypeToStringConverter(attr.second.value.getType());
-//			const std::string value = sshsHelperCppValueToStringConverter(attr.second.value);
-//
-//			mxml_node_t *xmlAttr = mxmlNewElement(thisNode, "attr");
-//			mxmlElementSetAttr(xmlAttr, "key", attr.first.c_str());
-//			mxmlElementSetAttr(xmlAttr, "type", type.c_str());
-//			mxmlNewText(xmlAttr, 0, value.c_str());
-//		}
-//	}
+	{
+		std::lock_guard<std::recursive_mutex> lockNode(node->node_lock);
+
+		// Then it's attributes (key:value pairs).
+		for (const auto &attr : node->attributes) {
+			// If an attribute is marked NO_EXPORT, we skip it.
+			if (attr.second.isFlagSet(SSHS_FLAGS_NO_EXPORT)) {
+				continue;
+			}
+
+			const std::string type = sshsHelperCppTypeToStringConverter(attr.second.value.getType());
+			const std::string value = sshsHelperCppValueToStringConverter(attr.second.value);
+
+			auto &attrNode = content.add("attr", value);
+			attrNode.put("<xmlattr>.key", attr.first);
+			attrNode.put("<xmlattr>.type", type);
+		}
+	}
 
 	// And lastly recurse down to the children.
 	if (recursive) {
 		std::shared_lock<std::shared_timed_mutex> lock(node->traversal_lock);
 
 		for (const auto &child : node->children) {
-			sshsNodeGenerateXML(child.second, content, recursive);
+			auto &childNode = content.add("node", "");
+			sshsNodeGenerateXML(child.second, childNode, recursive);
 
-			// TODO: handle nodes with no children.
+			// TODO: eliminate nodes with no children.
 		}
 	}
 }
