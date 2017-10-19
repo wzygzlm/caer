@@ -39,7 +39,8 @@ static void caerVisualizerRendererMatrix4x4EventsPoseStateExit(caerVisualizerPub
 static bool caerVisualizerRendererMatrix4x4EventsPose(caerVisualizerPublicState state,
 	caerEventPacketContainer container);
 static const struct caer_visualizer_renderer_info rendererMatrix4x4EventsPose("Camera_pose",
-	&caerVisualizerRendererMatrix4x4EventsPose, false, &caerVisualizerRendererMatrix4x4EventsPoseStateInit, &caerVisualizerRendererMatrix4x4EventsPoseStateExit);
+	&caerVisualizerRendererMatrix4x4EventsPose, false, &caerVisualizerRendererMatrix4x4EventsPoseStateInit,
+	&caerVisualizerRendererMatrix4x4EventsPoseStateExit);
 
 static void *caerVisualizerRendererSpikeEventsRasterStateInit(caerVisualizerPublicState state);
 static bool caerVisualizerRendererSpikeEventsRaster(caerVisualizerPublicState state,
@@ -435,8 +436,8 @@ static bool caerVisualizerRendererSpikeEvents(caerVisualizerPublicState state, c
 		// Render spikes with different colors based on core ID.
 		uint8_t coreId = spikeEvent.getSourceCoreID();
 		sfml::Helpers::addPixelVertices(vertices, libcaer::devices::dynapse::spikeEventGetX(spikeEvent),
-			libcaer::devices::dynapse::spikeEventGetY(spikeEvent), state->renderZoomFactor.load(std::memory_order_relaxed),
-			dynapseCoreIdToColor(coreId));
+			libcaer::devices::dynapse::spikeEventGetY(spikeEvent),
+			state->renderZoomFactor.load(std::memory_order_relaxed), dynapseCoreIdToColor(coreId));
 	}
 
 	state->renderWindow->draw(vertices.data(), vertices.size(), sf::Quads);
@@ -448,11 +449,14 @@ static bool caerVisualizerRendererSpikeEvents(caerVisualizerPublicState state, c
 // How many ts and points will be drawn
 #define WORLD_X 640
 #define WORLD_Y 480
+#define TIMETOT 3000000
+#define NUMPACKETS 30000
 
 struct caer_visualizer_pose_matrix {
 	caerMatrix4x4EventPacket mem;
 	int currentCounter;
 	int worldXPosition;
+	int firstTs;
 };
 
 typedef struct caer_visualizer_pose_matrix *caerVisualizerPoseMatrix;
@@ -466,15 +470,16 @@ static void *caerVisualizerRendererMatrix4x4EventsPoseStateInit(caerVisualizerPu
 	return (mem); // No allocated memory.
 }
 
-static void caerVisualizerRendererMatrix4x4EventsPoseStateExit(caerVisualizerPublicState state){
-	delete(state->renderState);
+static void caerVisualizerRendererMatrix4x4EventsPoseStateExit(caerVisualizerPublicState state) {
+	delete (state->renderState);
 }
 
 static bool caerVisualizerRendererMatrix4x4EventsPose(caerVisualizerPublicState state,
 	caerEventPacketContainer container) {
 	UNUSED_ARGUMENT(state);
 
-	caerMatrix4x4EventPacket pkg = (caerMatrix4x4EventPacket) caerEventPacketContainerFindEventPacketByType(container, MATRIX4x4_EVENT);
+	caerMatrix4x4EventPacket pkg = (caerMatrix4x4EventPacket) caerEventPacketContainerFindEventPacketByType(container,
+		MATRIX4x4_EVENT);
 	caerEventPacketHeader matrix4x4PacketHeader = &pkg->packetHeader;
 
 	if (matrix4x4PacketHeader == NULL || caerEventPacketHeaderGetEventValid(matrix4x4PacketHeader) == 0) {
@@ -482,9 +487,10 @@ static bool caerVisualizerRendererMatrix4x4EventsPose(caerVisualizerPublicState 
 	}
 
 	caerVisualizerPoseMatrix memInt = (caerVisualizerPoseMatrix) state->renderState;
-	if(memInt->mem == nullptr){
-		memInt->mem = (caerMatrix4x4EventPacket) caerMatrix4x4EventPacketAllocate(WORLD_X, 0,
+	if (memInt->mem == nullptr) {
+		memInt->mem = (caerMatrix4x4EventPacket) caerMatrix4x4EventPacketAllocate(NUMPACKETS, 0,
 			caerEventPacketHeaderGetEventTSOverflow(&pkg->packetHeader));
+		memInt->firstTs = INT_MAX; // max it will be fixed to its real value at first step
 	}
 
 	const libcaer::events::Matrix4x4EventPacket matrix4x4Packet(matrix4x4PacketHeader, false);
@@ -493,10 +499,23 @@ static bool caerVisualizerRendererMatrix4x4EventsPose(caerVisualizerPublicState 
 	// an invariant property, so we can just select first and last event.
 	// Also time is always positive, so we can use unsigned ints.
 	uint32_t minTimestamp = U32T(matrix4x4Packet[0].getTimestamp());
+	if (minTimestamp < memInt->firstTs) {
+		memInt->firstTs = minTimestamp;
+	}
 	uint32_t maxTimestamp = U32T(matrix4x4Packet[-1].getTimestamp());
 
 	// time span, +1 to divide space correctly in scaleX.
-	uint32_t timeSpan = 1024;//maxTimestamp - minTimestamp + 1;
+	uint32_t timeSpan = maxTimestamp - memInt->firstTs + 1;
+	if (timeSpan >= TIMETOT) {
+		memInt->firstTs = maxTimestamp;
+		// invalidate events to clear plot
+		for (size_t pn = 0; pn < NUMPACKETS; pn++) {
+			caerMatrix4x4Event thisEvent = caerMatrix4x4EventPacketGetEvent(memInt->mem, pn);
+			if(caerMatrix4x4EventIsValid(thisEvent)){
+				caerMatrix4x4EventInvalidate(thisEvent, pkg);
+			}
+		}
+	}
 
 	// Get render sizes, subtract 2px for middle borders.
 	float zoomFactor = state->renderZoomFactor.load(std::memory_order_relaxed);
@@ -505,22 +524,21 @@ static bool caerVisualizerRendererMatrix4x4EventsPose(caerVisualizerPublicState 
 	float sizeY = (float) (state->renderSizeY - 2) * zoomFactor;
 
 	// Two plots in each of X and Y directions.
-	float scaleX = (sizeX / 2.0f) / (float) timeSpan;
+	float scaleX = (sizeX) / (float) TIMETOT;
 	float scaleY = (sizeY / 2.0f) / (float) WORLD_Y;
-
-	std::vector<sf::Vertex> vertices((size_t) matrix4x4Packet.getEventNumber() * 4);
 
 	for (const auto &matrixEvent : matrix4x4Packet) {
 
 		// only show valid events
-		if(!matrixEvent.isValid()){
+		if (!matrixEvent.isValid()) {
 			continue;
 		}
 
-		int times = U32T(matrixEvent.getTimestamp());
+		int ts = matrixEvent.getTimestamp();
+		ts = ts - memInt->firstTs;
 
 		// X is based on time.
-		uint32_t plotX = U32T(floorf((float ) times * scaleX));
+		int32_t plotX = (int) floorf((float) ts * scaleX);
 
 		float m00 = matrixEvent.getM00();
 		float m01 = matrixEvent.getM01();
@@ -544,14 +562,16 @@ static bool caerVisualizerRendererMatrix4x4EventsPose(caerVisualizerPublicState 
 
 		// what x position to update
 		memInt->currentCounter += 1;
-		if(memInt->currentCounter == (int) sizeX){
+		if (memInt->currentCounter == (int) sizeX) {
 			memInt->currentCounter = 0;
 		}
 
+		// x position
 		memInt->worldXPosition += 1;
-		if(memInt->worldXPosition == WORLD_X){
+		if (memInt->worldXPosition == NUMPACKETS) {
 			memInt->worldXPosition = 0;
 		}
+
 		caerMatrix4x4Event thisEvent = caerMatrix4x4EventPacketGetEvent(memInt->mem, memInt->worldXPosition);
 		caerMatrix4x4EventSetM00(thisEvent, m00);
 		caerMatrix4x4EventSetM01(thisEvent, m01);
@@ -570,10 +590,22 @@ static bool caerVisualizerRendererMatrix4x4EventsPose(caerVisualizerPublicState 
 		caerMatrix4x4EventSetM32(thisEvent, m32);
 		caerMatrix4x4EventSetM33(thisEvent, m33);
 
-		// draw all points
-		int cc = 0;
-		for(size_t i = 0; i < memInt->worldXPosition; i++){
-			caerMatrix4x4Event thisEvent = caerMatrix4x4EventPacketGetEvent(memInt->mem, i);
+		// set timestamp accordingly
+		caerMatrix4x4EventSetTimestamp(thisEvent, plotX);
+
+		// validate event
+		caerMatrix4x4EventValidate(thisEvent, pkg);
+
+	}
+
+	// init vertices
+	std::vector<sf::Vertex> vertices((size_t) matrix4x4Packet.getEventNumber() * 4);
+
+	// draw all points
+	for (size_t i = 0; i < memInt->worldXPosition; i++) {
+		caerMatrix4x4Event thisEvent = caerMatrix4x4EventPacketGetEvent(memInt->mem, i);
+		if (caerMatrix4x4EventIsValid(thisEvent)) {
+
 			float mm00 = caerMatrix4x4EventGetM00(thisEvent);
 			float mm01 = caerMatrix4x4EventGetM01(thisEvent);
 			float mm02 = caerMatrix4x4EventGetM02(thisEvent);
@@ -594,104 +626,134 @@ static bool caerVisualizerRendererMatrix4x4EventsPose(caerVisualizerPublicState 
 			float mm32 = caerMatrix4x4EventGetM32(thisEvent);
 			float mm33 = caerMatrix4x4EventGetM33(thisEvent);
 
-			if(cc >= memInt->currentCounter){
-				break;
-			}else{
+			// set timestamp, i.e. position on X
+			float plotX = caerMatrix4x4EventGetTimestamp(thisEvent);
 
-				if(m00 >= 0){
-					sfml::Helpers::addPixelVertices(vertices, plotX+cc, ((mm00)*(WORLD_Y)+(WORLD_Y/2))*scaleY, zoomFactor, sf::Color::White, false);
-				}else{
-					sfml::Helpers::addPixelVertices(vertices, plotX+cc, ((mm00*(-1))*(WORLD_Y)-(WORLD_Y/2))*scaleY, zoomFactor, sf::Color::White, false);
-				}
-				if(m01 >= 0){
-					sfml::Helpers::addPixelVertices(vertices, plotX+cc, ((mm01)*(WORLD_Y)+(WORLD_Y/2))*scaleY, zoomFactor, sf::Color::White, false);
-				}else{
-					sfml::Helpers::addPixelVertices(vertices, plotX+cc, ((mm01*(-1))*(WORLD_Y)-(WORLD_Y/2))*scaleY, zoomFactor, sf::Color::White, false);
-				}
-				if(m02 >= 0){
-					sfml::Helpers::addPixelVertices(vertices, plotX+cc, ((mm02)*(WORLD_Y)+(WORLD_Y/2))*scaleY, zoomFactor, sf::Color::White, false);
-				}else{
-					sfml::Helpers::addPixelVertices(vertices, plotX+cc, ((mm02*(-1))*(WORLD_Y)-(WORLD_Y/2))*scaleY, zoomFactor, sf::Color::White, false);
-				}
-				if(m03 >= 0){
-					sfml::Helpers::addPixelVertices(vertices, plotX+cc, ((mm03)*(WORLD_Y)+(WORLD_Y/2))*scaleY, zoomFactor, sf::Color::White, false);
-				}else{
-					sfml::Helpers::addPixelVertices(vertices, plotX+cc, ((mm03*(-1))*(WORLD_Y)-(WORLD_Y/2))*scaleY, zoomFactor, sf::Color::White, false);
-				}
-
-				if(m10 >= 0){
-					sfml::Helpers::addPixelVertices(vertices, plotX+cc, ((mm10)*(WORLD_Y)+(WORLD_Y/2))*scaleY, zoomFactor, sf::Color::Blue, false);
-				}else{
-					sfml::Helpers::addPixelVertices(vertices, plotX+cc, ((mm10*(-1))*(WORLD_Y)-(WORLD_Y/2))*scaleY, zoomFactor, sf::Color::Blue, false);
-				}
-				if(m11 >= 0){
-					sfml::Helpers::addPixelVertices(vertices, plotX+cc, ((mm11)*(WORLD_Y)+(WORLD_Y/2))*scaleY, zoomFactor, sf::Color::Blue, false);
-				}else{
-					sfml::Helpers::addPixelVertices(vertices, plotX+cc, ((mm11*(-1))*(WORLD_Y)-(WORLD_Y/2))*scaleY, zoomFactor, sf::Color::Blue, false);
-				}
-				if(m12 >= 0){
-					sfml::Helpers::addPixelVertices(vertices, plotX+cc, ((mm12)*(WORLD_Y)+(WORLD_Y/2))*scaleY, zoomFactor, sf::Color::Blue, false);
-				}else{
-					sfml::Helpers::addPixelVertices(vertices, plotX+cc, ((mm12*(-1))*(WORLD_Y)-(WORLD_Y/2))*scaleY, zoomFactor, sf::Color::Blue, false);
-				}
-				if(m13 >= 0){
-					sfml::Helpers::addPixelVertices(vertices, plotX+cc, ((mm13)*(WORLD_Y)+(WORLD_Y/2))*scaleY, zoomFactor, sf::Color::Blue, false);
-				}else{
-					sfml::Helpers::addPixelVertices(vertices, plotX+cc, ((mm13*(-1))*(WORLD_Y)-(WORLD_Y/2))*scaleY, zoomFactor, sf::Color::Blue, false);
-				}
-
-				if(m20 >= 0){
-					sfml::Helpers::addPixelVertices(vertices, plotX+cc, ((mm20)*(WORLD_Y)+(WORLD_Y/2))*scaleY, zoomFactor, sf::Color::Red, false);
-				}else{
-					sfml::Helpers::addPixelVertices(vertices, plotX+cc, ((mm20*(-1))*(WORLD_Y)-(WORLD_Y/2))*scaleY, zoomFactor, sf::Color::Red, false);
-				}
-				if(m21 >= 0){
-					sfml::Helpers::addPixelVertices(vertices, plotX+cc, ((mm21)*(WORLD_Y)+(WORLD_Y/2))*scaleY, zoomFactor, sf::Color::Red, false);
-				}else{
-					sfml::Helpers::addPixelVertices(vertices, plotX+cc, ((mm21*(-1))*(WORLD_Y)-(WORLD_Y/2))*scaleY, zoomFactor, sf::Color::Red, false);
-				}
-				if(m22 >= 0){
-					sfml::Helpers::addPixelVertices(vertices, plotX+cc, ((mm22)*(WORLD_Y)+(WORLD_Y/2))*scaleY, zoomFactor, sf::Color::Red, false);
-				}else{
-					sfml::Helpers::addPixelVertices(vertices, plotX+cc, ((mm22*(-1))*(WORLD_Y)-(WORLD_Y/2))*scaleY, zoomFactor, sf::Color::Red, false);
-				}
-				if(m23 >= 0){
-					sfml::Helpers::addPixelVertices(vertices, plotX+cc, ((mm23)*(WORLD_Y)+(WORLD_Y/2))*scaleY, zoomFactor, sf::Color::Red, false);
-				}else{
-					sfml::Helpers::addPixelVertices(vertices, plotX+cc, ((mm23*(-1))*(WORLD_Y)-(WORLD_Y/2))*scaleY, zoomFactor, sf::Color::Red, false);
-				}
-
-				if(m30 >= 0){
-					sfml::Helpers::addPixelVertices(vertices, plotX+cc, ((mm30)*(WORLD_Y)+(WORLD_Y/2))*scaleY, zoomFactor, sf::Color::Yellow, false);
-				}else{
-					sfml::Helpers::addPixelVertices(vertices, plotX+cc, ((mm30*(-1))*(WORLD_Y)-(WORLD_Y/2))*scaleY, zoomFactor, sf::Color::Yellow, false);
-				}
-				if(m31 >= 0){
-					sfml::Helpers::addPixelVertices(vertices, plotX+cc, ((mm31)*(WORLD_Y)+(WORLD_Y/2))*scaleY, zoomFactor, sf::Color::Yellow, false);
-				}else{
-					sfml::Helpers::addPixelVertices(vertices, plotX+cc, ((mm31*(-1))*(WORLD_Y)-(WORLD_Y/2))*scaleY, zoomFactor, sf::Color::Yellow, false);
-				}
-				if(m32 >= 0){
-					sfml::Helpers::addPixelVertices(vertices, plotX+cc, ((mm32)*(WORLD_Y)+(WORLD_Y/2))*scaleY, zoomFactor, sf::Color::Yellow, false);
-				}else{
-					sfml::Helpers::addPixelVertices(vertices, plotX+cc, ((mm32*(-1))*(WORLD_Y)-(WORLD_Y/2))*scaleY, zoomFactor, sf::Color::Yellow, false);
-				}
-				if(m33 >= 0){
-					sfml::Helpers::addPixelVertices(vertices, plotX+cc, ((mm33)*(WORLD_Y)+(WORLD_Y/2))*scaleY, zoomFactor, sf::Color::Yellow, false);
-				}else{
-					sfml::Helpers::addPixelVertices(vertices, plotX+cc, ((mm33*(-1))*(WORLD_Y)-(WORLD_Y/2))*scaleY, zoomFactor, sf::Color::Yellow, false);
-				}
+			if (mm00 >= 0) {
+				sfml::Helpers::addPixelVertices(vertices, plotX, ((mm00) * (WORLD_Y) + (WORLD_Y / 2)) * scaleY,
+					zoomFactor, sf::Color::White, false);
 			}
-			cc+=1;
-		}
-	}
+			else {
+				sfml::Helpers::addPixelVertices(vertices, plotX, ((mm00 * (-1)) * (WORLD_Y) - (WORLD_Y / 2)) * scaleY,
+					zoomFactor, sf::Color::White, false);
+			}
+			if (mm01 >= 0) {
+				sfml::Helpers::addPixelVertices(vertices, plotX, ((mm01) * (WORLD_Y) + (WORLD_Y / 2)) * scaleY,
+					zoomFactor, sf::Color::White, false);
+			}
+			else {
+				sfml::Helpers::addPixelVertices(vertices, plotX, ((mm01 * (-1)) * (WORLD_Y) - (WORLD_Y / 2)) * scaleY,
+					zoomFactor, sf::Color::White, false);
+			}
+			if (mm02 >= 0) {
+				sfml::Helpers::addPixelVertices(vertices, plotX, ((mm02) * (WORLD_Y) + (WORLD_Y / 2)) * scaleY,
+					zoomFactor, sf::Color::White, false);
+			}
+			else {
+				sfml::Helpers::addPixelVertices(vertices, plotX, ((mm02 * (-1)) * (WORLD_Y) - (WORLD_Y / 2)) * scaleY,
+					zoomFactor, sf::Color::White, false);
+			}
+			if (mm03 >= 0) {
+				sfml::Helpers::addPixelVertices(vertices, plotX, ((mm03) * (WORLD_Y) + (WORLD_Y / 2)) * scaleY,
+					zoomFactor, sf::Color::White, false);
+			}
+			else {
+				sfml::Helpers::addPixelVertices(vertices, plotX, ((mm03 * (-1)) * (WORLD_Y) - (WORLD_Y / 2)) * scaleY,
+					zoomFactor, sf::Color::White, false);
+			}
 
+			if (mm10 >= 0) {
+				sfml::Helpers::addPixelVertices(vertices, plotX, ((mm10) * (WORLD_Y) + (WORLD_Y / 2)) * scaleY,
+					zoomFactor, sf::Color::Blue, false);
+			}
+			else {
+				sfml::Helpers::addPixelVertices(vertices, plotX, ((mm10 * (-1)) * (WORLD_Y) - (WORLD_Y / 2)) * scaleY,
+					zoomFactor, sf::Color::Blue, false);
+			}
+			if (mm11 >= 0) {
+				sfml::Helpers::addPixelVertices(vertices, plotX, ((mm11) * (WORLD_Y) + (WORLD_Y / 2)) * scaleY,
+					zoomFactor, sf::Color::Blue, false);
+			}
+			else {
+				sfml::Helpers::addPixelVertices(vertices, plotX, ((mm11 * (-1)) * (WORLD_Y) - (WORLD_Y / 2)) * scaleY,
+					zoomFactor, sf::Color::Blue, false);
+			}
+			if (mm12 >= 0) {
+				sfml::Helpers::addPixelVertices(vertices, plotX, ((mm12) * (WORLD_Y) + (WORLD_Y / 2)) * scaleY,
+					zoomFactor, sf::Color::Blue, false);
+			}
+			else {
+				sfml::Helpers::addPixelVertices(vertices, plotX, ((mm12 * (-1)) * (WORLD_Y) - (WORLD_Y / 2)) * scaleY,
+					zoomFactor, sf::Color::Blue, false);
+			}
+			if (mm13 >= 0) {
+				sfml::Helpers::addPixelVertices(vertices, plotX, ((mm13) * (WORLD_Y) + (WORLD_Y / 2)) * scaleY,
+					zoomFactor, sf::Color::Blue, false);
+			}
+			else {
+				sfml::Helpers::addPixelVertices(vertices, plotX, ((mm13 * (-1)) * (WORLD_Y) - (WORLD_Y / 2)) * scaleY,
+					zoomFactor, sf::Color::Blue, false);
+			}
+
+			if (mm20 >= 0) {
+				sfml::Helpers::addPixelVertices(vertices, plotX, ((mm20) * (WORLD_Y) + (WORLD_Y / 2)) * scaleY,
+					zoomFactor, sf::Color::Red, false);
+			}
+			else {
+				sfml::Helpers::addPixelVertices(vertices, plotX, ((mm20 * (-1)) * (WORLD_Y) - (WORLD_Y / 2)) * scaleY,
+					zoomFactor, sf::Color::Red, false);
+			}
+			if (mm21 >= 0) {
+				sfml::Helpers::addPixelVertices(vertices, plotX, ((mm21) * (WORLD_Y) + (WORLD_Y / 2)) * scaleY,
+					zoomFactor, sf::Color::Red, false);
+			}
+			else {
+				sfml::Helpers::addPixelVertices(vertices, plotX, ((mm21 * (-1)) * (WORLD_Y) - (WORLD_Y / 2)) * scaleY,
+					zoomFactor, sf::Color::Red, false);
+			}
+			if (mm22 >= 0) {
+				sfml::Helpers::addPixelVertices(vertices, plotX, ((mm22) * (WORLD_Y) + (WORLD_Y / 2)) * scaleY,
+					zoomFactor, sf::Color::Red, false);
+			}
+			else {
+				sfml::Helpers::addPixelVertices(vertices, plotX, ((mm22 * (-1)) * (WORLD_Y) - (WORLD_Y / 2)) * scaleY,
+					zoomFactor, sf::Color::Red, false);
+			}
+			if (mm23 >= 0) {
+				sfml::Helpers::addPixelVertices(vertices, plotX, ((mm23) * (WORLD_Y) + (WORLD_Y / 2)) * scaleY,
+					zoomFactor, sf::Color::Red, false);
+			}
+			else {
+				sfml::Helpers::addPixelVertices(vertices, plotX, ((mm23 * (-1)) * (WORLD_Y) - (WORLD_Y / 2)) * scaleY,
+					zoomFactor, sf::Color::Red, false);
+			}
+
+			/*if(m30 >= 0){
+			 sfml::Helpers::addPixelVertices(vertices, plotX, ((mm30)*(WORLD_Y)+(WORLD_Y/2))*scaleY, zoomFactor, sf::Color::Yellow, false);
+			 }else{
+			 sfml::Helpers::addPixelVertices(vertices, plotX, ((mm30*(-1))*(WORLD_Y)-(WORLD_Y/2))*scaleY, zoomFactor, sf::Color::Yellow, false);
+			 }
+			 if(m31 >= 0){
+			 sfml::Helpers::addPixelVertices(vertices, plotX, ((mm31)*(WORLD_Y)+(WORLD_Y/2))*scaleY, zoomFactor, sf::Color::Yellow, false);
+			 }else{
+			 sfml::Helpers::addPixelVertices(vertices, plotX, ((mm31*(-1))*(WORLD_Y)-(WORLD_Y/2))*scaleY, zoomFactor, sf::Color::Yellow, false);
+			 }
+			 if(m32 >= 0){
+			 sfml::Helpers::addPixelVertices(vertices, plotX, ((mm32)*(WORLD_Y)+(WORLD_Y/2))*scaleY, zoomFactor, sf::Color::Yellow, false);
+			 }else{
+			 sfml::Helpers::addPixelVertices(vertices, plotX, ((mm32*(-1))*(WORLD_Y)-(WORLD_Y/2))*scaleY, zoomFactor, sf::Color::Yellow, false);
+			 }
+			 if(m33 >= 0){
+			 sfml::Helpers::addPixelVertices(vertices, plotX, ((mm33)*(WORLD_Y)+(WORLD_Y/2))*scaleY, zoomFactor, sf::Color::Yellow, false);
+			 }else{
+			 sfml::Helpers::addPixelVertices(vertices, plotX, ((mm33*(-1))*(WORLD_Y)-(WORLD_Y/2))*scaleY, zoomFactor, sf::Color::Yellow, false);
+			 }*/
+		}// only valid events
+	}
 	state->renderWindow->draw(vertices.data(), vertices.size(), sf::Quads);
 
 	return (true);
 }
-
-
 
 // How many timestemps and neurons to show per chip.
 #define SPIKE_RASTER_PLOT_TIMESTEPS 500
@@ -778,13 +840,13 @@ static bool caerVisualizerRendererSpikeEventsRaster(caerVisualizerPublicState st
 
 	// Draw middle borders, only once!
 	sfml::Line horizontalBorderLine(sf::Vector2f(0, (state->renderSizeY * zoomFactor) / 2),
-		sf::Vector2f((state->renderSizeX * zoomFactor), (state->renderSizeY * zoomFactor) / 2),
-		2 * zoomFactor, sf::Color::White);
+		sf::Vector2f((state->renderSizeX * zoomFactor), (state->renderSizeY * zoomFactor) / 2), 2 * zoomFactor,
+		sf::Color::White);
 	state->renderWindow->draw(horizontalBorderLine);
 
 	sfml::Line verticalBorderLine(sf::Vector2f((state->renderSizeX * zoomFactor) / 2, 0),
-		sf::Vector2f((state->renderSizeX * zoomFactor) / 2, (state->renderSizeY * zoomFactor)),
-		2 * zoomFactor, sf::Color::White);
+		sf::Vector2f((state->renderSizeX * zoomFactor) / 2, (state->renderSizeY * zoomFactor)), 2 * zoomFactor,
+		sf::Color::White);
 	state->renderWindow->draw(verticalBorderLine);
 
 	return (true);
