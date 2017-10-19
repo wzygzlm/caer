@@ -334,9 +334,9 @@ static void sshsNodeRemoveAllChildren(sshsNode node);
 
 #define XML_INDENT_SPACES 4
 
-static bool sshsNodeToXML(sshsNode node, const std::string &fileName, bool recursive);
+static bool sshsNodeToXML(sshsNode node, int fd, bool recursive);
 static boost::property_tree::ptree sshsNodeGenerateXML(sshsNode node, bool recursive);
-static bool sshsNodeFromXML(sshsNode node, const std::string &fileName, bool recursive, bool strict);
+static bool sshsNodeFromXML(sshsNode node, int fd, bool recursive, bool strict);
 static void sshsNodeConsumeXML(sshsNode node, const boost::property_tree::ptree &content, bool recursive);
 
 sshsNode sshsNodeNew(const char *nodeName, sshsNode parent) {
@@ -807,22 +807,18 @@ char *sshsNodeGetString(sshsNode node, const char *key) {
 	return (node->getAttribute(key, SSHS_STRING).toCUnion().string);
 }
 
-bool sshsNodeExportNodeToXML(sshsNode node, const char *fileName) {
-	return (sshsNodeToXML(node, fileName, false));
+bool sshsNodeExportNodeToXML(sshsNode node, int fd) {
+	return (sshsNodeToXML(node, fd, false));
 }
 
-bool sshsNodeExportSubTreeToXML(sshsNode node, const char *fileName) {
-	return (sshsNodeToXML(node, fileName, true));
+bool sshsNodeExportSubTreeToXML(sshsNode node, int fd) {
+	return (sshsNodeToXML(node, fd, true));
 }
 
-static bool sshsNodeToXML(sshsNode node, const std::string &fileName, bool recursive) {
+static bool sshsNodeToXML(sshsNode node, int fd, bool recursive) {
 	boost::property_tree::ptree xmlTree;
 
-	std::ofstream outStream(fileName, std::ios::trunc);
-	if (!outStream.is_open()) {
-		(*sshsGetGlobalErrorLogCallback())("Failed to open file for writing.");
-		return (false);
-	}
+	std::ostream outStream(nullptr);
 
 	// Add main SSHS node and version.
 	xmlTree.put("sshs.<xmlattr>.version", "1.0");
@@ -839,7 +835,7 @@ static bool sshsNodeToXML(sshsNode node, const std::string &fileName, bool recur
 		boost::property_tree::xml_parser::write_xml_element(outStream, boost::property_tree::ptree::key_type(), xmlTree,
 			-1, xmlIndent);
 		if (!outStream) {
-			throw boost::property_tree::xml_parser_error("write error.", fileName, 0);
+			throw boost::property_tree::xml_parser_error("write error.", std::string(), 0);
 		}
 	}
 	catch (const boost::property_tree::xml_parser_error &ex) {
@@ -902,12 +898,12 @@ static boost::property_tree::ptree sshsNodeGenerateXML(sshsNode node, bool recur
 	return (content);
 }
 
-bool sshsNodeImportNodeFromXML(sshsNode node, const char *fileName, bool strict) {
-	return (sshsNodeFromXML(node, fileName, false, strict));
+bool sshsNodeImportNodeFromXML(sshsNode node, int fd, bool strict) {
+	return (sshsNodeFromXML(node, fd, false, strict));
 }
 
-bool sshsNodeImportSubTreeFromXML(sshsNode node, const char *fileName, bool strict) {
-	return (sshsNodeFromXML(node, fileName, true, strict));
+bool sshsNodeImportSubTreeFromXML(sshsNode node, int fd, bool strict) {
+	return (sshsNodeFromXML(node, fd, true, strict));
 }
 
 static std::vector<std::reference_wrapper<const boost::property_tree::ptree>> sshsNodeXMLFilterChildNodes(
@@ -923,14 +919,10 @@ static std::vector<std::reference_wrapper<const boost::property_tree::ptree>> ss
 	return (result);
 }
 
-static bool sshsNodeFromXML(sshsNode node, const std::string &fileName, bool recursive, bool strict) {
+static bool sshsNodeFromXML(sshsNode node, int fd, bool recursive, bool strict) {
 	boost::property_tree::ptree xmlTree;
 
-	std::ifstream inStream(fileName);
-	if (!inStream.is_open()) {
-		(*sshsGetGlobalErrorLogCallback())("Failed to open file for reading.");
-		return (false);
-	}
+	std::istream inStream(nullptr);
 
 	try {
 		boost::property_tree::xml_parser::read_xml(inStream, xmlTree,

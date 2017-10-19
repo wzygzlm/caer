@@ -83,21 +83,31 @@ void caerConfigInit(int argc, char *argv[]) {
 		}
 	}
 
-	// This means it exists and we can access it, so let's remember
-	// it for writing the configuration later at shutdown.
-	configFile = boost::filesystem::canonical(configFile);
-
 	// Let's try to open the file for reading, or create it.
-	// Load XML configuration from file if not empty.
-	bool importResult = sshsNodeImportSubTreeFromXML(sshsGetNode(sshsGetGlobal(), "/"), configFile.string().c_str(),
-		true);
+	int configFileFd = open(configFile.string().c_str(), O_RDONLY | O_CREAT, S_IWUSR | S_IRUSR | S_IRGRP);
 
-	if (importResult) {
+	if (configFileFd >= 0) {
+		// File opened for reading (or created) successfully.
+		// Load XML configuration from file if not empty.
+		struct stat configFileStat;
+		fstat(configFileFd, &configFileStat);
+
+		if (configFileStat.st_size > 0) {
+			sshsNodeImportSubTreeFromXML(sshsGetNode(sshsGetGlobal(), "/"), configFileFd, true);
+		}
+
+		close(configFileFd);
+
+		// This means it exists and we can access it, so let's remember
+		// it for writing the configuration later at shutdown.
+		configFile = boost::filesystem::canonical(configFile);
+
 		// Ensure configuration is written back at shutdown.
 		atexit(&caerConfigWriteBack);
 	}
 	else {
-		std::cout << "Supplied configuration file " << configFile << " could not be read or imported." << std::endl;
+		std::cout << "Supplied configuration file " << configFile << " could not be created or read. Error: "
+			<< strerror(errno) << "." << std::endl;
 		printHelpAndExit(cliDescription);
 	}
 
@@ -146,10 +156,15 @@ void caerConfigInit(int argc, char *argv[]) {
 void caerConfigWriteBack(void) {
 	// configFile can only be correctly initialized, absolute and canonical
 	// by the point this function may ever be called, so we use it directly.
-	bool exportResult = sshsNodeExportSubTreeToXML(sshsGetNode(sshsGetGlobal(), "/"), configFile.string().c_str());
+	int configFileFd = open(configFile.string().c_str(), O_WRONLY | O_TRUNC);
 
-	if (!exportResult) {
-		caerLog(CAER_LOG_EMERGENCY, "Config", "Could not write or export to the configuration file '%s'.",
-			configFile.string().c_str());
+	if (configFileFd >= 0) {
+		sshsNodeExportSubTreeToXML(sshsGetNode(sshsGetGlobal(), "/"), configFileFd);
+
+		close(configFileFd);
+	}
+	else {
+		caerLog(CAER_LOG_EMERGENCY, "Config", "Could not write to the configuration file '%s'. Error: %d.",
+			configFile.string().c_str(), errno);
 	}
 }

@@ -160,10 +160,10 @@ void sshsNodeCreateString(sshsNode node, const char *key, const char *defaultVal
 bool sshsNodePutString(sshsNode node, const char *key, const char *value) CAER_SYMBOL_EXPORT;
 char *sshsNodeGetString(sshsNode node, const char *key) CAER_SYMBOL_EXPORT;
 
-bool sshsNodeExportNodeToXML(sshsNode node, const char *fileName) CAER_SYMBOL_EXPORT;
-bool sshsNodeExportSubTreeToXML(sshsNode node, const char *fileName) CAER_SYMBOL_EXPORT;
-bool sshsNodeImportNodeFromXML(sshsNode node, const char *fileName, bool strict) CAER_SYMBOL_EXPORT;
-bool sshsNodeImportSubTreeFromXML(sshsNode node, const char *fileName, bool strict) CAER_SYMBOL_EXPORT;
+bool sshsNodeExportNodeToXML(sshsNode node, int fd) CAER_SYMBOL_EXPORT;
+bool sshsNodeExportSubTreeToXML(sshsNode node, int fd) CAER_SYMBOL_EXPORT;
+bool sshsNodeImportNodeFromXML(sshsNode node, int fd, bool strict) CAER_SYMBOL_EXPORT;
+bool sshsNodeImportSubTreeFromXML(sshsNode node, int fd, bool strict) CAER_SYMBOL_EXPORT;
 
 bool sshsNodeStringToAttributeConverter(sshsNode node, const char *key, const char *type, const char *value)
 	CAER_SYMBOL_EXPORT;
