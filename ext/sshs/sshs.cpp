@@ -3,7 +3,6 @@
 #include <regex>
 #include <iostream>
 #include <boost/tokenizer.hpp>
-#include <mxml.h>
 
 struct sshs_struct {
 	sshsNode root;
@@ -38,9 +37,6 @@ static void sshsGlobalErrorLogCallbackInitialize(void) {
 
 static void sshsGlobalErrorLogCallbackSetInternal(sshsErrorLogCallback error_log_cb) {
 	sshsGlobalErrorLogCallback = error_log_cb;
-
-	// sshsErrorLogCallback is compatible to the Mini-XML error logging function.
-	mxmlSetErrorCallback(error_log_cb);
 }
 
 sshsErrorLogCallback sshsGetGlobalErrorLogCallback(void) {

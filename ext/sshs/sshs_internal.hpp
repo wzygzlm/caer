@@ -56,7 +56,7 @@ public:
 
 	bool getBool() const {
 		if (type != SSHS_BOOL) {
-			throw new std::runtime_error("SSHS: value type does not match requested type.");
+			throw std::runtime_error("SSHS: value type does not match requested type.");
 		}
 
 		return (value.boolean);
@@ -69,7 +69,7 @@ public:
 
 	int8_t getByte() const {
 		if (type != SSHS_BYTE) {
-			throw new std::runtime_error("SSHS: value type does not match requested type.");
+			throw std::runtime_error("SSHS: value type does not match requested type.");
 		}
 
 		return (value.ibyte);
@@ -82,7 +82,7 @@ public:
 
 	int16_t getShort() const {
 		if (type != SSHS_SHORT) {
-			throw new std::runtime_error("SSHS: value type does not match requested type.");
+			throw std::runtime_error("SSHS: value type does not match requested type.");
 		}
 
 		return (value.ishort);
@@ -95,7 +95,7 @@ public:
 
 	int32_t getInt() const {
 		if (type != SSHS_INT) {
-			throw new std::runtime_error("SSHS: value type does not match requested type.");
+			throw std::runtime_error("SSHS: value type does not match requested type.");
 		}
 
 		return (value.iint);
@@ -108,7 +108,7 @@ public:
 
 	int64_t getLong() const {
 		if (type != SSHS_LONG) {
-			throw new std::runtime_error("SSHS: value type does not match requested type.");
+			throw std::runtime_error("SSHS: value type does not match requested type.");
 		}
 
 		return (value.ilong);
@@ -121,7 +121,7 @@ public:
 
 	float getFloat() const {
 		if (type != SSHS_FLOAT) {
-			throw new std::runtime_error("SSHS: value type does not match requested type.");
+			throw std::runtime_error("SSHS: value type does not match requested type.");
 		}
 
 		return (value.ffloat);
@@ -134,7 +134,7 @@ public:
 
 	double getDouble() const {
 		if (type != SSHS_DOUBLE) {
-			throw new std::runtime_error("SSHS: value type does not match requested type.");
+			throw std::runtime_error("SSHS: value type does not match requested type.");
 		}
 
 		return (value.ddouble);
@@ -147,7 +147,7 @@ public:
 
 	const std::string &getString() const {
 		if (type != SSHS_STRING) {
-			throw new std::runtime_error("SSHS: value type does not match requested type.");
+			throw std::runtime_error("SSHS: value type does not match requested type.");
 		}
 
 		return (valueString);
@@ -227,7 +227,7 @@ public:
 
 			case SSHS_UNKNOWN:
 			default:
-				throw new std::runtime_error("SSHS: provided union value type does not match any valid type.");
+				throw std::runtime_error("SSHS: provided union value type does not match any valid type.");
 				break;
 		}
 	}
@@ -276,7 +276,7 @@ public:
 
 			case SSHS_UNKNOWN:
 			default:
-				throw new std::runtime_error("SSHS: internal value type does not match any valid type.");
+				throw std::runtime_error("SSHS: internal value type does not match any valid type.");
 				break;
 		}
 

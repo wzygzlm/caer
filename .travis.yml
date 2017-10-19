@@ -12,7 +12,7 @@ before_install:
   - sudo apt-get update -q
   #install requirements for libcaer and caer
   - sudo apt-get install unzip libboost-dev libboost-filesystem-dev libboost-program-options-dev libboost-system-dev
-    libmxml-dev libusb-1.0-0-dev liballegro5-dev libtcmalloc-minimal4 -y -q
+    libusb-1.0-0-dev liballegro5-dev libtcmalloc-minimal4 -y -q
   # install libuv version 1.X which is not available in ubuntu 14.04
   - sudo apt-get install g++/xenial -y -q
   - sudo apt-get install libuv1/xenial -y -q

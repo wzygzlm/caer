@@ -7,7 +7,8 @@
 #include <map>
 #include <mutex>
 #include <shared_mutex>
-#include <mxml.h>
+#include <boost/property_tree/ptree.hpp>
+#include <boost/property_tree/xml_parser.hpp>
 
 // We don't care about unlocking anything here, as we exit hard on error anyway.
 static inline void sshsNodeError(const std::string &funcName, const std::string &key,
@@ -327,15 +328,16 @@ public:
 };
 
 static void sshsNodeDestroy(sshsNode node);
+static void sshsNodeRemoveSubTree(sshsNode node);
 static void sshsNodeRemoveChild(sshsNode node, const char *childName);
 static void sshsNodeRemoveAllChildren(sshsNode node);
-static void sshsNodeRemoveSubTree(sshsNode node);
-static const char *sshsNodeXMLWhitespaceCallback(mxml_node_t *node, int where);
-static void sshsNodeToXML(sshsNode node, int outFd, bool recursive);
-static mxml_node_t *sshsNodeGenerateXML(sshsNode node, bool recursive);
-static mxml_node_t **sshsNodeXMLFilterChildNodes(mxml_node_t *node, const char *nodeName, size_t *numChildren);
-static bool sshsNodeFromXML(sshsNode node, int inFd, bool recursive, bool strict);
-static void sshsNodeConsumeXML(sshsNode node, mxml_node_t *content, bool recursive);
+
+#define XML_INDENT_SPACES 4
+
+static bool sshsNodeToXML(sshsNode node, const std::string &fileName, bool recursive);
+static void sshsNodeGenerateXML(sshsNode node, boost::property_tree::ptree &content, bool recursive);
+static bool sshsNodeFromXML(sshsNode node, const std::string &fileName, bool recursive, bool strict);
+static void sshsNodeConsumeXML(sshsNode node, const boost::property_tree::ptree &content, bool recursive);
 
 sshsNode sshsNodeNew(const char *nodeName, sshsNode parent) {
 	sshsNode newNode = new sshs_node(nodeName, parent);
@@ -387,6 +389,8 @@ sshsNode sshsNodeAddChild(sshsNode node, const char *childName) {
 	}
 }
 
+// This returns a reference to a node, and as such must be carefully mediated with
+// any sshsNodeRemoveNode() calls.
 sshsNode sshsNodeGetChild(sshsNode node, const char* childName) {
 	std::shared_lock<std::shared_timed_mutex> lock(node->traversal_lock);
 
@@ -803,259 +807,176 @@ char *sshsNodeGetString(sshsNode node, const char *key) {
 	return (node->getAttribute(key, SSHS_STRING).toCUnion().string);
 }
 
-void sshsNodeExportNodeToXML(sshsNode node, int outFd) {
-	sshsNodeToXML(node, outFd, false);
+bool sshsNodeExportNodeToXML(sshsNode node, const char *fileName) {
+	return (sshsNodeToXML(node, fileName, false));
 }
 
-void sshsNodeExportSubTreeToXML(sshsNode node, int outFd) {
-	sshsNodeToXML(node, outFd, true);
+bool sshsNodeExportSubTreeToXML(sshsNode node, const char *fileName) {
+	return (sshsNodeToXML(node, fileName, true));
 }
 
-#define INDENT_MAX_LEVEL 20
-#define INDENT_SPACES 4
-static char spaces[(INDENT_MAX_LEVEL * INDENT_SPACES) + 1] =
-	"                                                                                ";
+static bool sshsNodeToXML(sshsNode node, const std::string &fileName, bool recursive) {
+	boost::property_tree::ptree xmlTree;
 
-static const char *sshsNodeXMLWhitespaceCallback(mxml_node_t *node, int where) {
-	const char *name = mxmlGetElement(node);
-	size_t level = 0;
-
-	// Calculate indentation level always.
-	for (mxml_node_t *parent = mxmlGetParent(node); parent != nullptr; parent = mxmlGetParent(parent)) {
-		level++;
+	std::ofstream outStream(fileName, std::ios::trunc);
+	if (!outStream.is_open()) {
+		(*sshsGetGlobalErrorLogCallback())("Failed to open file for writing.");
+		return (false);
 	}
 
-	// Clip indentation level to maximum.
-	if (level > INDENT_MAX_LEVEL) {
-		level = INDENT_MAX_LEVEL;
+	// Add main SSHS node and version.
+	xmlTree.put("sshs.<xmlattr>.version", "1.0");
+
+	// Generate recursive XML for all nodes.
+	sshsNodeGenerateXML(node, xmlTree.get_child("sshs"), recursive);
+
+	try {
+		boost::property_tree::xml_parser::xml_writer_settings<std::string> xmlIndent(' ', XML_INDENT_SPACES);
+		boost::property_tree::write_xml(outStream, xmlTree, xmlIndent);
+	}
+	catch (const boost::property_tree::xml_parser_error &ex) {
+		const std::string errorMsg = std::string("Failed to write XML to output stream. Exception: ") + ex.what();
+		(*sshsGetGlobalErrorLogCallback())(errorMsg.c_str());
+		return (false);
 	}
 
-	if (strcmp(name, "sshs") == 0) {
-		switch (where) {
-			case MXML_WS_AFTER_OPEN:
-				return ("\n");
-				break;
-
-			case MXML_WS_AFTER_CLOSE:
-				return ("\n");
-				break;
-
-			default:
-				break;
-		}
-	}
-	else if (strcmp(name, "node") == 0) {
-		switch (where) {
-			case MXML_WS_BEFORE_OPEN:
-				return (&spaces[((INDENT_MAX_LEVEL - level) * INDENT_SPACES)]);
-				break;
-
-			case MXML_WS_AFTER_OPEN:
-				return ("\n");
-				break;
-
-			case MXML_WS_BEFORE_CLOSE:
-				return (&spaces[((INDENT_MAX_LEVEL - level) * INDENT_SPACES)]);
-				break;
-
-			case MXML_WS_AFTER_CLOSE:
-				return ("\n");
-				break;
-
-			default:
-				break;
-		}
-	}
-	else if (strcmp(name, "attr") == 0) {
-		switch (where) {
-			case MXML_WS_BEFORE_OPEN:
-				return (&spaces[((INDENT_MAX_LEVEL - level) * INDENT_SPACES)]);
-				break;
-
-			case MXML_WS_AFTER_CLOSE:
-				return ("\n");
-				break;
-
-			default:
-				break;
-		}
-	}
-
-	return (nullptr);
+	return (true);
 }
 
-static void sshsNodeToXML(sshsNode node, int outFd, bool recursive) {
-	mxml_node_t *root = mxmlNewElement(MXML_NO_PARENT, "sshs");
-	mxmlElementSetAttr(root, "version", "1.0");
-	mxmlAdd(root, MXML_ADD_AFTER, MXML_ADD_TO_PARENT, sshsNodeGenerateXML(node, recursive));
+static void sshsNodeGenerateXML(sshsNode node, boost::property_tree::ptree &content, bool recursive) {
+	content.put("node.<xmlattr>.name", node->name);
+	content.put("node.<xmlattr>.path", node->path);
 
-	// Disable wrapping
-	mxmlSetWrapMargin(0);
-
-	// Output to file descriptor.
-	mxmlSaveFd(root, outFd, &sshsNodeXMLWhitespaceCallback);
-
-	mxmlDelete(root);
-}
-
-static mxml_node_t *sshsNodeGenerateXML(sshsNode node, bool recursive) {
-	mxml_node_t *thisNode = mxmlNewElement(MXML_NO_PARENT, "node");
-
-	// First this node's name and full path.
-	mxmlElementSetAttr(thisNode, "name", sshsNodeGetName(node));
-	mxmlElementSetAttr(thisNode, "path", sshsNodeGetPath(node));
-
-	{
-		std::lock_guard<std::recursive_mutex> lockNode(node->node_lock);
-
-		// Then it's attributes (key:value pairs).
-		for (const auto &attr : node->attributes) {
-			// If an attribute is marked NO_EXPORT, we skip it.
-			if (attr.second.isFlagSet(SSHS_FLAGS_NO_EXPORT)) {
-				continue;
-			}
-
-			const std::string type = sshsHelperCppTypeToStringConverter(attr.second.value.getType());
-			const std::string value = sshsHelperCppValueToStringConverter(attr.second.value);
-
-			mxml_node_t *xmlAttr = mxmlNewElement(thisNode, "attr");
-			mxmlElementSetAttr(xmlAttr, "key", attr.first.c_str());
-			mxmlElementSetAttr(xmlAttr, "type", type.c_str());
-			mxmlNewText(xmlAttr, 0, value.c_str());
-		}
-	}
+//	{
+//		std::lock_guard<std::recursive_mutex> lockNode(node->node_lock);
+//
+//		// Then it's attributes (key:value pairs).
+//		for (const auto &attr : node->attributes) {
+//			// If an attribute is marked NO_EXPORT, we skip it.
+//			if (attr.second.isFlagSet(SSHS_FLAGS_NO_EXPORT)) {
+//				continue;
+//			}
+//
+//			const std::string type = sshsHelperCppTypeToStringConverter(attr.second.value.getType());
+//			const std::string value = sshsHelperCppValueToStringConverter(attr.second.value);
+//
+//			mxml_node_t *xmlAttr = mxmlNewElement(thisNode, "attr");
+//			mxmlElementSetAttr(xmlAttr, "key", attr.first.c_str());
+//			mxmlElementSetAttr(xmlAttr, "type", type.c_str());
+//			mxmlNewText(xmlAttr, 0, value.c_str());
+//		}
+//	}
 
 	// And lastly recurse down to the children.
 	if (recursive) {
-		size_t numChildren;
-		sshsNode *children = sshsNodeGetChildren(node, &numChildren);
+		std::shared_lock<std::shared_timed_mutex> lock(node->traversal_lock);
 
-		for (size_t i = 0; i < numChildren; i++) {
-			mxml_node_t *child = sshsNodeGenerateXML(children[i], recursive);
+		for (const auto &child : node->children) {
+			sshsNodeGenerateXML(child.second, content, recursive);
 
-			if (mxmlGetFirstChild(child) != nullptr) {
-				mxmlAdd(thisNode, MXML_ADD_AFTER, MXML_ADD_TO_PARENT, child);
-			}
-			else {
-				// Free memory if not adding.
-				mxmlDelete(child);
-			}
+			// TODO: handle nodes with no children.
 		}
-
-		free(children);
 	}
-
-	return (thisNode);
 }
 
-bool sshsNodeImportNodeFromXML(sshsNode node, int inFd, bool strict) {
-	return (sshsNodeFromXML(node, inFd, false, strict));
+bool sshsNodeImportNodeFromXML(sshsNode node, const char *fileName, bool strict) {
+	return (sshsNodeFromXML(node, fileName, false, strict));
 }
 
-bool sshsNodeImportSubTreeFromXML(sshsNode node, int inFd, bool strict) {
-	return (sshsNodeFromXML(node, inFd, true, strict));
+bool sshsNodeImportSubTreeFromXML(sshsNode node, const char *fileName, bool strict) {
+	return (sshsNodeFromXML(node, fileName, true, strict));
 }
 
-static mxml_node_t **sshsNodeXMLFilterChildNodes(mxml_node_t *node, const char *nodeName, size_t *numChildren) {
-	// Go through once to count the number of matching children.
-	size_t matchedChildren = 0;
+static std::vector<std::reference_wrapper<const boost::property_tree::ptree>> sshsNodeXMLFilterChildNodes(
+	const boost::property_tree::ptree &content, const std::string &name) {
+	std::vector<std::reference_wrapper<const boost::property_tree::ptree>> result;
 
-	for (mxml_node_t *current = mxmlGetFirstChild(node); current != nullptr; current = mxmlGetNextSibling(current)) {
-		const char *name = mxmlGetElement(current);
-
-		if (name != nullptr && strcmp(name, nodeName) == 0) {
-			matchedChildren++;
+	for (const auto &elem : content) {
+		if (elem.first == name) {
+			result.push_back(elem.second);
 		}
 	}
 
-	// If none, exit gracefully.
-	if (matchedChildren == 0) {
-		*numChildren = 0;
-		return (nullptr);
-	}
-
-	// Now allocate appropriate memory for list.
-	mxml_node_t **filteredNodes = (mxml_node_t **) malloc(matchedChildren * sizeof(mxml_node_t *));
-	sshsMemoryCheck(filteredNodes, __func__);
-
-	// Go thorough again and collect the matching nodes.
-	size_t i = 0;
-	for (mxml_node_t *current = mxmlGetFirstChild(node); current != nullptr; current = mxmlGetNextSibling(current)) {
-		const char *name = mxmlGetElement(current);
-
-		if (name != nullptr && strcmp(name, nodeName) == 0) {
-			filteredNodes[i++] = current;
-		}
-	}
-
-	*numChildren = matchedChildren;
-	return (filteredNodes);
+	return (result);
 }
 
-static bool sshsNodeFromXML(sshsNode node, int inFd, bool recursive, bool strict) {
-	mxml_node_t *root = mxmlLoadFd(nullptr, inFd, MXML_OPAQUE_CALLBACK);
+static bool sshsNodeFromXML(sshsNode node, const std::string &fileName, bool recursive, bool strict) {
+	boost::property_tree::ptree xmlTree;
 
-	if (root == nullptr) {
-		(*sshsGetGlobalErrorLogCallback())("Failed to load XML from file descriptor.");
+	std::ifstream inStream(fileName);
+	if (!inStream.is_open()) {
+		(*sshsGetGlobalErrorLogCallback())("Failed to open file for reading.");
+		return (false);
+	}
+
+	try {
+		boost::property_tree::read_xml(inStream, xmlTree, boost::property_tree::xml_parser::trim_whitespace);
+	}
+	catch (const boost::property_tree::xml_parser_error &ex) {
+		const std::string errorMsg = std::string("Failed to load XML from input stream. Exception: ") + ex.what();
+		(*sshsGetGlobalErrorLogCallback())(errorMsg.c_str());
 		return (false);
 	}
 
 	// Check name and version for compliance.
-	if ((strcmp(mxmlGetElement(root), "sshs") != 0) || (strcmp(mxmlElementGetAttr(root, "version"), "1.0") != 0)) {
-		mxmlDelete(root);
-		(*sshsGetGlobalErrorLogCallback())("Invalid SSHS v1.0 XML content.");
+	try {
+		const auto sshsVersion = xmlTree.get<std::string>("sshs.<xmlattr>.version");
+		if (sshsVersion != "1.0") {
+			throw boost::property_tree::ptree_error("unsupported SSHS version (supported: '1.0').");
+		}
+	}
+	catch (const boost::property_tree::ptree_error &ex) {
+		const std::string errorMsg = std::string("Invalid XML content. Exception: ") + ex.what();
+		(*sshsGetGlobalErrorLogCallback())(errorMsg.c_str());
 		return (false);
 	}
 
-	size_t numChildren = 0;
-	mxml_node_t **children = sshsNodeXMLFilterChildNodes(root, "node", &numChildren);
+	auto root = sshsNodeXMLFilterChildNodes(xmlTree.get_child("sshs"), "node");
 
-	if (numChildren != 1) {
-		mxmlDelete(root);
-		free(children);
+	if (root.size() != 1) {
 		(*sshsGetGlobalErrorLogCallback())("Multiple or no root child nodes present.");
 		return (false);
 	}
 
-	mxml_node_t *rootNode = children[0];
-
-	free(children);
+	auto &rootNode = root.front().get();
 
 	// Strict mode: check if names match.
 	if (strict) {
-		const char *rootNodeName = mxmlElementGetAttr(rootNode, "name");
+		try {
+			const auto rootNodeName = rootNode.get<std::string>("<xmlattr>.name");
 
-		if (rootNodeName == nullptr || strcmp(rootNodeName, sshsNodeGetName(node)) != 0) {
-			mxmlDelete(root);
-			(*sshsGetGlobalErrorLogCallback())("Names don't match (required in 'strict' mode).");
+			if (rootNodeName != node->name) {
+				throw boost::property_tree::ptree_error("names don't match (required in 'strict' mode).");
+			}
+		}
+		catch (const boost::property_tree::ptree_error &ex) {
+			const std::string errorMsg = std::string("Invalid root node. Exception: ") + ex.what();
+			(*sshsGetGlobalErrorLogCallback())(errorMsg.c_str());
 			return (false);
 		}
 	}
 
 	sshsNodeConsumeXML(node, rootNode, recursive);
 
-	mxmlDelete(root);
-
 	return (true);
 }
 
-static void sshsNodeConsumeXML(sshsNode node, mxml_node_t *content, bool recursive) {
-	size_t numAttrChildren = 0;
-	mxml_node_t **attrChildren = sshsNodeXMLFilterChildNodes(content, "attr", &numAttrChildren);
+static void sshsNodeConsumeXML(sshsNode node, const boost::property_tree::ptree &content, bool recursive) {
+	auto attributes = sshsNodeXMLFilterChildNodes(content, "attr");
 
-	for (size_t i = 0; i < numAttrChildren; i++) {
+	for (auto &attr : attributes) {
 		// Check that the proper attributes exist.
-		const char *key = mxmlElementGetAttr(attrChildren[i], "key");
-		const char *type = mxmlElementGetAttr(attrChildren[i], "type");
+		const auto key = attr.get().get("<xmlattr>.key", "");
+		const auto type = attr.get().get("<xmlattr>.type", "");
 
-		if (key == nullptr || type == nullptr) {
+		if (key.empty() || type.empty()) {
 			continue;
 		}
 
 		// Get the needed values.
-		const char *value = mxmlGetOpaque(attrChildren[i]);
+		const auto value = attr.get().get_value("");
 
-		if (!sshsNodeStringToAttributeConverter(node, key, type, value)) {
+		if (!sshsNodeStringToAttributeConverter(node, key.c_str(), type.c_str(), value.c_str())) {
 			// Ignore read-only/range errors.
 			if (errno == EPERM || errno == ERANGE) {
 				continue;
@@ -1068,33 +989,28 @@ static void sshsNodeConsumeXML(sshsNode node, mxml_node_t *content, bool recursi
 		}
 	}
 
-	free(attrChildren);
-
 	if (recursive) {
-		size_t numNodeChildren = 0;
-		mxml_node_t **nodeChildren = sshsNodeXMLFilterChildNodes(content, "node", &numNodeChildren);
+		auto children = sshsNodeXMLFilterChildNodes(content, "node");
 
-		for (size_t i = 0; i < numNodeChildren; i++) {
+		for (auto &child : children) {
 			// Check that the proper attributes exist.
-			const char *childName = mxmlElementGetAttr(nodeChildren[i], "name");
+			const auto childName = child.get().get("<xmlattr>.name", "");
 
-			if (childName == nullptr) {
+			if (childName.empty()) {
 				continue;
 			}
 
 			// Get the child node.
-			sshsNode childNode = sshsNodeGetChild(node, childName);
+			sshsNode childNode = sshsNodeGetChild(node, childName.c_str());
 
 			// If not existing, try to create.
 			if (childNode == nullptr) {
-				childNode = sshsNodeAddChild(node, childName);
+				childNode = sshsNodeAddChild(node, childName.c_str());
 			}
 
 			// And call recursively.
-			sshsNodeConsumeXML(childNode, nodeChildren[i], recursive);
+			sshsNodeConsumeXML(childNode, child.get(), recursive);
 		}
-
-		free(nodeChildren);
 	}
 }
 

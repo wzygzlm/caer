@@ -26,7 +26,7 @@ const std::string &sshsHelperCppTypeToStringConverter(enum sshs_node_attr_value_
 
 		case SSHS_UNKNOWN:
 		default:
-			throw new std::runtime_error("sshsHelperCppTypeToStringConverter(): invalid type given.");
+			throw std::runtime_error("sshsHelperCppTypeToStringConverter(): invalid type given.");
 	}
 }
 
@@ -90,7 +90,7 @@ std::string sshsHelperCppValueToStringConverter(const sshs_value &val) {
 
 		case SSHS_UNKNOWN:
 		default:
-			throw new std::runtime_error("sshsHelperCppValueToStringConverter(): value has invalid type.");
+			throw std::runtime_error("sshsHelperCppValueToStringConverter(): value has invalid type.");
 	}
 }
 
@@ -136,7 +136,7 @@ sshs_value sshsHelperCppStringToValueConverter(enum sshs_node_attr_value_type ty
 
 		case SSHS_UNKNOWN:
 		default:
-			throw new std::runtime_error("sshsHelperCppStringToValueConverter(): invalid type given.");
+			throw std::runtime_error("sshsHelperCppStringToValueConverter(): invalid type given.");
 			break;
 	}
 
