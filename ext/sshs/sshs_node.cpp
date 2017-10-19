@@ -7,6 +7,8 @@
 #include <map>
 #include <mutex>
 #include <shared_mutex>
+#include <boost/iostreams/device/file_descriptor.hpp>
+#include <boost/iostreams/stream.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/xml_parser.hpp>
 
@@ -816,9 +818,12 @@ bool sshsNodeExportSubTreeToXML(sshsNode node, int fd) {
 }
 
 static bool sshsNodeToXML(sshsNode node, int fd, bool recursive) {
-	boost::property_tree::ptree xmlTree;
+	boost::iostreams::stream_buffer<boost::iostreams::file_descriptor_sink> fdStream(fd,
+		boost::iostreams::never_close_handle);
 
-	std::ostream outStream(nullptr);
+	std::ostream outStream(&fdStream);
+
+	boost::property_tree::ptree xmlTree;
 
 	// Add main SSHS node and version.
 	xmlTree.put("sshs.<xmlattr>.version", "1.0");
@@ -920,9 +925,12 @@ static std::vector<std::reference_wrapper<const boost::property_tree::ptree>> ss
 }
 
 static bool sshsNodeFromXML(sshsNode node, int fd, bool recursive, bool strict) {
-	boost::property_tree::ptree xmlTree;
+	boost::iostreams::stream_buffer<boost::iostreams::file_descriptor_source> fdStream(fd,
+		boost::iostreams::never_close_handle);
 
-	std::istream inStream(nullptr);
+	std::istream inStream(&fdStream);
+
+	boost::property_tree::ptree xmlTree;
 
 	try {
 		boost::property_tree::xml_parser::read_xml(inStream, xmlTree,
