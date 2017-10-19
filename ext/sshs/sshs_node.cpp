@@ -828,7 +828,7 @@ static bool sshsNodeToXML(sshsNode node, const std::string &fileName, bool recur
 	xmlTree.put("sshs.<xmlattr>.version", "1.0");
 
 	// Generate recursive XML for all nodes.
-	sshsNodeGenerateXML(node, xmlTree.get_child("sshs"), recursive);
+	sshsNodeGenerateXML(node, xmlTree.get_child("sshs.node"), recursive);
 
 	try {
 		boost::property_tree::xml_parser::xml_writer_settings<std::string> xmlIndent(' ', XML_INDENT_SPACES);
@@ -844,8 +844,8 @@ static bool sshsNodeToXML(sshsNode node, const std::string &fileName, bool recur
 }
 
 static void sshsNodeGenerateXML(sshsNode node, boost::property_tree::ptree &content, bool recursive) {
-	content.put("node.<xmlattr>.name", node->name);
-	content.put("node.<xmlattr>.path", node->path);
+	content.put("<xmlattr>.name", node->name);
+	content.put("<xmlattr>.path", node->path);
 
 //	{
 //		std::lock_guard<std::recursive_mutex> lockNode(node->node_lock);
