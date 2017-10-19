@@ -147,7 +147,7 @@ static void caerBackgroundActivityFilterRun(caerModuleData moduleData, caerEvent
 		if (x < sizeMaxX && y > 0) {
 			state->timestampMap->buffer2d[x + 1][y - 1] = ts;
 		}
-	}
+	CAER_POLARITY_ITERATOR_VALID_END
 }
 
 static void caerBackgroundActivityFilterConfig(caerModuleData moduleData) {
