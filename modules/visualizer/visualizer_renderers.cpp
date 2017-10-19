@@ -447,6 +447,7 @@ static bool caerVisualizerRendererSpikeEvents(caerVisualizerPublicState state, c
 
 // Matrix4x4
 // How many ts and points will be drawn
+// what is the size of the plot (can be zoomed)
 #define WORLD_X 640
 #define WORLD_Y 480
 #define TIMETOT 3000000
@@ -512,7 +513,7 @@ static bool caerVisualizerRendererMatrix4x4EventsPose(caerVisualizerPublicState 
 		for (size_t pn = 0; pn < NUMPACKETS; pn++) {
 			caerMatrix4x4Event thisEvent = caerMatrix4x4EventPacketGetEvent(memInt->mem, pn);
 			if(caerMatrix4x4EventIsValid(thisEvent)){
-				caerMatrix4x4EventInvalidate(thisEvent, pkg);
+				caerMatrix4x4EventInvalidate(thisEvent, memInt->mem);
 			}
 		}
 	}
@@ -567,7 +568,6 @@ static bool caerVisualizerRendererMatrix4x4EventsPose(caerVisualizerPublicState 
 		}
 
 		// x position
-		memInt->worldXPosition += 1;
 		if (memInt->worldXPosition == NUMPACKETS) {
 			memInt->worldXPosition = 0;
 		}
@@ -594,7 +594,10 @@ static bool caerVisualizerRendererMatrix4x4EventsPose(caerVisualizerPublicState 
 		caerMatrix4x4EventSetTimestamp(thisEvent, plotX);
 
 		// validate event
-		caerMatrix4x4EventValidate(thisEvent, pkg);
+		caerMatrix4x4EventValidate(thisEvent, memInt->mem);
+
+		//increment counter
+		memInt->worldXPosition += 1;
 
 	}
 
