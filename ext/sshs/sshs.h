@@ -96,6 +96,9 @@ typedef void (*sshsNodeChangeListener)(sshsNode node, void *userData, enum sshs_
 typedef void (*sshsAttributeChangeListener)(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
 
+typedef void (*sshsAttributeReadModifier)(void *userData, enum sshs_node_attr_value_type attrType,
+	union sshs_node_attr_value *attrValue);
+
 const char *sshsNodeGetName(sshsNode node) CAER_SYMBOL_EXPORT;
 const char *sshsNodeGetPath(sshsNode node) CAER_SYMBOL_EXPORT;
 sshsNode sshsNodeGetParent(sshsNode node) CAER_SYMBOL_EXPORT;
@@ -111,6 +114,14 @@ void sshsNodeRemoveAttributeListener(sshsNode node, void *userData, sshsAttribut
 	CAER_SYMBOL_EXPORT;
 void sshsNodeRemoveAllAttributeListeners(sshsNode node) CAER_SYMBOL_EXPORT;
 
+void sshsNodeAddAttributeReadModifier(sshsNode node, const char *key, enum sshs_node_attr_value_type type,
+	void *userData, sshsAttributeReadModifier modify_read) CAER_SYMBOL_EXPORT;
+void sshsNodeRemoveAttributeReadModifier(sshsNode node, const char *key, enum sshs_node_attr_value_type type)
+	CAER_SYMBOL_EXPORT;
+
+// Careful, only use if no references exist to this node and all its children.
+// References are created by sshsGetNode(), sshsGetRelativeNode(),
+// sshsNodeGetParent() and sshsNodeGetChildren().
 void sshsNodeRemoveNode(sshsNode node) CAER_SYMBOL_EXPORT;
 void sshsNodeClearSubTree(sshsNode startNode, bool clearStartNode) CAER_SYMBOL_EXPORT;
 

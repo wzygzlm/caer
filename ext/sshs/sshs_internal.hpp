@@ -158,32 +158,32 @@ public:
 		valueString = v;
 	}
 
-	bool inRange(union sshs_node_attr_range min, union sshs_node_attr_range max) const {
+	bool inRange(const struct sshs_node_attr_ranges &ranges) const {
 		switch (type) {
 			case SSHS_BOOL:
 				// No check for bool, because no range exists.
 				return (true);
 
 			case SSHS_BYTE:
-				return (value.ibyte >= min.ibyteRange && value.ibyte <= max.ibyteRange);
+				return (value.ibyte >= ranges.min.ibyteRange && value.ibyte <= ranges.max.ibyteRange);
 
 			case SSHS_SHORT:
-				return (value.ishort >= min.ishortRange && value.ishort <= max.ishortRange);
+				return (value.ishort >= ranges.min.ishortRange && value.ishort <= ranges.max.ishortRange);
 
 			case SSHS_INT:
-				return (value.iint >= min.iintRange && value.iint <= max.iintRange);
+				return (value.iint >= ranges.min.iintRange && value.iint <= ranges.max.iintRange);
 
 			case SSHS_LONG:
-				return (value.ilong >= min.ilongRange && value.ilong <= max.ilongRange);
+				return (value.ilong >= ranges.min.ilongRange && value.ilong <= ranges.max.ilongRange);
 
 			case SSHS_FLOAT:
-				return (value.ffloat >= min.ffloatRange && value.ffloat <= max.ffloatRange);
+				return (value.ffloat >= ranges.min.ffloatRange && value.ffloat <= ranges.max.ffloatRange);
 
 			case SSHS_DOUBLE:
-				return (value.ddouble >= min.ddoubleRange && value.ddouble <= max.ddoubleRange);
+				return (value.ddouble >= ranges.min.ddoubleRange && value.ddouble <= ranges.max.ddoubleRange);
 
 			case SSHS_STRING:
-				return (valueString.length() >= min.stringRange && valueString.length() <= max.stringRange);
+				return (valueString.length() >= ranges.min.stringRange && valueString.length() <= ranges.max.stringRange);
 
 			case SSHS_UNKNOWN:
 			default:
