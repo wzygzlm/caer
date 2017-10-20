@@ -401,6 +401,7 @@ public:
 			sshsNodeErrorNoAttribute("sshsNodeAddAttributeReadModifier", key, type);
 		}
 
+		// Set read modifier to supplied function pointer.
 		attributes[key].setReadModifier(modify_read, userData);
 	}
 
@@ -411,7 +412,16 @@ public:
 			sshsNodeErrorNoAttribute("sshsNodeRemoveAttributeReadModifier", key, type);
 		}
 
-		attributes[key].resetReadModifier();
+		sshs_node_attr &attr = attributes[key];
+
+		// Synchronize value in attribute with modified value on removal.
+		// This guarantees that the value in the node will be valid and expected
+		// after the read modifier is disabled. After that it willl behave like
+		// any other normal attribute.
+		attr.setValue(attr.getValue());
+
+		// Reset read modifier to nullptr.
+		attr.resetReadModifier();
 	}
 };
 
