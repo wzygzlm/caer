@@ -444,7 +444,8 @@ void sshsNodeRemoveNodeListener(sshsNode node, void *userData, sshsNodeChangeLis
 
 	std::lock_guard<std::recursive_mutex> lock(node->node_lock);
 
-	std::remove(node->nodeListeners.begin(), node->nodeListeners.end(), listener);
+	node->nodeListeners.erase(std::remove(node->nodeListeners.begin(), node->nodeListeners.end(), listener),
+		node->nodeListeners.end());
 }
 
 void sshsNodeRemoveAllNodeListeners(sshsNode node) {
@@ -468,7 +469,8 @@ void sshsNodeRemoveAttributeListener(sshsNode node, void *userData, sshsAttribut
 
 	std::lock_guard<std::recursive_mutex> lock(node->node_lock);
 
-	std::remove(node->attrListeners.begin(), node->attrListeners.end(), listener);
+	node->attrListeners.erase(std::remove(node->attrListeners.begin(), node->attrListeners.end(), listener),
+		node->attrListeners.end());
 }
 
 void sshsNodeRemoveAllAttributeListeners(sshsNode node) {
