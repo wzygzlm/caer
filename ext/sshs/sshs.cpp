@@ -1,6 +1,8 @@
-#include "sshs_internal.h"
+#include "sshs_internal.hpp"
 #include <mutex>
 #include <regex>
+#include <iostream>
+#include <boost/tokenizer.hpp>
 
 struct sshs_struct {
 	sshsNode root;
@@ -10,10 +12,10 @@ static void sshsGlobalInitialize(void);
 static void sshsGlobalErrorLogCallbackInitialize(void);
 static void sshsGlobalErrorLogCallbackSetInternal(sshsErrorLogCallback error_log_cb);
 static void sshsDefaultErrorLogCallback(const char *msg);
-static bool sshsCheckAbsoluteNodePath(const char *absolutePath, size_t absolutePathLength);
-static bool sshsCheckRelativeNodePath(const char *relativePath, size_t relativePathLength);
+static bool sshsCheckAbsoluteNodePath(const std::string &absolutePath);
+static bool sshsCheckRelativeNodePath(const std::string &relativePath);
 
-static sshs sshsGlobal = NULL;
+static sshs sshsGlobal = nullptr;
 static std::once_flag sshsGlobalIsInitialized;
 
 static void sshsGlobalInitialize(void) {
@@ -26,7 +28,7 @@ sshs sshsGetGlobal(void) {
 	return (sshsGlobal);
 }
 
-static sshsErrorLogCallback sshsGlobalErrorLogCallback = NULL;
+static sshsErrorLogCallback sshsGlobalErrorLogCallback = nullptr;
 static std::once_flag sshsGlobalErrorLogCallbackIsInitialized;
 
 static void sshsGlobalErrorLogCallbackInitialize(void) {
@@ -35,9 +37,6 @@ static void sshsGlobalErrorLogCallbackInitialize(void) {
 
 static void sshsGlobalErrorLogCallbackSetInternal(sshsErrorLogCallback error_log_cb) {
 	sshsGlobalErrorLogCallback = error_log_cb;
-
-	// sshsErrorLogCallback is compatible to the Mini-XML error logging function.
-	mxmlSetErrorCallback(error_log_cb);
 }
 
 sshsErrorLogCallback sshsGetGlobalErrorLogCallback(void) {
@@ -53,8 +52,8 @@ sshsErrorLogCallback sshsGetGlobalErrorLogCallback(void) {
 void sshsSetGlobalErrorLogCallback(sshsErrorLogCallback error_log_cb) {
 	std::call_once(sshsGlobalErrorLogCallbackIsInitialized, &sshsGlobalErrorLogCallbackInitialize);
 
-	// If NULL, set to default logging callback.
-	if (error_log_cb == NULL) {
+	// If nullptr, set to default logging callback.
+	if (error_log_cb == nullptr) {
 		sshsGlobalErrorLogCallbackSetInternal(&sshsDefaultErrorLogCallback);
 	}
 	else {
@@ -64,18 +63,18 @@ void sshsSetGlobalErrorLogCallback(sshsErrorLogCallback error_log_cb) {
 
 sshs sshsNew(void) {
 	sshs newSshs = (sshs) malloc(sizeof(*newSshs));
-	SSHS_MALLOC_CHECK_EXIT(newSshs);
+	sshsMemoryCheck(newSshs, __func__);
 
 	// Create root node.
-	newSshs->root = sshsNodeNew("", NULL);
+	newSshs->root = sshsNodeNew("", nullptr);
 
 	return (newSshs);
 }
 
-bool sshsExistsNode(sshs st, const char *nodePath) {
-	size_t nodePathLength = strlen(nodePath);
+bool sshsExistsNode(sshs st, const char *nodePathC) {
+	const std::string nodePath(nodePathC);
 
-	if (!sshsCheckAbsoluteNodePath(nodePath, nodePathLength)) {
+	if (!sshsCheckAbsoluteNodePath(nodePath)) {
 		errno = EINVAL;
 		return (false);
 	}
@@ -84,77 +83,67 @@ bool sshsExistsNode(sshs st, const char *nodePath) {
 	sshsNode curr = st->root;
 
 	// Optimization: the root node always exists.
-	if (strncmp(nodePath, "/", nodePathLength) == 0) {
+	if (nodePath == "/") {
 		return (true);
 	}
 
-	// Create a copy of nodePath, so that strtok_r() can modify it.
-	char nodePathCopy[nodePathLength + 1];
-	strcpy(nodePathCopy, nodePath);
+	boost::tokenizer<boost::char_separator<char>> nodePathTokens(nodePath, boost::char_separator<char>("/"));
 
 	// Search (or create) viable node iteratively.
-	char *tokenSavePtr = NULL, *nextName = NULL, *currName = nodePathCopy;
-	while ((nextName = strtok_r(currName, "/", &tokenSavePtr)) != NULL) {
-		sshsNode next = sshsNodeGetChild(curr, nextName);
+	for (const auto &tok : nodePathTokens) {
+		sshsNode next = sshsNodeGetChild(curr, tok.c_str());
 
 		// If node doesn't exist, return that.
-		if (next == NULL) {
+		if (next == nullptr) {
 			errno = ENOENT;
 			return (false);
 		}
 
 		curr = next;
-
-		currName = NULL;
 	}
 
 	// We got to the end, so the node exists.
 	return (true);
 }
 
-sshsNode sshsGetNode(sshs st, const char *nodePath) {
-	size_t nodePathLength = strlen(nodePath);
+sshsNode sshsGetNode(sshs st, const char *nodePathC) {
+	const std::string nodePath(nodePathC);
 
-	if (!sshsCheckAbsoluteNodePath(nodePath, nodePathLength)) {
+	if (!sshsCheckAbsoluteNodePath(nodePath)) {
 		errno = EINVAL;
-		return (NULL);
+		return (nullptr);
 	}
 
 	// First node is the root.
 	sshsNode curr = st->root;
 
 	// Optimization: the root node always exists and is right there.
-	if (strncmp(nodePath, "/", nodePathLength) == 0) {
+	if (nodePath == "/") {
 		return (curr);
 	}
 
-	// Create a copy of nodePath, so that strtok_r() can modify it.
-	char nodePathCopy[nodePathLength + 1];
-	strcpy(nodePathCopy, nodePath);
+	boost::tokenizer<boost::char_separator<char>> nodePathTokens(nodePath, boost::char_separator<char>("/"));
 
 	// Search (or create) viable node iteratively.
-	char *tokenSavePtr = NULL, *nextName = NULL, *currName = nodePathCopy;
-	while ((nextName = strtok_r(currName, "/", &tokenSavePtr)) != NULL) {
-		sshsNode next = sshsNodeGetChild(curr, nextName);
+	for (const auto &tok : nodePathTokens) {
+		sshsNode next = sshsNodeGetChild(curr, tok.c_str());
 
 		// Create next node in path if not existing.
-		if (next == NULL) {
-			next = sshsNodeAddChild(curr, nextName);
+		if (next == nullptr) {
+			next = sshsNodeAddChild(curr, tok.c_str());
 		}
 
 		curr = next;
-
-		currName = NULL;
 	}
 
 	// 'curr' now contains the specified node.
 	return (curr);
 }
 
-bool sshsExistsRelativeNode(sshsNode node, const char *nodePath) {
-	size_t nodePathLength = strlen(nodePath);
+bool sshsExistsRelativeNode(sshsNode node, const char *nodePathC) {
+	const std::string nodePath(nodePathC);
 
-	if (!sshsCheckRelativeNodePath(nodePath, nodePathLength)) {
+	if (!sshsCheckRelativeNodePath(nodePath)) {
 		errno = EINVAL;
 		return (false);
 	}
@@ -162,68 +151,58 @@ bool sshsExistsRelativeNode(sshsNode node, const char *nodePath) {
 	// Start with the given node.
 	sshsNode curr = node;
 
-	// Create a copy of nodePath, so that strtok_r() can modify it.
-	char nodePathCopy[nodePathLength + 1];
-	strcpy(nodePathCopy, nodePath);
+	boost::tokenizer<boost::char_separator<char>> nodePathTokens(nodePath, boost::char_separator<char>("/"));
 
 	// Search (or create) viable node iteratively.
-	char *tokenSavePtr = NULL, *nextName = NULL, *currName = nodePathCopy;
-	while ((nextName = strtok_r(currName, "/", &tokenSavePtr)) != NULL) {
-		sshsNode next = sshsNodeGetChild(curr, nextName);
+	for (const auto &tok : nodePathTokens) {
+		sshsNode next = sshsNodeGetChild(curr, tok.c_str());
 
 		// If node doesn't exist, return that.
-		if (next == NULL) {
+		if (next == nullptr) {
 			errno = ENOENT;
 			return (false);
 		}
 
 		curr = next;
-
-		currName = NULL;
 	}
 
 	// We got to the end, so the node exists.
 	return (true);
 }
 
-sshsNode sshsGetRelativeNode(sshsNode node, const char *nodePath) {
-	size_t nodePathLength = strlen(nodePath);
+sshsNode sshsGetRelativeNode(sshsNode node, const char *nodePathC) {
+	const std::string nodePath(nodePathC);
 
-	if (!sshsCheckRelativeNodePath(nodePath, nodePathLength)) {
+	if (!sshsCheckRelativeNodePath(nodePath)) {
 		errno = EINVAL;
-		return (NULL);
+		return (nullptr);
 	}
 
 	// Start with the given node.
 	sshsNode curr = node;
 
-	// Create a copy of nodePath, so that strtok_r() can modify it.
-	char nodePathCopy[nodePathLength + 1];
-	strcpy(nodePathCopy, nodePath);
+	boost::tokenizer<boost::char_separator<char>> nodePathTokens(nodePath, boost::char_separator<char>("/"));
 
 	// Search (or create) viable node iteratively.
-	char *tokenSavePtr = NULL, *nextName = NULL, *currName = nodePathCopy;
-	while ((nextName = strtok_r(currName, "/", &tokenSavePtr)) != NULL) {
-		sshsNode next = sshsNodeGetChild(curr, nextName);
+	for (const auto &tok : nodePathTokens) {
+		sshsNode next = sshsNodeGetChild(curr, tok.c_str());
 
 		// Create next node in path if not existing.
-		if (next == NULL) {
-			next = sshsNodeAddChild(curr, nextName);
+		if (next == nullptr) {
+			next = sshsNodeAddChild(curr, tok.c_str());
 		}
 
 		curr = next;
-
-		currName = NULL;
 	}
 
 	// 'curr' now contains the specified node.
 	return (curr);
 }
 
-bool sshsBeginTransaction(sshs st, char *nodePaths[], size_t nodePathsLength) {
+bool sshsBeginTransaction(sshs st, const char *nodePaths[], size_t nodePathsLength) {
 	// Check all node paths, then lock them.
 	for (size_t i = 0; i < nodePathsLength; i++) {
-		if (!sshsCheckAbsoluteNodePath(nodePaths[i], strlen(nodePaths[i]))) {
+		if (!sshsCheckAbsoluteNodePath(nodePaths[i])) {
 			errno = EINVAL;
 			return (false);
 		}
@@ -236,10 +215,10 @@ bool sshsBeginTransaction(sshs st, char *nodePaths[], size_t nodePathsLength) {
 	return (true);
 }
 
-bool sshsEndTransaction(sshs st, char *nodePaths[], size_t nodePathsLength) {
+bool sshsEndTransaction(sshs st, const char *nodePaths[], size_t nodePathsLength) {
 	// Check all node paths, then unlock them.
 	for (size_t i = 0; i < nodePathsLength; i++) {
-		if (!sshsCheckAbsoluteNodePath(nodePaths[i], strlen(nodePaths[i]))) {
+		if (!sshsCheckAbsoluteNodePath(nodePaths[i])) {
 			errno = EINVAL;
 			return (false);
 		}
@@ -256,32 +235,34 @@ bool sshsEndTransaction(sshs st, char *nodePaths[], size_t nodePathsLength) {
 static const std::regex sshsAbsoluteNodePathRegexp("^/" ALLOWED_CHARS_REGEXP "*$");
 static const std::regex sshsRelativeNodePathRegexp("^" ALLOWED_CHARS_REGEXP "+$");
 
-static bool sshsCheckAbsoluteNodePath(const char *absolutePath, size_t absolutePathLength) {
-	if (absolutePath == NULL || absolutePathLength == 0) {
-		(*sshsGetGlobalErrorLogCallback())("Node path cannot be null.");
+static bool sshsCheckAbsoluteNodePath(const std::string &absolutePath) {
+	if (absolutePath.empty()) {
+		(*sshsGetGlobalErrorLogCallback())("Absolute node path cannot be empty.");
 		return (false);
 	}
 
 	if (!std::regex_match(absolutePath, sshsAbsoluteNodePathRegexp)) {
-		char errorMsg[4096];
-		snprintf(errorMsg, 4096, "Invalid absolute node path format: '%s'.", absolutePath);
-		(*sshsGetGlobalErrorLogCallback())(errorMsg);
+		boost::format errorMsg = boost::format("Invalid absolute node path format: '%s'.") % absolutePath;
+
+		(*sshsGetGlobalErrorLogCallback())(errorMsg.str().c_str());
+
 		return (false);
 	}
 
 	return (true);
 }
 
-static bool sshsCheckRelativeNodePath(const char *relativePath, size_t relativePathLength) {
-	if (relativePath == NULL || relativePathLength == 0) {
-		(*sshsGetGlobalErrorLogCallback())("Node path cannot be null.");
+static bool sshsCheckRelativeNodePath(const std::string &relativePath) {
+	if (relativePath.empty()) {
+		(*sshsGetGlobalErrorLogCallback())("Relative node path cannot be empty.");
 		return (false);
 	}
 
 	if (!std::regex_match(relativePath, sshsRelativeNodePathRegexp)) {
-		char errorMsg[4096];
-		snprintf(errorMsg, 4096, "Invalid relative node path format: '%s'.", relativePath);
-		(*sshsGetGlobalErrorLogCallback())(errorMsg);
+		boost::format errorMsg = boost::format("Invalid relative node path format: '%s'.") % relativePath;
+
+		(*sshsGetGlobalErrorLogCallback())(errorMsg.str().c_str());
+
 		return (false);
 	}
 
@@ -289,5 +270,5 @@ static bool sshsCheckRelativeNodePath(const char *relativePath, size_t relativeP
 }
 
 static void sshsDefaultErrorLogCallback(const char *msg) {
-	fprintf(stderr, "%s\n", msg);
+	std::cerr << msg << std::endl;
 }

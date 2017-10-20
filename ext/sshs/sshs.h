@@ -58,8 +58,13 @@ union sshs_node_attr_value {
 };
 
 union sshs_node_attr_range {
-	int64_t i;
-	double d;
+	int8_t ibyteRange;
+	int16_t ishortRange;
+	int32_t iintRange;
+	int64_t ilongRange;
+	float ffloatRange;
+	double ddoubleRange;
+	size_t stringRange;
 };
 
 struct sshs_node_attr_ranges {
@@ -95,21 +100,25 @@ const char *sshsNodeGetName(sshsNode node) CAER_SYMBOL_EXPORT;
 const char *sshsNodeGetPath(sshsNode node) CAER_SYMBOL_EXPORT;
 sshsNode sshsNodeGetParent(sshsNode node) CAER_SYMBOL_EXPORT;
 sshsNode *sshsNodeGetChildren(sshsNode node, size_t *numChildren) CAER_SYMBOL_EXPORT; // Walk all children.
+
 void sshsNodeAddNodeListener(sshsNode node, void *userData, sshsNodeChangeListener node_changed) CAER_SYMBOL_EXPORT;
 void sshsNodeRemoveNodeListener(sshsNode node, void *userData, sshsNodeChangeListener node_changed) CAER_SYMBOL_EXPORT;
 void sshsNodeRemoveAllNodeListeners(sshsNode node) CAER_SYMBOL_EXPORT;
+
 void sshsNodeAddAttributeListener(sshsNode node, void *userData, sshsAttributeChangeListener attribute_changed)
 	CAER_SYMBOL_EXPORT;
 void sshsNodeRemoveAttributeListener(sshsNode node, void *userData, sshsAttributeChangeListener attribute_changed)
 	CAER_SYMBOL_EXPORT;
 void sshsNodeRemoveAllAttributeListeners(sshsNode node) CAER_SYMBOL_EXPORT;
-void sshsNodeCreateAttribute(sshsNode node, const char *key, enum sshs_node_attr_value_type type,
-	union sshs_node_attr_value defaultValue, struct sshs_node_attr_ranges range, int flags, const char *description)
-		CAER_SYMBOL_EXPORT;
-void sshsNodeRemoveAttribute(sshsNode node, const char *key, enum sshs_node_attr_value_type type) CAER_SYMBOL_EXPORT;
-void sshsNodeRemoveAllAttributes(sshsNode node) CAER_SYMBOL_EXPORT;
+
 void sshsNodeRemoveNode(sshsNode node) CAER_SYMBOL_EXPORT;
 void sshsNodeClearSubTree(sshsNode startNode, bool clearStartNode) CAER_SYMBOL_EXPORT;
+
+void sshsNodeCreateAttribute(sshsNode node, const char *key, enum sshs_node_attr_value_type type,
+	union sshs_node_attr_value defaultValue, const struct sshs_node_attr_ranges ranges, int flags,
+	const char *description) CAER_SYMBOL_EXPORT;
+void sshsNodeRemoveAttribute(sshsNode node, const char *key, enum sshs_node_attr_value_type type) CAER_SYMBOL_EXPORT;
+void sshsNodeRemoveAllAttributes(sshsNode node) CAER_SYMBOL_EXPORT;
 bool sshsNodeAttributeExists(sshsNode node, const char *key, enum sshs_node_attr_value_type type) CAER_SYMBOL_EXPORT;
 bool sshsNodePutAttribute(sshsNode node, const char *key, enum sshs_node_attr_value_type type,
 	union sshs_node_attr_value value) CAER_SYMBOL_EXPORT;
@@ -117,6 +126,7 @@ union sshs_node_attr_value sshsNodeGetAttribute(sshsNode node, const char *key, 
 	CAER_SYMBOL_EXPORT;
 bool sshsNodeUpdateReadOnlyAttribute(sshsNode node, const char *key, enum sshs_node_attr_value_type type,
 	union sshs_node_attr_value value) CAER_SYMBOL_EXPORT;
+
 void sshsNodeCreateBool(sshsNode node, const char *key, bool defaultValue, int flags, const char *description)
 	CAER_SYMBOL_EXPORT;
 bool sshsNodePutBool(sshsNode node, const char *key, bool value) CAER_SYMBOL_EXPORT;
@@ -149,10 +159,12 @@ void sshsNodeCreateString(sshsNode node, const char *key, const char *defaultVal
 	int flags, const char *description) CAER_SYMBOL_EXPORT;
 bool sshsNodePutString(sshsNode node, const char *key, const char *value) CAER_SYMBOL_EXPORT;
 char *sshsNodeGetString(sshsNode node, const char *key) CAER_SYMBOL_EXPORT;
-void sshsNodeExportNodeToXML(sshsNode node, int outFd) CAER_SYMBOL_EXPORT;
-void sshsNodeExportSubTreeToXML(sshsNode node, int outFd) CAER_SYMBOL_EXPORT;
-bool sshsNodeImportNodeFromXML(sshsNode node, int inFd, bool strict) CAER_SYMBOL_EXPORT;
-bool sshsNodeImportSubTreeFromXML(sshsNode node, int inFd, bool strict) CAER_SYMBOL_EXPORT;
+
+bool sshsNodeExportNodeToXML(sshsNode node, int fd) CAER_SYMBOL_EXPORT;
+bool sshsNodeExportSubTreeToXML(sshsNode node, int fd) CAER_SYMBOL_EXPORT;
+bool sshsNodeImportNodeFromXML(sshsNode node, int fd, bool strict) CAER_SYMBOL_EXPORT;
+bool sshsNodeImportSubTreeFromXML(sshsNode node, int fd, bool strict) CAER_SYMBOL_EXPORT;
+
 bool sshsNodeStringToAttributeConverter(sshsNode node, const char *key, const char *type, const char *value)
 	CAER_SYMBOL_EXPORT;
 const char **sshsNodeGetChildNames(sshsNode node, size_t *numNames) CAER_SYMBOL_EXPORT;
@@ -170,8 +182,8 @@ const char *sshsHelperTypeToStringConverter(enum sshs_node_attr_value_type type)
 enum sshs_node_attr_value_type sshsHelperStringToTypeConverter(const char *typeString) CAER_SYMBOL_EXPORT;
 char *sshsHelperValueToStringConverter(enum sshs_node_attr_value_type type, union sshs_node_attr_value value)
 	CAER_SYMBOL_EXPORT;
-bool sshsHelperStringToValueConverter(enum sshs_node_attr_value_type type, const char *valueString,
-	union sshs_node_attr_value *value) CAER_SYMBOL_EXPORT;
+union sshs_node_attr_value sshsHelperStringToValueConverter(enum sshs_node_attr_value_type type,
+	const char *valueString) CAER_SYMBOL_EXPORT;
 
 // SSHS
 typedef struct sshs_struct *sshs;
@@ -179,13 +191,14 @@ typedef void (*sshsErrorLogCallback)(const char *msg);
 
 sshs sshsGetGlobal(void) CAER_SYMBOL_EXPORT;
 void sshsSetGlobalErrorLogCallback(sshsErrorLogCallback error_log_cb) CAER_SYMBOL_EXPORT;
+sshsErrorLogCallback sshsGetGlobalErrorLogCallback(void) CAER_SYMBOL_EXPORT;
 sshs sshsNew(void) CAER_SYMBOL_EXPORT;
 bool sshsExistsNode(sshs st, const char *nodePath) CAER_SYMBOL_EXPORT;
 sshsNode sshsGetNode(sshs st, const char *nodePath) CAER_SYMBOL_EXPORT;
 bool sshsExistsRelativeNode(sshsNode node, const char *nodePath) CAER_SYMBOL_EXPORT;
 sshsNode sshsGetRelativeNode(sshsNode node, const char *nodePath) CAER_SYMBOL_EXPORT;
-bool sshsBeginTransaction(sshs st, char *nodePaths[], size_t nodePathsLength) CAER_SYMBOL_EXPORT;
-bool sshsEndTransaction(sshs st, char *nodePaths[], size_t nodePathsLength) CAER_SYMBOL_EXPORT;
+bool sshsBeginTransaction(sshs st, const char *nodePaths[], size_t nodePathsLength) CAER_SYMBOL_EXPORT;
+bool sshsEndTransaction(sshs st, const char *nodePaths[], size_t nodePathsLength) CAER_SYMBOL_EXPORT;
 
 #ifdef __cplusplus
 }

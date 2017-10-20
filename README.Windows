@@ -19,30 +19,19 @@ dependencies as described in detail in libcaer's 'README.Windows'.
  Visualizer module: mingw-w64-x86_64-sfml
  CameraCalibration, PoseEstimation modules: mingw-w64-x86_64-opencv
 
-4) Install Mini-XML manually:
- a) Download the latest version from http://www.msweet.org/downloads.php?L+Z3 (currently 2.10).
- b) Unpack it: tar -xvzf mxml-2.10.tar.gz
- c) Switch to the source directory: cd mxml-2.10/
- d) Copy the patch needed to compile it under MinGW and apply it: patch -p1 < mxml-mingw-compile.patch
-    You can find the patch in the cAER source checkout, inside the ext/ directory.
-    If the 'patch' utility isn't installed yet, do so now: pacman -S patch
- e) Configure: CFLAGS="-D__USE_MINGW_ANSI_STDIO=1" ./configure --prefix=/mingw64/
- f) Make: make
- g) Install: make install
-
-5) Place the cAER source in a location easily accessible to MSYS2. We usually
+4) Place the cAER source in a location easily accessible to MSYS2. We usually
 put the source code into 'C:\msys64\home\caer\' and use TortoiseGit
 (https://tortoisegit.org/) or git from the MSYS2 shell (pacman -S git) to get it.
 
 === The following happens in the MinGW32/64 build shell! ===
 
-6) Switch to the cAER checkout directory: cd /home/caer/
+5) Switch to the cAER checkout directory: cd /home/caer/
 
-7) Configure, run CMake: cmake -G "MSYS Makefiles" -DCMAKE_INSTALL_PREFIX=/mingw64 -DDAVIS=1 -DBAFILTER=1 .
+6) Configure, run CMake: cmake -G "MSYS Makefiles" -DCMAKE_INSTALL_PREFIX=/mingw64 -DDAVIS=1 -DBAFILTER=1 .
 Change this to suit your needs, by enabling/disabling the proper modules!
 
-8) Build, run Make: make
+7) Build, run Make: make
 
-9) Install: make install
+8) Install: make install
 
 Congratulations, you now have a working cAER on Windows!

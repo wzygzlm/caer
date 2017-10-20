@@ -9,8 +9,7 @@ AER event-based framework, written in C, targeting embedded systems.<br />
 Linux, MacOS X or Windows (for Windows build instructions see README.Windows) <br />
 gcc >= 5.2 or clang >= 3.6 <br />
 cmake >= 2.6 <br />
-Boost >= 1.50 (with system, filesystem, program_options) <br />
-mini-xml (mxml) >= 2.7 <br />
+Boost >= 1.50 (with system, filesystem, iostreams, program_options) <br />
 libcaer >= 2.4.0 <br />
 Optional: tcmalloc >= 2.2 (faster memory allocation) <br />
 Optional: SFML >= 2.3.0 (visualizer module) <br />
@@ -79,4 +78,4 @@ MAILING LIST: https://groups.google.com/d/forum/caer-users/
 # Ubuntu 16.04, dependencies installation
 
 On an Ubuntu 16.04, you can install all the dependencies (except libcaer) by typing: 
-$ sudo apt-get install libboost-system1.58.0 libboost1.58-dev libboost-atomic1.58-dev libboost-program-options1.58-dev libuv1-dev libmxml-dev libsfml-dev libglew-dev gcc-5 g++-5 cmake
+$ sudo apt-get install libboost-system1.58.0 libboost1.58-dev libboost-atomic1.58-dev libboost-program-options1.58-dev libuv1-dev libsfml-dev libglew-dev gcc-5 g++-5 cmake

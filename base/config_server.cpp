@@ -612,32 +612,48 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 
 			// We need to return a string with the two ranges,
 			// separated by a NUL character.
-			if (type == SSHS_FLOAT || type == SSHS_DOUBLE) {
-				size_t minLength = (size_t) snprintf(NULL, 0, "%g", ranges.min.d) + 1; // +1 for terminating NUL byte.
-				size_t maxLength = (size_t) snprintf(NULL, 0, "%g", ranges.max.d) + 1; // +1 for terminating NUL byte.
+			char buf[256];
+			size_t bufLen = 0;
 
-				// Allocate a buffer for the types and copy them over.
-				char rangesBuffer[minLength + maxLength];
+			switch (type) {
+				case SSHS_BOOL:
+				case SSHS_BYTE:
+					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%" PRIi8, ranges.min.ibyteRange) + 1; // Terminating NUL byte.
+					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%" PRIi8, ranges.max.ibyteRange) + 1; // Terminating NUL byte.
+					break;
 
-				snprintf(rangesBuffer, minLength, "%g", ranges.min.d);
-				snprintf(rangesBuffer + minLength, maxLength, "%g", ranges.max.d);
+				case SSHS_SHORT:
+					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%" PRIi16, ranges.min.ishortRange) + 1; // Terminating NUL byte.
+					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%" PRIi16, ranges.max.ishortRange) + 1; // Terminating NUL byte.
+					break;
 
-				caerConfigSendResponse(client, CAER_CONFIG_GET_RANGES, type, (const uint8_t *) rangesBuffer,
-					minLength + maxLength);
+				case SSHS_INT:
+					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%" PRIi32, ranges.min.iintRange) + 1; // Terminating NUL byte.
+					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%" PRIi32, ranges.max.iintRange) + 1; // Terminating NUL byte.
+					break;
+
+				case SSHS_LONG:
+					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%" PRIi64, ranges.min.ilongRange) + 1; // Terminating NUL byte.
+					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%" PRIi64, ranges.max.ilongRange) + 1; // Terminating NUL byte.
+					break;
+
+				case SSHS_FLOAT:
+					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%g", (double) ranges.min.ffloatRange) + 1; // Terminating NUL byte.
+					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%g", (double) ranges.max.ffloatRange) + 1; // Terminating NUL byte.
+					break;
+
+				case SSHS_DOUBLE:
+					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%g", ranges.min.ddoubleRange) + 1; // Terminating NUL byte.
+					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%g", ranges.max.ddoubleRange) + 1; // Terminating NUL byte.
+					break;
+
+				case SSHS_STRING:
+					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%zu", ranges.min.stringRange) + 1; // Terminating NUL byte.
+					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%zu", ranges.max.stringRange) + 1; // Terminating NUL byte.
+					break;
 			}
-			else {
-				size_t minLength = (size_t) snprintf(NULL, 0, "%" PRIi64, ranges.min.i) + 1; // +1 for terminating NUL byte.
-				size_t maxLength = (size_t) snprintf(NULL, 0, "%" PRIi64, ranges.max.i) + 1; // +1 for terminating NUL byte.
 
-				// Allocate a buffer for the types and copy them over.
-				char rangesBuffer[minLength + maxLength];
-
-				snprintf(rangesBuffer, minLength, "%" PRIi64, ranges.min.i);
-				snprintf(rangesBuffer + minLength, maxLength, "%" PRIi64, ranges.max.i);
-
-				caerConfigSendResponse(client, CAER_CONFIG_GET_RANGES, type, (const uint8_t *) rangesBuffer,
-					minLength + maxLength);
-			}
+			caerConfigSendResponse(client, CAER_CONFIG_GET_RANGES, type, (const uint8_t *) buf, bufLen);
 
 			break;
 		}
@@ -759,6 +775,8 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 				int16_t moduleID = sshsNodeGetShort(mNode, "moduleId");
 				usedModuleIDs.push_back(moduleID);
 			}
+
+			free(rootNodes);
 
 			vectorSortUnique(usedModuleIDs);
 
