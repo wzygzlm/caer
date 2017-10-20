@@ -261,7 +261,7 @@ public:
 			}
 		}
 		else {
-			const sshs_value &oldAttrValue = attributes[key].getValue();
+			const sshs_value oldAttrValue = attributes[key].getValue();
 
 			// To simplify things, we don't support multiple types per key (though the API does).
 			if (oldAttrValue.getType() != newAttr.getValue().getType()) {
