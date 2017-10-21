@@ -70,7 +70,8 @@ static void systemConfigListener(sshsNode node, void *userData, enum sshs_node_a
 static void logLevelListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
 
-static void exposurePassthrough(void *userData, enum sshs_node_attr_value_type type, union sshs_node_attr_value *value);
+static void exposurePassthrough(void *userData, const char *key, enum sshs_node_attr_value_type type,
+	union sshs_node_attr_value *value);
 
 static void createVDACBiasSetting(sshsNode biasNode, const char *biasName, uint8_t voltageValue, uint8_t currentValue);
 static uint16_t generateVDACBiasParent(sshsNode biasNode, const char *biasName);
@@ -2614,7 +2615,9 @@ static void logLevelListener(sshsNode node, void *userData, enum sshs_node_attri
 	}
 }
 
-static void exposurePassthrough(void *userData, enum sshs_node_attr_value_type type, union sshs_node_attr_value *value) {
+static void exposurePassthrough(void *userData, const char *key, enum sshs_node_attr_value_type type,
+	union sshs_node_attr_value *value) {
+	UNUSED_ARGUMENT(key); // This is for the Exposure key only.
 	UNUSED_ARGUMENT(type); // We know Exposure is always INT.
 
 	caerDeviceHandle handle = userData;

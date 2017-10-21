@@ -96,7 +96,7 @@ typedef void (*sshsNodeChangeListener)(sshsNode node, void *userData, enum sshs_
 typedef void (*sshsAttributeChangeListener)(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
 
-typedef void (*sshsAttributeReadModifier)(void *userData, enum sshs_node_attr_value_type attrType,
+typedef void (*sshsAttributeReadModifier)(void *userData, const char *key, enum sshs_node_attr_value_type attrType,
 	union sshs_node_attr_value *attrValue);
 
 const char *sshsNodeGetName(sshsNode node) CAER_SYMBOL_EXPORT;

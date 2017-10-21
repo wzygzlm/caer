@@ -69,7 +69,7 @@ public:
 			readModifierUserData(nullptr) {
 	}
 
-	sshs_value getModifiedValue() const noexcept {
+	sshs_value getModifiedValue(const std::string &key) const noexcept {
 		// Read Modifier: change the returned value by calling the
 		// read modifier callback. The new value is not stored, only
 		// output. Use this feature with care!
@@ -77,7 +77,7 @@ public:
 			union sshs_node_attr_value uValue = value.toCUnion();
 			enum sshs_node_attr_value_type uType = value.getType();
 
-			(*readModifier)(readModifierUserData, uType, &uValue);
+			(*readModifier)(readModifierUserData, key.c_str(), uType, &uValue);
 
 			sshs_value readModifierValue;
 			readModifierValue.fromCUnion(uValue, uType);
@@ -361,7 +361,7 @@ public:
 		}
 
 		// Return a copy of the final value.
-		return (attributes[key].getModifiedValue());
+		return (attributes[key].getModifiedValue(key));
 	}
 
 	bool putAttribute(const std::string &key, const sshs_value &value, bool forceReadOnlyUpdate = false) {
@@ -432,7 +432,7 @@ public:
 		// This guarantees that the value in the node will be valid and expected
 		// after the read modifier is disabled. After that it willl behave like
 		// any other normal attribute.
-		attr.setValue(attr.getModifiedValue());
+		attr.setValue(attr.getModifiedValue(key));
 
 		// Reset read modifier to nullptr.
 		attr.resetReadModifier();
@@ -1001,7 +1001,7 @@ static boost::property_tree::ptree sshsNodeGenerateXML(sshsNode node, bool recur
 		}
 
 		const std::string type = sshsHelperCppTypeToStringConverter(attr.second.getValue().getType());
-		const std::string value = sshsHelperCppValueToStringConverter(attr.second.getModifiedValue());
+		const std::string value = sshsHelperCppValueToStringConverter(attr.second.getModifiedValue(attr.first));
 
 		boost::property_tree::ptree attrNode(value);
 		attrNode.put("<xmlattr>.key", attr.first);
