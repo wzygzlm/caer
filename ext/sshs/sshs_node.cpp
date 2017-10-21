@@ -69,26 +69,31 @@ public:
 			readModifierUserData(nullptr) {
 	}
 
-	sshs_value getValue() const noexcept {
+	sshs_value getModifiedValue() const noexcept {
 		// Read Modifier: change the returned value by calling the
 		// read modifier callback. The new value is not stored, only
 		// output. Use this feature with care!
 		if (readModifier != nullptr) {
 			union sshs_node_attr_value uValue = value.toCUnion();
+			enum sshs_node_attr_value_type uType = value.getType();
 
-			(*readModifier)(readModifierUserData, value.getType(), &uValue);
+			(*readModifier)(readModifierUserData, uType, &uValue);
 
 			sshs_value readModifierValue;
-			readModifierValue.fromCUnion(uValue, value.getType());
+			readModifierValue.fromCUnion(uValue, uType);
 
 			// Free C string memory that user could have modified, reallocated.
-			if (value.getType() == SSHS_STRING) {
+			if (uType == SSHS_STRING) {
 				free(uValue.string);
 			}
 
 			return (readModifierValue);
 		}
 
+		return (value);
+	}
+
+	const sshs_value &getValue() const noexcept {
 		return (value);
 	}
 
@@ -261,7 +266,8 @@ public:
 			}
 		}
 		else {
-			const sshs_value oldAttrValue = attributes[key].getValue();
+			const sshs_node_attr &oldAttr = attributes[key];
+			const sshs_value &oldAttrValue = oldAttr.getValue();
 
 			// To simplify things, we don't support multiple types per key (though the API does).
 			if (oldAttrValue.getType() != newAttr.getValue().getType()) {
@@ -270,6 +276,13 @@ public:
 					% sshsHelperCppTypeToStringConverter(oldAttrValue.getType());
 
 				sshsNodeError("sshsNodeCreateAttribute", key, newAttr.getValue().getType(), errorMsg.str());
+			}
+
+			// If attribute already exists, old read modifier has to be migrated
+			// to new attribute, if it exists itself.
+			if (oldAttr.getReadModifier().first != nullptr) {
+				const auto readModifier = oldAttr.getReadModifier();
+				newAttr.setReadModifier(readModifier.first, readModifier.second);
 			}
 
 			// Check if the current value is still fine and within range; if it is
@@ -348,7 +361,7 @@ public:
 		}
 
 		// Return a copy of the final value.
-		return (attributes[key].getValue());
+		return (attributes[key].getModifiedValue());
 	}
 
 	bool putAttribute(const std::string &key, const sshs_value &value, bool forceReadOnlyUpdate = false) {
@@ -381,7 +394,8 @@ public:
 		attr.setValue(value);
 
 		// Let's check if anything changed with this update and call
-		// the appropriate listeners if needed.
+		// the appropriate listeners if needed. Check the pure, internal
+		// values here, as they are what matters internally.
 		if (attrValueOld != attr.getValue()) {
 			// Listener support. Call only on change, which is always the case here.
 			for (const auto &l : attrListeners) {
@@ -418,7 +432,7 @@ public:
 		// This guarantees that the value in the node will be valid and expected
 		// after the read modifier is disabled. After that it willl behave like
 		// any other normal attribute.
-		attr.setValue(attr.getValue());
+		attr.setValue(attr.getModifiedValue());
 
 		// Reset read modifier to nullptr.
 		attr.resetReadModifier();
@@ -987,7 +1001,7 @@ static boost::property_tree::ptree sshsNodeGenerateXML(sshsNode node, bool recur
 		}
 
 		const std::string type = sshsHelperCppTypeToStringConverter(attr.second.getValue().getType());
-		const std::string value = sshsHelperCppValueToStringConverter(attr.second.getValue());
+		const std::string value = sshsHelperCppValueToStringConverter(attr.second.getModifiedValue());
 
 		boost::property_tree::ptree attrNode(value);
 		attrNode.put("<xmlattr>.key", attr.first);
@@ -1392,9 +1406,7 @@ char *sshsNodeGetAttributeDescription(sshsNode node, const char *key, enum sshs_
 		sshsNodeErrorNoAttribute("sshsNodeGetAttributeDescription", key, type);
 	}
 
-	sshs_node_attr &attr = node->attributes[key];
-
-	char *descriptionCopy = strdup(attr.getDescription().c_str());
+	char *descriptionCopy = strdup(node->attributes[key].getDescription().c_str());
 	sshsMemoryCheck(descriptionCopy, __func__);
 
 	return (descriptionCopy);
