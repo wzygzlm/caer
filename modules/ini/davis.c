@@ -70,7 +70,9 @@ static void systemConfigListener(sshsNode node, void *userData, enum sshs_node_a
 static void logLevelListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
 
-static void exposurePassthrough(void *userData, const char *key, enum sshs_node_attr_value_type type,
+static void statisticsPassthrough(void *userData, const char *key, enum sshs_node_attr_value_type type,
+	union sshs_node_attr_value *value);
+static void apsExposurePassthrough(void *userData, const char *key, enum sshs_node_attr_value_type type,
 	union sshs_node_attr_value *value);
 
 static void createVDACBiasSetting(sshsNode biasNode, const char *biasName, uint8_t voltageValue, uint8_t currentValue);
@@ -319,9 +321,6 @@ static bool caerInputDAVISInit(caerModuleData moduleData) {
 
 	sshsNodeAddAttributeListener(moduleData->moduleNode, moduleData, &logLevelListener);
 
-	// Add device passthroughs last.
-	sshsNodeAddAttributeReadModifier(apsNode, "Exposure", SSHS_INT, moduleData->moduleState, &exposurePassthrough);
-
 	return (true);
 }
 
@@ -374,6 +373,10 @@ static void caerInputDAVISExit(caerModuleData moduleData) {
 	// Ensure Exposure value is coherent with libcaer. Removing a Read Modifier
 	// will synchronize the value once here on exit.
 	sshsNodeRemoveAttributeReadModifier(apsNode, "Exposure", SSHS_INT);
+
+	// Remove statistics read modifiers.
+	sshsNode statNode = sshsGetRelativeNode(deviceConfigNode, "statistics/");
+	sshsNodeRemoveAllAttributeReadModifiers(statNode);
 
 	caerDeviceDataStop(moduleData->moduleState);
 
@@ -732,6 +735,8 @@ static void createDefaultLogicConfiguration(caerModuleData moduleData, const cha
 		SSHS_FLAGS_NORMAL, "Row/Y address of ROI 0 end point.");
 	sshsNodeCreateBool(apsNode, "ROI0Enabled", true, SSHS_FLAGS_NORMAL, "Enable ROI region 0.");
 	sshsNodeCreateInt(apsNode, "Exposure", 4000, 0, (0x01 << 20) - 1, SSHS_FLAGS_NORMAL, "Set exposure time (in µs).");
+	sshsNodeCreateAttributePollTime(apsNode, "Exposure", SSHS_INT, 1);
+	sshsNodeAddAttributeReadModifier(apsNode, "Exposure", SSHS_INT, moduleData->moduleState, &apsExposurePassthrough);
 	sshsNodeCreateInt(apsNode, "FrameDelay", 1000, 0, (0x01 << 20) - 1, SSHS_FLAGS_NORMAL,
 		"Set delay time between frames (in µs).");
 	sshsNodeCreateShort(apsNode, "RowSettle", (devInfo->adcClock / 3), 0, I16T(devInfo->adcClock * 2),
@@ -898,6 +903,86 @@ static void createDefaultLogicConfiguration(caerModuleData moduleData, const cha
 	sshsNodeCreateInt(usbNode, "BufferNumber", 8, 2, 128, SSHS_FLAGS_NORMAL, "Number of USB transfers.");
 	sshsNodeCreateInt(usbNode, "BufferSize", 8192, 512, 32768, SSHS_FLAGS_NORMAL,
 		"Size in bytes of data buffers for USB transfers.");
+
+	// Device event statistics.
+	if (devInfo->muxHasStatistics) {
+		sshsNode statNode = sshsGetRelativeNode(deviceConfigNode, "statistics/");
+
+		sshsNodeCreateLong(statNode, "muxDroppedDVS", 0, 0, INT64_MAX, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT,
+			"Number of dropped DVS events due to USB full.");
+		sshsNodeCreateAttributePollTime(statNode, "muxDroppedDVS", SSHS_LONG, 2);
+		sshsNodeAddAttributeReadModifier(statNode, "muxDroppedDVS", SSHS_LONG, moduleData->moduleState,
+			&statisticsPassthrough);
+
+		sshsNodeCreateLong(statNode, "muxDroppedAPS", 0, 0, INT64_MAX, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT,
+			"Number of dropped APS events due to USB full.");
+		sshsNodeCreateAttributePollTime(statNode, "muxDroppedAPS", SSHS_LONG, 2);
+		sshsNodeAddAttributeReadModifier(statNode, "muxDroppedAPS", SSHS_LONG, moduleData->moduleState,
+			&statisticsPassthrough);
+
+		sshsNodeCreateLong(statNode, "muxDroppedIMU", 0, 0, INT64_MAX, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT,
+			"Number of dropped IMU events due to USB full.");
+		sshsNodeCreateAttributePollTime(statNode, "muxDroppedIMU", SSHS_LONG, 2);
+		sshsNodeAddAttributeReadModifier(statNode, "muxDroppedIMU", SSHS_LONG, moduleData->moduleState,
+			&statisticsPassthrough);
+
+		sshsNodeCreateLong(statNode, "muxDroppedExtInput", 0, 0, INT64_MAX, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT,
+			"Number of dropped External Input events due to USB full.");
+		sshsNodeCreateAttributePollTime(statNode, "muxDroppedExtInput", SSHS_LONG, 2);
+		sshsNodeAddAttributeReadModifier(statNode, "muxDroppedExtInput", SSHS_LONG, moduleData->moduleState,
+			&statisticsPassthrough);
+
+		sshsNodeCreateLong(statNode, "muxDroppedMic", 0, 0, INT64_MAX, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT,
+			"Number of dropped Microphone sample events due to USB full.");
+		sshsNodeCreateAttributePollTime(statNode, "muxDroppedMic", SSHS_LONG, 2);
+		sshsNodeAddAttributeReadModifier(statNode, "muxDroppedMic", SSHS_LONG, moduleData->moduleState,
+			&statisticsPassthrough);
+	}
+
+	if (devInfo->dvsHasStatistics) {
+		sshsNode statNode = sshsGetRelativeNode(deviceConfigNode, "statistics/");
+
+		sshsNodeCreateLong(statNode, "dvsEventsRow", 0, 0, INT64_MAX, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT,
+			"Number of row events handled.");
+		sshsNodeCreateAttributePollTime(statNode, "dvsEventsRow", SSHS_LONG, 2);
+		sshsNodeAddAttributeReadModifier(statNode, "dvsEventsRow", SSHS_LONG, moduleData->moduleState,
+			&statisticsPassthrough);
+
+		sshsNodeCreateLong(statNode, "dvsEventsColumn", 0, 0, INT64_MAX, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT,
+			"Number of column events handled.");
+		sshsNodeCreateAttributePollTime(statNode, "dvsEventsColumn", SSHS_LONG, 2);
+		sshsNodeAddAttributeReadModifier(statNode, "dvsEventsColumn", SSHS_LONG, moduleData->moduleState,
+			&statisticsPassthrough);
+
+		sshsNodeCreateLong(statNode, "dvsEventsDropped", 0, 0, INT64_MAX, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT,
+			"Number of dropped events (groups of events).");
+		sshsNodeCreateAttributePollTime(statNode, "dvsEventsDropped", SSHS_LONG, 2);
+		sshsNodeAddAttributeReadModifier(statNode, "dvsEventsDropped", SSHS_LONG, moduleData->moduleState,
+			&statisticsPassthrough);
+
+		if (devInfo->dvsHasPixelFilter) {
+			sshsNodeCreateLong(statNode, "dvsFilteredPixel", 0, 0, INT64_MAX,
+				SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Number of events filtered out by the Pixel Filter.");
+			sshsNodeCreateAttributePollTime(statNode, "dvsFilteredPixel", SSHS_LONG, 2);
+			sshsNodeAddAttributeReadModifier(statNode, "dvsFilteredPixel", SSHS_LONG, moduleData->moduleState,
+				&statisticsPassthrough);
+		}
+
+		if (devInfo->dvsHasBackgroundActivityFilter) {
+			sshsNodeCreateLong(statNode, "dvsFilteredBA", 0, 0, INT64_MAX, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT,
+				"Number of events filtered out by the Background Activity Filter.");
+			sshsNodeCreateAttributePollTime(statNode, "dvsFilteredBA", SSHS_LONG, 2);
+			sshsNodeAddAttributeReadModifier(statNode, "dvsFilteredBA", SSHS_LONG, moduleData->moduleState,
+				&statisticsPassthrough);
+
+			sshsNodeCreateLong(statNode, "dvsFilteredRefractory", 0, 0, INT64_MAX,
+				SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT,
+				"Number of events filtered out by the Refractory Period Filter.");
+			sshsNodeCreateAttributePollTime(statNode, "dvsFilteredRefractory", SSHS_LONG, 2);
+			sshsNodeAddAttributeReadModifier(statNode, "dvsFilteredRefractory", SSHS_LONG, moduleData->moduleState,
+				&statisticsPassthrough);
+		}
+	}
 
 	sshsNode sysNode = sshsGetRelativeNode(moduleData->moduleNode, "system/");
 
@@ -2615,17 +2700,64 @@ static void logLevelListener(sshsNode node, void *userData, enum sshs_node_attri
 	}
 }
 
-static void exposurePassthrough(void *userData, const char *key, enum sshs_node_attr_value_type type,
+static void statisticsPassthrough(void *userData, const char *key, enum sshs_node_attr_value_type type,
+	union sshs_node_attr_value *value) {
+	UNUSED_ARGUMENT(type); // We know all statistics are always LONG.
+
+	caerDeviceHandle handle = userData;
+
+	uint64_t statisticValue = 0;
+
+	if (caerStrEquals(key, "muxDroppedDVS")) {
+		caerDeviceConfigGet64(handle, DAVIS_CONFIG_MUX, DAVIS_CONFIG_MUX_STATISTICS_DVS_DROPPED, &statisticValue);
+	}
+	else if (caerStrEquals(key, "muxDroppedAPS")) {
+		caerDeviceConfigGet64(handle, DAVIS_CONFIG_MUX, DAVIS_CONFIG_MUX_STATISTICS_APS_DROPPED, &statisticValue);
+	}
+	else if (caerStrEquals(key, "muxDroppedIMU")) {
+		caerDeviceConfigGet64(handle, DAVIS_CONFIG_MUX, DAVIS_CONFIG_MUX_STATISTICS_IMU_DROPPED, &statisticValue);
+	}
+	else if (caerStrEquals(key, "muxDroppedExtInput")) {
+		caerDeviceConfigGet64(handle, DAVIS_CONFIG_MUX, DAVIS_CONFIG_MUX_STATISTICS_EXTINPUT_DROPPED, &statisticValue);
+	}
+	else if (caerStrEquals(key, "muxDroppedMic")) {
+		caerDeviceConfigGet64(handle, DAVIS_CONFIG_MUX, DAVIS_CONFIG_MUX_STATISTICS_MIC_DROPPED, &statisticValue);
+	}
+	else if (caerStrEquals(key, "dvsEventsRow")) {
+		caerDeviceConfigGet64(handle, DAVIS_CONFIG_DVS, DAVIS_CONFIG_DVS_STATISTICS_EVENTS_ROW, &statisticValue);
+	}
+	else if (caerStrEquals(key, "dvsEventsColumn")) {
+		caerDeviceConfigGet64(handle, DAVIS_CONFIG_DVS, DAVIS_CONFIG_DVS_STATISTICS_EVENTS_COLUMN, &statisticValue);
+	}
+	else if (caerStrEquals(key, "dvsEventsDropped")) {
+		caerDeviceConfigGet64(handle, DAVIS_CONFIG_DVS, DAVIS_CONFIG_DVS_STATISTICS_EVENTS_DROPPED, &statisticValue);
+	}
+	else if (caerStrEquals(key, "dvsFilteredPixel")) {
+		caerDeviceConfigGet64(handle, DAVIS_CONFIG_DVS, DAVIS_CONFIG_DVS_STATISTICS_FILTERED_PIXELS, &statisticValue);
+	}
+	else if (caerStrEquals(key, "dvsFilteredBA")) {
+		caerDeviceConfigGet64(handle, DAVIS_CONFIG_DVS, DAVIS_CONFIG_DVS_STATISTICS_FILTERED_BACKGROUND_ACTIVITY,
+			&statisticValue);
+	}
+	else if (caerStrEquals(key, "dvsFilteredRefractory")) {
+		caerDeviceConfigGet64(handle, DAVIS_CONFIG_DVS, DAVIS_CONFIG_DVS_STATISTICS_FILTERED_REFRACTORY_PERIOD,
+			&statisticValue);
+	}
+
+	value->ilong = I64T(statisticValue);
+}
+
+static void apsExposurePassthrough(void *userData, const char *key, enum sshs_node_attr_value_type type,
 	union sshs_node_attr_value *value) {
 	UNUSED_ARGUMENT(key); // This is for the Exposure key only.
 	UNUSED_ARGUMENT(type); // We know Exposure is always INT.
 
 	caerDeviceHandle handle = userData;
 
-	uint32_t currentExposure;
-	caerDeviceConfigGet(handle, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_EXPOSURE, &currentExposure);
+	uint32_t currentExposureValue = 0;
+	caerDeviceConfigGet(handle, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_EXPOSURE, &currentExposureValue);
 
-	value->iint = I32T(currentExposure);
+	value->iint = I32T(currentExposureValue);
 }
 
 static void createVDACBiasSetting(sshsNode biasNode, const char *biasName, uint8_t voltageValue, uint8_t currentValue) {
