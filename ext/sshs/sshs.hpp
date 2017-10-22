@@ -100,6 +100,16 @@ inline bool sshsNodeUpdateReadOnlyAttribute(sshsNode node, const char *key, cons
 	return (sshsNodeUpdateReadOnlyAttribute(node, key, SSHS_STRING, newValue));
 }
 
+inline void sshsNodeCreateAttributePollTime(sshsNode node, const std::string &key, enum sshs_node_attr_value_type type,
+	int32_t pollTimeSeconds) {
+	sshsNodeCreateAttributePollTime(node, key.c_str(), type, pollTimeSeconds);
+}
+
+inline void sshsNodeCreateAttributeListOptions(sshsNode node, const std::string &key,
+	enum sshs_node_attr_value_type type, const std::string &listOptions) {
+	sshsNodeCreateAttributeListOptions(node, key.c_str(), type, listOptions.c_str());
+}
+
 // std::string variants of node getters.
 inline bool sshsExistsNode(sshs st, const std::string &nodePath) {
 	return (sshsExistsNode(st, nodePath.c_str()));

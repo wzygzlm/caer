@@ -196,6 +196,11 @@ char *sshsHelperValueToStringConverter(enum sshs_node_attr_value_type type, unio
 union sshs_node_attr_value sshsHelperStringToValueConverter(enum sshs_node_attr_value_type type,
 	const char *valueString) CAER_SYMBOL_EXPORT;
 
+void sshsNodeCreateAttributePollTime(sshsNode node, const char *key, enum sshs_node_attr_value_type type,
+	int32_t pollTimeSeconds);
+void sshsNodeCreateAttributeListOptions(sshsNode node, const char *key, enum sshs_node_attr_value_type type,
+	const char *listOptions);
+
 // SSHS
 typedef struct sshs_struct *sshs;
 typedef void (*sshsErrorLogCallback)(const char *msg);

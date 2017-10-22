@@ -1381,7 +1381,7 @@ struct sshs_node_attr_ranges sshsNodeGetAttributeRanges(sshsNode node, const cha
 	enum sshs_node_attr_value_type type) {
 	std::lock_guard<std::recursive_mutex> lockNode(node->node_lock);
 
-	if (!sshsNodeAttributeExists(node, key, type)) {
+	if (!node->attributeExists(key, type)) {
 		sshsNodeErrorNoAttribute("sshsNodeGetAttributeRanges", key, type);
 	}
 
@@ -1391,7 +1391,7 @@ struct sshs_node_attr_ranges sshsNodeGetAttributeRanges(sshsNode node, const cha
 int sshsNodeGetAttributeFlags(sshsNode node, const char *key, enum sshs_node_attr_value_type type) {
 	std::lock_guard<std::recursive_mutex> lockNode(node->node_lock);
 
-	if (!sshsNodeAttributeExists(node, key, type)) {
+	if (!node->attributeExists(key, type)) {
 		sshsNodeErrorNoAttribute("sshsNodeGetAttributeFlags", key, type);
 	}
 
@@ -1402,7 +1402,7 @@ int sshsNodeGetAttributeFlags(sshsNode node, const char *key, enum sshs_node_att
 char *sshsNodeGetAttributeDescription(sshsNode node, const char *key, enum sshs_node_attr_value_type type) {
 	std::lock_guard<std::recursive_mutex> lockNode(node->node_lock);
 
-	if (!sshsNodeAttributeExists(node, key, type)) {
+	if (!node->attributeExists(key, type)) {
 		sshsNodeErrorNoAttribute("sshsNodeGetAttributeDescription", key, type);
 	}
 
@@ -1410,4 +1410,36 @@ char *sshsNodeGetAttributeDescription(sshsNode node, const char *key, enum sshs_
 	sshsMemoryCheck(descriptionCopy, __func__);
 
 	return (descriptionCopy);
+}
+
+void sshsNodeCreateAttributePollTime(sshsNode node, const char *key, enum sshs_node_attr_value_type type,
+	int32_t pollTimeSeconds) {
+	std::lock_guard<std::recursive_mutex> lockNode(node->node_lock);
+
+	if (!node->attributeExists(key, type)) {
+		sshsNodeErrorNoAttribute("sshsNodeCreateAttributePollTime", key, type);
+	}
+
+	std::string fullKey(key);
+	fullKey += "PollTime";
+
+	sshsNodeRemoveAttribute(node, fullKey.c_str(), SSHS_INT);
+	sshsNodeCreateInt(node, fullKey.c_str(), pollTimeSeconds, 1, INT32_MAX, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT,
+		"Number of seconds to wait before refreshing the associated attribute value.");
+}
+
+void sshsNodeCreateAttributeListOptions(sshsNode node, const char *key, enum sshs_node_attr_value_type type,
+	const char *listOptions) {
+	std::lock_guard<std::recursive_mutex> lockNode(node->node_lock);
+
+	if (!node->attributeExists(key, type)) {
+		sshsNodeErrorNoAttribute("sshsNodeCreateAttributeListOptions", key, type);
+	}
+
+	std::string fullKey(key);
+	fullKey += "ListOptions";
+
+	sshsNodeRemoveAttribute(node, fullKey.c_str(), SSHS_STRING);
+	sshsNodeCreateString(node, fullKey.c_str(), listOptions, 1, INT32_MAX, SSHS_FLAGS_READ_ONLY,
+		"Comma separated list of possible associated attribute values.");
 }
