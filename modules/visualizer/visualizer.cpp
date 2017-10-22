@@ -102,14 +102,11 @@ caerModuleInfo caerModuleGetInfo(void) {
 
 static void caerVisualizerConfigInit(sshsNode moduleNode) {
 	sshsNodeCreate(moduleNode, "renderer", "None", 0, 100, SSHS_FLAGS_NORMAL, "Renderer to use to generate content.");
-	sshsNodeRemoveAttribute(moduleNode, "rendererListOptions", SSHS_STRING);
-	sshsNodeCreate(moduleNode, "rendererListOptions", caerVisualizerRendererListOptionsString, 0, 200,
-		SSHS_FLAGS_READ_ONLY, "List of available renderers.");
+	sshsNodeCreateAttributeListOptions(moduleNode, "renderer", SSHS_STRING, caerVisualizerRendererListOptionsString);
 	sshsNodeCreate(moduleNode, "eventHandler", "None", 0, 100, SSHS_FLAGS_NORMAL,
 		"Event handler to handle mouse and keyboard events.");
-	sshsNodeRemoveAttribute(moduleNode, "eventHandlerListOptions", SSHS_STRING);
-	sshsNodeCreate(moduleNode, "eventHandlerListOptions", caerVisualizerEventHandlerListOptionsString, 0, 200,
-		SSHS_FLAGS_READ_ONLY, "List of available event handlers.");
+	sshsNodeCreateAttributeListOptions(moduleNode, "eventHandler", SSHS_STRING,
+		caerVisualizerEventHandlerListOptionsString);
 
 	sshsNodeCreateInt(moduleNode, "subsampleRendering", 1, 1, 100000, SSHS_FLAGS_NORMAL,
 		"Speed-up rendering by only taking every Nth EventPacketContainer to render.");

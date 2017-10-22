@@ -56,15 +56,12 @@ static bool caerFrameEnhancerInit(caerModuleData moduleData) {
 #if defined(LIBCAER_HAVE_OPENCV) && LIBCAER_HAVE_OPENCV == 1
 	sshsNodeCreateString(moduleData->moduleNode, "demosaicType", "opencv_edge_aware", 8, 17, SSHS_FLAGS_NORMAL,
 		"Demoisaicing (color interpolation) algorithm to apply.");
-	sshsNodeRemoveAttribute(moduleData->moduleNode, "demosaicTypeListOptions", SSHS_STRING);
-	sshsNodeCreateString(moduleData->moduleNode, "demosaicTypeListOptions", "opencv_edge_aware,opencv_normal,standard",
-		1, 100, SSHS_FLAGS_READ_ONLY, "Available demoisaicing (color interpolation) algorithms.");
+	sshsNodeCreateAttributeListOptions(moduleData->moduleNode, "demosaicType", SSHS_STRING,
+		"opencv_edge_aware,opencv_normal,standard");
 	sshsNodeCreateString(moduleData->moduleNode, "contrastType", "opencv_normalization", 8, 29, SSHS_FLAGS_NORMAL,
 		"Contrast enhancement algorithm to apply.");
-	sshsNodeRemoveAttribute(moduleData->moduleNode, "contrastTypeListOptions", SSHS_STRING);
-	sshsNodeCreateString(moduleData->moduleNode, "contrastTypeListOptions",
-		"opencv_normalization,opencv_histogram_equalization,opencv_clahe,standard", 1, 100, SSHS_FLAGS_READ_ONLY,
-		"Available contrast enhancement algorithms.");
+	sshsNodeCreateAttributeListOptions(moduleData->moduleNode, "contrastType", SSHS_STRING,
+		"opencv_normalization,opencv_histogram_equalization,opencv_clahe,standard");
 #else
 	// Only standard algorithms are available here, so we force those and make it read-only.
 	sshsNodeRemoveAttribute(moduleData->moduleNode, "demosaicType", SSHS_STRING);

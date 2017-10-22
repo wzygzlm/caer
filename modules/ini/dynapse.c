@@ -850,19 +850,13 @@ static void createDynapseBiasSetting(sshsNode biasNode, const char *biasName,
 
 	sshsNodeCreateBool(biasConfigNode, "enabled", enabled, SSHS_FLAGS_NORMAL, "Bias enabled.");
 	sshsNodeCreateString(biasConfigNode, "sex", (sexN) ? ("N") : ("P"), 1, 1, SSHS_FLAGS_NORMAL, "Bias sex.");
-	sshsNodeRemoveAttribute(biasConfigNode, "sexListOptions", SSHS_STRING);
-	sshsNodeCreateString(biasConfigNode, "sexListOptions", "N,P", 0, 10, SSHS_FLAGS_READ_ONLY,
-		"Bias sex possible values.");
+	sshsNodeCreateAttributeListOptions(biasConfigNode, "sex", SSHS_STRING, "N,P");
 	sshsNodeCreateString(biasConfigNode, "type", (typeNormal) ? ("Normal") : ("Cascode"), 6, 7, SSHS_FLAGS_NORMAL,
 		"Bias type.");
-	sshsNodeRemoveAttribute(biasConfigNode, "typeListOptions", SSHS_STRING);
-	sshsNodeCreateString(biasConfigNode, "typeListOptions", "Normal,Cascode", 0, 30, SSHS_FLAGS_READ_ONLY,
-		"Bias type possible values.");
+	sshsNodeCreateAttributeListOptions(biasConfigNode, "type", SSHS_STRING, "Normal,Cascode");
 	sshsNodeCreateString(biasConfigNode, "currentLevel", (biasHigh) ? ("High") : ("Low"), 3, 4, SSHS_FLAGS_NORMAL,
 		"Bias current level.");
-	sshsNodeRemoveAttribute(biasConfigNode, "currentLevelListOptions", SSHS_STRING);
-	sshsNodeCreateString(biasConfigNode, "currentLevelListOptions", "High,Low", 0, 20, SSHS_FLAGS_READ_ONLY,
-		"Bias current level possible values.");
+	sshsNodeCreateAttributeListOptions(biasConfigNode, "currentLevel", SSHS_STRING, "High,Low");
 }
 
 static void setDynapseBiasSetting(sshsNode biasNode, const char *biasName,
