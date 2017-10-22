@@ -18,8 +18,8 @@ static const struct caer_module_functions DynapseFunctions = { .moduleInit = &ca
 static const struct caer_event_stream_out DynapseOutputs[] = { { .type = SPECIAL_EVENT }, { .type = SPIKE_EVENT } };
 
 static const struct caer_module_info DynapseInfo = { .version = 2, .name = "Dynapse", .description =
-	"Connects to a Dynap-SE neuromorphic processor to get data.", .type = CAER_MODULE_INPUT, .memSize = 0,
-	.functions = &DynapseFunctions, .inputStreams = NULL, .inputStreamsSize = 0, .outputStreams = DynapseOutputs,
+	"Connects to a Dynap-SE neuromorphic processor to get data.", .type = CAER_MODULE_INPUT, .memSize = 0, .functions =
+	&DynapseFunctions, .inputStreams = NULL, .inputStreamsSize = 0, .outputStreams = DynapseOutputs,
 	.outputStreamsSize = CAER_EVENT_STREAM_OUT_SIZE(DynapseOutputs), };
 
 caerModuleInfo caerModuleGetInfo(void) {
@@ -27,7 +27,7 @@ caerModuleInfo caerModuleGetInfo(void) {
 }
 
 static void createDefaultBiasConfiguration(caerModuleData moduleData);
-static void createDefaultLogicConfiguration(caerModuleData moduleData);
+static void createDefaultLogicConfiguration(caerModuleData moduleData, struct caer_dynapse_info *devInfo);
 static void sendDefaultConfiguration(caerModuleData moduleData);
 static void moduleShutdownNotify(void *p);
 
@@ -61,10 +61,13 @@ static void camControlListener(sshsNode node, void *userData, enum sshs_node_att
 static void resetToDefaultBiasesListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
 
-static void createDynapseBiasSetting(sshsNode biasNode, const char *biasName,
-	uint8_t coarseValue, uint8_t fineValue, bool biasHigh, bool typeNormal, bool sexN, bool enabled);
-static void setDynapseBiasSetting(sshsNode biasNode, const char *biasName,
-	uint8_t coarseValue, uint8_t fineValue, bool biasHigh, bool typeNormal, bool sexN, bool enabled);
+static void statisticsPassthrough(void *userData, const char *key, enum sshs_node_attr_value_type type,
+	union sshs_node_attr_value *value);
+
+static void createDynapseBiasSetting(sshsNode biasNode, const char *biasName, uint8_t coarseValue, uint8_t fineValue,
+bool biasHigh, bool typeNormal, bool sexN, bool enabled);
+static void setDynapseBiasSetting(sshsNode biasNode, const char *biasName, uint8_t coarseValue, uint8_t fineValue,
+bool biasHigh, bool typeNormal, bool sexN, bool enabled);
 static void setDynapseBias(sshsNode biasNode, caerDeviceHandle cdh);
 static uint8_t generateBiasAddress(const char *biasName, const char *coreName);
 static void generateDefaultBiases(sshsNode biasNode, uint8_t chipId);
@@ -174,7 +177,7 @@ static bool caerInputDYNAPSEInit(caerModuleData moduleData) {
 
 	// Create default settings and send them to the device.
 	createDefaultBiasConfiguration(moduleData);
-	createDefaultLogicConfiguration(moduleData);
+	createDefaultLogicConfiguration(moduleData, &devInfo);
 	sendDefaultConfiguration(moduleData);
 
 	// Start data acquisition.
@@ -315,6 +318,10 @@ static void caerInputDYNAPSEExit(caerModuleData moduleData) {
 	sshsNode camControlNode = sshsGetRelativeNode(moduleData->moduleNode, "CAM/");
 	sshsNodeRemoveAttributeListener(camControlNode, moduleData, &camControlListener);
 
+	// Remove statistics read modifiers.
+	sshsNode statNode = sshsGetRelativeNode(moduleData->moduleNode, "statistics/");
+	sshsNodeRemoveAllAttributeReadModifiers(statNode);
+
 	caerDeviceDataStop(moduleData->moduleState);
 
 	caerDeviceClose((caerDeviceHandle *) &moduleData->moduleState);
@@ -367,7 +374,7 @@ static void createDefaultBiasConfiguration(caerModuleData moduleData) {
 	}
 }
 
-static void createDefaultLogicConfiguration(caerModuleData moduleData) {
+static void createDefaultLogicConfiguration(caerModuleData moduleData, struct caer_dynapse_info *devInfo) {
 	// Subsystem 0: Multiplexer
 	sshsNode muxNode = sshsGetRelativeNode(moduleData->moduleNode, "multiplexer/");
 
@@ -383,7 +390,8 @@ static void createDefaultLogicConfiguration(caerModuleData moduleData) {
 	sshsNode spikesAERNode = sshsGetRelativeNode(moduleData->moduleNode, "spikesAER/");
 
 	sshsNodeCreateBool(spikesAERNode, "Run", true, SSHS_FLAGS_NORMAL, "Enable spike events AER.");
-	sshsNodeCreateShort(spikesAERNode, "AckDelay", 0, 0, (0x01 << 12) - 1, SSHS_FLAGS_NORMAL, "Delay AER ACK by this many cycles.");
+	sshsNodeCreateShort(spikesAERNode, "AckDelay", 0, 0, (0x01 << 12) - 1, SSHS_FLAGS_NORMAL,
+		"Delay AER ACK by this many cycles.");
 	sshsNodeCreateShort(spikesAERNode, "AckExtension", 0, 0, (0x01 << 12) - 1, SSHS_FLAGS_NORMAL,
 		"Extend AER ACK by this many cycles.");
 	sshsNodeCreateBool(spikesAERNode, "WaitOnTransferStall", false, SSHS_FLAGS_NORMAL,
@@ -395,7 +403,8 @@ static void createDefaultLogicConfiguration(caerModuleData moduleData) {
 	sshsNode configAERNode = sshsGetRelativeNode(moduleData->moduleNode, "configAER/");
 
 	sshsNodeCreateBool(configAERNode, "Run", true, SSHS_FLAGS_NORMAL, "Enable chip configuration AER.");
-	sshsNodeCreateShort(configAERNode, "ReqDelay", 30, 0, (0x01 << 12) - 1, SSHS_FLAGS_NORMAL, "Delay AER REQ by this many cycles.");
+	sshsNodeCreateShort(configAERNode, "ReqDelay", 30, 0, (0x01 << 12) - 1, SSHS_FLAGS_NORMAL,
+		"Delay AER REQ by this many cycles.");
 	sshsNodeCreateShort(configAERNode, "ReqExtension", 30, 0, (0x01 << 12) - 1, SSHS_FLAGS_NORMAL,
 		"Extend AER REQ by this many cycles.");
 
@@ -438,14 +447,16 @@ static void createDefaultLogicConfiguration(caerModuleData moduleData) {
 	sshsNode sramControlNode = sshsGetRelativeNode(moduleData->moduleNode, "SRAM/");
 
 	sshsNodeCreateBool(sramControlNode, emptyAllKey, false, SSHS_FLAGS_NOTIFY_ONLY, "Reset all SRAMs to empty.");
-	sshsNodeCreateBool(sramControlNode, defaultAllKey, false, SSHS_FLAGS_NOTIFY_ONLY,"Reset all SRAMs to default routing.");
+	sshsNodeCreateBool(sramControlNode, defaultAllKey, false, SSHS_FLAGS_NOTIFY_ONLY,
+		"Reset all SRAMs to default routing.");
 
 	for (uint8_t chipId = 0; chipId < DYNAPSE_X4BOARD_NUMCHIPS; chipId++) {
 		emptyKey[6] = (char) (48 + chipId);
 		sshsNodeCreateBool(sramControlNode, emptyKey, false, SSHS_FLAGS_NOTIFY_ONLY, "Reset SRAM to empty.");
 
 		defaultKey[8] = (char) (48 + chipId);
-		sshsNodeCreateBool(sramControlNode, defaultKey, false, SSHS_FLAGS_NOTIFY_ONLY, "Reset SRAM to default routing.");
+		sshsNodeCreateBool(sramControlNode, defaultKey, false, SSHS_FLAGS_NOTIFY_ONLY,
+			"Reset SRAM to default routing.");
 	}
 
 	// CAM reset (empty).
@@ -456,6 +467,33 @@ static void createDefaultLogicConfiguration(caerModuleData moduleData) {
 	for (uint8_t chipId = 0; chipId < DYNAPSE_X4BOARD_NUMCHIPS; chipId++) {
 		emptyKey[6] = (char) (48 + chipId);
 		sshsNodeCreateBool(camControlNode, emptyKey, false, SSHS_FLAGS_NOTIFY_ONLY, "Reset CAM to empty.");
+	}
+
+	// Device event statistics.
+	if (devInfo->muxHasStatistics) {
+		sshsNode statNode = sshsGetRelativeNode(moduleData->moduleNode, "statistics/");
+
+		sshsNodeCreateLong(statNode, "muxDroppedAER", 0, 0, INT64_MAX, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT,
+			"Number of dropped AER Spike events due to USB full.");
+		sshsNodeCreateAttributePollTime(statNode, "muxDroppedAER", SSHS_LONG, 2);
+		sshsNodeAddAttributeReadModifier(statNode, "muxDroppedAER", SSHS_LONG, moduleData->moduleState,
+			&statisticsPassthrough);
+	}
+
+	if (devInfo->aerHasStatistics) {
+		sshsNode statNode = sshsGetRelativeNode(moduleData->moduleNode, "statistics/");
+
+		sshsNodeCreateLong(statNode, "aerEventsHandled", 0, 0, INT64_MAX, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT,
+			"Number of AER Spike events handled.");
+		sshsNodeCreateAttributePollTime(statNode, "aerEventsHandled", SSHS_LONG, 2);
+		sshsNodeAddAttributeReadModifier(statNode, "aerEventsHandled", SSHS_LONG, moduleData->moduleState,
+			&statisticsPassthrough);
+
+		sshsNodeCreateLong(statNode, "aerEventsDropped", 0, 0, INT64_MAX, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT,
+			"Number of dropped events (groups of events).");
+		sshsNodeCreateAttributePollTime(statNode, "aerEventsDropped", SSHS_LONG, 2);
+		sshsNodeAddAttributeReadModifier(statNode, "aerEventsDropped", SSHS_LONG, moduleData->moduleState,
+			&statisticsPassthrough);
 	}
 }
 
@@ -538,7 +576,8 @@ static void muxConfigSend(sshsNode node, caerModuleData moduleData) {
 		sshsNodeGetBool(node, "DropSpikesAEROnTransferStall"));
 	caerDeviceConfigSet(moduleData->moduleState, DYNAPSE_CONFIG_MUX, DYNAPSE_CONFIG_MUX_TIMESTAMP_RUN,
 		sshsNodeGetBool(node, "TimestampRun"));
-	caerDeviceConfigSet(moduleData->moduleState, DYNAPSE_CONFIG_MUX, DYNAPSE_CONFIG_MUX_RUN, sshsNodeGetBool(node, "Run"));
+	caerDeviceConfigSet(moduleData->moduleState, DYNAPSE_CONFIG_MUX, DYNAPSE_CONFIG_MUX_RUN,
+		sshsNodeGetBool(node, "Run"));
 }
 
 static void muxConfigListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
@@ -557,15 +596,16 @@ static void muxConfigListener(sshsNode node, void *userData, enum sshs_node_attr
 				changeValue.boolean);
 		}
 		else if (changeType == SSHS_BOOL && caerStrEquals(changeKey, "DropSpikesAEROnTransferStall")) {
-			caerDeviceConfigSet(moduleData->moduleState, DYNAPSE_CONFIG_MUX, DYNAPSE_CONFIG_MUX_DROP_AER_ON_TRANSFER_STALL,
-				changeValue.boolean);
+			caerDeviceConfigSet(moduleData->moduleState, DYNAPSE_CONFIG_MUX,
+			DYNAPSE_CONFIG_MUX_DROP_AER_ON_TRANSFER_STALL, changeValue.boolean);
 		}
 		else if (changeType == SSHS_BOOL && caerStrEquals(changeKey, "TimestampRun")) {
 			caerDeviceConfigSet(moduleData->moduleState, DYNAPSE_CONFIG_MUX, DYNAPSE_CONFIG_MUX_TIMESTAMP_RUN,
 				changeValue.boolean);
 		}
 		else if (changeType == SSHS_BOOL && caerStrEquals(changeKey, "Run")) {
-			caerDeviceConfigSet(moduleData->moduleState, DYNAPSE_CONFIG_MUX, DYNAPSE_CONFIG_MUX_RUN, changeValue.boolean);
+			caerDeviceConfigSet(moduleData->moduleState, DYNAPSE_CONFIG_MUX, DYNAPSE_CONFIG_MUX_RUN,
+				changeValue.boolean);
 		}
 	}
 }
@@ -579,7 +619,8 @@ static void spikesAERConfigSend(sshsNode node, caerModuleData moduleData) {
 		U32T(sshsNodeGetBool(node, "WaitOnTransferStall")));
 	caerDeviceConfigSet(moduleData->moduleState, DYNAPSE_CONFIG_AER, DYNAPSE_CONFIG_AER_EXTERNAL_AER_CONTROL,
 		U32T(sshsNodeGetBool(node, "ExternalAERControl")));
-	caerDeviceConfigSet(moduleData->moduleState, DYNAPSE_CONFIG_AER, DYNAPSE_CONFIG_AER_RUN, sshsNodeGetBool(node, "Run"));
+	caerDeviceConfigSet(moduleData->moduleState, DYNAPSE_CONFIG_AER, DYNAPSE_CONFIG_AER_RUN,
+		sshsNodeGetBool(node, "Run"));
 }
 
 static void spikesAERConfigListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
@@ -617,7 +658,8 @@ static void configAERConfigSend(sshsNode node, caerModuleData moduleData) {
 		U32T(sshsNodeGetShort(node, "ReqDelay")));
 	caerDeviceConfigSet(moduleData->moduleState, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_REQ_EXTENSION,
 		U32T(sshsNodeGetShort(node, "ReqExtension")));
-	caerDeviceConfigSet(moduleData->moduleState, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_RUN, sshsNodeGetBool(node, "Run"));
+	caerDeviceConfigSet(moduleData->moduleState, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_RUN,
+		sshsNodeGetBool(node, "Run"));
 }
 
 static void configAERConfigListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
@@ -650,7 +692,8 @@ static void usbConfigSend(sshsNode node, caerModuleData moduleData) {
 
 	caerDeviceConfigSet(moduleData->moduleState, DYNAPSE_CONFIG_USB, DYNAPSE_CONFIG_USB_EARLY_PACKET_DELAY,
 		U32T(sshsNodeGetShort(node, "EarlyPacketDelay")));
-	caerDeviceConfigSet(moduleData->moduleState, DYNAPSE_CONFIG_USB, DYNAPSE_CONFIG_USB_RUN, sshsNodeGetBool(node, "Run"));
+	caerDeviceConfigSet(moduleData->moduleState, DYNAPSE_CONFIG_USB, DYNAPSE_CONFIG_USB_RUN,
+		sshsNodeGetBool(node, "Run"));
 }
 
 static void usbConfigListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
@@ -673,7 +716,8 @@ static void usbConfigListener(sshsNode node, void *userData, enum sshs_node_attr
 				U32T(changeValue.ishort));
 		}
 		else if (changeType == SSHS_BOOL && caerStrEquals(changeKey, "Run")) {
-			caerDeviceConfigSet(moduleData->moduleState, DYNAPSE_CONFIG_USB, DYNAPSE_CONFIG_USB_RUN, changeValue.boolean);
+			caerDeviceConfigSet(moduleData->moduleState, DYNAPSE_CONFIG_USB, DYNAPSE_CONFIG_USB_RUN,
+				changeValue.boolean);
 		}
 	}
 }
@@ -830,8 +874,30 @@ static void resetToDefaultBiasesListener(sshsNode node, void *userData, enum ssh
 	}
 }
 
-static void createDynapseBiasSetting(sshsNode biasNode, const char *biasName,
-	uint8_t coarseValue, uint8_t fineValue, bool biasHigh, bool typeNormal, bool sexN, bool enabled) {
+static void statisticsPassthrough(void *userData, const char *key, enum sshs_node_attr_value_type type,
+	union sshs_node_attr_value *value) {
+	UNUSED_ARGUMENT(type); // We know all statistics are always LONG.
+
+	caerDeviceHandle handle = userData;
+
+	uint64_t statisticValue = 0;
+
+	if (caerStrEquals(key, "muxDroppedAER")) {
+		caerDeviceConfigGet64(handle, DYNAPSE_CONFIG_MUX, DYNAPSE_CONFIG_MUX_STATISTICS_AER_DROPPED, &statisticValue);
+	}
+	else if (caerStrEquals(key, "aerEventsHandled")) {
+		caerDeviceConfigGet64(handle, DYNAPSE_CONFIG_AER, DYNAPSE_CONFIG_AER_STATISTICS_EVENTS, &statisticValue);
+	}
+	else if (caerStrEquals(key, "aerEventsDropped")) {
+		caerDeviceConfigGet64(handle, DYNAPSE_CONFIG_AER, DYNAPSE_CONFIG_AER_STATISTICS_EVENTS_DROPPED,
+			&statisticValue);
+	}
+
+	value->ilong = I64T(statisticValue);
+}
+
+static void createDynapseBiasSetting(sshsNode biasNode, const char *biasName, uint8_t coarseValue, uint8_t fineValue,
+bool biasHigh, bool typeNormal, bool sexN, bool enabled) {
 	// Add trailing slash to node name (required!).
 	size_t biasNameLength = strlen(biasName);
 	char biasNameFull[biasNameLength + 2];
@@ -859,8 +925,8 @@ static void createDynapseBiasSetting(sshsNode biasNode, const char *biasName,
 	sshsNodeCreateAttributeListOptions(biasConfigNode, "currentLevel", SSHS_STRING, "High,Low");
 }
 
-static void setDynapseBiasSetting(sshsNode biasNode, const char *biasName,
-	uint8_t coarseValue, uint8_t fineValue, bool biasHigh, bool typeNormal, bool sexN, bool enabled) {
+static void setDynapseBiasSetting(sshsNode biasNode, const char *biasName, uint8_t coarseValue, uint8_t fineValue,
+bool biasHigh, bool typeNormal, bool sexN, bool enabled) {
 	// Add trailing slash to node name (required!).
 	size_t biasNameLength = strlen(biasName);
 	char biasNameFull[biasNameLength + 2];
@@ -896,13 +962,10 @@ static void setDynapseBias(sshsNode biasNode, caerDeviceHandle cdh) {
 
 	uint8_t biasAddress = generateBiasAddress(biasName, coreName);
 
-	struct caer_bias_dynapse biasValue = { .biasAddress = biasAddress,
-		.coarseValue = U8T(sshsNodeGetByte(biasNode, "coarseValue")),
-		.fineValue = U8T(sshsNodeGetShort(biasNode, "fineValue")),
-		.enabled = sshsNodeGetBool(biasNode, "enabled"),
-		.sexN = caerStrEquals(sexString, "N"),
-		.typeNormal = caerStrEquals(typeString, "Normal"),
-		.biasHigh = caerStrEquals(currentLevelString, "High") };
+	struct caer_bias_dynapse biasValue = { .biasAddress = biasAddress, .coarseValue = U8T(
+		sshsNodeGetByte(biasNode, "coarseValue")), .fineValue = U8T(sshsNodeGetShort(biasNode, "fineValue")), .enabled =
+		sshsNodeGetBool(biasNode, "enabled"), .sexN = caerStrEquals(sexString, "N"), .typeNormal = caerStrEquals(
+		typeString, "Normal"), .biasHigh = caerStrEquals(currentLevelString, "High") };
 
 	// Free strings to avoid memory leaks.
 	free(sexString);
