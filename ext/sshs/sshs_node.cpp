@@ -660,19 +660,18 @@ static void sshsNodeRemoveChild(sshsNode node, const char *childName) {
 	std::unique_lock<std::shared_timed_mutex> lock(node->traversal_lock);
 	std::lock_guard<std::recursive_mutex> lockNode(node->node_lock);
 
-	try {
-		sshsNodeDestroy(node->children.at(childName));
-
-		// Listener support.
-		for (const auto &l : node->nodeListeners) {
-			(*l.getListener())(node, l.getUserData(), SSHS_CHILD_NODE_REMOVED, childName);
-		}
-	}
-	catch (const std::out_of_range &) {
+	if (!node->children.count(childName)) {
 		// Verify that a valid node exists, else simply return
 		// without doing anything. Node was already deleted.
 		return;
 	}
+
+	// Listener support.
+	for (const auto &l : node->nodeListeners) {
+		(*l.getListener())(node, l.getUserData(), SSHS_CHILD_NODE_REMOVED, childName);
+	}
+
+	sshsNodeDestroy(node->children[childName]);
 
 	// Remove attribute from node.
 	node->children.erase(childName);
