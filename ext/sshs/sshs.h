@@ -118,6 +118,7 @@ void sshsNodeAddAttributeReadModifier(sshsNode node, const char *key, enum sshs_
 	void *userData, sshsAttributeReadModifier modify_read) CAER_SYMBOL_EXPORT;
 void sshsNodeRemoveAttributeReadModifier(sshsNode node, const char *key, enum sshs_node_attr_value_type type)
 	CAER_SYMBOL_EXPORT;
+void sshsNodeRemoveAllAttributeReadModifiers(sshsNode node) CAER_SYMBOL_EXPORT;
 
 // Careful, only use if no references exist to this node and all its children.
 // References are created by sshsGetNode(), sshsGetRelativeNode(),

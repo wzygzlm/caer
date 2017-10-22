@@ -704,6 +704,14 @@ void sshsNodeRemoveAttributeReadModifier(sshsNode node, const char *key, enum ss
 	node->removeAttributeReadModifier(key, type);
 }
 
+void sshsNodeRemoveAllAttributeReadModifiers(sshsNode node) {
+	std::lock_guard<std::recursive_mutex> lockNode(node->node_lock);
+
+	for (const auto &attr : node->attributes) {
+		node->removeAttributeReadModifier(attr.first, attr.second.getValue().getType());
+	}
+}
+
 void sshsNodeCreateAttribute(sshsNode node, const char *key, enum sshs_node_attr_value_type type,
 	union sshs_node_attr_value defaultValue, const struct sshs_node_attr_ranges ranges, int flags,
 	const char *description) {
