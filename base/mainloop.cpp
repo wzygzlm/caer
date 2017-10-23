@@ -1188,9 +1188,9 @@ static void mergeActiveStreamDeps() {
 		const ActiveStreams &stream = processorStreams.front();
 		processorStreams.pop();
 
-		uint16_t streamSourceId = stream.sourceId;
-		const auto originExists = IDExistsInDependencyTree(mergeResult.get(), streamSourceId, false);
+		const auto originExists = IDExistsInDependencyTree(mergeResult.get(), stream.sourceId, false);
 
+		// TODO: infinite loop is possible here, fix it.
 		if (originExists.first == nullptr) {
 			// Node for this stream's origin doesn't yet exist in dependency tree,
 			// continue with others first.
