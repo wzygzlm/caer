@@ -7,6 +7,7 @@
 #include <GL/glew.h>
 #include <SFML/Graphics.hpp>
 #include <atomic>
+#include <climits>
 
 struct caer_visualizer_public_state {
 	sshsNode eventSourceConfigNode;
