@@ -457,7 +457,7 @@ struct caer_visualizer_pose_matrix {
 	caerMatrix4x4EventPacket mem;
 	int currentCounter;
 	int worldXPosition;
-	int firstTs;
+	int32_t firstTs;
 };
 
 typedef struct caer_visualizer_pose_matrix *caerVisualizerPoseMatrix;
@@ -472,7 +472,9 @@ static void *caerVisualizerRendererMatrix4x4EventsPoseStateInit(caerVisualizerPu
 }
 
 static void caerVisualizerRendererMatrix4x4EventsPoseStateExit(caerVisualizerPublicState state) {
-	delete (state->renderState);
+	caerVisualizerPoseMatrix mem = (caerVisualizerPoseMatrix) state->renderState;
+
+	delete mem;
 }
 
 static bool caerVisualizerRendererMatrix4x4EventsPose(caerVisualizerPublicState state,
@@ -491,7 +493,7 @@ static bool caerVisualizerRendererMatrix4x4EventsPose(caerVisualizerPublicState 
 	if (memInt->mem == nullptr) {
 		memInt->mem = (caerMatrix4x4EventPacket) caerMatrix4x4EventPacketAllocate(NUMPACKETS, 0,
 			caerEventPacketHeaderGetEventTSOverflow(&pkg->packetHeader));
-		memInt->firstTs = INT_MAX; // max it will be fixed to its real value at first step
+		memInt->firstTs = INT32_MAX; // max it will be fixed to its real value at first step
 	}
 
 	const libcaer::events::Matrix4x4EventPacket matrix4x4Packet(matrix4x4PacketHeader, false);
@@ -499,18 +501,18 @@ static bool caerVisualizerRendererMatrix4x4EventsPose(caerVisualizerPublicState 
 	// find max and min TS, event packets MUST be ordered by time, that's
 	// an invariant property, so we can just select first and last event.
 	// Also time is always positive, so we can use unsigned ints.
-	uint32_t minTimestamp = U32T(matrix4x4Packet[0].getTimestamp());
+	int32_t minTimestamp = matrix4x4Packet[0].getTimestamp();
 	if (minTimestamp < memInt->firstTs) {
 		memInt->firstTs = minTimestamp;
 	}
-	uint32_t maxTimestamp = U32T(matrix4x4Packet[-1].getTimestamp());
+	int32_t maxTimestamp = matrix4x4Packet[-1].getTimestamp();
 
 	// time span, +1 to divide space correctly in scaleX.
-	uint32_t timeSpan = maxTimestamp - memInt->firstTs + 1;
+	int32_t timeSpan = maxTimestamp - memInt->firstTs + 1;
 	if (timeSpan >= TIMETOT) {
 		memInt->firstTs = maxTimestamp;
 		// invalidate events to clear plot
-		for (size_t pn = 0; pn < NUMPACKETS; pn++) {
+		for (int32_t pn = 0; pn < NUMPACKETS; pn++) {
 			caerMatrix4x4Event thisEvent = caerMatrix4x4EventPacketGetEvent(memInt->mem, pn);
 			if(caerMatrix4x4EventIsValid(thisEvent)){
 				caerMatrix4x4EventInvalidate(thisEvent, memInt->mem);
@@ -535,7 +537,7 @@ static bool caerVisualizerRendererMatrix4x4EventsPose(caerVisualizerPublicState 
 			continue;
 		}
 
-		int ts = matrixEvent.getTimestamp();
+		int32_t ts = matrixEvent.getTimestamp();
 		ts = ts - memInt->firstTs;
 
 		// X is based on time.
@@ -605,7 +607,7 @@ static bool caerVisualizerRendererMatrix4x4EventsPose(caerVisualizerPublicState 
 	std::vector<sf::Vertex> vertices((size_t) matrix4x4Packet.getEventNumber() * 4);
 
 	// draw all points
-	for (size_t i = 0; i < memInt->worldXPosition; i++) {
+	for (int i = 0; i < memInt->worldXPosition; i++) {
 		caerMatrix4x4Event thisEvent = caerMatrix4x4EventPacketGetEvent(memInt->mem, i);
 		if (caerMatrix4x4EventIsValid(thisEvent)) {
 
