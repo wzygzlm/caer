@@ -1076,10 +1076,13 @@ static void mergeDependencyTrees(std::shared_ptr<DependencyNode> destRoot,
 				while (numDummyNodes-- > 0) {
 					DependencyLink dummyDepLink(-1);
 
-					currNextNode = std::make_shared<DependencyNode>(++currDepth, -1, currNextNode.get());
-					dummyDepLink.next = currNextNode;
+					std::shared_ptr<DependencyNode> nextNode = std::make_shared<DependencyNode>(++currDepth, -1,
+						currNextNode.get());
+					dummyDepLink.next = nextNode;
 
 					currNextNode->links.push_back(dummyDepLink);
+
+					currNextNode = nextNode;
 				}
 
 				// Now currNextNode points to an empty node, where we add the
@@ -1190,7 +1193,6 @@ static void mergeActiveStreamDeps() {
 
 		const auto originExists = IDExistsInDependencyTree(mergeResult.get(), stream.sourceId, false);
 
-		// TODO: infinite loop is possible here, fix it.
 		if (originExists.first == nullptr) {
 			// Node for this stream's origin doesn't yet exist in dependency tree,
 			// continue with others first.
