@@ -441,7 +441,7 @@ public:
 
 static void sshsNodeDestroy(sshsNode node);
 static void sshsNodeRemoveSubTree(sshsNode node);
-static void sshsNodeRemoveChild(sshsNode node, const char *childName);
+static void sshsNodeRemoveChild(sshsNode node, const std::string childName);
 static void sshsNodeRemoveAllChildren(sshsNode node);
 
 #define XML_INDENT_SPACES 4
@@ -630,11 +630,11 @@ void sshsNodeRemoveNode(sshsNode node) {
 	sshsNodeRemoveSubTree(node);
 
 	// If this is the root node (parent == nullptr), it isn't fully removed.
-	if (sshsNodeGetParent(node) != nullptr) {
+	if (node->parent != nullptr) {
 		// Unlink this node from the parent.
 		// This also destroys the memory associated with the node.
 		// Any later access is illegal!
-		sshsNodeRemoveChild(sshsNodeGetParent(node), sshsNodeGetName(node));
+		sshsNodeRemoveChild(node->parent, node->name);
 	}
 }
 
@@ -656,7 +656,7 @@ static void sshsNodeRemoveSubTree(sshsNode node) {
 
 // children, attributes, and listeners for the child to be removed
 // must be cleaned up prior to this call.
-static void sshsNodeRemoveChild(sshsNode node, const char *childName) {
+static void sshsNodeRemoveChild(sshsNode node, const std::string childName) {
 	std::unique_lock<std::shared_timed_mutex> lock(node->traversal_lock);
 	std::lock_guard<std::recursive_mutex> lockNode(node->node_lock);
 
@@ -668,7 +668,7 @@ static void sshsNodeRemoveChild(sshsNode node, const char *childName) {
 
 	// Listener support.
 	for (const auto &l : node->nodeListeners) {
-		(*l.getListener())(node, l.getUserData(), SSHS_CHILD_NODE_REMOVED, childName);
+		(*l.getListener())(node, l.getUserData(), SSHS_CHILD_NODE_REMOVED, childName.c_str());
 	}
 
 	sshsNodeDestroy(node->children[childName]);
