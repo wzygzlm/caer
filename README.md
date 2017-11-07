@@ -78,4 +78,4 @@ MAILING LIST: https://groups.google.com/d/forum/caer-users/
 # Ubuntu 16.04, dependencies installation
 
 On an Ubuntu 16.04, you can install all the dependencies (except libcaer) by typing: 
-$ sudo apt-get install libboost-system1.58.0 libboost1.58-dev libboost-atomic1.58-dev libboost-program-options1.58-dev libuv1-dev libsfml-dev libglew-dev gcc-5 g++-5 cmake
+$ sudo apt-get install libboost-all-dev libboost-program-options1.58-dev libuv1-dev libsfml-dev libglew-dev gcc-5 g++-5 cmake
