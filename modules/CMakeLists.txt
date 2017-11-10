@@ -13,6 +13,7 @@ ADD_SUBDIRECTORY(fpgaspikegen)
 ADD_SUBDIRECTORY(softspikegen)
 ADD_SUBDIRECTORY(poissonspikegen)
 ADD_SUBDIRECTORY(reservoir)
+ADD_SUBDIRECTORY(netparser)
 ADD_SUBDIRECTORY(nullhopinterface)
 
 # Support private modules that don't get considered for commit,
