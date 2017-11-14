@@ -51,6 +51,20 @@ IF (DAVIS)
 	TARGET_LINK_LIBRARIES(davis ${CAER_C_LIBS})
 
 	INSTALL(TARGETS davis DESTINATION ${CM_SHARE_DIR})
+	
+	# Raspberry-Pi camera module support.
+	IF (OS_LINUX)
+		ADD_LIBRARY(davis_rpi SHARED davis_rpi.c)
+
+		SET_TARGET_PROPERTIES(davis_rpi
+			PROPERTIES
+			PREFIX "caer_"
+		)
+
+		TARGET_LINK_LIBRARIES(davis_rpi ${CAER_C_LIBS})
+
+		INSTALL(TARGETS davis_rpi DESTINATION ${CM_SHARE_DIR})
+	ENDIF()
 ENDIF()
 
 IF (DYNAPSE)
