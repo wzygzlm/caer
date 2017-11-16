@@ -20,6 +20,7 @@ static void caerNetParserModuleConfig(caerModuleData moduleData);
 
 
 struct NETPARSER_state {
+    caerDeviceHandle eventSourceModuleState;
 	sshsNode eventSourceConfigNode;
 	// user settings
     ConnectionManager manager;
@@ -99,9 +100,8 @@ static bool caerNetParserInit(caerModuleData moduleData) {
 	sshsNodeAddAttributeListener(moduleData->moduleNode, moduleData, &caerModuleConfigDefaultListener); 
 
     //Instantiate manager
-    void *dynapseState = caerMainloopGetSourceState(state->sourceID);
-    caerDeviceHandle handle = *((caerDeviceHandle *) dynapseState);
-    state->manager = ConnectionManager(handle);
+    state->eventSourceModuleState = (caerDeviceHandle) caerMainloopGetSourceState(U16T(state->sourceID));
+    state->manager = ConnectionManager(state->eventSourceModuleState);
 
     return (true);
 
@@ -111,12 +111,12 @@ static bool caerNetParserInit(caerModuleData moduleData) {
 void caerNetParserSetBiases(caerModuleData moduleData){ 
     
     NetParserState state = (NETPARSER_state*) moduleData->moduleState;
-    void *dynapseState = caerMainloopGetSourceState(state->sourceID);
-    caerDeviceHandle handle = *((caerDeviceHandle *) dynapseState);
+    state->eventSourceModuleState = (caerDeviceHandle) caerMainloopGetSourceState(U16T(state->sourceID));
+    state->eventSourceConfigNode = caerMainloopGetSourceNode(U16T(state->sourceID));
 
     for (uint8_t chipId = 0; chipId < 4; chipId++) {
         
-        caerDeviceConfigSet(handle, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, U32T(chipId));
+        caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, U32T(chipId));
         
         for (uint8_t coreId = 0; coreId < 4; coreId++) {
             caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "IF_AHTAU_N", 7, 34, false);
@@ -174,7 +174,7 @@ void caerNetParserSetBiases(caerModuleData moduleData){
 
      for (uint8_t chipId = 0; chipId < 4; chipId++) {
         
-        caerDeviceConfigSet(handle, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, U32T(chipId));
+        caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, U32T(chipId));
         
         for (uint8_t coreId = 0; coreId < 4; coreId++) {
             caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "IF_AHTAU_N",7, 35, false); 
@@ -211,30 +211,30 @@ void caerNetParserSetBiases(caerModuleData moduleData){
 void caerClearConnections(caerModuleData moduleData){ 
 
     NetParserState state = (NETPARSER_state*) moduleData->moduleState;
-    void *dynapseState = caerMainloopGetSourceState(state->sourceID);
-    caerDeviceHandle handle = *((caerDeviceHandle *) dynapseState);
+    state->eventSourceModuleState = (caerDeviceHandle) caerMainloopGetSourceState(U16T(state->sourceID));
+    state->eventSourceConfigNode = caerMainloopGetSourceNode(U16T(state->sourceID));
     
     caerLog(CAER_LOG_NOTICE, __func__, "Clearing SRAMs and CAMs...");    
     
-    caerDeviceConfigSet(handle, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, DYNAPSE_CONFIG_DYNAPSE_U0);
-    caerDeviceConfigSet(handle, DYNAPSE_CONFIG_DEFAULT_SRAM_EMPTY, 0, 0);
-    caerDeviceConfigSet(handle, DYNAPSE_CONFIG_DEFAULT_SRAM, DYNAPSE_CONFIG_DYNAPSE_U0, 0);
-    caerDeviceConfigSet(handle, DYNAPSE_CONFIG_CLEAR_CAM, 0, 0);
+    caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, DYNAPSE_CONFIG_DYNAPSE_U0);
+    caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_DEFAULT_SRAM_EMPTY, 0, 0);
+    caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_DEFAULT_SRAM, DYNAPSE_CONFIG_DYNAPSE_U0, 0);
+    caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_CLEAR_CAM, 0, 0);
 
-    caerDeviceConfigSet(handle, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, DYNAPSE_CONFIG_DYNAPSE_U1);
-    caerDeviceConfigSet(handle, DYNAPSE_CONFIG_DEFAULT_SRAM_EMPTY, 0, 0);
-    caerDeviceConfigSet(handle, DYNAPSE_CONFIG_DEFAULT_SRAM, DYNAPSE_CONFIG_DYNAPSE_U1, 0);
-    caerDeviceConfigSet(handle, DYNAPSE_CONFIG_CLEAR_CAM, 0, 0);
+    caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, DYNAPSE_CONFIG_DYNAPSE_U1);
+    caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_DEFAULT_SRAM_EMPTY, 0, 0);
+    caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_DEFAULT_SRAM, DYNAPSE_CONFIG_DYNAPSE_U1, 0);
+    caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_CLEAR_CAM, 0, 0);
 
-    caerDeviceConfigSet(handle, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, DYNAPSE_CONFIG_DYNAPSE_U2);
-    caerDeviceConfigSet(handle, DYNAPSE_CONFIG_DEFAULT_SRAM_EMPTY, 0, 0);
-    caerDeviceConfigSet(handle, DYNAPSE_CONFIG_DEFAULT_SRAM, DYNAPSE_CONFIG_DYNAPSE_U2, 0);
-    caerDeviceConfigSet(handle, DYNAPSE_CONFIG_CLEAR_CAM, 0, 0);
+    caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, DYNAPSE_CONFIG_DYNAPSE_U2);
+    caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_DEFAULT_SRAM_EMPTY, 0, 0);
+    caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_DEFAULT_SRAM, DYNAPSE_CONFIG_DYNAPSE_U2, 0);
+    caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_CLEAR_CAM, 0, 0);
 
-    caerDeviceConfigSet(handle, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, DYNAPSE_CONFIG_DYNAPSE_U3);
-    caerDeviceConfigSet(handle, DYNAPSE_CONFIG_DEFAULT_SRAM_EMPTY, 0, 0);
-    caerDeviceConfigSet(handle, DYNAPSE_CONFIG_DEFAULT_SRAM, DYNAPSE_CONFIG_DYNAPSE_U3, 0);
-    caerDeviceConfigSet(handle, DYNAPSE_CONFIG_CLEAR_CAM, 0, 0);
+    caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, DYNAPSE_CONFIG_DYNAPSE_U3);
+    caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_DEFAULT_SRAM_EMPTY, 0, 0);
+    caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_DEFAULT_SRAM, DYNAPSE_CONFIG_DYNAPSE_U3, 0);
+    caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_CLEAR_CAM, 0, 0);
 
     state->manager.Clear();
 
