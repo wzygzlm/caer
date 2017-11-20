@@ -10,6 +10,10 @@ IF (NOT DAVIS)
 	SET(DAVIS 0 CACHE BOOL "Enable support for DAVIS devices")
 ENDIF()
 
+IF (NOT DAVIS_RPI)
+	SET(DAVIS_RPI 0 CACHE BOOL "Enable support for DAVIS on Raspberry-Pi")
+ENDIF()
+
 IF (NOT DYNAPSE)
 	SET(DYNAPSE 0 CACHE BOOL "Enable support for DYNAP-SE (neuromorphic processor)")
 ENDIF()
@@ -51,20 +55,20 @@ IF (DAVIS)
 	TARGET_LINK_LIBRARIES(davis ${CAER_C_LIBS})
 
 	INSTALL(TARGETS davis DESTINATION ${CM_SHARE_DIR})
-	
-	# Raspberry-Pi camera module support.
-	IF (OS_LINUX)
-		ADD_LIBRARY(davis_rpi SHARED davis_rpi.c)
+ENDIF()
 
-		SET_TARGET_PROPERTIES(davis_rpi
-			PROPERTIES
-			PREFIX "caer_"
-		)
+IF (DAVIS_RPI AND OS_LINUX)
+	# Raspberry-Pi camera module support (Linux-only).
+	ADD_LIBRARY(davis_rpi SHARED davis_rpi.c)
 
-		TARGET_LINK_LIBRARIES(davis_rpi ${CAER_C_LIBS})
+	SET_TARGET_PROPERTIES(davis_rpi
+		PROPERTIES
+		PREFIX "caer_"
+	)
 
-		INSTALL(TARGETS davis_rpi DESTINATION ${CM_SHARE_DIR})
-	ENDIF()
+	TARGET_LINK_LIBRARIES(davis_rpi ${CAER_C_LIBS})
+
+	INSTALL(TARGETS davis_rpi DESTINATION ${CM_SHARE_DIR})
 ENDIF()
 
 IF (DYNAPSE)
