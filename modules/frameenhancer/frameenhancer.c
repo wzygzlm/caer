@@ -57,11 +57,11 @@ static bool caerFrameEnhancerInit(caerModuleData moduleData) {
 	sshsNodeCreateString(moduleData->moduleNode, "demosaicType", "opencv_edge_aware", 8, 17, SSHS_FLAGS_NORMAL,
 		"Demoisaicing (color interpolation) algorithm to apply.");
 	sshsNodeCreateAttributeListOptions(moduleData->moduleNode, "demosaicType", SSHS_STRING,
-		"opencv_edge_aware,opencv_normal,standard");
+		"opencv_edge_aware,opencv_normal,standard", false);
 	sshsNodeCreateString(moduleData->moduleNode, "contrastType", "opencv_normalization", 8, 29, SSHS_FLAGS_NORMAL,
 		"Contrast enhancement algorithm to apply.");
 	sshsNodeCreateAttributeListOptions(moduleData->moduleNode, "contrastType", SSHS_STRING,
-		"opencv_normalization,opencv_histogram_equalization,opencv_clahe,standard");
+		"opencv_normalization,opencv_histogram_equalization,opencv_clahe,standard", false);
 #else
 	// Only standard algorithms are available here, so we force those and make it read-only.
 	sshsNodeRemoveAttribute(moduleData->moduleNode, "demosaicType", SSHS_STRING);

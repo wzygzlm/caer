@@ -111,6 +111,9 @@ static bool caerOutputFileInit(caerModuleData moduleData) {
 		SSHS_FLAGS_NORMAL, "Directory to write output data files in.");
 	free(userHomeDir);
 
+	// Support file-chooser in GUI, select any directory.
+	sshsNodeCreateAttributeFileChooser(moduleData->moduleNode, "directory", SSHS_STRING, "");
+
 	sshsNodeCreateString(moduleData->moduleNode, "prefix", DEFAULT_PREFIX, 1, MAX_PREFIX_LENGTH, SSHS_FLAGS_NORMAL,
 		"Output data files name prefix.");
 

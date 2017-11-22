@@ -2467,11 +2467,11 @@ bool enabled, const char *sex, const char *type) {
 		"Fine current value (small adjustments).");
 	sshsNodeCreateBool(biasConfigNode, "enabled", enabled, SSHS_FLAGS_NORMAL, "Bias enabled.");
 	sshsNodeCreateString(biasConfigNode, "sex", sex, 1, 1, SSHS_FLAGS_NORMAL, "Bias sex.");
-	sshsNodeCreateAttributeListOptions(biasConfigNode, "sex", SSHS_STRING, "N,P");
+	sshsNodeCreateAttributeListOptions(biasConfigNode, "sex", SSHS_STRING, "N,P", false);
 	sshsNodeCreateString(biasConfigNode, "type", type, 6, 7, SSHS_FLAGS_NORMAL, "Bias type.");
-	sshsNodeCreateAttributeListOptions(biasConfigNode, "type", SSHS_STRING, "Normal,Cascode");
+	sshsNodeCreateAttributeListOptions(biasConfigNode, "type", SSHS_STRING, "Normal,Cascode", false);
 	sshsNodeCreateString(biasConfigNode, "currentLevel", "Normal", 3, 6, SSHS_FLAGS_NORMAL, "Bias current level.");
-	sshsNodeCreateAttributeListOptions(biasConfigNode, "currentLevel", SSHS_STRING, "Normal,Low");
+	sshsNodeCreateAttributeListOptions(biasConfigNode, "currentLevel", SSHS_STRING, "Normal,Low", false);
 }
 
 static uint16_t generateCoarseFineBiasParent(sshsNode biasNode, const char *biasName) {
@@ -2526,11 +2526,11 @@ static void createShiftedSourceBiasSetting(sshsNode biasNode, const char *biasNa
 		"Shifted-source bias current for buffer amplifier.");
 	sshsNodeCreateString(biasConfigNode, "operatingMode", operatingMode, 3, 13, SSHS_FLAGS_NORMAL,
 		"Shifted-source operating mode.");
-	sshsNodeCreateAttributeListOptions(biasConfigNode, "operatingMode", SSHS_STRING, "ShiftedSource,HiZ,TiedToRail");
+	sshsNodeCreateAttributeListOptions(biasConfigNode, "operatingMode", SSHS_STRING, "ShiftedSource,HiZ,TiedToRail", false);
 	sshsNodeCreateString(biasConfigNode, "voltageLevel", voltageLevel, 9, 11, SSHS_FLAGS_NORMAL,
 		"Shifted-source voltage level.");
 	sshsNodeCreateAttributeListOptions(biasConfigNode, "voltageLevel", SSHS_STRING,
-		"SplitGate,SingleDiode,DoubleDiode");
+		"SplitGate,SingleDiode,DoubleDiode", false);
 }
 
 static uint16_t generateShiftedSourceBiasParent(sshsNode biasNode, const char *biasName) {

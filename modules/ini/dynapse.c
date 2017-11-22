@@ -916,13 +916,13 @@ bool biasHigh, bool typeNormal, bool sexN, bool enabled) {
 
 	sshsNodeCreateBool(biasConfigNode, "enabled", enabled, SSHS_FLAGS_NORMAL, "Bias enabled.");
 	sshsNodeCreateString(biasConfigNode, "sex", (sexN) ? ("N") : ("P"), 1, 1, SSHS_FLAGS_NORMAL, "Bias sex.");
-	sshsNodeCreateAttributeListOptions(biasConfigNode, "sex", SSHS_STRING, "N,P");
+	sshsNodeCreateAttributeListOptions(biasConfigNode, "sex", SSHS_STRING, "N,P", false);
 	sshsNodeCreateString(biasConfigNode, "type", (typeNormal) ? ("Normal") : ("Cascode"), 6, 7, SSHS_FLAGS_NORMAL,
 		"Bias type.");
-	sshsNodeCreateAttributeListOptions(biasConfigNode, "type", SSHS_STRING, "Normal,Cascode");
+	sshsNodeCreateAttributeListOptions(biasConfigNode, "type", SSHS_STRING, "Normal,Cascode", false);
 	sshsNodeCreateString(biasConfigNode, "currentLevel", (biasHigh) ? ("High") : ("Low"), 3, 4, SSHS_FLAGS_NORMAL,
 		"Bias current level.");
-	sshsNodeCreateAttributeListOptions(biasConfigNode, "currentLevel", SSHS_STRING, "High,Low");
+	sshsNodeCreateAttributeListOptions(biasConfigNode, "currentLevel", SSHS_STRING, "High,Low", false);
 }
 
 static void setDynapseBiasSetting(sshsNode biasNode, const char *biasName, uint8_t coarseValue, uint8_t fineValue,

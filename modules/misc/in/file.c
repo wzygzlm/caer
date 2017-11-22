@@ -25,6 +25,7 @@ caerModuleInfo caerModuleGetInfo(void) {
 static bool caerInputFileInit(caerModuleData moduleData) {
 	sshsNodeCreateString(moduleData->moduleNode, "filePath", "", 0, PATH_MAX, SSHS_FLAGS_NORMAL,
 		"File path for reading input data.");
+	sshsNodeCreateAttributeFileChooser(moduleData->moduleNode, "filePath", SSHS_STRING, "aedat");
 
 	char *filePath = sshsNodeGetString(moduleData->moduleNode, "filePath");
 
