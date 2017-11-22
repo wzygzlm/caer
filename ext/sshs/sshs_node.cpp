@@ -1436,7 +1436,7 @@ void sshsNodeCreateAttributePollTime(sshsNode node, const char *key, enum sshs_n
 }
 
 void sshsNodeCreateAttributeListOptions(sshsNode node, const char *key, enum sshs_node_attr_value_type type,
-	const char *listOptions) {
+	const char *listOptions, bool allowMultipleSelections) {
 	std::lock_guard<std::recursive_mutex> lockNode(node->node_lock);
 
 	if (!node->attributeExists(key, type)) {
@@ -1446,7 +1446,28 @@ void sshsNodeCreateAttributeListOptions(sshsNode node, const char *key, enum ssh
 	std::string fullKey(key);
 	fullKey += "ListOptions";
 
+	if (allowMultipleSelections) {
+		fullKey += "Multi";
+	}
+
 	sshsNodeRemoveAttribute(node, fullKey.c_str(), SSHS_STRING);
 	sshsNodeCreateString(node, fullKey.c_str(), listOptions, 1, INT32_MAX, SSHS_FLAGS_READ_ONLY,
 		"Comma separated list of possible associated attribute values.");
+}
+
+void sshsNodeCreateAttributeFileChooser(sshsNode node, const char *key, enum sshs_node_attr_value_type type,
+	const char *allowedExtensions) {
+	std::lock_guard<std::recursive_mutex> lockNode(node->node_lock);
+
+	if (!node->attributeExists(key, type)) {
+		sshsNodeErrorNoAttribute("sshsNodeCreateAttributeFileChooser", key, type);
+	}
+
+	std::string fullKey(key);
+	fullKey += "FileChooser";
+
+	sshsNodeRemoveAttribute(node, fullKey.c_str(), SSHS_STRING);
+	sshsNodeCreateString(node, fullKey.c_str(), allowedExtensions, 1, INT32_MAX,
+		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT,
+		"Comma separated list of allowed extensions for the file chooser dialog.");
 }

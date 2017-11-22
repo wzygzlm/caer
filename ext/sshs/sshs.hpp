@@ -106,8 +106,13 @@ inline void sshsNodeCreateAttributePollTime(sshsNode node, const std::string &ke
 }
 
 inline void sshsNodeCreateAttributeListOptions(sshsNode node, const std::string &key,
-	enum sshs_node_attr_value_type type, const std::string &listOptions) {
-	sshsNodeCreateAttributeListOptions(node, key.c_str(), type, listOptions.c_str());
+	enum sshs_node_attr_value_type type, const std::string &listOptions, bool allowMultipleSelections) {
+	sshsNodeCreateAttributeListOptions(node, key.c_str(), type, listOptions.c_str(), allowMultipleSelections);
+}
+
+inline void sshsNodeCreateAttributeFileChooser(sshsNode node, const std::string &key,
+	enum sshs_node_attr_value_type type, const std::string &allowedExtensions) {
+	sshsNodeCreateAttributeFileChooser(node, key.c_str(), type, allowedExtensions.c_str());
 }
 
 // std::string variants of node getters.

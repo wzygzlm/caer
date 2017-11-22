@@ -200,7 +200,9 @@ union sshs_node_attr_value sshsHelperStringToValueConverter(enum sshs_node_attr_
 void sshsNodeCreateAttributePollTime(sshsNode node, const char *key, enum sshs_node_attr_value_type type,
 	int32_t pollTimeSeconds);
 void sshsNodeCreateAttributeListOptions(sshsNode node, const char *key, enum sshs_node_attr_value_type type,
-	const char *listOptions);
+	const char *listOptions, bool allowMultipleSelections);
+void sshsNodeCreateAttributeFileChooser(sshsNode node, const char *key, enum sshs_node_attr_value_type type,
+	const char *allowedExtensions);
 
 // SSHS
 typedef struct sshs_struct *sshs;
