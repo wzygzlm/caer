@@ -188,60 +188,64 @@ uint32_t ConnectionManager::NeuronCamAddress(int neuron, int core){
 // registers themselves in order for this to work you must piping all connection settings through
 // pipe all your connection settings through this manager (don't call caerDynapseWriteSram/Cam directly)
 void ConnectionManager::MakeConnection( Neuron * pre, Neuron * post, uint8_t cam_slots_number, uint8_t connection_type ){
+    bool program_sram = true;
+    bool program_cam = true;
 
-    // In internal map
-    pre->SRAM.push_back(post);
+    if(pre->chip == 4)
+        program_sram = false;
 
-
-    vector<uint8_t> dirBits = CalculateBits(pre->chip, post->chip);
-
-    // print SRAM command
-    string message = "SRAM Settings: "+
-    to_string(pre->chip)+ "  (" + 
-    to_string(pre->core)+ ", " + 
-    to_string(pre->neuron)+ ", " +   
-    to_string(pre->core)+ ", " +
-    to_string((bool)dirBits[0])+ ", " +
-    to_string(dirBits[1])+ ", " +
-    to_string((bool)dirBits[2])+ ", " +
-    to_string(dirBits[3])+ ", " +
-    to_string(pre->SRAM.size())+ ", " +
-    string(to_string(GetDestinationCore(post->core)))+ ") ";
-
-    caerLog(CAER_LOG_DEBUG, __func__, message.c_str());
+    if(program_sram == true){
+        // In internal map
+        pre->SRAM.push_back(post);
 
 
-    // Program SRAM
-    caerDeviceConfigSet(handle, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, pre->chip);
+        vector<uint8_t> dirBits = CalculateBits(pre->chip, post->chip);
 
-    caerDynapseWriteSram(handle, pre->core, pre->neuron, pre->core, (bool)dirBits[0],
-                         dirBits[1], (bool)dirBits[2], dirBits[3], (uint16_t) pre->SRAM.size()+1, //first SRAM is for debbugging
-                         GetDestinationCore(post->core));
+        // print SRAM command
+        string message = "SRAM Settings: "+
+        to_string(pre->chip)+ "  (" + 
+        to_string(pre->core)+ ", " + 
+        to_string(pre->neuron)+ ", " +   
+        to_string(pre->core)+ ", " +
+        to_string((bool)dirBits[0])+ ", " +
+        to_string(dirBits[1])+ ", " +
+        to_string((bool)dirBits[2])+ ", " +
+        to_string(dirBits[3])+ ", " +
+        to_string(pre->SRAM.size())+ ", " +
+        string(to_string(GetDestinationCore(post->core)))+ ") ";
 
+        caerLog(CAER_LOG_DEBUG, __func__, message.c_str());
 
-    message = "CAM Settings: "+ 
-    to_string(post->chip)+ ", " +
-    to_string(cam_slots_number)+ " (" +
-    to_string(NeuronCamAddress(pre->neuron,pre->core))+ ", " +
-    to_string(NeuronCamAddress(post->neuron,post->core))+ ", " +
-    to_string(post->CAM.size())+ ", " +
-    to_string(connection_type)+ ") ";
+        // Program SRAM
+        caerDeviceConfigSet(handle, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, pre->chip);
 
-    caerLog(CAER_LOG_DEBUG, __func__, message.c_str());
-
-    // Program CAM
-    caerDeviceConfigSet(handle, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, post->chip);
-
-    // For each cam in cam_slot_num
-    int curr_cam_size = post->CAM.size();
-    for (int n=post->CAM.size(); n < curr_cam_size + cam_slots_number; n++) {
-        post->CAM.push_back(pre);
-        caerDynapseWriteCam(handle, NeuronCamAddress(pre->neuron, pre->core), NeuronCamAddress(post->neuron,post->core),
-                        (uint32_t) n, connection_type);
+        caerDynapseWriteSram(handle, pre->core, pre->neuron, pre->core, (bool)dirBits[0],
+                            dirBits[1], (bool)dirBits[2], dirBits[3], (uint16_t) pre->SRAM.size()+1, //first SRAM is for debbugging
+                            GetDestinationCore(post->core));
     }
-    
 
+    if(program_cam == true){
+        string message = "CAM Settings: "+ 
+        to_string(post->chip)+ ", " +
+        to_string(cam_slots_number)+ " (" +
+        to_string(NeuronCamAddress(pre->neuron,pre->core))+ ", " +
+        to_string(NeuronCamAddress(post->neuron,post->core))+ ", " +
+        to_string(post->CAM.size())+ ", " +
+        to_string(connection_type)+ ") ";
 
+        caerLog(CAER_LOG_DEBUG, __func__, message.c_str());
+
+        // Program CAM
+        caerDeviceConfigSet(handle, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, post->chip);
+
+        // For each cam in cam_slot_num
+        int curr_cam_size = post->CAM.size();
+        for (int n=post->CAM.size(); n < curr_cam_size + cam_slots_number; n++) {
+            post->CAM.push_back(pre);
+            caerDynapseWriteCam(handle, NeuronCamAddress(pre->neuron, pre->core), NeuronCamAddress(post->neuron,post->core),
+                            (uint32_t) n, connection_type);
+        }
+    }
 }
 
 bool ConnectionManager::CheckAndConnect(Neuron * pre, Neuron * post, uint8_t cam_slots_number, uint8_t connection_type ){
