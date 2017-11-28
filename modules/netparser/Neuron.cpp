@@ -98,13 +98,22 @@ vector<Neuron *>::iterator Neuron::FindCamClash(Neuron * n){
     return find_if(this->CAM.begin(), this->CAM.end(),pred);
 }
 
-
 CamClashPred::CamClashPred(Neuron* neuronA_) : neuronA_(neuronA_){}
 
 bool CamClashPred::operator()(const Neuron* neuronB){
     return (neuronA_->neuron == neuronB->neuron)&&(neuronA_->core == neuronB->core);
 }
 
+vector<Neuron *>::iterator Neuron::FindSimilarConnection(Neuron * n){
+    FindSimilarConnection pred(n);
+    return find_if(this->SRAM.begin(), this->SRAM.end(),pred);
+}
+
+SimilarConnectionPred::SimilarConnectionPred(Neuron* neuronA_) : neuronA_(neuronA_){}
+
+bool SimilarConnectionPred::operator()(const Neuron* neuronB){
+    return (neuronA_->chip == neuronB->chip)&&(neuronA_->core == neuronB->core);
+}
 
 // Make neuron object comparable
 bool operator < (const Neuron& x, const Neuron& y) {
@@ -191,8 +200,19 @@ void ConnectionManager::MakeConnection( Neuron * pre, Neuron * post, uint8_t cam
     bool program_sram = true;
     bool program_cam = true;
 
+    // If the pre neuron has chip id 4 means that an input connection is specified (to the FPGA spike generator)
+    // This means that only the CAM must be programmed, since the input event will be sent by the FPGA
     if(pre->chip == 4)
         program_sram = false;
+    else{
+    // Another case in which SRAM must not be programmed is when the same neuron is connected to the same 
+    // core destination. In that case it is enough to program just the destination neuron CAM
+        auto it = pre->FindSimilarConnection(post);
+        if (it != post->CAM.end()) {
+            caerLog(CAER_LOG_DEBUG, __func__, "Similar connection");
+            program_sram = false;
+        }
+    }
 
     if(program_sram == true){
         // In internal map

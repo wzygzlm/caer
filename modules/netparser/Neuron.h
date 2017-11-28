@@ -43,6 +43,7 @@ struct  Neuron {
     string GetSRAMString();
     string GetCAMString();
     vector<Neuron *>::iterator FindCamClash(Neuron * n);
+    vector<Neuron *>::iterator FindSimilarConnection(Neuron * n);
 };
 
 class CamClashPred{
@@ -50,6 +51,14 @@ private:
     Neuron* neuronA_;
 public:
     CamClashPred(Neuron* neuronA_);
+    bool operator()(const Neuron* neuronB);
+};
+
+class SimilarConnectionPred{
+private:
+    Neuron* neuronA_;
+public:
+    SimilarConnectionPred(Neuron* neuronA_);
     bool operator()(const Neuron* neuronB);
 };
 
