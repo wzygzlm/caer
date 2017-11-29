@@ -231,7 +231,7 @@ bool sshsEndTransaction(sshs st, const char *nodePaths[], size_t nodePathsLength
 	return (true);
 }
 
-#define ALLOWED_CHARS_REGEXP "([a-zA-Z-_\\d\\.:\\(\\)\\[\\]{}]+/)"
+#define ALLOWED_CHARS_REGEXP "([a-zA-Z-_\\d\\.]+/)"
 static const std::regex sshsAbsoluteNodePathRegexp("^/" ALLOWED_CHARS_REGEXP "*$");
 static const std::regex sshsRelativeNodePathRegexp("^" ALLOWED_CHARS_REGEXP "+$");
 
