@@ -105,8 +105,8 @@ bool CamClashPred::operator()(const Neuron* neuronB){
 }
 
 vector<Neuron *>::iterator Neuron::FindSimilarConnection(Neuron * n){
-    FindSimilarConnection pred(n);
-    return find_if(this->SRAM.begin(), this->SRAM.end(),pred);
+    SimilarConnectionPred pred(n);
+    return find_if(this->SRAM.begin(), this->SRAM.end(), pred);
 }
 
 SimilarConnectionPred::SimilarConnectionPred(Neuron* neuronA_) : neuronA_(neuronA_){}
@@ -206,9 +206,9 @@ void ConnectionManager::MakeConnection( Neuron * pre, Neuron * post, uint8_t cam
         program_sram = false;
     else{
     // Another case in which SRAM must not be programmed is when the same neuron is connected to the same 
-    // core destination. In that case it is enough to program just the destination neuron CAM
+    // core destination (of the same chip). In that case it is enough to program just the destination neuron CAM
         auto it = pre->FindSimilarConnection(post);
-        if (it != post->CAM.end()) {
+        if (it != pre->SRAM.end()) {
             caerLog(CAER_LOG_DEBUG, __func__, "Similar connection");
             program_sram = false;
         }
@@ -240,7 +240,7 @@ void ConnectionManager::MakeConnection( Neuron * pre, Neuron * post, uint8_t cam
         caerDeviceConfigSet(handle, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, pre->chip);
 
         caerDynapseWriteSram(handle, pre->core, pre->neuron, pre->core, (bool)dirBits[0],
-                            dirBits[1], (bool)dirBits[2], dirBits[3], (uint16_t) pre->SRAM.size()+1, //first SRAM is for debbugging
+                            dirBits[1], (bool)dirBits[2], dirBits[3], (uint16_t) pre->SRAM.size(), //first SRAM is for debbugging
                             GetDestinationCore(post->core));
     }
 
@@ -273,6 +273,70 @@ bool ConnectionManager::CheckAndConnect(Neuron * pre, Neuron * post, uint8_t cam
             + "-" + to_string(cam_slots_number) + "->" + post->GetLocString());
     caerLog(CAER_LOG_DEBUG, __func__, message.c_str());
 
+    bool valid_connection = true;
+
+    // Check if Neuron must be connected to itself (it is not possible)
+    if(*pre == *post) {
+        message = "Cannot connect a neuron to itself";
+        caerLog(CAER_LOG_NOTICE, __func__, message.c_str());
+        valid_connection = false;
+    }
+
+    // If connection is still valid -> Check if synaptic type is valid
+    if(valid_connection){
+        if(connection_type < 0 & connection_type > 3){
+            message = "Invalid Connection Type: " + connection_type;
+            caerLog(CAER_LOG_NOTICE, __func__, message.c_str());
+            valid_connection = false;
+        }
+    }
+
+    // If connection is still valid -> Check if there are SRAM cell left
+    // If they are all full, check if the connection require a new SRAM cell
+    if(valid_connection){
+        if (pre->SRAM.size() >= 3) {
+            auto it = pre->FindSimilarConnection(post);
+            // If there are no similar connection, a new SRAM should be written, but it is full so cannot be done
+            if (it == pre->SRAM.end()) {
+                message = "SRAM Size Limit (3) Reached: " + pre->GetLocString();
+                caerLog(CAER_LOG_NOTICE, __func__, message.c_str());
+                valid_connection = false;
+            }
+        }
+    }
+
+    // If connection is still valid -> Check if there are CAM left
+    if(valid_connection){
+        if (cam_slots_number > 64 - post->CAM.size()) {
+            message = "CAM Overflow for " + post->GetLocString() + ".\nCAM slot number requested (" + to_string(cam_slots_number)+ 
+                        ") exceeds number of cam slot left (" + to_string(64 - post->CAM.size()) + ")";
+            caerLog(CAER_LOG_NOTICE, __func__, message.c_str());
+            valid_connection = false;
+        }
+    }
+
+    // If connection is still valid -> Check for CAM Clash (TO BE FIXED)
+    if(valid_connection){
+        //find instances where contents in the cam will clash with the new element being added
+        auto it = post->FindCamClash(pre);
+        //if clashes occour...
+        if (it != post->CAM.end()) {
+            message = string("CAM Clash at " + post->GetLocString() + " between " + (*it)->GetLocString() + " and " + pre->GetLocString());
+            caerLog(CAER_LOG_NOTICE, __func__, message.c_str());
+            valid_connection = false;
+        }
+    }
+
+    // If, at the end, the connection is still valid, do it
+    if (valid_connection) {
+        caerLog(CAER_LOG_DEBUG, __func__, "Passed tests");
+        MakeConnection(pre, post, cam_slots_number, connection_type);
+        return true;
+    }
+
+    return false;
+
+    /*
     if(!(*pre == *post)) {
         if(connection_type >= 0 & connection_type < 4)
             if (pre->SRAM.size() < 3) {
@@ -314,7 +378,7 @@ bool ConnectionManager::CheckAndConnect(Neuron * pre, Neuron * post, uint8_t cam
             }
         else {
             message = "Invalid Connection Type: " + connection_type;
-                caerLog(CAER_LOG_NOTICE, __func__, message.c_str());
+            caerLog(CAER_LOG_NOTICE, __func__, message.c_str());
         }
     } else{
         message = "Cannot connect a neuron to itself";
@@ -322,6 +386,7 @@ bool ConnectionManager::CheckAndConnect(Neuron * pre, Neuron * post, uint8_t cam
         //throw "Cannot connect a neuron to itself";
     }
     return false;
+    */
 }
 
 
