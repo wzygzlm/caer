@@ -26,11 +26,13 @@
 
 using namespace std;
 
+struct SRAM_cell;
+
 struct  Neuron {
     const uint8_t chip;
     const uint8_t core;
     const uint8_t neuron;
-    vector<Neuron *> SRAM;
+    vector<SRAM_cell> SRAM;
     vector<Neuron *> CAM;
     vector<uint8_t> synapse_type;
 
@@ -42,8 +44,17 @@ struct  Neuron {
     void PrintCAM();
     string GetSRAMString();
     string GetCAMString();
+    vector<SRAM_cell>::iterator FindEquivalentSram(Neuron * post);
     vector<Neuron *>::iterator FindCamClash(Neuron * n);
-    vector<Neuron *>::iterator FindSimilarConnection(Neuron * n);
+};
+
+struct SRAM_cell{
+    SRAM_cell(Neuron* n);
+    SRAM_cell();
+
+    const uint8_t destinationChip;
+    uint8_t destinationCores;
+    vector<Neuron *> connectedNeurons;
 };
 
 class CamClashPred{
@@ -51,14 +62,6 @@ private:
     Neuron* neuronA_;
 public:
     CamClashPred(Neuron* neuronA_);
-    bool operator()(const Neuron* neuronB);
-};
-
-class SimilarConnectionPred{
-private:
-    Neuron* neuronA_;
-public:
-    SimilarConnectionPred(Neuron* neuronA_);
     bool operator()(const Neuron* neuronB);
 };
 
@@ -76,7 +79,7 @@ private:
     map< Neuron, Neuron* > neuronMap_;
     caerDeviceHandle handle;
 
-    // Hard coded bit vectors for SRAM connections
+    // Hard coded bit vectors for SRAM connections and destination cores
     vector<uint8_t> CalculateBits(int chip_from, int chip_to);
     uint16_t GetDestinationCore(int core);
 

@@ -11,15 +11,13 @@
 #include "Neuron.h"
 using namespace std;
 
-
-
-
+// Prototypes for function that needed them
 Neuron::Neuron(uint8_t chip_n ,uint8_t core_n ,uint8_t neuron_n):
         chip(chip_n),
         core(core_n),
         neuron(neuron_n)
 {
-    SRAM = vector<Neuron *>(0);
+    SRAM = vector<SRAM_cell>(0);
     CAM = vector<Neuron *>(0);
     synapse_type = vector<u_int8_t>(0);
 }
@@ -29,9 +27,23 @@ Neuron::Neuron():
         core(0),
         neuron(0)
 {
-    SRAM = vector<Neuron *>(0);
+    SRAM = vector<SRAM_cell>(0);
     CAM = vector<Neuron *>(0);
     synapse_type = vector<u_int8_t>(0);
+}
+
+SRAM_cell::SRAM_cell(Neuron * n):
+        destinationChip(n->chip),
+        destinationCores(0)
+{
+    connectedNeurons = vector<Neuron *>(0);
+}
+
+SRAM_cell::SRAM_cell():
+        destinationChip(0),
+        destinationCores(0)
+{
+    connectedNeurons = vector<Neuron *>(0);
 }
 
 string Neuron::GetLocString()const{
@@ -46,6 +58,8 @@ void Neuron::Print() const {
     cout << GetLocString() << endl ;
 }
 
+// FIX
+/*
 void Neuron::PrintSRAM() {
     if (this->SRAM.size() > 0) {
         for (vector<Neuron *>::iterator i = this->SRAM.begin(); i != this->SRAM.end(); ++i) {
@@ -54,9 +68,10 @@ void Neuron::PrintSRAM() {
     }else{
         cout << "empty SRAM" << endl;
     }
-}
+}*/
 
-
+/*
+// FIX
 string Neuron::GetSRAMString() {
     stringstream ss;
 
@@ -68,7 +83,7 @@ string Neuron::GetSRAMString() {
         ss << "empty SRAM";
     }
     return ss.str();
-}
+}*/
 
 void Neuron::PrintCAM() {
     if (this->CAM.size() > 0) {
@@ -84,14 +99,24 @@ string Neuron::GetCAMString() {
     stringstream ss;
 
     if (this->CAM.size() > 0) {
-        for (vector<Neuron *>::iterator i = this->CAM.begin(); i != this->CAM.end(); ++i) {
-            ss << (*i)->GetLocString() << " ";
+        for (vector<Neuron *>::iterator camPtr = this->CAM.begin(); camPtr != this->CAM.end(); ++camPtr) {
+            ss << (*camPtr)->GetLocString() << " ";
         }
     }else{
         ss << "empty CAM";
     }
     return ss.str();
 }
+
+vector<SRAM_cell>::iterator Neuron::FindEquivalentSram(Neuron * post){
+    vector<SRAM_cell>::iterator sramPtr;
+    for(sramPtr = this->SRAM.begin(); sramPtr != this->SRAM.end(); ++sramPtr){
+        if(sramPtr->destinationChip == post->chip)
+            break;
+    }
+    return sramPtr;
+}
+
 
 vector<Neuron *>::iterator Neuron::FindCamClash(Neuron * n){
     CamClashPred pred(n);
@@ -102,17 +127,6 @@ CamClashPred::CamClashPred(Neuron* neuronA_) : neuronA_(neuronA_){}
 
 bool CamClashPred::operator()(const Neuron* neuronB){
     return (neuronA_->neuron == neuronB->neuron)&&(neuronA_->core == neuronB->core);
-}
-
-vector<Neuron *>::iterator Neuron::FindSimilarConnection(Neuron * n){
-    SimilarConnectionPred pred(n);
-    return find_if(this->SRAM.begin(), this->SRAM.end(), pred);
-}
-
-SimilarConnectionPred::SimilarConnectionPred(Neuron* neuronA_) : neuronA_(neuronA_){}
-
-bool SimilarConnectionPred::operator()(const Neuron* neuronB){
-    return (neuronA_->chip == neuronB->chip)&&(neuronA_->core == neuronB->core);
 }
 
 // Make neuron object comparable
@@ -199,29 +213,58 @@ uint32_t ConnectionManager::NeuronCamAddress(int neuron, int core){
 void ConnectionManager::MakeConnection( Neuron * pre, Neuron * post, uint8_t cam_slots_number, uint8_t connection_type ){
     bool program_sram = true;
     bool program_cam = true;
+    vector<SRAM_cell>::iterator it;
 
     // If the pre neuron has chip id 4 means that an input connection is specified (to the FPGA spike generator)
     // This means that only the CAM must be programmed, since the input event will be sent by the FPGA
     if(pre->chip == 4)
         program_sram = false;
     else{
-    // Another case in which SRAM must not be programmed is when the same neuron is connected to the same 
-    // core destination (of the same chip). In that case it is enough to program just the destination neuron CAM
-        auto it = pre->FindSimilarConnection(post);
-        if (it != pre->SRAM.end()) {
-            caerLog(CAER_LOG_DEBUG, __func__, "Similar connection");
-            program_sram = false;
+    // Another case in which SRAM must not be programmed is when the destination neuron is in a core that is already 
+    // addressed by at least one SRAM of the source neuron. In that case it is enough to program just the destination neuron CAM
+    // In case the destination core is not the same, the SRAM destination core bits can be updated to reach the new core 
+        
+        // Find Sram whose destination chip is the same as post neuron   
+        it = pre->FindEquivalentSram(post);
+        if(it != pre->SRAM.end()){ // Found -> update SRAM
+            caerLog(CAER_LOG_NOTICE, __func__, "Similar connection");
+            it->connectedNeurons.push_back(post);
+
+            // update Destination core bits (OR between the current one and the post core ones)
+            uint8_t oldDestCores = it->destinationCores;
+            it->destinationCores = oldDestCores | GetDestinationCore(post->core);
+            if(oldDestCores == it->destinationCores) // Destination core already present
+                program_sram = false;
+        }
+        else{ // Not found -> create new SRAM
+            caerLog(CAER_LOG_NOTICE, __func__, "New SRAM will be programmed");
+            SRAM_cell * newSram = new SRAM_cell(post);
+            newSram->destinationCores = GetDestinationCore(post->core);
+            pre->SRAM.push_back(*newSram);
+            it = prev(pre->SRAM.end()); // Go back from end to the last element
         }
     }
 
     if(program_sram == true){
         // In internal map
-        pre->SRAM.push_back(post);
 
-
-        vector<uint8_t> dirBits = CalculateBits(pre->chip, post->chip);
+        vector<uint8_t> dirBits = CalculateBits(pre->chip, it->destinationChip);
+        uint16_t sramNumber = it - pre->SRAM.begin() + 1;
 
         // print SRAM command
+        string message = string("SRAM Settings: , ") + 
+        "U:" + to_string(pre->chip) + ", " +
+        "C:" + to_string(pre->core) + ", " +
+        "N:" + to_string(pre->neuron) + ", " +
+        "C:" + to_string(pre->core) + ", " +
+        "D0:" + to_string((bool)dirBits[0]) + ", " +
+        "D1:" + to_string(dirBits[1]) + ", " +
+        "D2:" + to_string((bool)dirBits[2])+ ", " +
+        "D3:" + to_string(dirBits[3])+ ", " +
+        "S:" + to_string(sramNumber) + "[" + to_string(pre->SRAM.size())+ "], " +
+        "DB: " + to_string(it->destinationCores);
+
+        /*
         string message = "SRAM Settings: "+
         to_string(pre->chip)+ "  (" + 
         to_string(pre->core)+ ", " + 
@@ -232,16 +275,17 @@ void ConnectionManager::MakeConnection( Neuron * pre, Neuron * post, uint8_t cam
         to_string((bool)dirBits[2])+ ", " +
         to_string(dirBits[3])+ ", " +
         to_string(pre->SRAM.size())+ ", " +
-        string(to_string(GetDestinationCore(post->core)))+ ") ";
+        string(to_string(sramNumber))+ ") ";
+        */
 
-        caerLog(CAER_LOG_DEBUG, __func__, message.c_str());
+        caerLog(CAER_LOG_NOTICE, __func__, message.c_str());
 
         // Program SRAM
         caerDeviceConfigSet(handle, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, pre->chip);
 
         caerDynapseWriteSram(handle, pre->core, pre->neuron, pre->core, (bool)dirBits[0],
-                            dirBits[1], (bool)dirBits[2], dirBits[3], (uint16_t) pre->SRAM.size(), //first SRAM is for debbugging
-                            GetDestinationCore(post->core));
+                            dirBits[1], (bool)dirBits[2], dirBits[3], (uint16_t) sramNumber, //first SRAM is for debbugging
+                            it->destinationCores);
     }
 
     if(program_cam == true){
@@ -295,7 +339,7 @@ bool ConnectionManager::CheckAndConnect(Neuron * pre, Neuron * post, uint8_t cam
     // If they are all full, check if the connection require a new SRAM cell
     if(valid_connection){
         if (pre->SRAM.size() >= 3) {
-            auto it = pre->FindSimilarConnection(post);
+            vector<SRAM_cell>::iterator it = pre->FindEquivalentSram(post);
             // If there are no similar connection, a new SRAM should be written, but it is full so cannot be done
             if (it == pre->SRAM.end()) {
                 message = "SRAM Size Limit (3) Reached: " + pre->GetLocString();
@@ -403,6 +447,7 @@ void ConnectionManager::Clear(){
     this->neuronMap_.clear();
 }
 
+/*
 stringstream ConnectionManager::GetNeuronMapString(){
     stringstream ss;
     
@@ -436,7 +481,7 @@ void ConnectionManager::PrintNeuronMap(){
         caerLog(CAER_LOG_NOTICE, __func__, entry_message.c_str());
     }
 
-}
+}*/
 
 vector <Neuron *> ConnectionManager::GetNeuron(Neuron * pre){
     neuronMap_.find(*pre);
@@ -554,7 +599,7 @@ bool ReadNetXML (ConnectionManager * manager, string filepath) {
     }
 
     const char *name = mxmlGetElement(tree);
-    size_t level = 0;
+    //size_t level = 0;
     caerLog(CAER_LOG_DEBUG, __func__, (name));
 
     mxml_node_t *connections;
