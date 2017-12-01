@@ -102,11 +102,11 @@ caerModuleInfo caerModuleGetInfo(void) {
 
 static void caerVisualizerConfigInit(sshsNode moduleNode) {
 	sshsNodeCreate(moduleNode, "renderer", "None", 0, 100, SSHS_FLAGS_NORMAL, "Renderer to use to generate content.");
-	sshsNodeCreateAttributeListOptions(moduleNode, "renderer", SSHS_STRING, caerVisualizerRendererListOptionsString, false);
+	sshsNodeCreateAttributeListOptions(moduleNode, "renderer", SSHS_STRING, caerVisualizerRendererListOptionsString, true);
 	sshsNodeCreate(moduleNode, "eventHandler", "None", 0, 100, SSHS_FLAGS_NORMAL,
 		"Event handler to handle mouse and keyboard events.");
 	sshsNodeCreateAttributeListOptions(moduleNode, "eventHandler", SSHS_STRING,
-		caerVisualizerEventHandlerListOptionsString, false);
+		caerVisualizerEventHandlerListOptionsString, true);
 
 	sshsNodeCreateInt(moduleNode, "subsampleRendering", 1, 1, 100000, SSHS_FLAGS_NORMAL,
 		"Speed-up rendering by only taking every Nth EventPacketContainer to render.");
