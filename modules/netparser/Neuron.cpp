@@ -59,31 +59,36 @@ void Neuron::Print() const {
 }
 
 // FIX
-/*
+
 void Neuron::PrintSRAM() {
     if (this->SRAM.size() > 0) {
-        for (vector<Neuron *>::iterator i = this->SRAM.begin(); i != this->SRAM.end(); ++i) {
-            (*i)->Print();
+        for (vector<SRAM_cell>::iterator i = this->SRAM.begin(); i != this->SRAM.end(); ++i) {
+            for(vector<Neuron *>::iterator j = i->connectedNeurons.begin(); j != i->connectedNeurons.end(); ++j){
+                (*j)->Print();
+            }
         }
     }else{
         cout << "empty SRAM" << endl;
     }
-}*/
+}
 
-/*
-// FIX
+
+// This function returns a string containing the address of every destination neuron present in the SRAM of the specified neuron
+// THe string is like U00C00N001 U00C00N002 etc.
 string Neuron::GetSRAMString() {
     stringstream ss;
 
     if (this->SRAM.size() > 0) {
-        for (vector<Neuron *>::iterator i = this->SRAM.begin(); i != this->SRAM.end(); ++i) {
-            ss << (*i)->GetLocString() << " ";
+        for (vector<SRAM_cell>::iterator i = this->SRAM.begin(); i != this->SRAM.end(); ++i) {
+            for (vector<Neuron *>::iterator j = i->connectedNeurons.begin(); j != i->connectedNeurons.end(); ++j) {
+                ss << (*j)->GetLocString() << " ";
+            }
         }
     }else{
         ss << "empty SRAM";
     }
     return ss.str();
-}*/
+}
 
 void Neuron::PrintCAM() {
     if (this->CAM.size() > 0) {
@@ -117,7 +122,11 @@ vector<SRAM_cell>::iterator Neuron::FindEquivalentSram(Neuron * post){
     return sramPtr;
 }
 
-
+// A CAM clash happens when two neurons of different chips, but same address, are connected to the same destination core.
+// Example: U0C0N1 -> U1C0N1 and U2C0N1 -> U1C0N2 create a CAM clash (same source neuron address C0N1)
+// The predicate neuron n is the source neuron of the connection
+// The CAMS inside the find_if belong to the destination neuron i want to check
+// Of course every neuron of the destination core must be checked 
 vector<Neuron *>::iterator Neuron::FindCamClash(Neuron * n){
     CamClashPred pred(n);
     return find_if(this->CAM.begin(), this->CAM.end(),pred);
@@ -125,8 +134,15 @@ vector<Neuron *>::iterator Neuron::FindCamClash(Neuron * n){
 
 CamClashPred::CamClashPred(Neuron* neuronA_) : neuronA_(neuronA_){}
 
+// NeuronA_ is the source neuron of the connection
+// NeuronB is a Neuron present inside the CAM of the destination neuron of the connection
+//      (in other words is the sorce of another connection different from the one we are progamming).
+// Note that NeuronB, as done in function FindCamClash, sweeps along all the neurons in the same CAM
+// A CAMClash detection happens when there is a match of the neuron CAM address (determined by core and neuron value)
+// *****BUT****** THE NEURONS MUST BELONG TO DIFFERENT CHIPS.
+// Otherwise this simple allowed connection: U0C0N1 -> U0C1N1 and U0C0N1 -> U0C1N2 will create CAM clash
 bool CamClashPred::operator()(const Neuron* neuronB){
-    return (neuronA_->neuron == neuronB->neuron)&&(neuronA_->core == neuronB->core);
+    return (neuronA_->neuron == neuronB->neuron)&&(neuronA_->core == neuronB->core)&&(neuronA_->chip != neuronB->chip);
 }
 
 // Make neuron object comparable
@@ -227,7 +243,7 @@ void ConnectionManager::MakeConnection( Neuron * pre, Neuron * post, uint8_t cam
         // Find Sram whose destination chip is the same as post neuron   
         it = pre->FindEquivalentSram(post);
         if(it != pre->SRAM.end()){ // Found -> update SRAM
-            caerLog(CAER_LOG_NOTICE, __func__, "Similar connection");
+            caerLog(CAER_LOG_DEBUG, __func__, "Similar connection");
             it->connectedNeurons.push_back(post);
 
             // update Destination core bits (OR between the current one and the post core ones)
@@ -237,11 +253,16 @@ void ConnectionManager::MakeConnection( Neuron * pre, Neuron * post, uint8_t cam
                 program_sram = false;
         }
         else{ // Not found -> create new SRAM
-            caerLog(CAER_LOG_NOTICE, __func__, "New SRAM will be programmed");
+            caerLog(CAER_LOG_DEBUG, __func__, "New SRAM will be programmed");
+
+            // Create SRAM
             SRAM_cell * newSram = new SRAM_cell(post);
-            newSram->destinationCores = GetDestinationCore(post->core);
+            newSram->destinationCores = GetDestinationCore(post->core); // Update destination core
+            newSram->connectedNeurons.push_back(post); // Insert the connected neuron
             pre->SRAM.push_back(*newSram);
-            it = prev(pre->SRAM.end()); // Go back from end to the last element
+
+            // Go back with the pointer to the last element
+            it = prev(pre->SRAM.end()); 
         }
     }
 
@@ -251,8 +272,8 @@ void ConnectionManager::MakeConnection( Neuron * pre, Neuron * post, uint8_t cam
         vector<uint8_t> dirBits = CalculateBits(pre->chip, it->destinationChip);
         uint16_t sramNumber = it - pre->SRAM.begin() + 1;
 
-        // print SRAM command
-        string message = string("SRAM Settings: , ") + 
+        // print SRAM settings
+        string message = string("SRAM Settings: ") + 
         "U:" + to_string(pre->chip) + ", " +
         "C:" + to_string(pre->core) + ", " +
         "N:" + to_string(pre->neuron) + ", " +
@@ -264,21 +285,7 @@ void ConnectionManager::MakeConnection( Neuron * pre, Neuron * post, uint8_t cam
         "S:" + to_string(sramNumber) + "[" + to_string(pre->SRAM.size())+ "], " +
         "DB: " + to_string(it->destinationCores);
 
-        /*
-        string message = "SRAM Settings: "+
-        to_string(pre->chip)+ "  (" + 
-        to_string(pre->core)+ ", " + 
-        to_string(pre->neuron)+ ", " +   
-        to_string(pre->core)+ ", " +
-        to_string((bool)dirBits[0])+ ", " +
-        to_string(dirBits[1])+ ", " +
-        to_string((bool)dirBits[2])+ ", " +
-        to_string(dirBits[3])+ ", " +
-        to_string(pre->SRAM.size())+ ", " +
-        string(to_string(sramNumber))+ ") ";
-        */
-
-        caerLog(CAER_LOG_NOTICE, __func__, message.c_str());
+        caerLog(CAER_LOG_DEBUG, __func__, message.c_str());
 
         // Program SRAM
         caerDeviceConfigSet(handle, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, pre->chip);
@@ -289,13 +296,13 @@ void ConnectionManager::MakeConnection( Neuron * pre, Neuron * post, uint8_t cam
     }
 
     if(program_cam == true){
-        string message = "CAM Settings: "+ 
-        to_string(post->chip)+ ", " +
-        to_string(cam_slots_number)+ " (" +
-        to_string(NeuronCamAddress(pre->neuron,pre->core))+ ", " +
-        to_string(NeuronCamAddress(post->neuron,post->core))+ ", " +
-        to_string(post->CAM.size())+ ", " +
-        to_string(connection_type)+ ") ";
+        // print CAM settings
+        string message = string("CAM Settings: ") + 
+        "U:" + to_string(post->chip)+ ", " +
+        "CAMN:" + to_string(cam_slots_number)+ "[" + to_string(post->CAM.size())+ "], "
+        "PREADDR:" + to_string(NeuronCamAddress(pre->neuron,pre->core))+ ", " +
+        "POSTADDR:" + to_string(NeuronCamAddress(post->neuron,post->core))+ ", " +
+        "TYPE:" + to_string(connection_type);
 
         caerLog(CAER_LOG_DEBUG, __func__, message.c_str());
 
@@ -359,15 +366,21 @@ bool ConnectionManager::CheckAndConnect(Neuron * pre, Neuron * post, uint8_t cam
         }
     }
 
-    // If connection is still valid -> Check for CAM Clash (TO BE FIXED)
+    // If connection is still valid -> Check for CAM Clash
     if(valid_connection){
-        //find instances where contents in the cam will clash with the new element being added
-        auto it = post->FindCamClash(pre);
-        //if clashes occour...
-        if (it != post->CAM.end()) {
-            message = string("CAM Clash at " + post->GetLocString() + " between " + (*it)->GetLocString() + " and " + pre->GetLocString());
-            caerLog(CAER_LOG_NOTICE, __func__, message.c_str());
-            valid_connection = false;
+        // Filter neuron map to get only neurons on the same chip and core of the destination neuron (were CAM clash could happen) 
+        vector<Neuron*> filteredNeurons = FilterNeuronMap(post->chip, post->core);
+        // Sweep over all the found neurons
+        for(vector<Neuron *>::iterator neurit = filteredNeurons.begin(); neurit != filteredNeurons.end(); ++neurit){
+            //find instances where contents in the cam will clash with the new element being added (same address as the source neuron)
+            auto clashit = (*neurit)->FindCamClash(pre);
+            //if clashes occour...just print the first one found (the other are implicit)
+            if (clashit != (*neurit)->CAM.end()) {
+                message = string("CAM Clash at " + (*neurit)->GetLocString() + " between " + (*clashit)->GetLocString() + " and " + pre->GetLocString());
+                caerLog(CAER_LOG_NOTICE, __func__, message.c_str());
+                valid_connection = false;
+                break;
+            }
         }
     }
 
@@ -379,67 +392,29 @@ bool ConnectionManager::CheckAndConnect(Neuron * pre, Neuron * post, uint8_t cam
     }
 
     return false;
-
-    /*
-    if(!(*pre == *post)) {
-        if(connection_type >= 0 & connection_type < 4)
-            if (pre->SRAM.size() < 3) {
-                if (post->CAM.size() > 0) {
-                    if (64 - post->CAM.size() >= cam_slots_number) {
-
-                        //find instances where contents in the cam will clash with the new element being added
-                        auto it = post->FindCamClash(pre);
-
-                        //if no clashes, connect
-                        if (it == post->CAM.end()) {
-                            caerLog(CAER_LOG_DEBUG, __func__, "Passed tests");
-                            MakeConnection(pre, post, cam_slots_number, connection_type);
-                            return true;
-
-                        } else {
-                            message = string("CAM Clash at " + post->GetLocString() + " between " + (*it)->GetLocString() + " and " + pre->GetLocString());
-                            caerLog(CAER_LOG_NOTICE, __func__, message.c_str());
-                            //throw message;
-                            
-                        }
-
-                    } else {
-                        message = "CAM Overflow for " + post->GetLocString() + ".\nCAM slot number requested (" + to_string(cam_slots_number)+ 
-                        ") exceeds number of cam slot left (" + to_string(64 - post->CAM.size()) + ")";
-                        caerLog(CAER_LOG_NOTICE, __func__, message.c_str());
-                        //throw "CAM Size Limit (64) Reached: " + post->GetLocString();
-                    }
-                } else {
-                    //If CAM is empty, connect
-                    caerLog(CAER_LOG_DEBUG, __func__, "Passed tests");
-                    MakeConnection(pre, post, cam_slots_number, connection_type);
-                    return true;
-                }
-            } else {
-                message = "SRAM Size Limit (3) Reached: " + pre->GetLocString();
-                caerLog(CAER_LOG_NOTICE, __func__, message.c_str());
-                //throw "SRAM Size Limit (4) Reached: " + pre->GetLocString();
-            }
-        else {
-            message = "Invalid Connection Type: " + connection_type;
-            caerLog(CAER_LOG_NOTICE, __func__, message.c_str());
-        }
-    } else{
-        message = "Cannot connect a neuron to itself";
-        caerLog(CAER_LOG_NOTICE, __func__, message.c_str());
-        //throw "Cannot connect a neuron to itself";
-    }
-    return false;
-    */
 }
 
 
-ConnectionManager::ConnectionManager(caerDeviceHandle h){
+ConnectionManager::ConnectionManager(caerDeviceHandle h, sshsNode n){
     handle = h;
+    node = n;
 }
 
 map<Neuron,Neuron*> * ConnectionManager::GetNeuronMap(){
     return &(this->neuronMap_);
+}
+
+vector<Neuron*> ConnectionManager::FilterNeuronMap(uint8_t chip_n, uint8_t core_n){
+    // Function that returns the neurons present in the map with a specific chip id and core id
+    vector<Neuron *> filteredNeurons;
+    Neuron * currNeuron;
+    // Sweep the map and check for same chip id and core id
+    for (map<Neuron,Neuron*>::iterator it=this->neuronMap_.begin(); it!=this->neuronMap_.end(); ++it){
+        currNeuron = it->second;
+        if((currNeuron->chip == chip_n) & (currNeuron->core == core_n))
+            filteredNeurons.push_back(currNeuron);
+    }
+    return filteredNeurons;
 }
 
 void ConnectionManager::Clear(){
@@ -447,7 +422,7 @@ void ConnectionManager::Clear(){
     this->neuronMap_.clear();
 }
 
-/*
+
 stringstream ConnectionManager::GetNeuronMapString(){
     stringstream ss;
     
@@ -471,7 +446,7 @@ void ConnectionManager::PrintNeuronMap(){
     for(auto it = neuronMap_.cbegin(); it != neuronMap_.cend(); ++it)
     {
         Neuron * entry = it->second; 
-        entry_message = "\n"+ 
+        entry_message = "\n\n"+ 
         entry->GetLocString() + 
         " -- SRAM: " + 
         entry->GetSRAMString() +
@@ -480,8 +455,7 @@ void ConnectionManager::PrintNeuronMap(){
 
         caerLog(CAER_LOG_NOTICE, __func__, entry_message.c_str());
     }
-
-}*/
+}
 
 vector <Neuron *> ConnectionManager::GetNeuron(Neuron * pre){
     neuronMap_.find(*pre);
@@ -523,6 +497,38 @@ void ConnectionManager::Connect(Neuron * pre, Neuron * post, uint8_t cam_slots_n
         caerLog(CAER_LOG_NOTICE, __func__, e.c_str());
     }
 
+}
+
+void ConnectionManager::SetBias(uint8_t chip_n ,uint8_t core_n , const char *biasName, uint8_t coarse_value, uint8_t fine_value, bool high_low){
+    string message = string("Setting bias ") +
+                     string(biasName) + " to value " +
+                     to_string(coarse_value) + "," + to_string(fine_value) + " U/D = " +
+                     to_string(high_low);
+    caerLog(CAER_LOG_DEBUG, __func__, message.c_str());
+
+    try{
+        caerDeviceConfigSet(handle, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, U32T(chip_n));
+        caerDynapseSetBiasCore(node, chip_n, core_n, biasName, coarse_value, fine_value, high_low);
+    }
+    catch (const string e){
+        caerLog(CAER_LOG_NOTICE, __func__, e.c_str());
+    }
+}
+
+void ConnectionManager::SetTau2(uint8_t chip_n ,uint8_t core_n, uint8_t neuron_n){
+    // Function that set the tau2 for a specific neuron
+    string message = string("Setting tau2 of neuron ") +
+                     "U:" + to_string(chip_n) + ", " +
+                     "C:" + to_string(core_n) + ", " +
+                     "N:" + to_string(neuron_n);
+    caerLog(CAER_LOG_DEBUG, __func__, message.c_str());
+    try{
+        caerDeviceConfigSet(handle, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, chip_n); // Select the chip
+        caerDeviceConfigSet(handle, DYNAPSE_CONFIG_TAU2_SET, core_n, neuron_n); // Set tau2 for a specific neuron
+    }
+    catch (const string e){
+        caerLog(CAER_LOG_NOTICE, __func__, e.c_str());
+    }
 }
 
 bool ReadNetTXT (ConnectionManager * manager, string filepath) {
@@ -704,3 +710,84 @@ bool ReadNetXML (ConnectionManager * manager, string filepath) {
 
 }
 
+bool ReadBiasesTauTXT (ConnectionManager * manager, string filepath) {
+
+    caerLog(CAER_LOG_DEBUG, __func__, ("attempting to read net found at: " + filepath).c_str());
+    ifstream netFile (filepath);
+    string bias_tau;
+    if (netFile.is_open())
+    {
+        caerLog(CAER_LOG_NOTICE, __func__, ("parsing biases found at: " + filepath).c_str());
+        vector<string > cv;
+        vector<uint8_t> cv_int;
+        while ( getline (netFile, bias_tau) )
+        {
+            if(!bias_tau.empty()){
+                // Ignore comments (#)
+                if(bias_tau[0] != '#'){
+                    size_t prev = 0, pos;
+                    // Expected structure is:
+                    // FOR BIAS
+                    //     core_addr   -bias_name    -coarse_value   -fine_value   -High/Low current 
+                    // ex: U00-C00     -IF_AHTAU_N   -7              -34           -true 
+                    // without tabs: U00-C00-IF_AHTAU_N-7-34-true
+
+                    // FOR TAU
+                    //     neur_addr     -TAU2
+                    // ex: U00-C00-N001  -TAU2
+                    // without tabs: U00-C00-N001-TAU2
+
+                    // Separate all parts of the parsed line, using as separator "-" 
+
+                    while ((pos = bias_tau.find_first_of("-", prev)) != string::npos)
+                    {
+                        if (pos > prev)
+                            cv.push_back(bias_tau.substr(prev, pos - prev));
+                        prev = pos+1;
+                    }
+                    // Add last element
+                    if (prev < bias_tau.length())
+                        cv.push_back(bias_tau.substr(prev, string::npos));
+
+                    //string message = "CV VALUE IS THIS: " + cv[0] + "," + cv[1] + "," + cv[2] + "," + cv[3] + "," + cv[4] + "," + cv[5]; 
+                    //caerLog(CAER_LOG_DEBUG, __func__, message.c_str());
+
+                    // Convert Chip and Core id in int   
+                    cv_int.push_back((unsigned char &&) stoi(cv[0].substr(1, string::npos)));
+                    cv_int.push_back((unsigned char &&) stoi(cv[1].substr(1, string::npos)));
+
+                    // If TAU has to been set, complete the parsing in a certain way
+                    if(cv[3].compare(string("TAU2")) == 0){
+                        cv_int.push_back((unsigned char &&) stoi(cv[2].substr(1, string::npos))); // Neuron index
+                        manager->SetTau2(cv_int[0], cv_int[1], cv_int[2]);
+                    }
+                    // If a BIAS has to be set, complete the parsing in a different way
+                    else {
+                        cv_int.push_back((unsigned char &&) stoi(cv[3])); // coarse value
+                        cv_int.push_back((unsigned char &&) stoi(cv[4])); // fine value
+                        if(cv[5].compare(string("true")) == 0) // High current
+                            cv_int.push_back((unsigned char &&) 1); 
+                        else // Low current
+                            cv_int.push_back((unsigned char &&) 0);
+                        manager->SetBias(cv_int[0], cv_int[1], cv[2].c_str(), cv_int[2], cv_int[3], bool(cv_int[4]));
+                    }
+
+                    cv.clear();
+                    cv_int.clear();
+                } else{
+                    // Print comments in network file that start with #! for debbuging
+                    if(bias_tau[1] == '!'){
+                        caerLog(CAER_LOG_NOTICE, __func__, ("Printing comment: " + bias_tau + "\n").c_str());
+                    }
+                }
+            }
+        }
+        netFile.close();
+        return true;        
+
+    }
+    else{
+        caerLog(CAER_LOG_ERROR, __func__, ("unable to open file: " + filepath).c_str());  
+        return false;
+    } 
+}
