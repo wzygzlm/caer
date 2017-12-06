@@ -34,7 +34,7 @@ IF (NULLHOPINTERFACE)
 	ENDIF()
 
 	SET(NULLHOPIF_C_SRC_FILES nullhopinterface.c)
-	SET(NULLHOPIF_CXX_SRC_FILES npp_log_utilities.cpp npp_std_func_pkg.cpp  zs_top_level_pkg.cpp zs_axi_formatter.cpp zs_backend_interface.cpp zs_monitor_cnn_layer.cpp zs_monitor.cpp zs_cnn_layer.cpp zs_fc_layer.cpp  axi_gpio.cpp axi_channel_timeout_excep.cpp zs_axi_dma_lib.cpp axi_dma_lib.cpp zs_driver.cpp wrapper.cpp)
+	SET(NULLHOPIF_CXX_SRC_FILES npp_log_utilities.cpp npp_std_func_pkg.cpp npp_performance_profiler.cpp zs_top_level_pkg.cpp zs_axi_formatter.cpp zs_backend_interface.cpp zs_monitor_cnn_layer.cpp zs_monitor.cpp zs_cnn_layer.cpp zs_fc_layer.cpp  axi_gpio.cpp axi_channel_timeout_excep.cpp zs_axi_dma_lib.cpp axi_dma_lib.cpp zs_driver.cpp wrapper.cpp)
 
 	INCLUDE_DIRECTORIES(${NULLHOPIF_INCDIRS})
 	LINK_DIRECTORIES(${NULLHOPIF_LIBDIRS} )
