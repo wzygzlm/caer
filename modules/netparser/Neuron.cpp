@@ -326,12 +326,12 @@ bool ConnectionManager::CheckAndConnect(Neuron * pre, Neuron * post, uint8_t cam
 
     bool valid_connection = true;
 
-    // Check if Neuron must be connected to itself (it is not possible)
-    if(*pre == *post) {
+    // Check if Neuron must be connected to itself (it was inserted but it is not required)
+    /*if(*pre == *post) {
         message = "Cannot connect a neuron to itself";
         caerLog(CAER_LOG_NOTICE, __func__, message.c_str());
         valid_connection = false;
-    }
+    }*/
 
     // If connection is still valid -> Check if synaptic type is valid
     if(valid_connection){
