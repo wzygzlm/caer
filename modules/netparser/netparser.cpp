@@ -55,20 +55,20 @@ static bool caerNetParserInit(caerModuleData moduleData) {
 
 	NetParserState state = (NETPARSER_state*) moduleData->moduleState;
 	// create parameters
-	sshsNodeCreateBool(moduleData->moduleNode, "Program Network from .txt", false, SSHS_FLAGS_NORMAL, "def");
+	sshsNodeCreateBool(moduleData->moduleNode, "ProgramNetworkFrom.txt", false, SSHS_FLAGS_NORMAL, "def");
 	sshsNodeCreateString(moduleData->moduleNode, "net_txt_file", "./modules/netparser/networks/hellonet.txt", 1, 4096,
 		SSHS_FLAGS_NORMAL, "File to load network connnectivity from.");
 
-	sshsNodeCreateBool(moduleData->moduleNode, "Program Network from .xml", false, SSHS_FLAGS_NORMAL, "def");
+	sshsNodeCreateBool(moduleData->moduleNode, "ProgramNetworkFrom.xml", false, SSHS_FLAGS_NORMAL, "def");
 	sshsNodeCreateString(moduleData->moduleNode, "net_xml_file", "./modules/netparser/networks/hellonet.xml", 1, 4096,
 		SSHS_FLAGS_NORMAL, "File to load network connnectivity from.");
 
-	sshsNodeCreateBool(moduleData->moduleNode, "Program Biases and Tau from .txt", false, SSHS_FLAGS_NORMAL, "def");
+	sshsNodeCreateBool(moduleData->moduleNode, "ProgramBiasesAndTauFrom.txt", false, SSHS_FLAGS_NORMAL, "def");
 	sshsNodeCreateString(moduleData->moduleNode, "biases_txt_file", "./modules/netparser/networks/hellobias.txt", 1, 4096,
 		SSHS_FLAGS_NORMAL, "File to load biases from.");
 
-	sshsNodeCreateBool(moduleData->moduleNode, "Set Default Spiking Biases and Tau", false, SSHS_FLAGS_NORMAL, "def");
-	sshsNodeCreateBool(moduleData->moduleNode, "Clear Network\n(this will take about a minute)", false,
+	sshsNodeCreateBool(moduleData->moduleNode, "SetDefaultSpikingBiasesAndTau", false, SSHS_FLAGS_NORMAL, "def");
+	sshsNodeCreateBool(moduleData->moduleNode, "ClearNetwork", false,
 		SSHS_FLAGS_NORMAL, "def");
 
 	//sshsNodePutBoolIfAbsent(moduleData->moduleNode, "setSram", false);
@@ -92,11 +92,11 @@ static bool caerNetParserInit(caerModuleData moduleData) {
 		return (false);
 	}
 
-	state->programTXT = sshsNodeGetBool(moduleData->moduleNode, "Program Network from .txt");
-	state->programXML = sshsNodeGetBool(moduleData->moduleNode, "Program Network from .xml");
-	state->programBias = sshsNodeGetBool(moduleData->moduleNode, "Program Biases and Tau from .txt");
-	state->bias = sshsNodeGetBool(moduleData->moduleNode, "Set Default Spiking Biases and Tau");
-	state->clear = sshsNodeGetBool(moduleData->moduleNode, "Clear Network\n(this will take about a minute)");
+	state->programTXT = sshsNodeGetBool(moduleData->moduleNode, "ProgramNetworkFrom.txt");
+	state->programXML = sshsNodeGetBool(moduleData->moduleNode, "ProgramNetworkFrom.xml");
+	state->programBias = sshsNodeGetBool(moduleData->moduleNode, "ProgramBiasesAndTauFrom.txt");
+	state->bias = sshsNodeGetBool(moduleData->moduleNode, "SetDefaultSpikingBiasesAndTau");
+	state->clear = sshsNodeGetBool(moduleData->moduleNode, "Clear Network");
 
 	sshsNodeAddAttributeListener(moduleData->moduleNode, moduleData, &caerModuleConfigDefaultListener);
 
@@ -273,11 +273,11 @@ static void caerNetParserModuleConfig(caerModuleData moduleData) {
 	caerModuleConfigUpdateReset(moduleData);
 	NetParserState state = (NETPARSER_state*) moduleData->moduleState;
 
-	bool newProgramTXT = sshsNodeGetBool(moduleData->moduleNode, "Program Network from .txt");
-	bool newProgramXML = sshsNodeGetBool(moduleData->moduleNode, "Program Network from .xml");
-	bool newProgramBias = sshsNodeGetBool(moduleData->moduleNode, "Program Biases and Tau from .txt");
-	bool newBiases = sshsNodeGetBool(moduleData->moduleNode, "Set Default Spiking Biases and Tau");
-	bool newClearNetwork = sshsNodeGetBool(moduleData->moduleNode, "Clear Network\n(this will take about a minute)");
+	bool newProgramTXT = sshsNodeGetBool(moduleData->moduleNode, "ProgramNetworkFrom.txt");
+	bool newProgramXML = sshsNodeGetBool(moduleData->moduleNode, "ProgramNetworkFrom.xml");
+	bool newProgramBias = sshsNodeGetBool(moduleData->moduleNode, "ProgramBiasesAndTauFrom.txt");
+	bool newBiases = sshsNodeGetBool(moduleData->moduleNode, "SetDefaultSpikingBiasesAndTau");
+	bool newClearNetwork = sshsNodeGetBool(moduleData->moduleNode, "ClearNetwork");
 
 	bool operation_result = false;
 
