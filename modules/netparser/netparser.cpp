@@ -96,7 +96,7 @@ static bool caerNetParserInit(caerModuleData moduleData) {
 	state->programXML = sshsNodeGetBool(moduleData->moduleNode, "ProgramNetworkFrom.xml");
 	state->programBias = sshsNodeGetBool(moduleData->moduleNode, "ProgramBiasesAndTauFrom.txt");
 	state->bias = sshsNodeGetBool(moduleData->moduleNode, "SetDefaultSpikingBiasesAndTau");
-	state->clear = sshsNodeGetBool(moduleData->moduleNode, "Clear Network");
+	state->clear = sshsNodeGetBool(moduleData->moduleNode, "ClearNetwork");
 
 	sshsNodeAddAttributeListener(moduleData->moduleNode, moduleData, &caerModuleConfigDefaultListener);
 
