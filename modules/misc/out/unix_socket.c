@@ -70,11 +70,11 @@ static bool caerOutputUnixSocketInit(caerModuleData moduleData) {
 	// Initialize loop and network handles.
 	int retVal = uv_loop_init(&streams->loop);
 	UV_RET_CHECK(retVal, moduleData->moduleSubSystemString, "uv_loop_init",
-		free(connectRequest); free(pipe); free(streams->address); free(streams));
+		free(connectRequest); free(pipe); free(streams->address); free(streams); return (false));
 
 	retVal = uv_pipe_init(&streams->loop, pipe, false);
 	UV_RET_CHECK(retVal, moduleData->moduleSubSystemString, "uv_pipe_init",
-		uv_loop_close(&streams->loop); free(connectRequest); free(pipe); free(streams->address); free(streams));
+		uv_loop_close(&streams->loop); free(connectRequest); free(pipe); free(streams->address); free(streams); return (false));
 
 	uv_pipe_connect(connectRequest, pipe, streams->address, &caerOutputCommonOnClientConnection);
 	// No return value to check here.
