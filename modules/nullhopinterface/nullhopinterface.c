@@ -12,6 +12,7 @@
 #include <sys/wait.h>
 
 #include <libcaer/events/frame.h>
+#include <libcaer/events/point1d.h>
 
 struct nullhopwrapper_state {
 	double detThreshold;
@@ -34,6 +35,10 @@ static const struct caer_event_stream_in moduleInputs[] = {
     { .type = FRAME_EVENT, .number = 1, .readOnly = true }
 };
 
+static const struct caer_event_stream_out moduleOutputs[] = {
+    { .type = POINT1D_EVENT }
+};
+
 static const struct caer_module_info moduleInfo = {
 	.version = 1, .name = "Nullhop Interface",
 	.description = "NullHop interface",
@@ -42,8 +47,8 @@ static const struct caer_module_info moduleInfo = {
 	.functions = &caerNullHopWrapperFunctions,
 	.inputStreams = moduleInputs,
 	.inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(moduleInputs),
-	.outputStreams = NULL,
-	.outputStreamsSize = 0
+	.outputStreams = moduleOutputs,
+	.outputStreamsSize = CAER_EVENT_STREAM_OUT_SIZE(moduleOutputs)
 };
 
 // init
@@ -61,7 +66,7 @@ static bool caerNullHopWrapperInit(caerModuleData moduleData) {
 			"detThreshold");
 
 	//Initializing nullhop network..
-	state->cpp_class = newzs_driver("modules/nullhopinterface/nets/roshamboNet_v3.nhp");
+	state->cpp_class = newzs_driver("/nets/roshamboNet.nhp");
 
 	return (true);
 }
@@ -94,5 +99,18 @@ static void caerNullHopWrapperRun(caerModuleData moduleData, caerEventPacketCont
 			"detThreshold");
 
 	zs_driver_classify_image(state->cpp_class, frameIn);
+
+	// get output and save it into the output stream packet
+	*out = caerEventPacketContainerAllocate(1);
+	if(*out == NULL){
+		return;
+	}
+	caerPoint1DEventPacket solution = caerPoint1DEventPacketAllocate(1, moduleData->moduleID,
+		caerEventPacketHeaderGetEventTSOverflow(&frameIn->packetHeader));
+
+	//need to assign class to point1d
+
+	// not set eventpacket
+	caerEventPacketContainerSetEventPacket(*out, 0, (caerEventPacketHeader) solution);
 
 }
