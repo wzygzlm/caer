@@ -9,7 +9,8 @@ ENDIF()
 IF (NULLHOPINTERFACE)
 
 	IF (FPGA_MODE)
-		SET(CAER_COMPILE_DEFINITIONS ${CAER_COMPILE_DEFINITIONS} -DFPGA_MODE=1)
+		SET(CAER_COMPILE_DEFINITIONS ${CAER_COMPILE_DEFINITIONS} -DFPGA_MODE=1 -DENABLE_LOG=1 -DVERBOSITY_DEBUG=1 -DPERFORMANCE_PROFILING=1)
+		MESSAGE("FPGA IS ON")
 	ENDIF()
 	IF(ENABLE_RESULT_MONITOR)
 		SET(CAER_COMPILE_DEFINITIONS ${CAER_COMPILE_DEFINITIONS} -DENABLE_RESULT_MONITOR=1)
@@ -34,13 +35,13 @@ IF (NULLHOPINTERFACE)
 	ENDIF()
 
 	SET(NULLHOPIF_C_SRC_FILES nullhopinterface.c)
-	SET(NULLHOPIF_CXX_SRC_FILES npp_log_utilities.cpp npp_std_func_pkg.cpp npp_performance_profiler.cpp zs_top_level_pkg.cpp zs_axi_formatter.cpp zs_backend_interface.cpp zs_monitor_cnn_layer.cpp zs_monitor.cpp zs_cnn_layer.cpp zs_fc_layer.cpp  axi_gpio.cpp axi_channel_timeout_excep.cpp zs_axi_dma_lib.cpp axi_dma_lib.cpp zs_driver.cpp wrapper.cpp)
+	SET(NULLHOPIF_CXX_SRC_FILES npp_log_utilities.cpp npp_std_func_pkg.cpp npp_performance_profiler.cpp  zs_top_level_pkg.cpp zs_axi_formatter.cpp zs_backend_interface.cpp zs_monitor_cnn_layer.cpp zs_monitor.cpp zs_cnn_layer.cpp zs_fc_layer.cpp  axi_gpio.cpp axi_channel_timeout_excep.cpp zs_axi_dma_lib.cpp axi_dma_lib.cpp zs_driver.cpp wrapper.cpp axi_dma_klib.cpp)
 
 	INCLUDE_DIRECTORIES(${NULLHOPIF_INCDIRS})
 	LINK_DIRECTORIES(${NULLHOPIF_LIBDIRS} )
 	
 	ADD_LIBRARY(nullhopinterface SHARED ${NULLHOPIF_CXX_SRC_FILES} ${NULLHOPIF_C_SRC_FILES})
-
+	TARGET_COMPILE_OPTIONS(nullhopinterface PRIVATE -DFPGA_MODE=1 -DENABLE_LOG=0 -DVERBOSITY_LOW=1 -DVERBOSITY_DEBUG=0 -DPERFORMANCE_PROFILING=1 -DKERNEL_MODULE=1 -DENABLE_RESULT_MONITOR=0)
 	TARGET_LINK_LIBRARIES(nullhopinterface ${NULLHOPIF_C_LIBS} ${NULLHOPIF_CXX_LIBS})
 	
 	INSTALL(TARGETS nullhopinterface DESTINATION ${CM_SHARE_DIR})

@@ -55,9 +55,9 @@ static const struct caer_module_functions caerArduinoCNTFunctions = { .moduleIni
 static const struct caer_event_stream_in caerArduinoCNTInputs[] = 
 		{{ .type = POINT1D_EVENT, .number = 1, .readOnly = true }};
 
-static const struct caer_module_info caerArduinoCNTInfo = { .version = 1 , .name = "caerArduinoCNT" , .description = "Control Arudino via CH341 driver", .type = CAER_MODULE_PROCESSOR , .memSize=sizeof(struct ASFilter_state), .functions = &caerArduinoCNTFunctions, .inputStreams = caerArduinoCNTInputs, .inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(caerArduinoCNTInputs), .outputStreams = NULL, .outputStreamsSize = 0, };
+static const struct caer_module_info caerArduinoCNTInfo = { .version = 1 , .name = "caerArduinoCNT" , .description = "Control Arudino via CH341 driver", .type = CAER_MODULE_OUTPUT , .memSize=sizeof(struct ASFilter_state), .functions = &caerArduinoCNTFunctions, .inputStreams = caerArduinoCNTInputs, .inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(caerArduinoCNTInputs), .outputStreams = NULL, .outputStreamsSize = 0, };
 
-caerModuleInfo caerModuleFetInfo(void){
+caerModuleInfo caerModuleGetInfo(void){
       return (&caerArduinoCNTInfo);
 }
 
@@ -182,6 +182,7 @@ static void caerArduinoCNTRun(caerModuleData moduleData, caerEventPacketContaine
 	caerPoint1DEventPacket result = (caerPoint1DEventPacket) caerEventPacketContainerFindEventPacketByTypeConst(in, POINT1D_EVENT);
 	ASFilterState state = moduleData->moduleState;
 
+
 	CAER_POINT1D_ITERATOR_ALL_START(result)
 		int this_res = caerPoint1DEventGetX(caerPoint1DIteratorElement);
 		atomic_store(&state->decision[state->pos], this_res);
@@ -192,7 +193,7 @@ static void caerArduinoCNTRun(caerModuleData moduleData, caerEventPacketContaine
 		}
 	CAER_POINT1D_ITERATOR_ALL_END
 
-
+	//
 }
 
 static void caerArduinoCNTConfig(caerModuleData moduleData) {
@@ -230,6 +231,5 @@ static void caerArduinoCNTReset(caerModuleData moduleData,
 	UNUSED_ARGUMENT(resetCallSourceID);
 
 	ASFilterState state = moduleData->moduleState;
-
 }
 
