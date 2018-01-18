@@ -42,7 +42,7 @@ static const struct caer_event_stream_out moduleOutputs[] = {
 static const struct caer_module_info moduleInfo = {
 	.version = 1, .name = "Nullhop Interface",
 	.description = "NullHop interface",
-	.type = CAER_MODULE_OUTPUT,
+	.type = CAER_MODULE_PROCESSOR,
 	.memSize = sizeof(struct nullhopwrapper_state),
 	.functions = &caerNullHopWrapperFunctions,
 	.inputStreams = moduleInputs,
