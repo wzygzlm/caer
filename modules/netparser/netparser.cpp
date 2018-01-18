@@ -24,6 +24,7 @@ struct NETPARSER_state {
 	ConnectionManager manager;
 	bool programTXT;
 	bool programXML;
+	bool programBias;
 	bool bias;
 	bool clear;
 	int16_t sourceID;
@@ -54,16 +55,20 @@ static bool caerNetParserInit(caerModuleData moduleData) {
 
 	NetParserState state = (NETPARSER_state*) moduleData->moduleState;
 	// create parameters
-	sshsNodeCreateBool(moduleData->moduleNode, "Program Network from .txt", false, SSHS_FLAGS_NORMAL, "def");
-	sshsNodeCreateString(moduleData->moduleNode, "txt_file", "./modules/netparser/networks/hellonet.txt", 1, 4096,
+	sshsNodeCreateBool(moduleData->moduleNode, "ProgramNetworkFrom.txt", false, SSHS_FLAGS_NORMAL, "def");
+	sshsNodeCreateString(moduleData->moduleNode, "net_txt_file", "./modules/netparser/networks/hellonet.txt", 1, 4096,
 		SSHS_FLAGS_NORMAL, "File to load network connnectivity from.");
 
-	sshsNodeCreateBool(moduleData->moduleNode, "Program Network from .xml", false, SSHS_FLAGS_NORMAL, "def");
-	sshsNodeCreateString(moduleData->moduleNode, "xml_file", "./modules/netparser/networks/hellonet.xml", 1, 4096,
+	sshsNodeCreateBool(moduleData->moduleNode, "ProgramNetworkFrom.xml", false, SSHS_FLAGS_NORMAL, "def");
+	sshsNodeCreateString(moduleData->moduleNode, "net_xml_file", "./modules/netparser/networks/hellonet.xml", 1, 4096,
 		SSHS_FLAGS_NORMAL, "File to load network connnectivity from.");
 
-	sshsNodeCreateBool(moduleData->moduleNode, "Set Default Spiking Biases", false, SSHS_FLAGS_NORMAL, "def");
-	sshsNodeCreateBool(moduleData->moduleNode, "Clear Network\n(this will take about a minute)", false,
+	sshsNodeCreateBool(moduleData->moduleNode, "ProgramBiasesAndTauFrom.txt", false, SSHS_FLAGS_NORMAL, "def");
+	sshsNodeCreateString(moduleData->moduleNode, "biases_txt_file", "./modules/netparser/networks/hellobias.txt", 1, 4096,
+		SSHS_FLAGS_NORMAL, "File to load biases from.");
+
+	sshsNodeCreateBool(moduleData->moduleNode, "SetDefaultSpikingBiasesAndTau", false, SSHS_FLAGS_NORMAL, "def");
+	sshsNodeCreateBool(moduleData->moduleNode, "ClearNetwork", false,
 		SSHS_FLAGS_NORMAL, "def");
 
 	//sshsNodePutBoolIfAbsent(moduleData->moduleNode, "setSram", false);
@@ -87,16 +92,17 @@ static bool caerNetParserInit(caerModuleData moduleData) {
 		return (false);
 	}
 
-	state->programTXT = sshsNodeGetBool(moduleData->moduleNode, "Program Network from .txt");
-	state->programXML = sshsNodeGetBool(moduleData->moduleNode, "Program Network from .xml");
-	state->bias = sshsNodeGetBool(moduleData->moduleNode, "Set Default Spiking Biases");
-	state->clear = sshsNodeGetBool(moduleData->moduleNode, "Clear Network\n(this will take about a minute)");
+	state->programTXT = sshsNodeGetBool(moduleData->moduleNode, "ProgramNetworkFrom.txt");
+	state->programXML = sshsNodeGetBool(moduleData->moduleNode, "ProgramNetworkFrom.xml");
+	state->programBias = sshsNodeGetBool(moduleData->moduleNode, "ProgramBiasesAndTauFrom.txt");
+	state->bias = sshsNodeGetBool(moduleData->moduleNode, "SetDefaultSpikingBiasesAndTau");
+	state->clear = sshsNodeGetBool(moduleData->moduleNode, "ClearNetwork");
 
 	sshsNodeAddAttributeListener(moduleData->moduleNode, moduleData, &caerModuleConfigDefaultListener);
 
 	//Instantiate manager
 	state->eventSourceModuleState = (caerDeviceHandle) caerMainloopGetSourceState(U16T(state->sourceID));
-	state->manager = ConnectionManager(state->eventSourceModuleState);
+	state->manager = ConnectionManager(state->eventSourceModuleState, state->eventSourceConfigNode);
 
 	return (true);
 
@@ -105,6 +111,8 @@ static bool caerNetParserInit(caerModuleData moduleData) {
 void caerNetParserSetBiases(caerModuleData moduleData) {
 
 	NetParserState state = (NETPARSER_state*) moduleData->moduleState;
+
+	caerLog(CAER_LOG_NOTICE, __func__, "Setting Biases...");
 
 	for (uint8_t chipId = 0; chipId < 4; chipId++) {
 
@@ -196,6 +204,18 @@ void caerNetParserSetBiases(caerModuleData moduleData) {
 			caerDynapseSetBiasCore(state->eventSourceConfigNode, chipId, coreId, "R2R_P", 4, 85, true);
 		}
 	}
+
+	// Set default TAU1 for all the neurons
+	caerLog(CAER_LOG_NOTICE, __func__, "Setting all neurons to default TAU1...");
+    // Sweep over all chips
+    for (uint8_t chipId = 0; chipId < 4; chipId++) {
+        // Tell Dynapse tu use that chip
+        caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, chipId);
+        // Sweep over all Cores
+        for (uint8_t coreId = 0; coreId < 4; coreId++) {
+            caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_TAU1_RESET, coreId, 0); // Set all neurons to TAU1
+        }
+    }
 }
 
 void caerClearConnections(caerModuleData moduleData) {
@@ -234,15 +254,30 @@ void caerClearConnections(caerModuleData moduleData) {
 
 }
 
+/*void caerResetTau1(){
+	NetParserState state = (NETPARSER_state*) moduleData->moduleState;
+
+	caerLog(CAER_LOG_NOTICE, __func__, "Setting all neurons to default TAU1...");
+    // Sweep over all chips
+    for (uint8_t chipId = 0; chipId < 4; chipId++) {
+        // Tell Dynapse tu use that chip
+        caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_CHIP_ID, chip_n);
+        // Sweep over all Cores
+        for (uint8_t coreId = 0; coreId < 4; coreId++) {
+            caerDeviceConfigSet(state->eventSourceModuleState, DYNAPSE_CONFIG_CHIP, DYNAPSE_CONFIG_TAU1_RESET, coreId); // Set all neurons to TAU1
+        }
+    }
+}*/
+
 static void caerNetParserModuleConfig(caerModuleData moduleData) {
 	caerModuleConfigUpdateReset(moduleData);
 	NetParserState state = (NETPARSER_state*) moduleData->moduleState;
 
-	bool newProgramTXT = sshsNodeGetBool(moduleData->moduleNode, "Program Network from .txt");
-	bool newProgramXML = sshsNodeGetBool(moduleData->moduleNode, "Program Network from .xml");
-
-	bool newBiases = sshsNodeGetBool(moduleData->moduleNode, "Set Default Spiking Biases");
-	bool newClearNetwork = sshsNodeGetBool(moduleData->moduleNode, "Clear Network\n(this will take about a minute)");
+	bool newProgramTXT = sshsNodeGetBool(moduleData->moduleNode, "ProgramNetworkFrom.txt");
+	bool newProgramXML = sshsNodeGetBool(moduleData->moduleNode, "ProgramNetworkFrom.xml");
+	bool newProgramBias = sshsNodeGetBool(moduleData->moduleNode, "ProgramBiasesAndTauFrom.txt");
+	bool newBiases = sshsNodeGetBool(moduleData->moduleNode, "SetDefaultSpikingBiasesAndTau");
+	bool newClearNetwork = sshsNodeGetBool(moduleData->moduleNode, "ClearNetwork");
 
 	bool operation_result = false;
 
@@ -252,7 +287,7 @@ static void caerNetParserModuleConfig(caerModuleData moduleData) {
 		state->programTXT = true;
 
 		caerLog(CAER_LOG_NOTICE, __func__, "Starting Board Connectivity Programming with txt file");
-		std::string filePath = sshsNodeGetString(moduleData->moduleNode, "txt_file");
+		std::string filePath = sshsNodeGetString(moduleData->moduleNode, "net_txt_file");
 		//manager.Connect(new Neuron(2,2,2),new Neuron(2,2,6),1,1);
 		operation_result = ReadNetTXT(&(state->manager), filePath);
 		if (operation_result) {
@@ -274,7 +309,7 @@ static void caerNetParserModuleConfig(caerModuleData moduleData) {
 		state->programTXT = true;
 
 		caerLog(CAER_LOG_NOTICE, __func__, "Starting Board Connectivity Programming with xml file");
-		std::string filePath = sshsNodeGetString(moduleData->moduleNode, "xml_file");
+		std::string filePath = sshsNodeGetString(moduleData->moduleNode, "net_xml_file");
 
 		//manager.Connect(new Neuron(2,2,2),new Neuron(2,2,6),1,1);
 		operation_result = ReadNetXML(&(state->manager), filePath);
@@ -293,11 +328,32 @@ static void caerNetParserModuleConfig(caerModuleData moduleData) {
 		state->programTXT = false;
 	}
 
+	if (newProgramBias && !state->programBias){
+		state->programBias = true;
+		caerLog(CAER_LOG_NOTICE, __func__, "Starting Biases and Tau programming with txt file");
+		std::string filePath = sshsNodeGetString(moduleData->moduleNode, "biases_txt_file");
+		
+		operation_result = ReadBiasesTauTXT(&(state->manager), filePath);
+
+		if(operation_result){
+			caerLog(CAER_LOG_NOTICE, __func__,
+				("Succesfully Finished Programming Board Biases and Tau from " + filePath).c_str());
+		}
+		else{
+			caerLog(CAER_LOG_ERROR, __func__,
+				("Did NOT Finish Programming Board Biases and Tau from " + filePath).c_str());
+		}
+
+	}
+	else if (!newProgramBias && state->programBias) {
+		state->programBias = false;
+	}
+
 	if (newBiases && !state->bias) {
 		state->bias = true;
-		caerLog(CAER_LOG_NOTICE, __func__, "Starting Bias setting");
+		caerLog(CAER_LOG_NOTICE, __func__, "Starting default Bias and Tau setting");
 		caerNetParserSetBiases(moduleData);
-		caerLog(CAER_LOG_NOTICE, __func__, "Finished Bias setting");
+		caerLog(CAER_LOG_NOTICE, __func__, "Finished default Bias and Tau setting");
 
 	}
 	else if (!newBiases && state->bias) {
@@ -322,4 +378,3 @@ static void caerNetParserExit(caerModuleData moduleData) {
 	sshsNodeRemoveAttributeListener(moduleData->moduleNode, moduleData, &caerModuleConfigDefaultListener);
 
 }
-

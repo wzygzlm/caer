@@ -15,6 +15,8 @@
 #include <libcaer/events/polarity.h>
 #include <libcaer/events/frame.h>
 
+#include <libcaer/devices/dynapse.h> // CONSTANTS only.
+
 #define MAX_HEADER_LINE_SIZE 1024
 
 enum input_reader_state {
@@ -219,7 +221,8 @@ static void parseSourceString(char *sourceString, inputCommonState state) {
 		dvsSizeX = apsSizeX = dvsSizeY = apsSizeY = 128;
 	}
 	else if (caerStrEquals(sourceString, "DAVIS346A") || caerStrEquals(sourceString, "DAVIS346B")
-		|| caerStrEquals(sourceString, "DAVIS346Cbsi")) {
+		|| caerStrEquals(sourceString, "DAVIS346Cbsi") || caerStrEquals(sourceString, "DAVIS346")
+		|| caerStrEquals(sourceString, "DAVIS346bsi")) {
 		dvsSizeX = apsSizeX = 346;
 		dvsSizeY = apsSizeY = 260;
 	}
@@ -227,7 +230,7 @@ static void parseSourceString(char *sourceString, inputCommonState state) {
 		dvsSizeX = apsSizeX = 640;
 		dvsSizeY = apsSizeY = 480;
 	}
-	else if (caerStrEquals(sourceString, "DAVISHet640")) {
+	else if (caerStrEquals(sourceString, "DAVISHet640") || caerStrEquals(sourceString, "DAVIS640het")) {
 		dvsSizeX = 320;
 		dvsSizeY = 240;
 		apsSizeX = 640;
@@ -236,6 +239,10 @@ static void parseSourceString(char *sourceString, inputCommonState state) {
 	else if (caerStrEquals(sourceString, "DAVIS208")) {
 		dvsSizeX = apsSizeX = 208;
 		dvsSizeY = apsSizeY = 192;
+	}
+	else if (caerStrEquals(sourceString, "DYNAPSE")) {
+		dataSizeX = DYNAPSE_X4BOARD_NEUX;
+		dataSizeY = DYNAPSE_X4BOARD_NEUY;
 	}
 	else if (caerStrEqualsUpTo(sourceString, "File,", 5)) {
 		sscanf(sourceString + 5, "dvsSizeX=%" SCNi16 ",dvsSizeY=%" SCNi16 ",apsSizeX=%" SCNi16 ",apsSizeY=%" SCNi16 ","

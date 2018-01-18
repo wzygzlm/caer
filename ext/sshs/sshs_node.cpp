@@ -7,6 +7,7 @@
 #include <map>
 #include <mutex>
 #include <shared_mutex>
+#include <regex>
 #include <boost/iostreams/device/file_descriptor.hpp>
 #include <boost/iostreams/stream.hpp>
 #include <boost/property_tree/ptree.hpp>
@@ -194,6 +195,8 @@ public:
 	}
 };
 
+static const std::regex sshsKeyRegexp("^[a-zA-Z-_\\d\\.]+$");
+
 // struct for C compatibility
 struct sshs_node {
 public:
@@ -222,6 +225,13 @@ public:
 
 	void createAttribute(const std::string &key, const sshs_value &defaultValue,
 		const struct sshs_node_attr_ranges &ranges, int flags, const std::string &description) {
+		// Check key name string against allowed characters via regexp.
+		if (!std::regex_match(key, sshsKeyRegexp)) {
+			boost::format errorMsg = boost::format("Invalid key name format: '%s'.") % key;
+
+			sshsNodeError("sshsNodeCreateAttribute", key, defaultValue.getType(), errorMsg.str());
+		}
+
 		// Strings are special, their length range goes from 0 to SIZE_MAX, but we
 		// have to restrict that to from 0 to INT32_MAX for languages like Java
 		// that only support integer string lengths. It's also reasonable.

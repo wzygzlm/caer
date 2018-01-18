@@ -86,11 +86,11 @@ static bool caerOutputNetUDPInit(caerModuleData moduleData) {
 	// Initialize loop and network handles.
 	retVal = uv_loop_init(&streams->loop);
 	UV_RET_CHECK(retVal, moduleData->moduleSubSystemString, "uv_loop_init",
-		free(udp); free(streams->address); free(streams));
+		free(udp); free(streams->address); free(streams); return (false));
 
 	retVal = uv_udp_init(&streams->loop, udp);
 	UV_RET_CHECK(retVal, moduleData->moduleSubSystemString, "uv_udp_init",
-		uv_loop_close(&streams->loop); free(udp); free(streams->address); free(streams));
+		uv_loop_close(&streams->loop); free(udp); free(streams->address); free(streams); return (false));
 
 	// Start.
 	if (!caerOutputCommonInit(moduleData, -1, streams)) {

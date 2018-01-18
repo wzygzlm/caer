@@ -336,6 +336,125 @@ void caerUnloadModuleLibrary(ModuleLibrary &moduleLibrary) {
 #endif
 }
 
+static void checkInputOutputStreamDefinitions(caerModuleInfo info) {
+	if (info->type == CAER_MODULE_INPUT) {
+		if (info->inputStreams != nullptr || info->inputStreamsSize != 0 || info->outputStreams == nullptr
+			|| info->outputStreamsSize == 0) {
+			throw std::domain_error("Wrong I/O event stream definitions for type INPUT.");
+		}
+	}
+	else if (info->type == CAER_MODULE_OUTPUT) {
+		if (info->inputStreams == nullptr || info->inputStreamsSize == 0 || info->outputStreams != nullptr
+			|| info->outputStreamsSize != 0) {
+			throw std::domain_error("Wrong I/O event stream definitions for type OUTPUT.");
+		}
+
+		// Also ensure that all input streams of an output module are marked read-only.
+		bool readOnlyError = false;
+
+		for (size_t i = 0; i < info->inputStreamsSize; i++) {
+			if (!info->inputStreams[i].readOnly) {
+				readOnlyError = true;
+				break;
+			}
+		}
+
+		if (readOnlyError) {
+			throw std::domain_error("Input event streams not marked read-only for type OUTPUT.");
+		}
+	}
+	else {
+		// CAER_MODULE_PROCESSOR
+		if (info->inputStreams == nullptr || info->inputStreamsSize == 0) {
+			throw std::domain_error("Wrong I/O event stream definitions for type PROCESSOR.");
+		}
+
+		// If no output streams are defined, then at least one input event
+		// stream must not be readOnly, so that there is modified data to output.
+		if (info->outputStreams == nullptr || info->outputStreamsSize == 0) {
+			bool readOnlyError = true;
+
+			for (size_t i = 0; i < info->inputStreamsSize; i++) {
+				if (!info->inputStreams[i].readOnly) {
+					readOnlyError = false;
+					break;
+				}
+			}
+
+			if (readOnlyError) {
+				throw std::domain_error(
+					"No output streams and all input streams are marked read-only for type PROCESSOR.");
+			}
+		}
+	}
+}
+
+/**
+ * Type must be either -1 or well defined (0-INT16_MAX).
+ * Number must be either -1 or well defined (1-INT16_MAX). Zero not allowed.
+ * The event stream array must be ordered by ascending type ID.
+ * For each type, only one definition can exist.
+ * If type is -1 (any), then number must also be -1; having a defined
+ * number in this case makes no sense (N of any type???), a special exception
+ * is made for the number 1 (1 of any type) with inputs, which can be useful.
+ * Also this must then be the only definition.
+ * If number is -1, then either the type is also -1 and this is the
+ * only event stream definition (same as rule above), OR the type is well
+ * defined and this is the only event stream definition for that type.
+ */
+static void checkInputStreamDefinitions(caerEventStreamIn inputStreams, size_t inputStreamsSize) {
+	for (size_t i = 0; i < inputStreamsSize; i++) {
+		// Check type range.
+		if (inputStreams[i].type < -1) {
+			throw std::domain_error("Input stream has invalid type value.");
+		}
+
+		// Check number range.
+		if (inputStreams[i].number < -1 || inputStreams[i].number == 0) {
+			throw std::domain_error("Input stream has invalid number value.");
+		}
+
+		// Check sorted array and only one definition per type; the two
+		// requirements together mean strict monotonicity for types.
+		if (i > 0 && inputStreams[i - 1].type >= inputStreams[i].type) {
+			throw std::domain_error("Input stream has invalid order of declaration or duplicates.");
+		}
+
+		// Check that any type is always together with any number or 1, and the
+		// only definition present in that case.
+		if (inputStreams[i].type == -1
+			&& ((inputStreams[i].number != -1 && inputStreams[i].number != 1) || inputStreamsSize != 1)) {
+			throw std::domain_error("Input stream has invalid any declaration.");
+		}
+	}
+}
+
+/**
+ * Type must be either -1 or well defined (0-INT16_MAX).
+ * The event stream array must be ordered by ascending type ID.
+ * For each type, only one definition can exist.
+ * If type is -1 (any), then this must then be the only definition.
+ */
+static void checkOutputStreamDefinitions(caerEventStreamOut outputStreams, size_t outputStreamsSize) {
+	// If type is any, must be the only definition.
+	if (outputStreamsSize == 1 && outputStreams[0].type == -1) {
+		return;
+	}
+
+	for (size_t i = 0; i < outputStreamsSize; i++) {
+		// Check type range.
+		if (outputStreams[i].type < 0) {
+			throw std::domain_error("Output stream has invalid type value.");
+		}
+
+		// Check sorted array and only one definition per type; the two
+		// requirements together mean strict monotonicity for types.
+		if (i > 0 && outputStreams[i - 1].type >= outputStreams[i].type) {
+			throw std::domain_error("Output stream has invalid order of declaration or duplicates.");
+		}
+	}
+}
+
 void caerUpdateModulesInformation() {
 	std::lock_guard<std::recursive_mutex> lock(glModuleData.modulePathsMutex);
 
@@ -378,25 +497,12 @@ void caerUpdateModulesInformation() {
 		throw std::runtime_error(exMsg.str());
 	}
 
-	// Got all available modules, expose them as a sorted list.
-	std::vector<std::string> modulePathsSorted;
-	for (const auto &modulePath : glModuleData.modulePaths) {
-		modulePathsSorted.push_back(modulePath.stem().string());
-	}
+	// Generate nodes for each module, with their in/out information as attributes.
+	// This also checks basic validity of the module's information.
+	auto iter = std::begin(glModuleData.modulePaths);
 
-	std::sort(modulePathsSorted.begin(), modulePathsSorted.end());
-
-	std::string modulesList;
-	for (const auto &modulePath : modulePathsSorted) {
-		modulesList += (modulePath + ",");
-	}
-	modulesList.pop_back(); // Remove trailing comma.
-
-	sshsNodeUpdateReadOnlyAttribute(modulesNode, "modulesListOptions", modulesList);
-
-	// Now generate nodes for each of them, with their in/out information as attributes.
-	for (const auto &modulePath : glModuleData.modulePaths) {
-		std::string moduleName = modulePath.stem().string();
+	while (iter != std::end(glModuleData.modulePaths)) {
+		std::string moduleName = iter->stem().string();
 
 		// Load library.
 		std::pair<ModuleLibrary, caerModuleInfo> mLoad;
@@ -407,6 +513,31 @@ void caerUpdateModulesInformation() {
 		catch (const std::exception &ex) {
 			boost::format exMsg = boost::format("Module '%s': %s") % moduleName % ex.what();
 			libcaer::log::log(libcaer::log::logLevel::ERROR, "Module", exMsg.str().c_str());
+
+			iter = glModuleData.modulePaths.erase(iter);
+			continue;
+		}
+
+		try {
+			// Check that the modules respect the basic I/O definition requirements.
+			checkInputOutputStreamDefinitions(mLoad.second);
+
+			// Check I/O event stream definitions for correctness.
+			if (mLoad.second->inputStreams != nullptr) {
+				checkInputStreamDefinitions(mLoad.second->inputStreams, mLoad.second->inputStreamsSize);
+			}
+
+			if (mLoad.second->outputStreams != nullptr) {
+				checkOutputStreamDefinitions(mLoad.second->outputStreams, mLoad.second->outputStreamsSize);
+			}
+		}
+		catch (const std::exception &ex) {
+			boost::format exMsg = boost::format("Module '%s': %s") % moduleName % ex.what();
+			libcaer::log::log(libcaer::log::logLevel::ERROR, "Module", exMsg.str().c_str());
+
+			caerUnloadModuleLibrary(mLoad.first);
+
+			iter = glModuleData.modulePaths.erase(iter);
 			continue;
 		}
 
@@ -460,5 +591,23 @@ void caerUpdateModulesInformation() {
 
 		// Done, unload library.
 		caerUnloadModuleLibrary(mLoad.first);
+
+		iter++;
 	}
+
+	// Got all available modules, expose them as a sorted list.
+	std::vector<std::string> modulePathsSorted;
+	for (const auto &modulePath : glModuleData.modulePaths) {
+		modulePathsSorted.push_back(modulePath.stem().string());
+	}
+
+	std::sort(modulePathsSorted.begin(), modulePathsSorted.end());
+
+	std::string modulesList;
+	for (const auto &modulePath : modulePathsSorted) {
+		modulesList += (modulePath + ",");
+	}
+	modulesList.pop_back(); // Remove trailing comma.
+
+	sshsNodeUpdateReadOnlyAttribute(modulesNode, "modulesListOptions", modulesList);
 }

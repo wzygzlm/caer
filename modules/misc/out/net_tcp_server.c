@@ -86,20 +86,20 @@ static bool caerOutputNetTCPServerInit(caerModuleData moduleData) {
 	// Initialize loop and network handles.
 	retVal = uv_loop_init(&streams->loop);
 	UV_RET_CHECK(retVal, moduleData->moduleSubSystemString, "uv_loop_init",
-		free(streams->server); free(streams->address); free(streams));
+		free(streams->server); free(streams->address); free(streams); return (false));
 
 	retVal = uv_tcp_init(&streams->loop, (uv_tcp_t *) streams->server);
 	UV_RET_CHECK(retVal, moduleData->moduleSubSystemString, "uv_tcp_init",
-		uv_loop_close(&streams->loop); free(streams->server); free(streams->address); free(streams));
+		uv_loop_close(&streams->loop); free(streams->server); free(streams->address); free(streams); return (false));
 
 	retVal = uv_tcp_bind((uv_tcp_t *) streams->server, streams->address, 0);
 	UV_RET_CHECK(retVal, moduleData->moduleSubSystemString, "uv_tcp_bind",
-		libuvCloseLoopHandles(&streams->loop); uv_loop_close(&streams->loop); free(streams->address); free(streams));
+		libuvCloseLoopHandles(&streams->loop); uv_loop_close(&streams->loop); free(streams->address); free(streams); return (false));
 
 	retVal = uv_listen(streams->server, sshsNodeGetShort(moduleData->moduleNode, "backlogSize"),
 		&caerOutputCommonOnServerConnection);
 	UV_RET_CHECK(retVal, moduleData->moduleSubSystemString, "uv_listen",
-		libuvCloseLoopHandles(&streams->loop); uv_loop_close(&streams->loop); free(streams->address); free(streams));
+		libuvCloseLoopHandles(&streams->loop); uv_loop_close(&streams->loop); free(streams->address); free(streams); return (false));
 
 	// Start.
 	if (!caerOutputCommonInit(moduleData, -1, streams)) {

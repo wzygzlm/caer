@@ -57,7 +57,7 @@ static const struct caer_visualizer_renderer_info rendererPolarityAndFrameEvents
 	&caerVisualizerRendererPolarityAndFrameEventsStateExit);
 
 const std::string caerVisualizerRendererListOptionsString =
-	"None,Polarity,Frame,IMU_6-axes,2D_Points,Spikes,Spikes_Raster_Plot,Polarity_and_Frames,Camera_pose";
+	"Polarity,Frame,IMU_6-axes,2D_Points,Spikes,Spikes_Raster_Plot,Polarity_and_Frames,Camera_pose";
 
 const struct caer_visualizer_renderer_info caerVisualizerRendererList[] = { { "None", nullptr }, rendererPolarityEvents,
 	rendererFrameEvents, rendererIMU6Events, rendererPoint2DEvents, rendererSpikeEvents, rendererSpikeEventsRaster,
@@ -514,7 +514,7 @@ static bool caerVisualizerRendererMatrix4x4EventsPose(caerVisualizerPublicState 
 		// invalidate events to clear plot
 		for (int32_t pn = 0; pn < NUMPACKETS; pn++) {
 			caerMatrix4x4Event thisEvent = caerMatrix4x4EventPacketGetEvent(memInt->mem, pn);
-			if(caerMatrix4x4EventIsValid(thisEvent)){
+			if (caerMatrix4x4EventIsValid(thisEvent)) {
 				caerMatrix4x4EventInvalidate(thisEvent, memInt->mem);
 			}
 		}
@@ -753,7 +753,7 @@ static bool caerVisualizerRendererMatrix4x4EventsPose(caerVisualizerPublicState 
 			 }else{
 			 sfml::Helpers::addPixelVertices(vertices, plotX, ((mm33*(-1))*(WORLD_Y)-(WORLD_Y/2))*scaleY, zoomFactor, sf::Color::Yellow, false);
 			 }*/
-		}// only valid events
+		}	// only valid events
 	}
 	state->renderWindow->draw(vertices.data(), vertices.size(), sf::Quads);
 

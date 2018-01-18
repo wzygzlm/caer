@@ -1,4 +1,56 @@
-Release 1.0.1 - XX.05.2017 - IN_DEVELOPMENT
+Release 1.1.0 - 05.12.2017
+INCOMPATIBLE CHANGES
+- Dynap-SE: biasing has been cleaned up, please use the functions
+  caerDynapseGetBiasCore() and caerDynapseSetBiasCore() from dynapse_utils.h
+  to get/set biases from other modules. No other functions to do this
+  are supported. The configuration path for biases changed to be more
+  clearly laid out and is now: 'bias/Ux/Cy/<BiasName>/'.
+  Also the software spike generator is now its own module, called
+  'softspikegen'. The 'fpgaspikegen' and 'poissonspikegen' modules have
+  been ported to the new modules system. The 'monitorneufilter' module is
+  now directly integrated as part of the main Dynap-SE device input module.
+- Modules: we are shifting to a SDK-like system. Most non-core modules
+  have been moved to a private repository. Please contact us for access.
+- Dependencies: requires libcaer 2.4.0. mini-xml is not needed anymore,
+  and libuv is only needed for the misc/out/ modules. Removal of this
+  dependency is tracked in issue #73. Also the Boost.iostreams package
+  is now required, in addition to system, filesystem and program_options.
+  The SLRE dependency in SSHS has also been removed in favor of std::regex.
+- License: changed license from GPL-2 to LGPL-2.1 to allow for closed
+  source plugins/modules.
+- Devices/Inputs: removed 'highestTimestamp' sourceInfo node attribute for
+  input devices and modules. It was not being used anywhere.
+
+NEW FEATURES
+- Documentation: added several XML configuration examples in docs/.
+- Modules: added 'description' field to 'struct caer_module_info'.
+- Modules: modules can now wait, using caerMainloopGetModuleInputIDs(),
+  for their inputs to be ready.
+- SSHS: rewritten in C++, added sshsAttributeReadModifier callback
+  to influence values returned when reading attributes.
+- SSHS: added sshsNodeCreateAttributePollTime(), sshsNodeCreateAttributeListOptions()
+  and sshsNodeCreateAttributeFileChooser() functions to create
+  informative attributes, to be used by GUIs and clients.
+- Visualizer: rewritten to use C++ and the SFML libraries. This now
+  works on MacOS X too. Fixes issue #92.
+- mainloop.cpp: order modules in such a way to minimize event packets
+  needing to be copied around (performance improvement).
+- mainloop.h: added caerMainloopGetModuleNode() function.
+- netparser: network parser module for Dynap-SE.
+
+BUG FIXES
+- mainloop.cpp: fixed various issues with module order generation.
+  Fixes issues #121, #112, #107.
+- sshs_node.cpp: fixed various memory problems, issues #120, #119,
+  #118, #117, and #93.
+- Boost: improved compatibility with older 1.5X versions.
+- module.cpp: changed separation character for multiple modules search
+  paths in the 'modulesSearchPath' attribute to '|' instead of ':'.
+  This is needed for Windows compatibility.
+- Input modules: correctly recognize Dynap-SE files, fixes issue #128.
+
+
+Release 1.0.1 - 03.07.2017 (ChangeLog incomplete)
 INCOMPATIBLE CHANGES
 - Visualizer: cannot work on MacOS X due to how the Allegro5 library
   implementes initialization by overriding main(). Trying to enable

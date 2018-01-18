@@ -67,20 +67,20 @@ static bool caerOutputUnixSocketServerInit(caerModuleData moduleData) {
 	// Initialize loop and network handles.
 	int retVal = uv_loop_init(&streams->loop);
 	UV_RET_CHECK(retVal, moduleData->moduleSubSystemString, "uv_loop_init",
-		free(streams->server); free(streams->address); free(streams));
+		free(streams->server); free(streams->address); free(streams); return (false));
 
 	retVal = uv_pipe_init(&streams->loop, (uv_pipe_t *) streams->server, false);
 	UV_RET_CHECK(retVal, moduleData->moduleSubSystemString, "uv_pipe_init",
-		uv_loop_close(&streams->loop); free(streams->server); free(streams->address); free(streams));
+		uv_loop_close(&streams->loop); free(streams->server); free(streams->address); free(streams); return (false));
 
 	retVal = uv_pipe_bind((uv_pipe_t *) streams->server, streams->address);
 	UV_RET_CHECK(retVal, moduleData->moduleSubSystemString, "uv_pipe_bind",
-		libuvCloseLoopHandles(&streams->loop); uv_loop_close(&streams->loop); free(streams->address); free(streams));
+		libuvCloseLoopHandles(&streams->loop); uv_loop_close(&streams->loop); free(streams->address); free(streams); return (false));
 
 	retVal = uv_listen(streams->server, sshsNodeGetShort(moduleData->moduleNode, "backlogSize"),
 		&caerOutputCommonOnServerConnection);
 	UV_RET_CHECK(retVal, moduleData->moduleSubSystemString, "uv_listen",
-		libuvCloseLoopHandles(&streams->loop); uv_loop_close(&streams->loop); free(streams->address); free(streams));
+		libuvCloseLoopHandles(&streams->loop); uv_loop_close(&streams->loop); free(streams->address); free(streams); return (false));
 
 	// Start.
 	if (!caerOutputCommonInit(moduleData, -1, streams)) {

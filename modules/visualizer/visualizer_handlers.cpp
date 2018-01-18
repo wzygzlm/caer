@@ -11,7 +11,7 @@
 static void caerVisualizerEventHandlerNeuronMonitor(caerVisualizerPublicState state, const sf::Event &event);
 static void caerVisualizerEventHandlerInput(caerVisualizerPublicState state, const sf::Event &event);
 
-const std::string caerVisualizerEventHandlerListOptionsString = "None,Neuron_Monitor,Input";
+const std::string caerVisualizerEventHandlerListOptionsString = "Neuron_Monitor,Input";
 
 const struct caer_visualizer_event_handler_info caerVisualizerEventHandlerList[] = { { "None", nullptr }, {
 	"Neuron_Monitor", &caerVisualizerEventHandlerNeuronMonitor }, { "Input", &caerVisualizerEventHandlerInput } };
