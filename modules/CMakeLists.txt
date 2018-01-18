@@ -15,6 +15,7 @@ ADD_SUBDIRECTORY(poissonspikegen)
 ADD_SUBDIRECTORY(reservoir)
 ADD_SUBDIRECTORY(netparser)
 ADD_SUBDIRECTORY(nullhopinterface)
+ADD_SUBDIRECTORY(arduinocnt)
 
 # Support private modules that don't get considered for commit,
 # by reserving a directory called PrivateModules with its own
