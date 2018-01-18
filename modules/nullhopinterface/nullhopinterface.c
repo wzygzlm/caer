@@ -98,7 +98,7 @@ static void caerNullHopWrapperRun(caerModuleData moduleData, caerEventPacketCont
 	state->detThreshold = sshsNodeGetDouble(moduleData->moduleNode,
 			"detThreshold");
 
-	zs_driver_classify_image(state->cpp_class, frameIn);
+	int res = zs_driver_classify_image(state->cpp_class, frameIn);
 
 	// get output and save it into the output stream packet
 	*out = caerEventPacketContainerAllocate(1);
@@ -108,8 +108,15 @@ static void caerNullHopWrapperRun(caerModuleData moduleData, caerEventPacketCont
 	caerPoint1DEventPacket solution = caerPoint1DEventPacketAllocate(1, moduleData->moduleID,
 		caerEventPacketHeaderGetEventTSOverflow(&frameIn->packetHeader));
 
-	//need to assign class to point1d
-
+	// get first event empty allocated
+	caerPoint1DEvent point = caerPoint1DEventPacketGetEvent(solution, 0);
+	// now assign class to point
+ 	caerPoint1DEventSetX(point, res);	
+	// set timestamp, of first frame in
+	caerFrameEvent this_frame = caerFrameEventPacketGetEvent(frameIn, 0);
+	caerPoint1DEventSetTimestamp(point, caerFrameEventGetTimestamp(this_frame) );
+	// validate
+	caerPoint1DEventValidate(point, solution);
 	// not set eventpacket
 	caerEventPacketContainerSetEventPacket(*out, 0, (caerEventPacketHeader) solution);
 

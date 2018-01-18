@@ -183,7 +183,7 @@ static void caerArduinoCNTRun(caerModuleData moduleData, caerEventPacketContaine
 	ASFilterState state = moduleData->moduleState;
 
 	CAER_POINT1D_ITERATOR_ALL_START(result)
-		int this_res = caerPoint1DEventGet(caerPoint1DIteratorElement);
+		int this_res = caerPoint1DEventGetX(caerPoint1DIteratorElement);
 		atomic_store(&state->decision[state->pos], this_res);
 		if (state->pos == AVERAGEOVER) {
 			state->pos = 0;
