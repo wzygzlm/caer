@@ -1,9 +1,9 @@
-#include "lib/utils.h"
-#include "base/config.h"
-#include "base/config_server.h"
-#include "base/log.h"
-#include "base/mainloop.h"
-#include "base/misc.h"
+#include "caer-sdk/utils.h"
+#include "config.h"
+#include "config_server.h"
+#include "log.h"
+#include "mainloop.h"
+#include "misc.h"
 
 int main(int argc, char **argv) {
 	// Initialize config storage from file, support command-line overrides.

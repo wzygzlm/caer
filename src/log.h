@@ -8,7 +8,7 @@
 #ifndef LOG_H_
 #define LOG_H_
 
-#include "lib/utils.h"
+#include "caer-sdk/utils.h"
 
 #ifdef __cplusplus
 extern "C" {

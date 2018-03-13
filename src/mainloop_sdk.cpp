@@ -1,6 +1,6 @@
 #include "mainloop.h"
-#include "lib/utils.h"
-#include "lib/cross/pathmax.h"
+#include "caer-sdk/utils.h"
+#include "caer-sdk/cross/pathmax.h"
 #include <csignal>
 
 #include <regex>

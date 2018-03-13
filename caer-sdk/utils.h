@@ -4,14 +4,14 @@
 // Common includes, useful for everyone.
 #include <libcaer/libcaer.h>
 #include <libcaer/events/packetContainer.h>
-#include "lib/sshs/sshs.h"
+#include "sshs/sshs.h"
 
 // Suppress unused argument warnings, if needed
 #define UNUSED_ARGUMENT(arg) (void)(arg)
 
 #ifdef __cplusplus
 #include <libcaercpp/libcaer.hpp>
-#include "lib/sshs/sshs.hpp"
+#include "sshs/sshs.hpp"
 #include <algorithm>
 #include <vector>
 

@@ -2,8 +2,8 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-#include "lib/cross/portable_misc.h"
-#include "lib/cross/pathmax.h"
+#include "caer-sdk/cross/portable_misc.h"
+#include "caer-sdk/cross/pathmax.h"
 
 int CAER_LOG_FILE_FD = -1;
 

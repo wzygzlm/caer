@@ -1,10 +1,11 @@
 SET(CAER_SRC_FILES
 	log.c
-	misc.c)
+	misc.c
 	config.cpp
 	config_server.cpp
 	module.cpp
-	mainloop.cpp)
+	mainloop.cpp
+	main.cpp)
 
 SET(LIBCAERSDK_SRC_FILES
 	module_sdk.cpp
@@ -22,7 +23,7 @@ SET_TARGET_PROPERTIES(caersdk
     VERSION ${PROJECT_VERSION}
 )
 
-TARGET_LINK_LIBRARIES(caersdk ${LIBCAERSDK_LIBS})
+TARGET_LINK_LIBRARIES(caersdk ${CAER_LIBS})
 
 IF (OS_WINDOWS)
     INSTALL(TARGETS caersdk RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})

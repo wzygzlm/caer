@@ -8,7 +8,7 @@
 #ifndef MISC_H_
 #define MISC_H_
 
-#include "lib/utils.h"
+#include "caer-sdk/utils.h"
 
 #ifdef __cplusplus
 extern "C" {

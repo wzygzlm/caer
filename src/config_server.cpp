@@ -1,7 +1,7 @@
 #include "config_server.h"
 #include "mainloop.h"
-#include "lib/cross/threads_ext.h"
-#include "lib/cross/pathmax.h"
+#include "caer-sdk/cross/threads_ext.h"
+#include "caer-sdk/cross/pathmax.h"
 
 #include <atomic>
 #include <thread>

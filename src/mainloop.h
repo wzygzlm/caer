@@ -8,7 +8,7 @@
 #ifndef MAINLOOP_H_
 #define MAINLOOP_H_
 
-#include "lib/mainloop.h"
+#include "caer-sdk/mainloop.h"
 #include "module.h"
 
 #include <unordered_map>
