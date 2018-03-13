@@ -1,14 +1,17 @@
 SET(CAER_SRC_FILES
-	base/log.c
-	base/misc.c)
-	base/config.cpp
-	base/config_server.cpp
-	base/module.cpp
-	base/mainloop.cpp)
+	log.c
+	misc.c)
+	config.cpp
+	config_server.cpp
+	module.cpp
+	mainloop.cpp)
 
 SET(LIBCAERSDK_SRC_FILES
-	base/module_sdk.cpp
-	base/mainloop_sdk.cpp)
+	module_sdk.cpp
+	mainloop_sdk.cpp
+    sshs/sshs.cpp
+    sshs/sshs_helper.cpp
+    sshs/sshs_node.cpp)
 
 # Compile SDK library.
 ADD_LIBRARY(caersdk SHARED ${LIBCAERSDK_SRC_FILES})
@@ -28,6 +31,6 @@ ELSE()
 ENDIF()
 
 # Compile main caer executable.
-ADD_EXECUTABLE(caer-bin ${CAER_SRC_FILES} ${LIBCAERSDK_SRC_FILES})
+ADD_EXECUTABLE(caer-bin ${CAER_SRC_FILES})
 TARGET_LINK_LIBRARIES(caer-bin ${CAER_LIBS} caersdk)
 INSTALL(TARGETS caer-bin DESTINATION ${CMAKE_INSTALL_BINDIR})
