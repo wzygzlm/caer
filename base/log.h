@@ -8,7 +8,7 @@
 #ifndef LOG_H_
 #define LOG_H_
 
-#include "main.h"
+#include "lib/utils.h"
 
 #ifdef __cplusplus
 extern "C" {

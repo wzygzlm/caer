@@ -1,6 +1,5 @@
-#include "main.h"
+#include "lib/utils.h"
 #include "base/config_server.h"
-#include "ext/sshs/sshs.h"
 #include "utils/ext/linenoise-ng/linenoise.h"
 #include <iostream>
 #include <boost/filesystem.hpp>

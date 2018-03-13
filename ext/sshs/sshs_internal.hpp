@@ -2,7 +2,7 @@
 #define SSHS_INTERNAL_HPP_
 
 // Implementation relevant common includes.
-#include "sshs.h"
+#include "lib/sshs/sshs.h"
 #include <cstring>
 #include <string>
 #include <stdexcept>

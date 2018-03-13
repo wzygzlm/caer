@@ -246,12 +246,6 @@ ENDIF()
 SET(CAER_INCDIRS ${CAER_INCDIRS} ${CMAKE_SOURCE_DIR}/)
 SET(CAER_LIBDIRS ${CAER_LIBDIRS} ${CMAKE_SOURCE_DIR}/)
 
-# Windows needs extra linker information for DLL plugins to work.
-# Part 1: tell linker to generate special import library when compiling caer-bin.exe.
-IF (OS_WINDOWS)
-	SET(CMAKE_EXE_LINKER_FLAGS "-Wl,--out-implib,libcaerbinsupport.a")
-ENDIF()
-
 # Add all core source files and libraries.
 ADD_SUBDIRECTORY(base)
 ADD_SUBDIRECTORY(ext)
@@ -261,25 +255,28 @@ INCLUDE_DIRECTORIES(${CAER_INCDIRS})
 LINK_DIRECTORIES(${CAER_LIBDIRS})
 
 # Compile main caer executable.
-ADD_EXECUTABLE(caer-bin ${CAER_C_SRC_FILES} ${CAER_CXX_SRC_FILES} main.cpp)
+ADD_EXECUTABLE(caer-bin ${CAER_C_SRC_FILES} ${CAER_CXX_SRC_FILES} ${LIBCAERSUPPORT_SRC_FILES} main.cpp)
 TARGET_LINK_LIBRARIES(caer-bin ${CAER_C_LIBS} ${CAER_CXX_LIBS})
 INSTALL(TARGETS caer-bin DESTINATION ${CMAKE_INSTALL_BINDIR})
 
-# Windows needs extra linker information for DLL plugins to work.
-# Part 2: tell DLL plugins to use this special import library.
+# Compile support library.
+ADD_LIBRARY(caersupport SHARED ${LIBCAERSUPPORT_SRC_FILES})
+
+SET_TARGET_PROPERTIES(caersupport
+	PROPERTIES
+	SOVERSION ${PROJECT_VERSION_MAJOR}
+	VERSION ${PROJECT_VERSION}
+)
+
+TARGET_LINK_LIBRARIES(caersupport ${LIBCAERSUPPORT_LIBS})
+
 IF (OS_WINDOWS)
-	SET(CAER_C_LIBS ${CAER_C_LIBS} caerbinsupport)
-	SET(CAER_CXX_LIBS ${CAER_CXX_LIBS} caerbinsupport)
+	INSTALL(TARGETS caersupport RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
+ELSE()
+	INSTALL(TARGETS caersupport DESTINATION ${CMAKE_INSTALL_LIBDIR})
 ENDIF()
 
-# Mac OS X's linker also needs to be told that undefined
-# references in the plugins are fine.
-IF (OS_MACOSX)
-	SET(CMAKE_SHARED_LINKER_FLAGS "-Wl,-undefined,dynamic_lookup")
-ENDIF()
-
-# Compile extra modules and utilities.
-ADD_SUBDIRECTORY(modules)
+# Compile extra utilities.
 ADD_SUBDIRECTORY(utils)
 
 # Print info summary for debug purposes

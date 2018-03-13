@@ -1,7 +1,7 @@
 #ifndef CONFIG_SERVER_H_
 #define CONFIG_SERVER_H_
 
-#include "main.h"
+#include "lib/utils.h"
 
 #ifdef __cplusplus
 extern "C" {
