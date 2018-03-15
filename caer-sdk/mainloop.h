@@ -3,8 +3,8 @@
  * Modules can use this and link to it.
  */
 
-#ifndef LIB_MAINLOOP_H_
-#define LIB_MAINLOOP_H_
+#ifndef CAER_SDK_MAINLOOP_H_
+#define CAER_SDK_MAINLOOP_H_
 
 #include "module.h"
 #include "utils.h"
@@ -34,4 +34,4 @@ void caerMainloopResetProcessors(int16_t sourceID);
 }
 #endif
 
-#endif /* LIB_MAINLOOP_H_ */
+#endif /* CAER_SDK_MAINLOOP_H_ */

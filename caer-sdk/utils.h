@@ -1,5 +1,5 @@
-#ifndef LIB_UTILS_H_
-#define LIB_UTILS_H_
+#ifndef CAER_SDK_UTILS_H_
+#define CAER_SDK_UTILS_H_
 
 // Common includes, useful for everyone.
 #include <libcaer/libcaer.h>
@@ -63,4 +63,4 @@ static bool vectorDetectDuplicates(std::vector<T> &vec) {
 
 #endif
 
-#endif /* LIB_UTILS_H_ */
+#endif /* CAER_SDK_UTILS_H_ */

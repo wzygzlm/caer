@@ -1,5 +1,10 @@
-#ifndef LIB_MODULE_H_
-#define LIB_MODULE_H_
+/*
+ * Public header for support library.
+ * Modules can use this and link to it.
+ */
+
+#ifndef CAER_SDK_MODULE_H_
+#define CAER_SDK_MODULE_H_
 
 #include "utils.h"
 
@@ -126,7 +131,7 @@ struct caer_module_info {
 
 typedef struct caer_module_info const * caerModuleInfo;
 
-// Functions to be implemented:
+// Function to be implemented by modules:
 caerModuleInfo caerModuleGetInfo(void);
 
 // Functions available to call:
@@ -141,4 +146,4 @@ void caerModuleConfigDefaultListener(sshsNode node, void *userData, enum sshs_no
 }
 #endif
 
-#endif /* LIB_MODULE_H_ */
+#endif /* CAER_SDK_MODULE_H_ */
