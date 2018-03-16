@@ -183,11 +183,22 @@ struct MainloopData {
 	std::vector<caerEventPacketHeader> eventPackets;
 };
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/*
+ * Run global mainloop (data processing).
+ */
 void caerMainloopRun(void);
 
 /**
  * Only for internal usage! Do not reset the mainloop pointer!
  */
 void caerMainloopSDKLibInit(MainloopData *setMainloopPtr);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* MAINLOOP_H_ */
