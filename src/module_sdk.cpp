@@ -1,19 +1,4 @@
-/*
- * module.c
- *
- *  Created on: Dec 14, 2013
- *      Author: chtekk
- */
-
-#include "module.h"
-
-#include <regex>
-#include <thread>
-#include <mutex>
-
-#include <boost/filesystem.hpp>
-#include <boost/format.hpp>
-#include <boost/algorithm/string.hpp>
+#include "caer-sdk/module.h"
 
 bool caerModuleSetSubSystemString(caerModuleData moduleData, const char *subSystemString) {
 	// Allocate new memory for new string.

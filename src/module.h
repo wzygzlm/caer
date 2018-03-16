@@ -1,10 +1,3 @@
-/*
- * module.h
- *
- *  Created on: Dec 14, 2013
- *      Author: chtekk
- */
-
 #ifndef MODULE_H_
 #define MODULE_H_
 

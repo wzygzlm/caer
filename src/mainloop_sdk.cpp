@@ -1,27 +1,15 @@
 #include "mainloop.h"
-#include "caer-sdk/utils.h"
-#include "caer-sdk/cross/pathmax.h"
-#include <csignal>
 
-#include <regex>
-#include <unordered_map>
-#include <unordered_set>
-#include <queue>
-#include <sstream>
-#include <iostream>
-#include <chrono>
-#include <thread>
-#include <mutex>
+static MainloopData *glMainloopDataPtr;
 
-#include <boost/filesystem.hpp>
-#include <boost/range/join.hpp>
-#include <boost/format.hpp>
-#include <boost/algorithm/string.hpp>
+void caerMainloopSDKLibInit(MainloopData *setMainloopPtr) {
+	glMainloopDataPtr = setMainloopPtr;
+}
 
 void caerMainloopDataNotifyIncrease(void *p) {
 	UNUSED_ARGUMENT(p);
 
-	glMainloopData.dataAvailable.fetch_add(1, std::memory_order_release);
+	glMainloopDataPtr->dataAvailable.fetch_add(1, std::memory_order_release);
 }
 
 void caerMainloopDataNotifyDecrease(void *p) {
@@ -29,19 +17,19 @@ void caerMainloopDataNotifyDecrease(void *p) {
 
 	// No special memory order for decrease, because the acquire load to even start running
 	// through a mainloop already synchronizes with the release store above.
-	glMainloopData.dataAvailable.fetch_sub(1, std::memory_order_relaxed);
+	glMainloopDataPtr->dataAvailable.fetch_sub(1, std::memory_order_relaxed);
 }
 
 bool caerMainloopModuleExists(int16_t id) {
-	return (glMainloopData.modules.count(id) == 1);
+	return (glMainloopDataPtr->modules.count(id) == 1);
 }
 
 bool caerMainloopModuleIsType(int16_t id, enum caer_module_type type) {
-	return (glMainloopData.modules.at(id).libraryInfo->type == type);
+	return (glMainloopDataPtr->modules.at(id).libraryInfo->type == type);
 }
 
 bool caerMainloopStreamExists(int16_t sourceId, int16_t typeId) {
-	return (findBool(glMainloopData.streams.begin(), glMainloopData.streams.end(), ActiveStreams(sourceId, typeId)));
+	return (findBool(glMainloopDataPtr->streams.begin(), glMainloopDataPtr->streams.end(), ActiveStreams(sourceId, typeId)));
 }
 
 int16_t *caerMainloopGetModuleInputIDs(int16_t id, size_t *inputsSize) {
@@ -56,7 +44,7 @@ int16_t *caerMainloopGetModuleInputIDs(int16_t id, size_t *inputsSize) {
 		return (nullptr);
 	}
 
-	size_t inDefSize = glMainloopData.modules.at(id).inputDefinition.size();
+	size_t inDefSize = glMainloopDataPtr->modules.at(id).inputDefinition.size();
 
 	int16_t *inputs = (int16_t *) malloc(inDefSize * sizeof(int16_t));
 	if (inputs == nullptr) {
@@ -64,7 +52,7 @@ int16_t *caerMainloopGetModuleInputIDs(int16_t id, size_t *inputsSize) {
 	}
 
 	size_t idx = 0;
-	for (auto inDef : glMainloopData.modules.at(id).inputDefinition) {
+	for (auto inDef : glMainloopDataPtr->modules.at(id).inputDefinition) {
 		inputs[idx++] = inDef.first;
 	}
 
@@ -75,7 +63,7 @@ int16_t *caerMainloopGetModuleInputIDs(int16_t id, size_t *inputsSize) {
 }
 
 static inline caerModuleData caerMainloopGetSourceData(int16_t sourceID) {
-	caerModuleData moduleData = glMainloopData.modules.at(sourceID).runtimeData;
+	caerModuleData moduleData = glMainloopDataPtr->modules.at(sourceID).runtimeData;
 	if (moduleData == nullptr) {
 		return (nullptr);
 	}
@@ -126,7 +114,7 @@ void *caerMainloopGetSourceState(int16_t sourceID) {
 }
 
 sshsNode caerMainloopGetModuleNode(int16_t sourceID) {
-	caerModuleData moduleData = glMainloopData.modules.at(sourceID).runtimeData;
+	caerModuleData moduleData = glMainloopDataPtr->modules.at(sourceID).runtimeData;
 	if (moduleData == nullptr) {
 		return (nullptr);
 	}
@@ -135,7 +123,7 @@ sshsNode caerMainloopGetModuleNode(int16_t sourceID) {
 }
 
 void caerMainloopResetInputs(int16_t sourceID) {
-	for (auto &m : glMainloopData.globalExecution) {
+	for (auto &m : glMainloopDataPtr->globalExecution) {
 		if (m.get().libraryInfo->type == CAER_MODULE_INPUT) {
 			m.get().runtimeData->doReset.store(sourceID);
 		}
@@ -143,7 +131,7 @@ void caerMainloopResetInputs(int16_t sourceID) {
 }
 
 void caerMainloopResetOutputs(int16_t sourceID) {
-	for (auto &m : glMainloopData.globalExecution) {
+	for (auto &m : glMainloopDataPtr->globalExecution) {
 		if (m.get().libraryInfo->type == CAER_MODULE_OUTPUT) {
 			m.get().runtimeData->doReset.store(sourceID);
 		}
@@ -151,7 +139,7 @@ void caerMainloopResetOutputs(int16_t sourceID) {
 }
 
 void caerMainloopResetProcessors(int16_t sourceID) {
-	for (auto &m : glMainloopData.globalExecution) {
+	for (auto &m : glMainloopDataPtr->globalExecution) {
 		if (m.get().libraryInfo->type == CAER_MODULE_PROCESSOR) {
 			m.get().runtimeData->doReset.store(sourceID);
 		}

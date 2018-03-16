@@ -1,10 +1,3 @@
-/*
- * mainloop.h
- *
- *  Created on: Dec 9, 2013
- *      Author: chtekk
- */
-
 #ifndef MAINLOOP_H_
 #define MAINLOOP_H_
 
@@ -178,7 +171,7 @@ struct ActiveStreams {
 	}
 };
 
-static struct {
+struct MainloopData {
 	sshsNode configNode;
 	atomic_bool systemRunning;
 	atomic_bool running;
@@ -188,8 +181,13 @@ static struct {
 	std::vector<ActiveStreams> streams;
 	std::vector<std::reference_wrapper<ModuleInfo>> globalExecution;
 	std::vector<caerEventPacketHeader> eventPackets;
-} glMainloopData;
+};
 
 void caerMainloopRun(void);
+
+/**
+ * Only for internal usage! Do not reset the mainloop pointer!
+ */
+void caerMainloopSDKLibInit(MainloopData *setMainloopPtr);
 
 #endif /* MAINLOOP_H_ */

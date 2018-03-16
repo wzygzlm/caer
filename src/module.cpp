@@ -1,10 +1,3 @@
-/*
- * module.c
- *
- *  Created on: Dec 14, 2013
- *      Author: chtekk
- */
-
 #include "module.h"
 
 #include <regex>

@@ -36,6 +36,9 @@
 #include <libcaercpp/libcaer.hpp>
 using namespace libcaer::log;
 
+// MAINLOOP DATA GLOBAL VARIABLE.
+static MainloopData glMainloopData;
+
 static int caerMainloopRunner();
 static void printDebugInformation();
 static void caerMainloopSignalHandler(int signal);
@@ -47,6 +50,9 @@ static void caerModulesUpdateInformation(sshsNode node, void *userData, enum ssh
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
 
 void caerMainloopRun(void) {
+	// Setup internal mainloop pointer for public support library.
+	caerMainloopSDKLibInit(&glMainloopData);
+
 	// Install signal handler for global shutdown.
 #if defined(OS_WINDOWS)
 	if (signal(SIGTERM, &caerMainloopSignalHandler) == SIG_ERR) {
