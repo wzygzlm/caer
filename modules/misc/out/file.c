@@ -1,9 +1,7 @@
-#include "main.h"
-#include "base/mainloop.h"
-#include "base/module.h"
+#include "caer-sdk/mainloop.h"
 #include "output_common.h"
-#include "ext/portable_misc.h"
-#include "ext/pathmax.h"
+#include "caer-sdk/cross/portable_misc.h"
+#include "caer-sdk/cross/pathmax.h"
 #include <fcntl.h>
 #include <time.h>
 

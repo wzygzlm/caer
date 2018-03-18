@@ -1,15 +1,15 @@
 #ifndef INPUT_COMMON_H_
 #define INPUT_COMMON_H_
 
-#include "base/module.h"
-#include "modules/misc/inout_common.h"
+#include "caer-sdk/module.h"
+#include "../inout_common.h"
 #include "ext/buffers.h"
 #include "ext/uthash/utarray.h"
 #include <libcaer/ringbuffer.h>
 #include <unistd.h>
 
 #ifdef HAVE_PTHREADS
-#include "ext/c11threads_posix.h"
+#include "caer-sdk/cross/c11threads_posix.h"
 #endif
 
 struct input_common_header_info {

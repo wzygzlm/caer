@@ -67,8 +67,8 @@
  */
 
 #include "output_common.h"
-#include "base/mainloop.h"
-#include "ext/portable_misc.h"
+#include "caer-sdk/mainloop.h"
+#include "caer-sdk/cross/portable_misc.h"
 #include "ext/buffers.h"
 #include "ext/nets.h"
 

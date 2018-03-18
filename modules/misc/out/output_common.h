@@ -1,13 +1,13 @@
 #ifndef OUTPUT_COMMON_H_
 #define OUTPUT_COMMON_H_
 
-#include "base/module.h"
-#include "modules/misc/inout_common.h"
+#include "caer-sdk/module.h"
+#include "../inout_common.h"
 #include "ext/libuv.h"
 #include <libcaer/ringbuffer.h>
 
 #ifdef HAVE_PTHREADS
-#include "ext/c11threads_posix.h"
+#include "caer-sdk/cross/c11threads_posix.h"
 #endif
 
 #define MAX_OUTPUT_RINGBUFFER_GET 10

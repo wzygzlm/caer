@@ -1,6 +1,4 @@
-#include "main.h"
-#include "base/mainloop.h"
-#include "base/module.h"
+#include "caer-sdk/mainloop.h"
 #include "input_common.h"
 #include <sys/socket.h>
 #include <arpa/inet.h>

@@ -1,94 +1,81 @@
-IF (NOT OUTPUT_FILE)
-	SET(OUTPUT_FILE 0 CACHE BOOL "Enable the file output module")
-ENDIF()
+# TODO: Currently use libuv for output support.
+PKG_CHECK_MODULES(LIBUV REQUIRED libuv>=1.7.5)
 
-IF (NOT OUTPUT_NETWORK)
-	SET(OUTPUT_NETWORK 0 CACHE BOOL "Enable the network output modules (TCP server, TCP, UDP, UnixSockets)")
-ENDIF()
+SET(OUTPUT_INCDIRS ${CAER_INCDIRS} ${LIBUV_INCLUDE_DIRS})
+SET(OUTPUT_LIBDIRS ${CAER_LIBDIRS} ${LIBUV_LIBRARY_DIRS})
+SET(OUTPUT_LIBS ${CAER_LIBS} ${LIBUV_LIBRARIES})
 
-IF (OUTPUT_FILE OR OUTPUT_NETWORK)
-	# Currently use libuv for output support.
-	PKG_CHECK_MODULES(LIBUV REQUIRED libuv>=1.7.5)
+INCLUDE_DIRECTORIES(${OUTPUT_INCDIRS})
+LINK_DIRECTORIES(${OUTPUT_LIBDIRS})
 
-	SET(OUTPUT_INCDIRS ${CAER_INCDIRS} ${LIBUV_INCLUDE_DIRS})
-	SET(OUTPUT_LIBDIRS ${CAER_LIBDIRS} ${LIBUV_LIBRARY_DIRS})
-	SET(OUTPUT_LIBS ${CAER_C_LIBS} ${LIBUV_LIBRARIES})
+# FILE
+ADD_LIBRARY(output_file SHARED output_common.c file.c)
 
-	INCLUDE_DIRECTORIES(${OUTPUT_INCDIRS})
-	LINK_DIRECTORIES(${OUTPUT_LIBDIRS})
-ENDIF()
+SET_TARGET_PROPERTIES(output_file
+	PROPERTIES
+	PREFIX "caer_"
+)
 
-IF (OUTPUT_FILE)
-	ADD_LIBRARY(output_file SHARED output_common.c file.c)
+TARGET_LINK_LIBRARIES(output_file ${OUTPUT_LIBS})
 
-	SET_TARGET_PROPERTIES(output_file
-		PROPERTIES
-		PREFIX "caer_"
-	)
+INSTALL(TARGETS output_file DESTINATION ${CM_SHARE_DIR})
 
-	TARGET_LINK_LIBRARIES(output_file ${OUTPUT_LIBS})
+# NET_TCP_SERVER
+ADD_LIBRARY(output_net_tcp_server SHARED output_common.c net_tcp_server.c)
 
-	INSTALL(TARGETS output_file DESTINATION ${CM_SHARE_DIR})
-ENDIF()
+SET_TARGET_PROPERTIES(output_net_tcp_server
+	PROPERTIES
+	PREFIX "caer_"
+)
 
-IF (OUTPUT_NETWORK)
-	# NET_TCP_SERVER
-	ADD_LIBRARY(output_net_tcp_server SHARED output_common.c net_tcp_server.c)
+TARGET_LINK_LIBRARIES(output_net_tcp_server ${OUTPUT_LIBS})
 
-	SET_TARGET_PROPERTIES(output_net_tcp_server
-		PROPERTIES
-		PREFIX "caer_"
-	)
+INSTALL(TARGETS output_net_tcp_server DESTINATION ${CM_SHARE_DIR})
 
-	TARGET_LINK_LIBRARIES(output_net_tcp_server ${OUTPUT_LIBS})
+# NET_TCP_CLIENT
+ADD_LIBRARY(output_net_tcp_client SHARED output_common.c net_tcp.c)
 
-	INSTALL(TARGETS output_net_tcp_server DESTINATION ${CM_SHARE_DIR})
+SET_TARGET_PROPERTIES(output_net_tcp_client
+	PROPERTIES
+	PREFIX "caer_"
+)
 
-	# NET_TCP_CLIENT
-	ADD_LIBRARY(output_net_tcp_client SHARED output_common.c net_tcp.c)
+TARGET_LINK_LIBRARIES(output_net_tcp_client ${OUTPUT_LIBS})
 
-	SET_TARGET_PROPERTIES(output_net_tcp_client
-		PROPERTIES
-		PREFIX "caer_"
-	)
+INSTALL(TARGETS output_net_tcp_client DESTINATION ${CM_SHARE_DIR})
 
-	TARGET_LINK_LIBRARIES(output_net_tcp_client ${OUTPUT_LIBS})
+# NET_UDP
+ADD_LIBRARY(output_net_udp SHARED output_common.c net_udp.c)
 
-	INSTALL(TARGETS output_net_tcp_client DESTINATION ${CM_SHARE_DIR})
+SET_TARGET_PROPERTIES(output_net_udp
+	PROPERTIES
+	PREFIX "caer_"
+)
 
-	# NET_UDP
-	ADD_LIBRARY(output_net_udp SHARED output_common.c net_udp.c)
+TARGET_LINK_LIBRARIES(output_net_udp ${OUTPUT_LIBS})
 
-	SET_TARGET_PROPERTIES(output_net_udp
-		PROPERTIES
-		PREFIX "caer_"
-	)
+INSTALL(TARGETS output_net_udp DESTINATION ${CM_SHARE_DIR})
 
-	TARGET_LINK_LIBRARIES(output_net_udp ${OUTPUT_LIBS})
+# NET_SOCKET_SERVER
+ADD_LIBRARY(output_net_socket_server SHARED output_common.c unix_socket_server.c)
 
-	INSTALL(TARGETS output_net_udp DESTINATION ${CM_SHARE_DIR})
+SET_TARGET_PROPERTIES(output_net_socket_server
+	PROPERTIES
+	PREFIX "caer_"
+)
 
-	# NET_SOCKET_SERVER
-	ADD_LIBRARY(output_net_socket_server SHARED output_common.c unix_socket_server.c)
+TARGET_LINK_LIBRARIES(output_net_socket_server ${OUTPUT_LIBS})
 
-	SET_TARGET_PROPERTIES(output_net_socket_server
-		PROPERTIES
-		PREFIX "caer_"
-	)
+INSTALL(TARGETS output_net_socket_server DESTINATION ${CM_SHARE_DIR})
 
-	TARGET_LINK_LIBRARIES(output_net_socket_server ${OUTPUT_LIBS})
+# NET_SOCKET_CLIENT
+ADD_LIBRARY(output_net_socket_client SHARED output_common.c unix_socket.c)
 
-	INSTALL(TARGETS output_net_socket_server DESTINATION ${CM_SHARE_DIR})
+SET_TARGET_PROPERTIES(output_net_socket_client
+	PROPERTIES
+	PREFIX "caer_"
+)
 
-	# NET_SOCKET_CLIENT
-	ADD_LIBRARY(output_net_socket_client SHARED output_common.c unix_socket.c)
+TARGET_LINK_LIBRARIES(output_net_socket_client ${OUTPUT_LIBS})
 
-	SET_TARGET_PROPERTIES(output_net_socket_client
-		PROPERTIES
-		PREFIX "caer_"
-	)
-
-	TARGET_LINK_LIBRARIES(output_net_socket_client ${OUTPUT_LIBS})
-
-	INSTALL(TARGETS output_net_socket_client DESTINATION ${CM_SHARE_DIR})
-ENDIF()
+INSTALL(TARGETS output_net_socket_client DESTINATION ${CM_SHARE_DIR})

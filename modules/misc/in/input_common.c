@@ -1,6 +1,6 @@
 #include "input_common.h"
-#include "base/mainloop.h"
-#include "ext/portable_time.h"
+#include "caer-sdk/mainloop.h"
+#include "caer-sdk/cross/portable_time.h"
 #include "ext/uthash/utlist.h"
 #include "ext/nets.h"
 
