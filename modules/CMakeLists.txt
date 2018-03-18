@@ -1,3 +1,6 @@
+# Set full RPATH, modules are libraries for cAER
+SET(CMAKE_INSTALL_RPATH ${CM_SHARE_DIR})
+
 ADD_SUBDIRECTORY(backgroundactivityfilter)
 ADD_SUBDIRECTORY(cameracalibration)
 ADD_SUBDIRECTORY(frameenhancer)
