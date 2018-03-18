@@ -6,10 +6,6 @@ IF (NOT CMAKE_BUILD_TYPE)
 	SET(CMAKE_BUILD_TYPE "Release" CACHE STRING "Possible build types: None Debug Release RelWithDebInfo MinSizeRel")
 ENDIF()
 
-IF (NOT USE_TCMALLOC)
-	SET(USE_TCMALLOC 0 CACHE BOOL "Link to and use TCMalloc (Google Perftools) to provide faster memory allocation")
-ENDIF()
-
 # Project name and version
 PROJECT(cAER C CXX)
 SET(PROJECT_VERSION_MAJOR 1)
@@ -57,16 +53,6 @@ IF (OS_WINDOWS)
 	SET(CAER_LIBS ${CAER_LIBS} wsock32 ws2_32)
 ENDIF()
 
-# TCMalloc support (fast memory allocation)
-IF (USE_TCMALLOC)
-	PKG_CHECK_MODULES(LIBTCMALLOC REQUIRED libtcmalloc>=2.2)
-
-	SET(CAER_INCDIRS ${CAER_INCDIRS} ${LIBTCMALLOC_INCLUDE_DIRS})
-	SET(CAER_LIBDIRS ${CAER_LIBDIRS} ${LIBTCMALLOC_LIBRARY_DIRS})
-
-	SET(CAER_LIBS ${CAER_LIBS} ${LIBTCMALLOC_LIBRARIES})
-ENDIF()
-
 # Add local directory to include and library paths
 SET(CAER_INCDIRS ${CAER_INCDIRS} ${CMAKE_SOURCE_DIR}/)
 SET(CAER_LIBDIRS ${CAER_LIBDIRS} ${CMAKE_SOURCE_DIR}/)
@@ -78,7 +64,7 @@ LINK_DIRECTORIES(${CAER_LIBDIRS})
 # Install SDK library.
 ADD_SUBDIRECTORY(caer-sdk)
 
-# Compile libcaersdk and caer-bin main binary.
+# Compile libcaersdk and caer-bin main executable.
 ADD_SUBDIRECTORY(src)
 
 # Compile extra modules and utilities.

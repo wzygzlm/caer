@@ -1,12 +1,4 @@
-SET(CAER_SRC_FILES
-	log.c
-	misc.c
-	config.cpp
-	config_server.cpp
-	module.cpp
-	mainloop.cpp
-	main.cpp)
-
+# SDK support library.
 SET(LIBCAERSDK_SRC_FILES
 	module_sdk.cpp
 	mainloop_sdk.cpp
@@ -32,6 +24,34 @@ IF (OS_WINDOWS)
     INSTALL(TARGETS caersdk RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
 ELSE()
     INSTALL(TARGETS caersdk DESTINATION ${CMAKE_INSTALL_LIBDIR})
+ENDIF()
+
+# Main cAER executable.
+SET(CAER_SRC_FILES
+	log.c
+	misc.c
+	config.cpp
+	config_server.cpp
+	module.cpp
+	mainloop.cpp
+	main.cpp)
+
+# TCMalloc only makes sense for the main executable
+IF (NOT USE_TCMALLOC)
+	SET(USE_TCMALLOC 0 CACHE BOOL "Link to and use TCMalloc (Google Perftools) to provide faster memory allocation for caer-bin.")
+ENDIF()
+
+# TCMalloc support (fast memory allocation)
+IF (USE_TCMALLOC)
+	PKG_CHECK_MODULES(LIBTCMALLOC REQUIRED libtcmalloc>=2.2)
+
+	SET(CAER_INCDIRS ${CAER_INCDIRS} ${LIBTCMALLOC_INCLUDE_DIRS})
+    SET(CAER_LIBDIRS ${CAER_LIBDIRS} ${LIBTCMALLOC_LIBRARY_DIRS})
+
+    SET(CAER_LIBS ${CAER_LIBS} ${LIBTCMALLOC_LIBRARIES})
+
+	INCLUDE_DIRECTORIES(${CAER_INCDIRS})
+	LINK_DIRECTORIES(${CAER_LIBDIRS})
 ENDIF()
 
 # Set full RPATH
