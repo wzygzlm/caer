@@ -1,6 +1,5 @@
 # caer
 
-
 AER event-based framework, written in C, targeting embedded systems.<br />
 [![Build Status](https://travis-ci.org/inilabs/caer.svg?branch=master)](https://travis-ci.org/inilabs/caer)
 
@@ -10,7 +9,7 @@ Linux, MacOS X or Windows (for Windows build instructions see README.Windows) <b
 gcc >= 5.2 or clang >= 3.6 <br />
 cmake >= 2.6 <br />
 Boost >= 1.50 (with system, filesystem, iostreams, program_options) <br />
-libcaer >= 2.4.0 <br />
+libcaer >= 2.4.1 <br />
 Optional: tcmalloc >= 2.2 (faster memory allocation) <br />
 Optional: SFML >= 2.3.0 (visualizer module) <br />
 Optional: OpenCV >= 3.1 (cameracalibration, framestatistics modules) <br />

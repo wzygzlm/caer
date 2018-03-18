@@ -27,11 +27,11 @@ CAER_SETUP(TRUE)
 INCLUDE(FindPkgConfig)
 
 # Basic device and threads support.
-PKG_CHECK_MODULES(LIBCAER REQUIRED libcaer>=2.4.0)
+PKG_CHECK_MODULES(LIBCAER REQUIRED libcaer>=2.4.1)
+SET(CAER_PKGCONFIG_REQUIRES_PRIVATE "libcaer >= 2.4.1")
 
 SET(CAER_INCDIRS ${LIBCAER_INCLUDE_DIRS})
 SET(CAER_LIBDIRS ${LIBCAER_LIBRARY_DIRS})
-
 SET(CAER_LIBS ${CAER_BASE_LIBS} ${LIBCAER_LIBRARIES})
 
 # Boost support for C++
@@ -70,3 +70,8 @@ ADD_SUBDIRECTORY(src)
 # Compile extra modules and utilities.
 ADD_SUBDIRECTORY(modules)
 ADD_SUBDIRECTORY(utils)
+
+# Generate pkg-config file
+CONFIGURE_FILE(libcaersdk.pc.in libcaersdk.pc @ONLY)
+
+INSTALL(FILES ${CMAKE_BINARY_DIR}/libcaersdk.pc DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
