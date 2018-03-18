@@ -1,5 +1,8 @@
+# Set modules directory
+SET(CAER_MODULES_DIR ${CM_SHARE_DIR}/modules)
+
 # Set full RPATH, modules are libraries for cAER
-SET(CMAKE_INSTALL_RPATH ${CM_SHARE_DIR})
+SET(CMAKE_INSTALL_RPATH ${CAER_MODULES_DIR})
 
 ADD_SUBDIRECTORY(backgroundactivityfilter)
 ADD_SUBDIRECTORY(cameracalibration)
