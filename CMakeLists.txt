@@ -75,11 +75,12 @@ SET(CAER_LIBDIRS ${CAER_LIBDIRS} ${CMAKE_SOURCE_DIR}/)
 INCLUDE_DIRECTORIES(${CAER_INCDIRS})
 LINK_DIRECTORIES(${CAER_LIBDIRS})
 
-# Compile SDK library.
+# Install SDK library.
 ADD_SUBDIRECTORY(caer-sdk)
 
-# Compile caer-bin main binary.
+# Compile libcaersdk and caer-bin main binary.
 ADD_SUBDIRECTORY(src)
 
-# Compile extra utilities.
+# Compile extra modules and utilities.
+#ADD_SUBDIRECTORY(modules)
 ADD_SUBDIRECTORY(utils)
