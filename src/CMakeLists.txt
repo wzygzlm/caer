@@ -10,9 +10,9 @@ SET(CAER_SRC_FILES
 SET(LIBCAERSDK_SRC_FILES
 	module_sdk.cpp
 	mainloop_sdk.cpp
-    sshs/sshs.cpp
-    sshs/sshs_helper.cpp
-    sshs/sshs_node.cpp)
+	sshs/sshs.cpp
+	sshs/sshs_helper.cpp
+	sshs/sshs_node.cpp)
 
 # Set full RPATH
 SET(CMAKE_INSTALL_RPATH ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR})
