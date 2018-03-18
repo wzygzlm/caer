@@ -1,9 +1,7 @@
 #ifndef MODULES_INI_DAVIS_UTILS_H_
 #define MODULES_INI_DAVIS_UTILS_H_
 
-#include "main.h"
-#include "base/mainloop.h"
-#include "base/module.h"
+#include "caer-sdk/mainloop.h"
 
 #include <libcaer/events/packetContainer.h>
 #include <libcaer/events/special.h>

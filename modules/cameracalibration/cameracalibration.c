@@ -1,7 +1,5 @@
-#include "main.h"
-#include "base/mainloop.h"
-#include "base/module.h"
-#include "ext/pathmax.h"
+#include "caer-sdk/mainloop.h"
+#include "caer-sdk/cross/pathmax.h"
 
 #include "calibration_settings.h"
 #include "calibration_wrapper.h"

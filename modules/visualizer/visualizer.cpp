@@ -1,8 +1,7 @@
 #include "visualizer.hpp"
-#include "base/mainloop.h"
-#include "base/module.h"
-#include "ext/threads_ext.h"
-#include "ext/resources/LiberationSans-Bold.h"
+#include "caer-sdk/mainloop.h"
+#include "caer-sdk/cross/threads_ext.h"
+#include "ext/fonts/LiberationSans-Bold.h"
 #include "ext/sfml/helpers.hpp"
 #include "modules/statistics/statistics.h"
 #include <libcaer/ringbuffer.h>

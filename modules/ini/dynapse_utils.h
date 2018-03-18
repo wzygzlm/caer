@@ -1,7 +1,7 @@
 #ifndef MODULES_INI_DYNAPSE_UTILS_H_
 #define MODULES_INI_DYNAPSE_UTILS_H_
 
-#include "main.h"
+#include "caer-sdk/utils.h"
 #include <libcaer/devices/dynapse.h>
 
 #ifdef __cplusplus

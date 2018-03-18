@@ -1,16 +1,10 @@
-IF (NOT STATISTICS)
-	SET(STATISTICS 0 CACHE BOOL "Enable the console statistics module")
-ENDIF()
+ADD_LIBRARY(statistics SHARED statistics.c)
 
-IF (STATISTICS)
-	ADD_LIBRARY(statistics SHARED statistics.c)
+SET_TARGET_PROPERTIES(statistics
+	PROPERTIES
+	PREFIX "caer_"
+)
 
-	SET_TARGET_PROPERTIES(statistics
-		PROPERTIES
-		PREFIX "caer_"
-	)
+TARGET_LINK_LIBRARIES(statistics ${CAER_LIBS})
 
-	TARGET_LINK_LIBRARIES(statistics ${CAER_C_LIBS})
-
-	INSTALL(TARGETS statistics DESTINATION ${CM_SHARE_DIR})
-ENDIF()
+INSTALL(TARGETS statistics DESTINATION ${CM_SHARE_DIR})

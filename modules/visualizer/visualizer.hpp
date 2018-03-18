@@ -1,7 +1,7 @@
 #ifndef VISUALIZER_H_
 #define VISUALIZER_H_
 
-#include "main.h"
+#include "caer-sdk/utils.h"
 
 #include <libcaer/events/packetContainer.h>
 #include <GL/glew.h>
