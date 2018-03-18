@@ -1,5 +1,5 @@
 #include "caer-sdk/mainloop.h"
-#include "ext/buffers.h"
+#include "caer-sdk/buffers.h"
 
 #include <libcaer/events/polarity.h>
 

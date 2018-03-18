@@ -3,7 +3,7 @@
 
 #include "caer-sdk/module.h"
 #include "../inout_common.h"
-#include "ext/buffers.h"
+#include "caer-sdk/buffers.h"
 #include "ext/uthash/utarray.h"
 #include <libcaer/ringbuffer.h>
 #include <unistd.h>

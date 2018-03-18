@@ -1,5 +1,5 @@
-#ifndef BUFFERS_H_
-#define BUFFERS_H_
+#ifndef CAER_SDK_BUFFERS_H_
+#define CAER_SDK_BUFFERS_H_
 
 #include <stdlib.h>
 #include <stdbool.h>
@@ -88,4 +88,4 @@ buffers_define_2d_typed(int64_t, Long)
 buffers_define_2d_typed(float, Float)
 buffers_define_2d_typed(double, Double)
 
-#endif /* BUFFERS_H_ */
+#endif /* CAER_SDK_BUFFERS_H_ */

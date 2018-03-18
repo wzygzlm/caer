@@ -3,7 +3,7 @@
 
 #include "caer-sdk/module.h"
 #include "../inout_common.h"
-#include "ext/libuv.h"
+#include "libuv.h"
 #include <libcaer/ringbuffer.h>
 
 #ifdef HAVE_PTHREADS

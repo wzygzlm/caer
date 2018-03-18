@@ -6,7 +6,7 @@
 #include <stdint.h>
 #include <unistd.h>
 #include <uv.h>
-#include "ext/buffers.h"
+#include "caer-sdk/buffers.h"
 
 #define UV_RET_CHECK(RET_VAL, SUBSYS_NAME, FUNC_NAME, CLEANUP_ACTIONS) \
 	if (RET_VAL < 0) { \
