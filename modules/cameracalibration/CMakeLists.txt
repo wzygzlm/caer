@@ -1,8 +1,8 @@
-IF (NOT ENABLE_OPENCV)
-	SET(ENABLE_OPENCV 0 CACHE BOOL "Use OpenCV (needed for camera calibration module)")
+IF (NOT USE_OPENCV)
+	SET(USE_OPENCV 0 CACHE BOOL "Use OpenCV (needed for camera calibration module)")
 ENDIF()
 
-IF (ENABLE_OPENCV)
+IF (USE_OPENCV)
 	# Require new OpenCV 3.1 at least.
 	PKG_CHECK_MODULES(OPENCV3 REQUIRED opencv>=3.1)
 

@@ -4,6 +4,6 @@ libcaer
 
 caer
 - brew install boost boost-build sfml glew
-- cmake -DCMAKE_INSTALL_PREFIX=/usr/local -DENABLE_OPENCV=1 -DVISUALIZER=1 .
+- cmake -DCMAKE_INSTALL_PREFIX=/usr/local -DUSE_OPENCV=1 -DVISUALIZER=1 .
 - make
 - sudo make install

@@ -27,11 +27,11 @@ The following options are currently supported: <br />
 -DUSE_TCMALLOC=1 -- Enables usage of TCMalloc from Google to allocate memory. <br />
 
 The following modules can be optionally enabled: <br />
--DENABLE_OPENCV=1 -- Compiles modules depending on OpenCV: camera calibration/undistortion and frame histogram statisics. <br />
+-DUSE_OPENCV=1 -- Compiles modules depending on OpenCV: camera calibration/undistortion and frame histogram statisics. <br />
 -DVISUALIZER=1 -- Open windows in which to visualize data. <br />
 
 To enable all just type: <br />
- cmake -DENABLE_OPENCV=1 -DVISUALIZER=1 .
+ cmake -DUSE_OPENCV=1 -DVISUALIZER=1 .
 <br />
 2) build:
 <br />
