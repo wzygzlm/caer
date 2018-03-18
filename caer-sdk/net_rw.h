@@ -1,5 +1,5 @@
-#ifndef NETS_H_
-#define NETS_H_
+#ifndef CAER_SDK_NET_RW_H_
+#define CAER_SDK_NET_RW_H_
 
 #include <stdlib.h>
 #include <stdbool.h>
@@ -114,4 +114,4 @@ static inline ssize_t readUntilDone(int fd, uint8_t *buffer, size_t bytesToRead)
 	return ((ssize_t) curRead);
 }
 
-#endif /* NETS_H_ */
+#endif /* CAER_SDK_NET_RW_H_ */

@@ -8,7 +8,7 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
-#include "ext/nets.h"
+#include "caer-sdk/net_rw.h"
 #include "modules/inout/inout_common.h"
 
 #include <libcaer/events/common.h>
