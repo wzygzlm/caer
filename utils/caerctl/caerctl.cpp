@@ -1,5 +1,5 @@
-#include "lib/utils.h"
-#include "base/config_server.h"
+#include "caer-sdk/utils.h"
+#include "src/config_server.h"
 #include "utils/ext/linenoise-ng/linenoise.h"
 #include <iostream>
 #include <boost/filesystem.hpp>

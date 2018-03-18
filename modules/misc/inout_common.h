@@ -1,7 +1,7 @@
 #ifndef INPUT_OUTPUT_COMMON_H_
 #define INPUT_OUTPUT_COMMON_H_
 
-#include "main.h"
+#include "caer-sdk/utils.h"
 #include <libcaer/network.h>
 
 static inline void caerGenericEventSetTimestamp(void *eventPtr, caerEventPacketHeaderConst headerPtr, int32_t timestamp) {

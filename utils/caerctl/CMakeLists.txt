@@ -1,3 +1,6 @@
+# Set full RPATH
+SET(CMAKE_INSTALL_RPATH ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR})
+
 # Compile caer-ctl (CLI control utility)
 ADD_EXECUTABLE(caer-ctl
 	../ext/linenoise-ng/ConvertUTF.cpp
