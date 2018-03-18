@@ -1,6 +1,3 @@
-# Set full RPATH
-SET(CMAKE_INSTALL_RPATH ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR})
-
 # No Unix sockets on Windows.
 IF (NOT OS_WINDOWS)
 	# Compile Unix local stream statistics program

@@ -82,5 +82,11 @@ ADD_SUBDIRECTORY(caer-sdk)
 ADD_SUBDIRECTORY(src)
 
 # Compile extra modules and utilities.
+
+# Set full RPATH, modules are libraries
+SET(CMAKE_INSTALL_RPATH ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR})
 ADD_SUBDIRECTORY(modules)
+
+# Set full RPATH, utils are binaries
+SET(CMAKE_INSTALL_RPATH ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR})
 ADD_SUBDIRECTORY(utils)
