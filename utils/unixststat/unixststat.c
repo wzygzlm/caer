@@ -8,7 +8,7 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include "ext/nets.h"
-#include "modules/misc/inout_common.h"
+#include "modules/inout/inout_common.h"
 
 #include <libcaer/events/common.h>
 

@@ -10,7 +10,7 @@
 #include <netinet/in.h>
 #include "ext/uthash/utarray.h"
 #include "ext/uthash/utlist.h"
-#include "modules/misc/inout_common.h"
+#include "modules/inout/inout_common.h"
 
 #include <libcaer/events/common.h>
 
