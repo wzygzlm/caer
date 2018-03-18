@@ -1,12 +1,9 @@
 libcaer
 - Install Homebrew - https://brew.sh/
-- brew install cmake pkg-config libusb opencv
-- cmake -DCMAKE_INSTALL_PREFIX=/usr/local -DENABLE_OPENCV=1 .
-- make
-- sudo make install
+- use libcaer brew
 
 caer
 - brew install boost boost-build sfml glew
-- cmake -DCMAKE_INSTALL_PREFIX=/usr/local -DDAVIS=1 -DBAFILTER=1 -DVISUALIZER=1 .
+- cmake -DCMAKE_INSTALL_PREFIX=/usr/local -DENABLE_OPENCV=1 -DVISUALIZER=1 .
 - make
 - sudo make install
