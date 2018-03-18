@@ -1,0 +1,8 @@
+ADD_SUBDIRECTORY(backgroundactivityfilter)
+ADD_SUBDIRECTORY(cameracalibration)
+ADD_SUBDIRECTORY(frameenhancer)
+ADD_SUBDIRECTORY(framestatistics)
+ADD_SUBDIRECTORY(ini)
+ADD_SUBDIRECTORY(misc)
+ADD_SUBDIRECTORY(statistics)
+ADD_SUBDIRECTORY(visualizer)

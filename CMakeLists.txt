@@ -82,5 +82,5 @@ ADD_SUBDIRECTORY(caer-sdk)
 ADD_SUBDIRECTORY(src)
 
 # Compile extra modules and utilities.
-#ADD_SUBDIRECTORY(modules)
+ADD_SUBDIRECTORY(modules)
 ADD_SUBDIRECTORY(utils)
