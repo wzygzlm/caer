@@ -1,3 +1,57 @@
+Release 1.2.0 - 23.03.2018
+INCOMPATIBLE CHANGES
+- The modules are now fully separated from the core system by a well-defined
+  API in /usr/include/caer-sdk/ and a library called libcaersdk. Together
+  with the shared CMake module 'caer-base.cmake' installed by libcaer 2.4.2,
+  it is now possible to easily build modules outside of the cAER source tree.
+  All Dynap-SE related modules have been moved to their own external repo at
+  https://github.com/inilabs/caer-modules-dynapse/ and can now be managed
+  independently. Only core system and vision modules remain in the main repo.
+  This change will require updates in your modules source code to use the
+  new header locations, in most cases:
+
+ #include "main.h"
+ #include "base/mainloop.h"
+ #include "base/module.h"
+
+  should be substituted with only:
+
+ #include <caer-sdk/mainloop.h>
+
+  Following a full list of the headers that changed location:
+
+ "base/mainloop.h"         ->  <caer-sdk/mainloop.h>
+ "base/module.h"           ->  <caer-sdk/module.h>
+ "main.h"                  ->  <caer-sdk/utils.h>
+ "ext/buffers.h"           ->  <caer-sdk/buffers.h>
+ "ext/portable_time.h"     ->  <caer-sdk/cross/portable_time.h>
+ "ext/portable_misc.h"     ->  <caer-sdk/cross/portable_misc.h>
+ "ext/pathmax.h"           ->  <caer-sdk/cross/pathmax.h>
+ "ext/c11threads_posix.h"  ->  <caer-sdk/cross/c11threads_posix.h>
+ "ext/threads_ext.h"       ->  <caer-sdk/cross/threads_ext.h>
+ "ext/sshs/sshs.h"         ->  <caer-sdk/sshs/sshs.h>
+ "ext/sshs/sshs.hpp"       ->  <caer-sdk/sshs/sshs.hpp>
+
+  Anything else you might have been using that resides in the ext/ directory
+  is fundamentally forbidden for external modules. The remaining headers
+  there will soon disappear, you will have to copy them into your module and
+  keep a private copy, or search for suitable alternatives.
+- All modules that can be enabled are now enabled by default, so most -Dxxx
+  compilation control switches fall away. Only -DUSE_OPENCV=1/0 and
+  -DVISUALIZER=1/0 remain to control the inclusion of external dependencies
+  (OpenCV for cameracalibration, framestatistics - SFML for visualizer).
+
+NEW FEATURES
+- Docs: added two camera example 'davis-2cams-config.xml'.
+
+BUG FIXES
+- Output modules: properly exit on initialization failure.
+- Visualizer: removed 'None' event handler/renderer option from being
+  selectable in the GUI.
+- Mainloop/Modules: do basic checks on modules at module discovery time,
+  so that broken modules don't even appear in the list of available ones.
+
+
 Release 1.1.0 - 05.12.2017
 INCOMPATIBLE CHANGES
 - Dynap-SE: biasing has been cleaned up, please use the functions
