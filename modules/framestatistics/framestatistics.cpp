@@ -1,5 +1,4 @@
-#include "base/mainloop.h"
-#include "base/module.h"
+#include "caer-sdk/mainloop.h"
 
 #include <libcaercpp/events/frame.hpp>
 

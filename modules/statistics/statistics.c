@@ -1,6 +1,5 @@
 #include "statistics.h"
-#include "base/mainloop.h"
-#include "base/module.h"
+#include "caer-sdk/mainloop.h"
 
 static bool caerStatisticsInit(caerModuleData moduleData);
 static void caerStatisticsRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out);

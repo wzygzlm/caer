@@ -1,4 +1,4 @@
-#TODO: fix on Windows using Boost.
+# TODO: fix on Windows using Boost.
 IF (NOT OS_WINDOWS)
 	# Compile UDP stream statistics program
 	ADD_EXECUTABLE(udpststat udpststat.c)

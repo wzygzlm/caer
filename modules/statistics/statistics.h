@@ -1,12 +1,12 @@
 #ifndef STATISTICS_H_
 #define STATISTICS_H_
 
-#include "main.h"
+#include "caer-sdk/utils.h"
 
 #include <libcaer/events/common.h>
 #include <time.h>
 #include <sys/time.h>
-#include "ext/portable_time.h"
+#include "caer-sdk/cross/portable_time.h"
 
 #define CAER_STATISTICS_STRING_TOTAL "Total events/second: %10" PRIu64
 #define CAER_STATISTICS_STRING_VALID "Valid events/second: %10" PRIu64

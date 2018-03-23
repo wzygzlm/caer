@@ -6,8 +6,9 @@ cmake_install.cmake
 /install_manifest.txt
 /*.xml
 /*.log
+/src/caer-bin*
+/libcaersdk.pc
 /*.sh
-/caer-bin*
 *~
 *.swp
 *.swo
