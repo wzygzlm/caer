@@ -1,7 +1,7 @@
 #include "input_common.h"
 #include "caer-sdk/mainloop.h"
 #include "caer-sdk/cross/portable_time.h"
-#include "caer-sdk/net_rw.h"
+#include "ext/net_rw.h"
 #include "ext/uthash/utlist.h"
 
 #ifdef ENABLE_INOUT_PNG_COMPRESSION

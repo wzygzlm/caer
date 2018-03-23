@@ -7,7 +7,7 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <sys/un.h>
-#include "caer-sdk/net_rw.h"
+#include "ext/net_rw.h"
 #include "modules/inout/inout_common.h"
 
 #include <libcaer/events/common.h>

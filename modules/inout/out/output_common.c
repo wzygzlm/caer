@@ -70,7 +70,7 @@
 #include "caer-sdk/mainloop.h"
 #include "caer-sdk/cross/portable_misc.h"
 #include "caer-sdk/buffers.h"
-#include "caer-sdk/net_rw.h"
+#include "ext/net_rw.h"
 
 #ifdef ENABLE_INOUT_PNG_COMPRESSION
 #include <png.h>
