@@ -124,7 +124,10 @@ matrix:
         - BUILD_NAME="osx-gcc-xcode8"
       before_install:
         - brew update
-        - brew install libusb
+        - brew tap inilabs/inilabs
+        - brew update
+        - brew install boost libpng
+        - brew install libcaer --with-opencv --with-libserialport
     - os: osx
       osx_image: xcode8
       compiler: clang
@@ -132,5 +135,7 @@ matrix:
         - BUILD_NAME="osx-clang-xcode8"
       before_install:
         - brew update
-        - brew install libusb
-# TODO: need to add new dependencies: boost.
+        - brew tap inilabs/inilabs
+        - brew update
+        - brew install boost libpng
+        - brew install libcaer --with-opencv --with-libserialport
