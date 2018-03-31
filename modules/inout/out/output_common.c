@@ -1,6 +1,6 @@
 /*
  * Here we handle all outputs in a common way, taking in event packets
- * as input and writing a buffer to a file descriptor as output.
+ * as input and writing a byte buffer to a stream as output.
  * The main-loop part is responsible for gathering the event packets,
  * copying them and their events (valid or not depending on configuration),
  * and putting them on a transfer ring-buffer. A second thread, called the
@@ -32,9 +32,9 @@
  * We cannot assume a constant and quick data flow, since at any point during a
  * recording, data producers can be turned off, packet size etc. configuration
  * changed, or some events, like Special ones, are rare to begin with during
- * normal camera operation (the TIMESTAMP_WRAP every 35 minutes).
+ * normal camera operation (for example the TIMESTAMP_WRAP every 35 minutes).
  * But we'd like to write data continuously and as soon as possible!
- * Thankfully cAER/libcaer come to the rescue thanks to a small but important
+ * Thankfully cAER/libcaer come to the rescue due to a small but important
  * detail of how input modules are implemented (input modules are all those
  * modules that create new data in some way, also called a Source).
  * They either create sequences of single packets, where the ordering is trivial,
