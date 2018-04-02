@@ -147,3 +147,36 @@ static bool caerOutputFileInit(caerModuleData moduleData) {
 
 	return (true);
 }
+
+void caerOutputFileRun() {
+	// If no data is available on the transfer ring-buffer, sleep for 1 ms.
+			// to avoid wasting resources in a busy loop.
+			while (state->running.load(std::memory_order_relaxed)) {
+				libuvWriteBuf packetBuffer = caerRingBufferGet(state->outputRing);
+				if (packetBuffer == nullptr) {
+					// There is none, so we can't work on and commit this.
+					// We just sleep here a little and then try again, as we need the data!
+					std::this_thread::sleep_for(std::chrono::milliseconds(1));
+					continue;
+				}
+
+				// Write buffer to file descriptor.
+				if (!writeUntilDone(state->fileIO, (uint8_t *) packetBuffer->buf.base, packetBuffer->buf.len)) {
+					errorExit(state, packetBuffer);
+				}
+
+				free(packetBuffer->freeBuf);
+				free(packetBuffer);
+			}
+
+			// Write all remaining buffers to file.
+			libuvWriteBuf packetBuffer;
+			while ((packetBuffer = caerRingBufferGet(state->outputRing)) != nullptr) {
+				if (!writeUntilDone(state->fileIO, (uint8_t *) packetBuffer->buf.base, packetBuffer->buf.len)) {
+					errorExit(state, packetBuffer);
+				}
+
+				free(packetBuffer->freeBuf);
+				free(packetBuffer);
+			}
+}

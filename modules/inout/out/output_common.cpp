@@ -791,17 +791,15 @@ static size_t compressFramePNG(outputCommonState state, caerEventPacketHeader pa
  * Handle writing of data to output.
  * ============================================================================
  */
-static int outputThread(void *stateArg);
-static void writePacket(outputCommonState state, libuvWriteBuf packetBuffer);
-static void initializeNetworkHeader(outputCommonState state);
-static bool writeNetworkHeader(outputCommonNetIO streams, libuvWriteBuf buf, bool startOfUDPPacket);
-static void writeFileHeader(outputCommonState state);
+bool setupOutputThread(outputCommonState state, void (*headerInitFunc)(outputCommonState state));
+void initializeNetworkHeader(outputCommonState state);
+void writeFileHeader(outputCommonState state);
 
-static inline _Noreturn void errorExit(outputCommonState state, asio::buffer *packetBuffer) {
+static inline void errorCleanup(outputCommonState state, asio::const_buffer *packetBuffer) {
 	// Free currently held memory.
 	if (packetBuffer != nullptr) {
-		free(packetBuffer->freeBuf);
-		free(packetBuffer);
+		free(boost::asio::buffer_cast<caerEventPacketHeader>(*packetBuffer));
+		delete packetBuffer;
 	}
 
 	// Signal failure to compressor thread.
@@ -810,13 +808,9 @@ static inline _Noreturn void errorExit(outputCommonState state, asio::buffer *pa
 	// Ensure parent also shuts down on unrecoverable failures, taking the
 	// compressor thread with it.
 	sshsNodePutBool(state->parentModule->moduleNode, "running", false);
-
-	thrd_exit(thrd_error);
 }
 
-static int outputThread(void *stateArg) {
-	outputCommonState state = stateArg;
-
+bool setupOutputThread(outputCommonState state, void (*headerInitFunc)(outputCommonState state)) {
 	// Set thread name.
 	size_t threadNameLength = strlen(state->parentModule->moduleSubSystemString);
 	char threadName[threadNameLength + 1 + 8]; // +1 for NUL character.
@@ -836,12 +830,7 @@ static int outputThread(void *stateArg) {
 		}
 
 		// Send appropriate header.
-		if (state->isNetworkStream) {
-			initializeNetworkHeader(state);
-		}
-		else {
-			writeFileHeader(state);
-		}
+		(*headerInitFunc)(state);
 
 		headerSent = true;
 		break;
@@ -853,199 +842,16 @@ static int outputThread(void *stateArg) {
 	// put there in the meantime, so we ensure it's checked and freed. This because
 	// in caerOutputCommonExit() we expect the ring-buffer to always be empty!
 	if (!headerSent) {
-		libuvWriteBuf packetBuffer;
-		while ((packetBuffer = caerRingBufferGet(state->outputRing)) != nullptr) {
-			free(packetBuffer->freeBuf);
-			free(packetBuffer);
+		asio::const_buffer *packetBuffer;
+		while ((packetBuffer = (asio::const_buffer *) caerRingBufferGet(state->outputRing)) != nullptr) {
+			free(boost::asio::buffer_cast<caerEventPacketHeader>(*packetBuffer));
+			delete packetBuffer;
 		}
 
-		return (thrd_success);
+		return (false);
 	}
 
-	// If destination is a file, just loop and write to it. Else start a libuv event loop.
-	if (state->isNetworkStream) {
-		// libuv network IO (state->networkIO != nullptr).
-		// Start libuv event loop.
-		int retVal = uv_run(&state->networkIO->loop, UV_RUN_DEFAULT);
-		UV_RET_CHECK(retVal, state->parentModule->moduleSubSystemString, "uv_run", errorExit(state, nullptr));
-
-		// Treat anything being still alive as an error too. Async shutdown should have closed everything!
-		if (retVal > 0) {
-			caerModuleLog(state->parentModule, CAER_LOG_WARNING, "uv_run() exited with still active handles.");
-			errorExit(state, nullptr);
-		}
-	}
-	else {
-		// If no data is available on the transfer ring-buffer, sleep for 1 ms.
-		// to avoid wasting resources in a busy loop.
-		while (state->running.load(std::memory_order_relaxed)) {
-			libuvWriteBuf packetBuffer = caerRingBufferGet(state->outputRing);
-			if (packetBuffer == nullptr) {
-				// There is none, so we can't work on and commit this.
-				// We just sleep here a little and then try again, as we need the data!
-				std::this_thread::sleep_for(std::chrono::milliseconds(1));
-				continue;
-			}
-
-			// Write buffer to file descriptor.
-			if (!writeUntilDone(state->fileIO, (uint8_t *) packetBuffer->buf.base, packetBuffer->buf.len)) {
-				errorExit(state, packetBuffer);
-			}
-
-			free(packetBuffer->freeBuf);
-			free(packetBuffer);
-		}
-
-		// Write all remaining buffers to file.
-		libuvWriteBuf packetBuffer;
-		while ((packetBuffer = caerRingBufferGet(state->outputRing)) != nullptr) {
-			if (!writeUntilDone(state->fileIO, (uint8_t *) packetBuffer->buf.base, packetBuffer->buf.len)) {
-				errorExit(state, packetBuffer);
-			}
-
-			free(packetBuffer->freeBuf);
-			free(packetBuffer);
-		}
-	}
-
-	return (thrd_success);
-}
-
-static void libuvRingBufferGet(uv_idle_t *handle) {
-	outputCommonState state = handle->data;
-
-	// Write all packets that are currently available out in order,
-	// but never more than 10 at a time.
-	size_t count = 0;
-	libuvWriteBuf packetBuffer;
-	while (count < MAX_OUTPUT_RINGBUFFER_GET && (packetBuffer = caerRingBufferGet(state->outputRing)) != nullptr) {
-		writePacket(state, packetBuffer);
-		count++;
-	}
-
-	// If nothing, avoid busy loop within libuv event loop by sleeping a little.
-	if (count == 0) {
-		// Sleep for 1 ms.
-		std::this_thread::sleep_for(std::chrono::milliseconds(1));
-	}
-}
-
-static void writePacket(outputCommonState state, libuvWriteBuf packetBuffer) {
-	// If no active clients exist, don't write anything.
-	if (state->networkIO->activeClients == 0) {
-		free(packetBuffer->freeBuf);
-		free(packetBuffer);
-
-		return;
-	}
-
-	// Write packets to network. TCP/Pipe have their header already written in the
-	// Connection callbacks. Also, the size of the written data doesn't matter, as
-	// they are stream transports, and the network stack will take care of things
-	// like buffering and packet sizes.
-	// Only UDP needs special treatment here to write the proper header and split
-	// the packets up into manageable sizes (<=64K), together with keeping track
-	// of the sequence number.
-	if (state->networkIO->isUDP) {
-		// UDP output.
-		// If too much data waiting to be sent, just skip current packet.
-		if (((uv_udp_t *) state->networkIO->clients[0])->send_queue_size > MAX_OUTPUT_QUEUED_SIZE) {
-			goto freePacketBufferUDP;
-		}
-
-		size_t packetSize = packetBuffer->buf.len;
-		size_t packetIndex = 0;
-		bool firstChunk = true;
-
-		// Split packets up into chunks for UDP. Send each chunk with its own
-		// header and increasing sequence number. The very first packet of a chunk is
-		// identifiable by having a negative sequence number (highest bit set to one).
-		while (packetSize > 0) {
-			libuvWriteMultiBuf buffers = libuvWriteBufAlloc(2); // One for network header, one for data.
-			if (buffers == nullptr) {
-				caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Failed to allocate memory for network buffers.");
-
-				goto freePacketBufferUDP;
-			}
-
-			buffers->statusCheck = &libuvWriteStatusCheck;
-
-			// Write header into first buffer.
-			if (!writeNetworkHeader(state->networkIO, &buffers->buffers[0], firstChunk)) {
-				caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Failed to write network header.");
-
-				libuvWriteBufFree(buffers);
-				goto freePacketBufferUDP;
-			}
-
-			firstChunk = false;
-
-			// Write data into second buffer.
-			size_t sendSize = (packetSize > AEDAT3_MAX_UDP_SIZE) ? (AEDAT3_MAX_UDP_SIZE) : (packetSize);
-
-			libuvWriteBufInit(&buffers->buffers[1], sendSize);
-			if (buffers->buffers[1].buf.base == nullptr) {
-				caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Failed to allocate memory for data buffer.");
-
-				libuvWriteBufFree(buffers);
-				goto freePacketBufferUDP;
-			}
-
-			memcpy(buffers->buffers[1].buf.base, packetBuffer->buf.base + packetIndex, sendSize);
-
-			// For UDP we only support client mode to ONE outside address.
-			int retVal = libuvWriteUDP((uv_udp_t *) state->networkIO->clients[0], state->networkIO->address, buffers);
-			UV_RET_CHECK(retVal, state->parentModule->moduleSubSystemString, "libuvWriteUDP",
-				libuvWriteBufFree(buffers); goto freePacketBufferUDP);
-
-			// Update loop indexes.
-			packetSize -= sendSize;
-			packetIndex += sendSize;
-		}
-
-		// Free all packet memory.
-		freePacketBufferUDP: {
-			free(packetBuffer->freeBuf);
-			free(packetBuffer);
-		}
-	}
-	else {
-		// TCP/Pipe outputs.
-		// Prepare buffers, increase reference count.
-		libuvWriteMultiBuf buffers = libuvWriteBufAlloc(1);
-		if (buffers == nullptr) {
-			caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Failed to allocate memory for network buffers.");
-
-			free(packetBuffer->freeBuf);
-			free(packetBuffer);
-			return;
-		}
-
-		buffers->statusCheck = &libuvWriteStatusCheck;
-
-		buffers->refCount = state->networkIO->activeClients;
-
-		buffers->buffers[0] = *packetBuffer;
-		free(packetBuffer);
-
-		// Write to each client, but use common reference-counted buffer.
-		for (size_t i = 0; i < state->networkIO->clientsSize; i++) {
-			uv_stream_t *client = state->networkIO->clients[i];
-
-			if (client == nullptr) {
-				continue;
-			}
-
-			// If too much data waiting to be sent, just skip current packet.
-			if (client->write_queue_size > MAX_OUTPUT_QUEUED_SIZE) {
-				libuvWriteBufFree(buffers);
-				return;
-			}
-
-			int retVal = libuvWrite(client, buffers);
-			UV_RET_CHECK(retVal, state->parentModule->moduleSubSystemString, "libuvWrite", libuvWriteBufFree(buffers));
-		}
-	}
+	return (true);
 }
 
 static void initializeNetworkHeader(outputCommonState state) {

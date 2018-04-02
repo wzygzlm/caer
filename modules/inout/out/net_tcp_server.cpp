@@ -111,3 +111,41 @@ static bool caerOutputNetTCPServerInit(caerModuleData moduleData) {
 
 	return (true);
 }
+
+void sendTCP() {
+	// TCP/Pipe outputs.
+			// Prepare buffers, increase reference count.
+			libuvWriteMultiBuf buffers = libuvWriteBufAlloc(1);
+			if (buffers == nullptr) {
+				caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Failed to allocate memory for network buffers.");
+
+				free(packetBuffer->freeBuf);
+				free(packetBuffer);
+				return;
+			}
+
+			buffers->statusCheck = &libuvWriteStatusCheck;
+
+			buffers->refCount = state->networkIO->activeClients;
+
+			buffers->buffers[0] = *packetBuffer;
+			free(packetBuffer);
+
+			// Write to each client, but use common reference-counted buffer.
+			for (size_t i = 0; i < state->networkIO->clientsSize; i++) {
+				uv_stream_t *client = state->networkIO->clients[i];
+
+				if (client == nullptr) {
+					continue;
+				}
+
+				// If too much data waiting to be sent, just skip current packet.
+				if (client->write_queue_size > MAX_OUTPUT_QUEUED_SIZE) {
+					libuvWriteBufFree(buffers);
+					return;
+				}
+
+				int retVal = libuvWrite(client, buffers);
+				UV_RET_CHECK(retVal, state->parentModule->moduleSubSystemString, "libuvWrite", libuvWriteBufFree(buffers));
+			}
+}

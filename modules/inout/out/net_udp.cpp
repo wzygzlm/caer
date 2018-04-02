@@ -102,3 +102,73 @@ static bool caerOutputNetUDPInit(caerModuleData moduleData) {
 
 	return (true);
 }
+
+void sendUDP() {
+	// Write packets to network. TCP/Pipe have their header already written in the
+		// Connection callbacks. Also, the size of the written data doesn't matter, as
+		// they are stream transports, and the network stack will take care of things
+		// like buffering and packet sizes.
+		// Only UDP needs special treatment here to write the proper header and split
+		// the packets up into manageable sizes (<=64K), together with keeping track
+		// of the sequence number.
+			// If too much data waiting to be sent, just skip current packet.
+			if (((uv_udp_t *) state->networkIO->clients[0])->send_queue_size > MAX_OUTPUT_QUEUED_SIZE) {
+				goto freePacketBufferUDP;
+			}
+
+			size_t packetSize = packetBuffer->buf.len;
+			size_t packetIndex = 0;
+			bool firstChunk = true;
+
+			// Split packets up into chunks for UDP. Send each chunk with its own
+			// header and increasing sequence number. The very first packet of a chunk is
+			// identifiable by having a negative sequence number (highest bit set to one).
+			while (packetSize > 0) {
+				libuvWriteMultiBuf buffers = libuvWriteBufAlloc(2); // One for network header, one for data.
+				if (buffers == nullptr) {
+					caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Failed to allocate memory for network buffers.");
+
+					goto freePacketBufferUDP;
+				}
+
+				buffers->statusCheck = &libuvWriteStatusCheck;
+
+				// Write header into first buffer.
+				if (!writeNetworkHeader(state->networkIO, &buffers->buffers[0], firstChunk)) {
+					caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Failed to write network header.");
+
+					libuvWriteBufFree(buffers);
+					goto freePacketBufferUDP;
+				}
+
+				firstChunk = false;
+
+				// Write data into second buffer.
+				size_t sendSize = (packetSize > AEDAT3_MAX_UDP_SIZE) ? (AEDAT3_MAX_UDP_SIZE) : (packetSize);
+
+				libuvWriteBufInit(&buffers->buffers[1], sendSize);
+				if (buffers->buffers[1].buf.base == nullptr) {
+					caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Failed to allocate memory for data buffer.");
+
+					libuvWriteBufFree(buffers);
+					goto freePacketBufferUDP;
+				}
+
+				memcpy(buffers->buffers[1].buf.base, packetBuffer->buf.base + packetIndex, sendSize);
+
+				// For UDP we only support client mode to ONE outside address.
+				int retVal = libuvWriteUDP((uv_udp_t *) state->networkIO->clients[0], state->networkIO->address, buffers);
+				UV_RET_CHECK(retVal, state->parentModule->moduleSubSystemString, "libuvWriteUDP",
+					libuvWriteBufFree(buffers); goto freePacketBufferUDP);
+
+				// Update loop indexes.
+				packetSize -= sendSize;
+				packetIndex += sendSize;
+			}
+
+			// Free all packet memory.
+			freePacketBufferUDP: {
+				free(boost::asio::buffer_cast<caerEventPacketHeader>(*packetBuffer));
+				delete packetBuffer;
+			}
+}
