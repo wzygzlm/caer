@@ -1,5 +1,5 @@
 #include "caer-sdk/mainloop.h"
-#include "output_common.h"
+#include "output_common.hpp"
 #include "caer-sdk/cross/portable_io.h"
 
 static bool caerOutputUnixSocketInit(caerModuleData moduleData);

@@ -1,5 +1,5 @@
 #include "caer-sdk/mainloop.h"
-#include "output_common.h"
+#include "output_common.hpp"
 
 static bool caerOutputNetTCPServerInit(caerModuleData moduleData);
 

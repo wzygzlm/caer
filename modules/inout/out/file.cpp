@@ -1,5 +1,5 @@
 #include "caer-sdk/mainloop.h"
-#include "output_common.h"
+#include "output_common.hpp"
 #include "caer-sdk/cross/portable_io.h"
 #include <fcntl.h>
 #include <time.h>
@@ -32,7 +32,7 @@ static char *getUserHomeDirectory(caerModuleData moduleData) {
 	size_t homeDirLength = PATH_MAX;
 
 	// Allocate memory for home directory path.
-	char *homeDir = malloc(homeDirLength);
+	char *homeDir = (char *) malloc(homeDirLength);
 	if (homeDir == NULL) {
 		caerModuleLog(moduleData, CAER_LOG_ERROR, "Failed to allocate memory for home directory string.");
 		return (NULL);
@@ -84,7 +84,7 @@ static char *getFullFilePath(caerModuleData moduleData, const char *directory, c
 	// 1 for the directory/prefix separating slash, 1 for prefix-time separating
 	// dash, 6 for file extension, 1 for terminating NUL byte = +9.
 
-	char *filePath = malloc(filePathLength);
+	char *filePath = (char *) malloc(filePathLength);
 	if (filePath == NULL) {
 		caerModuleLog(moduleData, CAER_LOG_CRITICAL, "Unable to allocate memory for full file path.");
 		return (NULL);

@@ -66,18 +66,16 @@
  * a sane restriction to impose anyway.
  */
 
-#include "output_common.h"
+#include "output_common.hpp"
 #include "caer-sdk/mainloop.h"
 #include "caer-sdk/cross/portable_threads.h"
 #include "caer-sdk/cross/portable_io.h"
 #include "caer-sdk/buffers.h"
-#include "ext/net_rw.h"
 
 #ifdef ENABLE_INOUT_PNG_COMPRESSION
 #include <png.h>
 #endif
 
-#include <stdatomic.h>
 #include <libcaer/events/common.h>
 #include <libcaer/events/packetContainer.h>
 #include <libcaer/events/frame.h>
@@ -99,15 +97,15 @@ static void copyPacketsToTransferRing(outputCommonState state, caerEventPacketCo
 void caerOutputCommonRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out) {
 	UNUSED_ARGUMENT(out);
 
-	outputCommonState state = moduleData->moduleState;
+	outputCommonState state = (outputCommonState) moduleData->moduleState;
 
 	copyPacketsToTransferRing(state, in);
 }
 
 void caerOutputCommonReset(caerModuleData moduleData, int16_t resetCallSourceID) {
-	outputCommonState state = moduleData->moduleState;
+	outputCommonState state = (outputCommonState) moduleData->moduleState;
 
-	if (resetCallSourceID == I16T(atomic_load_explicit(&state->sourceID, memory_order_relaxed))) {
+	if (resetCallSourceID == state->sourceID.load(std::memory_order_relaxed)) {
 		// The timestamp reset call came in from the Source ID this output module
 		// is responsible for, so we ensure the timestamps are reset and that the
 		// special event packet goes out for sure.
@@ -115,7 +113,7 @@ void caerOutputCommonReset(caerModuleData moduleData, int16_t resetCallSourceID)
 		// Send lone packet container with just TS_RESET.
 		// Allocate packet container just for this event.
 		caerEventPacketContainer tsResetContainer = caerEventPacketContainerAllocate(1);
-		if (tsResetContainer == NULL) {
+		if (tsResetContainer == nullptr) {
 			caerModuleLog(moduleData, CAER_LOG_CRITICAL, "Failed to allocate tsReset event packet container.");
 			return;
 		}
@@ -123,7 +121,7 @@ void caerOutputCommonReset(caerModuleData moduleData, int16_t resetCallSourceID)
 		// Allocate special packet just for this event.
 		caerSpecialEventPacket tsResetPacket = caerSpecialEventPacketAllocate(1, resetCallSourceID,
 			I32T(state->lastTimestamp >> 31));
-		if (tsResetPacket == NULL) {
+		if (tsResetPacket == nullptr) {
 			caerModuleLog(moduleData, CAER_LOG_CRITICAL, "Failed to allocate tsReset special event packet.");
 			return;
 		}
@@ -161,16 +159,16 @@ static void copyPacketsToTransferRing(outputCommonState state, caerEventPacketCo
 		caerEventPacketHeaderConst packetHeader = caerEventPacketContainerGetEventPacketConst(packetsContainer, i);
 
 		// Found non-empty event packet.
-		if (packetHeader != NULL) {
+		if (packetHeader != nullptr) {
 			// Get source information from the event packet.
 			int16_t eventSource = caerEventPacketHeaderGetEventSource(packetHeader);
 
 			// Check that source is unique.
-			int16_t sourceID = I16T(atomic_load_explicit(&state->sourceID, memory_order_relaxed));
+			int16_t sourceID = state->sourceID.load(std::memory_order_relaxed);
 
 			if (sourceID == -1) {
 				sshsNode sourceInfoNode = caerMainloopGetSourceInfo(eventSource);
-				if (sourceInfoNode == NULL) {
+				if (sourceInfoNode == nullptr) {
 					// This should never happen, but we handle it gracefully.
 					caerModuleLog(state->parentModule, CAER_LOG_ERROR,
 						"Failed to get source info to setup output module.");
@@ -179,7 +177,7 @@ static void copyPacketsToTransferRing(outputCommonState state, caerEventPacketCo
 
 				state->sourceInfoString = sshsNodeGetString(sourceInfoNode, "sourceString");
 
-				atomic_store(&state->sourceID, eventSource); // Remember this!
+				state->sourceID.store(eventSource); // Remember this!
 			}
 			else if (sourceID != eventSource) {
 				caerModuleLog(state->parentModule, CAER_LOG_ERROR,
@@ -207,20 +205,20 @@ static void copyPacketsToTransferRing(outputCommonState state, caerEventPacketCo
 	if ((packetsSize == 1) && (caerEventPacketHeaderGetEventType(packets[0]) == SPECIAL_EVENT)
 		&& (caerEventPacketHeaderGetEventNumber(packets[0]) == 1)
 		&& (caerSpecialEventPacketFindEventByTypeConst((caerSpecialEventPacketConst) packets[0], TIMESTAMP_RESET)
-			!= NULL)) {
+			!= nullptr)) {
 		return;
 	}
 
 	// Allocate memory for event packet array structure that will get passed to output handler thread.
 	caerEventPacketContainer eventPackets = caerEventPacketContainerAllocate((int32_t) packetsSize);
-	if (eventPackets == NULL) {
+	if (eventPackets == nullptr) {
 		return;
 	}
 
 	// Handle the valid only flag here, that way we don't have to do another copy and
 	// process it in the output handling thread. We get the value once here, so we do
 	// the same for all packets from the same mainloop run, avoiding mid-way changes.
-	bool validOnly = atomic_load_explicit(&state->validOnly, memory_order_relaxed);
+	bool validOnly = state->validOnly.load(std::memory_order_relaxed);
 
 	// Now copy each event packet and send the array out. Track how many packets there are.
 	size_t idx = 0;
@@ -268,7 +266,7 @@ static void copyPacketsToTransferRing(outputCommonState state, caerEventPacketCo
 				caerEventPacketCopyOnlyEvents(packets[i]));
 		}
 
-		if (caerEventPacketContainerGetEventPacket(eventPackets, (int32_t) idx) == NULL) {
+		if (caerEventPacketContainerGetEventPacket(eventPackets, (int32_t) idx) == nullptr) {
 			// Failed to copy packet. Signal but try to continue anyway.
 			caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Failed to copy event packet to output.");
 		}
@@ -294,10 +292,9 @@ static void copyPacketsToTransferRing(outputCommonState state, caerEventPacketCo
 	caerEventPacketContainerSetEventPacketsNumber(eventPackets, (int32_t) idx);
 
 	retry: if (!caerRingBufferPut(state->compressorRing, eventPackets)) {
-		if (atomic_load_explicit(&state->keepPackets, memory_order_relaxed)) {
+		if (state->keepPackets.load(std::memory_order_relaxed)) {
 			// Delay by 500 µs if no change, to avoid a wasteful busy loop.
-			struct timespec retrySleep = { .tv_sec = 0, .tv_nsec = 500000 };
-			thrd_sleep(&retrySleep, NULL);
+			std::this_thread::sleep_for(std::chrono::microseconds(500));
 
 			// Retry forever if requested.
 			goto retry;
@@ -332,7 +329,7 @@ static size_t compressFramePNG(outputCommonState state, caerEventPacketHeader pa
 #endif
 
 static int compressorThread(void *stateArg) {
-	outputCommonState state = stateArg;
+	outputCommonState state = (outputCommonState) stateArg;
 
 	// Set thread name.
 	size_t threadNameLength = strlen(state->parentModule->moduleSubSystemString);
@@ -343,15 +340,13 @@ static int compressorThread(void *stateArg) {
 
 	// If no data is available on the transfer ring-buffer, sleep for 1 ms.
 	// to avoid wasting resources in a busy loop.
-	struct timespec noDataSleep = { .tv_sec = 0, .tv_nsec = 1000000 };
-
-	while (atomic_load_explicit(&state->running, memory_order_relaxed)) {
+	while (state->running.load(std::memory_order_relaxed)) {
 		// Get the newest event packet container from the transfer ring-buffer.
-		caerEventPacketContainer currPacketContainer = caerRingBufferGet(state->compressorRing);
-		if (currPacketContainer == NULL) {
+		caerEventPacketContainer currPacketContainer = (caerEventPacketContainer) caerRingBufferGet(state->compressorRing);
+		if (currPacketContainer == nullptr) {
 			// There is none, so we can't work on and commit this.
 			// We just sleep here a little and then try again, as we need the data!
-			thrd_sleep(&noDataSleep, NULL);
+			std::this_thread::sleep_for(std::chrono::milliseconds(1));
 			continue;
 		}
 
@@ -364,7 +359,7 @@ static int compressorThread(void *stateArg) {
 
 	// Handle shutdown, write out all content remaining in the transfer ring-buffer.
 	caerEventPacketContainer packetContainer;
-	while ((packetContainer = caerRingBufferGet(state->compressorRing)) != NULL) {
+	while ((packetContainer = (caerEventPacketContainer) caerRingBufferGet(state->compressorRing)) != nullptr) {
 		orderAndSendEventPackets(state, packetContainer);
 	}
 
@@ -389,8 +384,8 @@ static void orderAndSendEventPackets(outputCommonState state, caerEventPacketCon
 }
 
 static int packetsFirstTimestampThenTypeCmp(const void *a, const void *b) {
-	const caerEventPacketHeader *aa = a;
-	const caerEventPacketHeader *bb = b;
+	const caerEventPacketHeader *aa = (const caerEventPacketHeader *) a;
+	const caerEventPacketHeader *bb = (const caerEventPacketHeader *) b;
 
 	// Sort first by timestamp of the first event.
 	int32_t eventTimestampA = caerGenericEventGetTimestamp(caerGenericEventGetEvent(*aa, 0), *aa);
@@ -440,27 +435,24 @@ static void sendEventPacket(outputCommonState state, caerEventPacketHeader packe
 
 	// Send compressed packet out to output handling thread.
 	// Already format it as a libuv buffer.
-	libuvWriteBuf packetBuffer = malloc(sizeof(*packetBuffer));
-	if (packetBuffer == NULL) {
+	auto packetBuffer = new asio::const_buffer(packet, packetSize);
+	if (packetBuffer == nullptr) {
 		free(packet);
 
 		caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Failed to allocate memory for libuv packet buffer.");
 		return;
 	}
 
-	libuvWriteBufInitWithAnyBuffer(packetBuffer, packet, packetSize);
-
 	// Put packet buffer onto output ring-buffer. Retry until successful.
 	while (!caerRingBufferPut(state->outputRing, packetBuffer)) {
 		// If the output thread failed, we'd forever block here, if it can't accept
 		// any more data. So we detect that condition and discard remaining packets.
-		if (atomic_load_explicit(&state->outputThreadFailure, memory_order_relaxed)) {
+		if (state->outputThreadFailure.load(std::memory_order_relaxed)) {
 			break;
 		}
 
 		// Delay by 500 µs if no change, to avoid a wasteful busy loop.
-		struct timespec retrySleep = { .tv_sec = 0, .tv_nsec = 500000 };
-		thrd_sleep(&retrySleep, NULL);
+		std::this_thread::sleep_for(std::chrono::microseconds(500));
 	}
 }
 
@@ -566,12 +558,12 @@ static size_t compressTimestampSerialize(outputCommonState state, caerEventPacke
 		// and if it makes sense to compress. It does starting with 3 events.
 		if (tsRun >= 3) {
 			// First event to remains there, we set its TS highest bit.
-			const uint8_t *firstEvent = caerGenericEventGetEvent(packet, caerIteratorCounter - (int32_t) tsRun--);
+			const uint8_t *firstEvent = (const uint8_t *) caerGenericEventGetEvent(packet, caerIteratorCounter - (int32_t) tsRun--);
 			caerGenericEventSetTimestamp((void *) firstEvent, packet,
 				caerGenericEventGetTimestamp(firstEvent, packet) | I32T(0x80000000));
 
 			// Now use second event's timestamp for storing how many further events.
-			const uint8_t *secondEvent = caerGenericEventGetEvent(packet, caerIteratorCounter - (int32_t) tsRun--);
+			const uint8_t *secondEvent = (const uint8_t *) caerGenericEventGetEvent(packet, caerIteratorCounter - (int32_t) tsRun--);
 			caerGenericEventSetTimestamp((void *) secondEvent, packet, I32T(tsRun)); // Is at least 1.
 
 			// Finally move modified memory where it needs to go.
@@ -585,7 +577,7 @@ static size_t compressTimestampSerialize(outputCommonState state, caerEventPacke
 
 			// Now go through remaining events and move their data close together.
 			while (tsRun > 0) {
-				const uint8_t *thirdEvent = caerGenericEventGetEvent(packet, caerIteratorCounter - (int32_t) tsRun--);
+				const uint8_t *thirdEvent = (const uint8_t *) caerGenericEventGetEvent(packet, caerIteratorCounter - (int32_t) tsRun--);
 				memmove(((uint8_t *) packet) + currPacketOffset, thirdEvent, (size_t) eventTSOffset);
 				currPacketOffset += (size_t) eventTSOffset;
 			}
@@ -593,7 +585,7 @@ static size_t compressTimestampSerialize(outputCommonState state, caerEventPacke
 		else {
 			// Just copy data unchanged if no compression is possible.
 			if (doMemMove) {
-				const uint8_t *startEvent = caerGenericEventGetEvent(packet, caerIteratorCounter - (int32_t) tsRun);
+				const uint8_t *startEvent = (const uint8_t *) caerGenericEventGetEvent(packet, caerIteratorCounter - (int32_t) tsRun);
 				memmove(((uint8_t *) packet) + currPacketOffset, startEvent, (size_t) eventSize * tsRun);
 			}
 			currPacketOffset += (size_t) eventSize * tsRun;
@@ -622,13 +614,13 @@ static void caerLibPNGWriteBuffer(png_structp png_ptr, png_bytep data, png_size_
 
 	// Allocate or grow buffer as needed.
 	if (p->buffer) {
-		p->buffer = realloc(p->buffer, newSize);
+		p->buffer = (uint8_t *) realloc(p->buffer, newSize);
 	}
 	else {
-		p->buffer = malloc(newSize);
+		p->buffer = (uint8_t *) malloc(newSize);
 	}
 
-	if (p->buffer == NULL) {
+	if (p->buffer == nullptr) {
 		free(bufferSave); // Free on realloc() failure.
 		png_error(png_ptr, "Write Buffer Error");
 	}
@@ -657,26 +649,26 @@ static inline int caerFrameEventColorToLibPNG(enum caer_frame_event_color_channe
 
 static inline bool caerFrameEventPNGCompress(uint8_t **outBuffer, size_t *outSize, uint16_t *inBuffer, int32_t xSize,
 	int32_t ySize, enum caer_frame_event_color_channels channels) {
-	png_structp png_ptr = NULL;
-	png_infop info_ptr = NULL;
-	png_bytepp row_pointers = NULL;
+	png_structp png_ptr = nullptr;
+	png_infop info_ptr = nullptr;
+	png_bytepp row_pointers = nullptr;
 
 	// Initialize the write struct.
-	png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
-	if (png_ptr == NULL) {
+	png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
+	if (png_ptr == nullptr) {
 		return (false);
 	}
 
 	// Initialize the info struct.
 	info_ptr = png_create_info_struct(png_ptr);
-	if (info_ptr == NULL) {
-		png_destroy_write_struct(&png_ptr, NULL);
+	if (info_ptr == nullptr) {
+		png_destroy_write_struct(&png_ptr, nullptr);
 		return (false);
 	}
 
 	// Set up error handling.
 	if (setjmp(png_jmpbuf(png_ptr))) {
-		if (row_pointers != NULL) {
+		if (row_pointers != nullptr) {
 			png_free(png_ptr, row_pointers);
 		}
 		png_destroy_write_struct(&png_ptr, &info_ptr);
@@ -692,8 +684,8 @@ static inline bool caerFrameEventPNGCompress(uint8_t **outBuffer, size_t *outSiz
 	png_set_swap(png_ptr);
 
 	// Initialize rows of PNG.
-	row_pointers = png_malloc(png_ptr, (size_t) ySize * sizeof(png_bytep));
-	if (row_pointers == NULL) {
+	row_pointers = (png_bytepp) png_malloc(png_ptr, (size_t) ySize * sizeof(png_bytep));
+	if (row_pointers == nullptr) {
 		png_destroy_write_struct(&png_ptr, &info_ptr);
 		return (false);
 	}
@@ -703,12 +695,12 @@ static inline bool caerFrameEventPNGCompress(uint8_t **outBuffer, size_t *outSiz
 	}
 
 	// Set write function to buffer one.
-	struct caer_libpng_buffer state = { .buffer = NULL, .size = 0 };
-	png_set_write_fn(png_ptr, &state, &caerLibPNGWriteBuffer, NULL);
+	struct caer_libpng_buffer state = { .buffer = nullptr, .size = 0 };
+	png_set_write_fn(png_ptr, &state, &caerLibPNGWriteBuffer, nullptr);
 
 	// Actually write the image data.
 	png_set_rows(png_ptr, info_ptr, row_pointers);
-	png_write_png(png_ptr, info_ptr, PNG_TRANSFORM_IDENTITY, NULL);
+	png_write_png(png_ptr, info_ptr, PNG_TRANSFORM_IDENTITY, nullptr);
 
 	// Free allocated memory for rows.
 	png_free(png_ptr, row_pointers);
@@ -796,29 +788,24 @@ static size_t compressFramePNG(outputCommonState state, caerEventPacketHeader pa
  * ============================================================================
  * OUTPUT THREAD
  * ============================================================================
- * Handle writing of data to output. Uses libuv/eventloop for network outputs,
- * while simple FD+writeUntilDone() for normal files.
+ * Handle writing of data to output.
  * ============================================================================
  */
 static int outputThread(void *stateArg);
-static void libuvRingBufferGet(uv_idle_t *handle);
-static void libuvAsyncShutdown(uv_async_t *handle);
-static void libuvClientShutdown(uv_shutdown_t *clientShutdown, int status);
-static void libuvWriteStatusCheck(uv_handle_t *handle, int status);
 static void writePacket(outputCommonState state, libuvWriteBuf packetBuffer);
 static void initializeNetworkHeader(outputCommonState state);
 static bool writeNetworkHeader(outputCommonNetIO streams, libuvWriteBuf buf, bool startOfUDPPacket);
 static void writeFileHeader(outputCommonState state);
 
-static inline _Noreturn void errorExit(outputCommonState state, libuvWriteBuf packetBuffer) {
+static inline _Noreturn void errorExit(outputCommonState state, asio::buffer *packetBuffer) {
 	// Free currently held memory.
-	if (packetBuffer != NULL) {
+	if (packetBuffer != nullptr) {
 		free(packetBuffer->freeBuf);
 		free(packetBuffer);
 	}
 
 	// Signal failure to compressor thread.
-	atomic_store(&state->outputThreadFailure, true);
+	state->outputThreadFailure.store(true);
 
 	// Ensure parent also shuts down on unrecoverable failures, taking the
 	// compressor thread with it.
@@ -839,14 +826,12 @@ static int outputThread(void *stateArg) {
 
 	bool headerSent = false;
 
-	while (atomic_load_explicit(&state->running, memory_order_relaxed)) {
+	while (state->running.load(std::memory_order_relaxed)) {
 		// Wait for source to be defined.
-		int16_t sourceID = I16T(atomic_load_explicit(&state->sourceID, memory_order_relaxed));
+		int16_t sourceID = state->sourceID.load(std::memory_order_relaxed);
 		if (sourceID == -1) {
 			// Delay by 1 ms if no data, to avoid a wasteful busy loop.
-			struct timespec delaySleep = { .tv_sec = 0, .tv_nsec = 1000000 };
-			thrd_sleep(&delaySleep, NULL);
-
+			std::this_thread::sleep_for(std::chrono::milliseconds(1));
 			continue;
 		}
 
@@ -869,7 +854,7 @@ static int outputThread(void *stateArg) {
 	// in caerOutputCommonExit() we expect the ring-buffer to always be empty!
 	if (!headerSent) {
 		libuvWriteBuf packetBuffer;
-		while ((packetBuffer = caerRingBufferGet(state->outputRing)) != NULL) {
+		while ((packetBuffer = caerRingBufferGet(state->outputRing)) != nullptr) {
 			free(packetBuffer->freeBuf);
 			free(packetBuffer);
 		}
@@ -879,28 +864,26 @@ static int outputThread(void *stateArg) {
 
 	// If destination is a file, just loop and write to it. Else start a libuv event loop.
 	if (state->isNetworkStream) {
-		// libuv network IO (state->networkIO != NULL).
+		// libuv network IO (state->networkIO != nullptr).
 		// Start libuv event loop.
 		int retVal = uv_run(&state->networkIO->loop, UV_RUN_DEFAULT);
-		UV_RET_CHECK(retVal, state->parentModule->moduleSubSystemString, "uv_run", errorExit(state, NULL));
+		UV_RET_CHECK(retVal, state->parentModule->moduleSubSystemString, "uv_run", errorExit(state, nullptr));
 
 		// Treat anything being still alive as an error too. Async shutdown should have closed everything!
 		if (retVal > 0) {
 			caerModuleLog(state->parentModule, CAER_LOG_WARNING, "uv_run() exited with still active handles.");
-			errorExit(state, NULL);
+			errorExit(state, nullptr);
 		}
 	}
 	else {
 		// If no data is available on the transfer ring-buffer, sleep for 1 ms.
 		// to avoid wasting resources in a busy loop.
-		struct timespec noDataSleep = { .tv_sec = 0, .tv_nsec = 1000000 };
-
-		while (atomic_load_explicit(&state->running, memory_order_relaxed)) {
+		while (state->running.load(std::memory_order_relaxed)) {
 			libuvWriteBuf packetBuffer = caerRingBufferGet(state->outputRing);
-			if (packetBuffer == NULL) {
+			if (packetBuffer == nullptr) {
 				// There is none, so we can't work on and commit this.
 				// We just sleep here a little and then try again, as we need the data!
-				thrd_sleep(&noDataSleep, NULL);
+				std::this_thread::sleep_for(std::chrono::milliseconds(1));
 				continue;
 			}
 
@@ -915,7 +898,7 @@ static int outputThread(void *stateArg) {
 
 		// Write all remaining buffers to file.
 		libuvWriteBuf packetBuffer;
-		while ((packetBuffer = caerRingBufferGet(state->outputRing)) != NULL) {
+		while ((packetBuffer = caerRingBufferGet(state->outputRing)) != nullptr) {
 			if (!writeUntilDone(state->fileIO, (uint8_t *) packetBuffer->buf.base, packetBuffer->buf.len)) {
 				errorExit(state, packetBuffer);
 			}
@@ -935,7 +918,7 @@ static void libuvRingBufferGet(uv_idle_t *handle) {
 	// but never more than 10 at a time.
 	size_t count = 0;
 	libuvWriteBuf packetBuffer;
-	while (count < MAX_OUTPUT_RINGBUFFER_GET && (packetBuffer = caerRingBufferGet(state->outputRing)) != NULL) {
+	while (count < MAX_OUTPUT_RINGBUFFER_GET && (packetBuffer = caerRingBufferGet(state->outputRing)) != nullptr) {
 		writePacket(state, packetBuffer);
 		count++;
 	}
@@ -943,94 +926,7 @@ static void libuvRingBufferGet(uv_idle_t *handle) {
 	// If nothing, avoid busy loop within libuv event loop by sleeping a little.
 	if (count == 0) {
 		// Sleep for 1 ms.
-		struct timespec noDataSleep = { .tv_sec = 0, .tv_nsec = 1000000 };
-		thrd_sleep(&noDataSleep, NULL);
-	}
-}
-
-static void libuvAsyncShutdown(uv_async_t *handle) {
-	// This is only ever called in response to caerOutputCommonExit().
-	outputCommonState state = handle->data;
-
-	// Shutdown, write remaining buffers to network.
-	// First we stop and close the idle handles checking for new data,
-	// then we manually schedule writes for the remaining data.
-	int retVal = uv_idle_stop(&state->networkIO->ringBufferGet);
-	UV_RET_CHECK(retVal, state->parentModule->moduleSubSystemString, "uv_idle_stop",);
-
-	uv_close((uv_handle_t *) &state->networkIO->ringBufferGet, NULL);
-
-	// Then we empty the ring-buffer and write out all data.
-	libuvWriteBuf packetBuffer;
-	while ((packetBuffer = caerRingBufferGet(state->outputRing)) != NULL) {
-		writePacket(state, packetBuffer);
-	}
-
-	// Shutdown server (if it exists).
-	if (state->networkIO->server != NULL) {
-		uv_close((uv_handle_t *) state->networkIO->server, &libuvCloseFree);
-	}
-
-	// Then we tell all network outputs to shutdown, which will then close them once done.
-	for (size_t i = 0; i < state->networkIO->clientsSize; i++) {
-		uv_stream_t *client = state->networkIO->clients[i];
-
-		if (client == NULL) {
-			continue;
-		}
-
-		if (state->networkIO->isUDP) {
-			// UDP has no shutdown, just close.
-			uv_close((uv_handle_t *) client, &libuvCloseFree);
-			continue;
-		}
-
-		uv_shutdown_t *clientShutdown = calloc(1, sizeof(*clientShutdown));
-		if (clientShutdown == NULL) {
-			caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Failed to allocate memory for client shutdown.");
-
-			// Hard close.
-			uv_close((uv_handle_t *) client, &libuvCloseFree);
-			continue;
-		}
-
-		retVal = uv_shutdown(clientShutdown, client, &libuvClientShutdown);
-		UV_RET_CHECK(retVal, state->parentModule->moduleSubSystemString, "uv_shutdown",
-			free(clientShutdown); uv_close((uv_handle_t *) client, &libuvCloseFree));
-	}
-
-	// Close shutdown itself.
-	uv_close((uv_handle_t *) &state->networkIO->shutdown, NULL);
-}
-
-static void libuvClientShutdown(uv_shutdown_t *clientShutdown, int status) {
-	uv_close((uv_handle_t *) clientShutdown->handle, &libuvCloseFree);
-
-	free(clientShutdown);
-
-	UV_RET_CHECK(status, __func__, "AfterShutdown",);
-}
-
-static void libuvWriteStatusCheck(uv_handle_t *handle, int status) {
-	if (status < 0) {
-		// Write failed!
-		caerLog(CAER_LOG_ERROR, __func__, "Write failed with error %d (%s). Closing connection.", status,
-			uv_err_name(status));
-
-		// Remove connection from list of active clients.
-		outputCommonNetIO streams = handle->data;
-
-		for (size_t i = 0; i < streams->clientsSize; i++) {
-			if ((uv_handle_t *) streams->clients[i] == handle) {
-				streams->clients[i] = NULL;
-				streams->activeClients--;
-
-				// Close connection and free its memory.
-				uv_close(handle, &libuvCloseFree);
-
-				break;
-			}
-		}
+		std::this_thread::sleep_for(std::chrono::milliseconds(1));
 	}
 }
 
@@ -1066,7 +962,7 @@ static void writePacket(outputCommonState state, libuvWriteBuf packetBuffer) {
 		// identifiable by having a negative sequence number (highest bit set to one).
 		while (packetSize > 0) {
 			libuvWriteMultiBuf buffers = libuvWriteBufAlloc(2); // One for network header, one for data.
-			if (buffers == NULL) {
+			if (buffers == nullptr) {
 				caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Failed to allocate memory for network buffers.");
 
 				goto freePacketBufferUDP;
@@ -1088,7 +984,7 @@ static void writePacket(outputCommonState state, libuvWriteBuf packetBuffer) {
 			size_t sendSize = (packetSize > AEDAT3_MAX_UDP_SIZE) ? (AEDAT3_MAX_UDP_SIZE) : (packetSize);
 
 			libuvWriteBufInit(&buffers->buffers[1], sendSize);
-			if (buffers->buffers[1].buf.base == NULL) {
+			if (buffers->buffers[1].buf.base == nullptr) {
 				caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Failed to allocate memory for data buffer.");
 
 				libuvWriteBufFree(buffers);
@@ -1117,7 +1013,7 @@ static void writePacket(outputCommonState state, libuvWriteBuf packetBuffer) {
 		// TCP/Pipe outputs.
 		// Prepare buffers, increase reference count.
 		libuvWriteMultiBuf buffers = libuvWriteBufAlloc(1);
-		if (buffers == NULL) {
+		if (buffers == nullptr) {
 			caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Failed to allocate memory for network buffers.");
 
 			free(packetBuffer->freeBuf);
@@ -1136,7 +1032,7 @@ static void writePacket(outputCommonState state, libuvWriteBuf packetBuffer) {
 		for (size_t i = 0; i < state->networkIO->clientsSize; i++) {
 			uv_stream_t *client = state->networkIO->clients[i];
 
-			if (client == NULL) {
+			if (client == nullptr) {
 				continue;
 			}
 
@@ -1166,7 +1062,7 @@ static bool writeNetworkHeader(outputCommonNetIO streams, libuvWriteBuf buf, boo
 	// libuv takes care of freeing memory. This is also needed for UDP
 	// to have different sequence numbers in flight.
 	libuvWriteBufInit(buf, AEDAT3_NETWORK_HEADER_LENGTH);
-	if (buf->buf.base == NULL) {
+	if (buf->buf.base == nullptr) {
 		return (false);
 	}
 
@@ -1226,7 +1122,7 @@ static void writeFileHeader(outputCommonState state) {
 	writeUntilDone(state->fileIO, (const uint8_t *) state->sourceInfoString, strlen(state->sourceInfoString));
 
 	// First prepend the time.
-	time_t currentTimeEpoch = time(NULL);
+	time_t currentTimeEpoch = time(nullptr);
 
 #if defined(OS_WINDOWS)
 	// localtime() is thread-safe on Windows (and there is no localtime_r() at all).
@@ -1265,7 +1161,7 @@ void caerOutputCommonOnServerConnection(uv_stream_t *server, int status) {
 
 	UV_RET_CHECK(status, __func__, "Connection", return);
 
-	uv_stream_t *client = NULL;
+	uv_stream_t *client = nullptr;
 
 	if (streams->isTCP) {
 		client = malloc(sizeof(uv_tcp_t));
@@ -1274,7 +1170,7 @@ void caerOutputCommonOnServerConnection(uv_stream_t *server, int status) {
 		client = malloc(sizeof(uv_pipe_t));
 	}
 
-	if (client == NULL) {
+	if (client == nullptr) {
 		caerLog(CAER_LOG_ERROR, __func__, "Failed to allocate memory for new client.");
 		return;
 	}
@@ -1299,10 +1195,10 @@ void caerOutputCommonOnServerConnection(uv_stream_t *server, int status) {
 	// Find place for new connection. If all exhausted, we've reached maximum
 	// number of clients and just kill the connection.
 	for (size_t i = 0; i < streams->clientsSize; i++) {
-		if (streams->clients[i] == NULL) {
+		if (streams->clients[i] == nullptr) {
 			// TCP/PIPE: send out initial header. Only those two can call this function!
 			libuvWriteMultiBuf buffers = libuvWriteBufAlloc(1);
-			if (buffers == NULL) {
+			if (buffers == nullptr) {
 				caerLog(CAER_LOG_ERROR, __func__, "Failed to allocate memory for network header buffers.");
 
 				goto killConnection;
@@ -1343,7 +1239,7 @@ void caerOutputCommonOnClientConnection(uv_connect_t *connectionRequest, int sta
 
 	// TCP/PIPE: send out initial header. Only those two can call this function!
 	libuvWriteMultiBuf buffers = libuvWriteBufAlloc(1);
-	if (buffers == NULL) {
+	if (buffers == nullptr) {
 		caerLog(CAER_LOG_ERROR, __func__, "Failed to allocate memory for network header buffers.");
 
 		goto cleanupRequest;
@@ -1376,23 +1272,23 @@ bool caerOutputCommonInit(caerModuleData moduleData, int fileDescriptor, outputC
 	state->parentModule = moduleData;
 
 	// Check for invalid input combinations.
-	if ((fileDescriptor < 0 && streams == NULL) || (fileDescriptor != -1 && streams != NULL)) {
+	if ((fileDescriptor < 0 && streams == nullptr) || (fileDescriptor != -1 && streams != nullptr)) {
 		return (false);
 	}
 
 	// Store network/file, message-based or not information.
-	state->isNetworkStream = (streams != NULL);
+	state->isNetworkStream = (streams != nullptr);
 	state->fileIO = fileDescriptor;
 	state->networkIO = streams;
 
 	// If in server mode, add SSHS attribute to track connected client IPs.
-	if (state->isNetworkStream && state->networkIO->server != NULL) {
+	if (state->isNetworkStream && state->networkIO->server != nullptr) {
 		sshsNodeCreateString(state->parentModule->moduleNode, "connectedClients", "", 0, INT32_MAX,
 			SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "IPs of clients currently connected to output server.");
 	}
 
 	// Initial source ID has to be -1 (invalid).
-	atomic_store(&state->sourceID, -1);
+	state->sourceID.store(-1);
 
 	// Handle configuration.
 	sshsNodeCreateBool(moduleData->moduleNode, "validOnly", false, SSHS_FLAGS_NORMAL, "Only send valid events.");
@@ -1401,8 +1297,8 @@ bool caerOutputCommonInit(caerModuleData moduleData, int fileDescriptor, outputC
 	sshsNodeCreateInt(moduleData->moduleNode, "ringBufferSize", 512, 8, 4096, SSHS_FLAGS_NORMAL,
 		"Size of EventPacketContainer and EventPacket queues, used for transfers between mainloop and output threads.");
 
-	atomic_store(&state->validOnly, sshsNodeGetBool(moduleData->moduleNode, "validOnly"));
-	atomic_store(&state->keepPackets, sshsNodeGetBool(moduleData->moduleNode, "keepPackets"));
+	state->validOnly.store(sshsNodeGetBool(moduleData->moduleNode, "validOnly"));
+	state->keepPackets.store(sshsNodeGetBool(moduleData->moduleNode, "keepPackets"));
 	int ringSize = sshsNodeGetInt(moduleData->moduleNode, "ringBufferSize");
 
 	// Format configuration (compression modes).
@@ -1410,14 +1306,14 @@ bool caerOutputCommonInit(caerModuleData moduleData, int fileDescriptor, outputC
 
 	// Initialize compressor ring-buffer. ringBufferSize only changes here at init time!
 	state->compressorRing = caerRingBufferInit((size_t) ringSize);
-	if (state->compressorRing == NULL) {
+	if (state->compressorRing == nullptr) {
 		caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Failed to allocate compressor ring-buffer.");
 		return (false);
 	}
 
 	// Initialize output ring-buffer. ringBufferSize only changes here at init time!
 	state->outputRing = caerRingBufferInit((size_t) ringSize);
-	if (state->outputRing == NULL) {
+	if (state->outputRing == nullptr) {
 		caerRingBufferFree(state->compressorRing);
 
 		caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Failed to allocate output ring-buffer.");
@@ -1436,21 +1332,21 @@ bool caerOutputCommonInit(caerModuleData moduleData, int fileDescriptor, outputC
 		state->networkIO->ringBufferGet.data = state;
 		retVal = uv_idle_init(&state->networkIO->loop, &state->networkIO->ringBufferGet);
 		UV_RET_CHECK(retVal, state->parentModule->moduleSubSystemString, "uv_idle_init",
-			uv_close((uv_handle_t *) &state->networkIO->shutdown, NULL); caerRingBufferFree(state->compressorRing); caerRingBufferFree(state->outputRing); return (false));
+			uv_close((uv_handle_t *) &state->networkIO->shutdown, nullptr); caerRingBufferFree(state->compressorRing); caerRingBufferFree(state->outputRing); return (false));
 
 		retVal = uv_idle_start(&state->networkIO->ringBufferGet, &libuvRingBufferGet);
 		UV_RET_CHECK(retVal, state->parentModule->moduleSubSystemString, "uv_idle_start",
-			uv_close((uv_handle_t *) &state->networkIO->ringBufferGet, NULL); uv_close((uv_handle_t *) &state->networkIO->shutdown, NULL); caerRingBufferFree(state->compressorRing); caerRingBufferFree(state->outputRing); return (false));
+			uv_close((uv_handle_t *) &state->networkIO->ringBufferGet, nullptr); uv_close((uv_handle_t *) &state->networkIO->shutdown, nullptr); caerRingBufferFree(state->compressorRing); caerRingBufferFree(state->outputRing); return (false));
 	}
 
 	// Start output handling thread.
-	atomic_store(&state->running, true);
+	state->running.store(true);
 
 	if (thrd_create(&state->compressorThread, &compressorThread, state) != thrd_success) {
 		if (state->isNetworkStream) {
 			uv_idle_stop(&state->networkIO->ringBufferGet);
-			uv_close((uv_handle_t *) &state->networkIO->ringBufferGet, NULL);
-			uv_close((uv_handle_t *) &state->networkIO->shutdown, NULL);
+			uv_close((uv_handle_t *) &state->networkIO->ringBufferGet, nullptr);
+			uv_close((uv_handle_t *) &state->networkIO->shutdown, nullptr);
 		}
 		caerRingBufferFree(state->compressorRing);
 		caerRingBufferFree(state->outputRing);
@@ -1461,9 +1357,9 @@ bool caerOutputCommonInit(caerModuleData moduleData, int fileDescriptor, outputC
 
 	if (thrd_create(&state->outputThread, &outputThread, state) != thrd_success) {
 		// Stop compressor thread (started just above) and wait on it.
-		atomic_store(&state->running, false);
+		state->running.store(false);
 
-		if ((errno = thrd_join(state->compressorThread, NULL)) != thrd_success) {
+		if ((errno = thrd_join(state->compressorThread, nullptr)) != thrd_success) {
 			// This should never happen!
 			caerModuleLog(state->parentModule, CAER_LOG_CRITICAL, "Failed to join compressor thread. Error: %d.",
 			errno);
@@ -1471,8 +1367,8 @@ bool caerOutputCommonInit(caerModuleData moduleData, int fileDescriptor, outputC
 
 		if (state->isNetworkStream) {
 			uv_idle_stop(&state->networkIO->ringBufferGet);
-			uv_close((uv_handle_t *) &state->networkIO->ringBufferGet, NULL);
-			uv_close((uv_handle_t *) &state->networkIO->shutdown, NULL);
+			uv_close((uv_handle_t *) &state->networkIO->ringBufferGet, nullptr);
+			uv_close((uv_handle_t *) &state->networkIO->shutdown, nullptr);
 		}
 		caerRingBufferFree(state->compressorRing);
 		caerRingBufferFree(state->outputRing);
@@ -1494,17 +1390,17 @@ void caerOutputCommonExit(caerModuleData moduleData) {
 	outputCommonState state = moduleData->moduleState;
 
 	// Stop output thread and wait on it.
-	atomic_store(&state->running, false);
+	state->running.store(false);
 	if (state->isNetworkStream) {
 		uv_async_send(&state->networkIO->shutdown);
 	}
 
-	if ((errno = thrd_join(state->compressorThread, NULL)) != thrd_success) {
+	if ((errno = thrd_join(state->compressorThread, nullptr)) != thrd_success) {
 		// This should never happen!
 		caerModuleLog(state->parentModule, CAER_LOG_CRITICAL, "Failed to join compressor thread. Error: %d.", errno);
 	}
 
-	if ((errno = thrd_join(state->outputThread, NULL)) != thrd_success) {
+	if ((errno = thrd_join(state->outputThread, nullptr)) != thrd_success) {
 		// This should never happen!
 		caerModuleLog(state->parentModule, CAER_LOG_CRITICAL, "Failed to join output thread. Error: %d.", errno);
 	}
@@ -1512,7 +1408,7 @@ void caerOutputCommonExit(caerModuleData moduleData) {
 	// Now clean up the ring-buffers: they should be empty, so sanity check!
 	caerEventPacketContainer packetContainer;
 
-	while ((packetContainer = caerRingBufferGet(state->compressorRing)) != NULL) {
+	while ((packetContainer = caerRingBufferGet(state->compressorRing)) != nullptr) {
 		caerEventPacketContainerFree(packetContainer);
 
 		// This should never happen!
@@ -1523,7 +1419,7 @@ void caerOutputCommonExit(caerModuleData moduleData) {
 
 	libuvWriteBuf packetBuffer;
 
-	while ((packetBuffer = caerRingBufferGet(state->outputRing)) != NULL) {
+	while ((packetBuffer = caerRingBufferGet(state->outputRing)) != nullptr) {
 		free(packetBuffer);
 
 		// This should never happen!
@@ -1534,7 +1430,7 @@ void caerOutputCommonExit(caerModuleData moduleData) {
 
 	// Cleanup IO resources.
 	if (state->isNetworkStream) {
-		if (state->networkIO->server != NULL) {
+		if (state->networkIO->server != nullptr) {
 			// Server shut down, no more clients.
 			sshsNodeRemoveAttribute(state->parentModule->moduleNode, "connectedClients", SSHS_STRING);
 		}
@@ -1579,11 +1475,11 @@ static void caerOutputCommonConfigListener(sshsNode node, void *userData, enum s
 	if (event == SSHS_ATTRIBUTE_MODIFIED) {
 		if (changeType == SSHS_BOOL && caerStrEquals(changeKey, "validOnly")) {
 			// Set valid only flag to given value.
-			atomic_store(&state->validOnly, changeValue.boolean);
+			state->validOnly.store(changeValue.boolean);
 		}
 		else if (changeType == SSHS_BOOL && caerStrEquals(changeKey, "keepPackets")) {
 			// Set keep packets flag to given value.
-			atomic_store(&state->keepPackets, changeValue.boolean);
+			state->keepPackets.store(changeValue.boolean);
 		}
 	}
 }
