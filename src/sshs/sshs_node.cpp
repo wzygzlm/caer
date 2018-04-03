@@ -2,12 +2,14 @@
 
 #include <cfloat>
 #include <memory>
+#include <functional>
 #include <algorithm>
 #include <vector>
 #include <map>
 #include <mutex>
 #include <shared_mutex>
 #include <regex>
+#include <utility>
 #include <boost/iostreams/device/file_descriptor.hpp>
 #include <boost/iostreams/stream.hpp>
 #include <boost/property_tree/ptree.hpp>

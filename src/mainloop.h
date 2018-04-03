@@ -4,6 +4,9 @@
 #include "caer-sdk/mainloop.h"
 #include "module.h"
 
+#include <memory>
+#include <functional>
+#include <string>
 #include <unordered_map>
 #include <vector>
 

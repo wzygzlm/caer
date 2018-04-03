@@ -34,6 +34,9 @@ using ModuleLibrary = boost::dll::shared_library;
 using ModuleLibrary = void *;
 #endif
 
+#include <string>
+#include <utility>
+
 std::pair<ModuleLibrary, caerModuleInfo> caerLoadModuleLibrary(const std::string &moduleName);
 void caerUnloadModuleLibrary(ModuleLibrary &moduleLibrary);
 void caerUpdateModulesInformation();
