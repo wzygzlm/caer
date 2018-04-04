@@ -3,7 +3,6 @@
 #include "config_server.h"
 #include "log.h"
 #include "mainloop.h"
-#include "misc.h"
 
 int main(int argc, char **argv) {
 	// Initialize config storage from file, support command-line overrides.
@@ -13,8 +12,7 @@ int main(int argc, char **argv) {
 	// Initialize logging sub-system.
 	caerLogInit();
 
-	// Daemonize the application (run in background, NOT AVAILABLE ON WINDOWS).
-	// caerDaemonize();
+	// TODO: implement service mode, use boost::process.
 
 	// Start the configuration server thread for run-time config changes.
 	caerConfigServerStart();
