@@ -10,8 +10,11 @@
 #define UNUSED_ARGUMENT(arg) (void)(arg)
 
 #ifdef __cplusplus
+
 #include <libcaercpp/libcaer.hpp>
+#include <libcaercpp/events/packetContainer.hpp>
 #include "sshs/sshs.hpp"
+
 #include <algorithm>
 #include <vector>
 

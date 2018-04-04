@@ -10,6 +10,7 @@
 #include <chrono>
 #include <thread>
 #include <mutex>
+#include <algorithm>
 
 #include <boost/filesystem.hpp>
 #include <boost/range/join.hpp>

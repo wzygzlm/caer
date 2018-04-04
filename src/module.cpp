@@ -3,6 +3,9 @@
 #include <regex>
 #include <thread>
 #include <mutex>
+#include <algorithm>
+#include <iterator>
+#include <vector>
 
 #include <boost/filesystem.hpp>
 #include <boost/format.hpp>

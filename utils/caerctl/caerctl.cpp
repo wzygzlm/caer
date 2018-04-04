@@ -1,7 +1,11 @@
 #include "caer-sdk/utils.h"
 #include "src/config_server.h"
 #include "utils/ext/linenoise-ng/linenoise.h"
+
 #include <iostream>
+#include <string>
+#include <vector>
+
 #include <boost/filesystem.hpp>
 #include <boost/format.hpp>
 #include <boost/asio.hpp>

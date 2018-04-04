@@ -1,4 +1,5 @@
 #include "caer-sdk/module.h"
+#include <stdarg.h>
 
 bool caerModuleSetSubSystemString(caerModuleData moduleData, const char *subSystemString) {
 	// Allocate new memory for new string.

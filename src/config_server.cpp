@@ -5,9 +5,15 @@
 
 #include <atomic>
 #include <thread>
+#include <new>
+#include <memory>
+#include <algorithm>
+#include <regex>
 #include <mutex>
 #include <shared_mutex>
-#include <regex>
+#include <string>
+#include <vector>
+#include <system_error>
 
 #include <boost/asio.hpp>
 #include <boost/format.hpp>
