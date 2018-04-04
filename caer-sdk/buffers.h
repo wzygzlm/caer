@@ -1,10 +1,24 @@
 #ifndef CAER_SDK_BUFFERS_H_
 #define CAER_SDK_BUFFERS_H_
 
+#ifdef __cplusplus
+
+#include <cstdlib>
+#include <cstdint>
+#include <cstring>
+
+#else
+
 #include <stdlib.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
+
+#endif
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 struct simple_buffer {
 	/// Current position inside buffer.
@@ -87,5 +101,9 @@ buffers_define_2d_typed(int32_t, Int)
 buffers_define_2d_typed(int64_t, Long)
 buffers_define_2d_typed(float, Float)
 buffers_define_2d_typed(double, Double)
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* CAER_SDK_BUFFERS_H_ */
