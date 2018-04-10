@@ -80,6 +80,8 @@
 #include <libcaercpp/events/frame.hpp>
 #include <libcaercpp/events/special.hpp>
 
+#include <fstream>
+
 namespace cevt = libcaer::events;
 
 static void caerOutputCommonConfigListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
@@ -313,7 +315,7 @@ static void copyPacketsToTransferRing(outputCommonState state, const cevt::Event
  * will be sent out by the Output thread.
  * ============================================================================
  */
-static int compressorThread(void *stateArg);
+static void compressorThread(outputCommonState state);
 
 static void orderAndSendEventPackets(outputCommonState state, caerEventPacketContainer currPacketContainer);
 static int packetsFirstTimestampThenTypeCmp(const void *a, const void *b);
@@ -326,15 +328,11 @@ static void caerLibPNGWriteBuffer(png_structp png_ptr, png_bytep data, png_size_
 static size_t compressFramePNG(outputCommonState state, caerEventPacketHeader packet);
 #endif
 
-static int compressorThread(void *stateArg) {
-	outputCommonState state = (outputCommonState) stateArg;
-
+static void compressorThread(outputCommonState state) {
 	// Set thread name.
-	size_t threadNameLength = strlen(state->parentModule->moduleSubSystemString);
-	char threadName[threadNameLength + 1 + 12]; // +1 for NUL character.
-	strcpy(threadName, state->parentModule->moduleSubSystemString);
-	strcat(threadName, "[Compressor]");
-	portable_thread_set_name(threadName);
+	std::string threadName = state->parentModule->moduleSubSystemString;
+	threadName += "[Compressor]";
+	portable_thread_set_name(threadName.c_str());
 
 	// If no data is available on the transfer ring-buffer, sleep for 1 ms.
 	// to avoid wasting resources in a busy loop.
@@ -360,8 +358,6 @@ static int compressorThread(void *stateArg) {
 	while ((packetContainer = (caerEventPacketContainer) caerRingBufferGet(state->compressorRing)) != nullptr) {
 		orderAndSendEventPackets(state, packetContainer);
 	}
-
-	return (thrd_success);
 }
 
 static void orderAndSendEventPackets(outputCommonState state, caerEventPacketContainer currPacketContainer) {
@@ -433,24 +429,26 @@ static void sendEventPacket(outputCommonState state, caerEventPacketHeader packe
 
 	// Send compressed packet out to output handling thread.
 	// Already format it as a libuv buffer.
-	auto packetBuffer = new asio::const_buffer(packet, packetSize);
-	if (packetBuffer == nullptr) {
+	try {
+		auto packetBuffer = new asio::const_buffer(packet, packetSize);
+
+		// Put packet buffer onto output ring-buffer. Retry until successful.
+		while (!caerRingBufferPut(state->outputRing, packetBuffer)) {
+			// If the output thread failed, we'd forever block here, if it can't accept
+			// any more data. So we detect that condition and discard remaining packets.
+			if (state->outputThreadFailure.load(std::memory_order_relaxed)) {
+				break;
+			}
+
+			// Delay by 500 µs if no change, to avoid a wasteful busy loop.
+			std::this_thread::sleep_for(std::chrono::microseconds(500));
+		}
+	}
+	catch (const std::bad_alloc &) {
 		free(packet);
 
-		caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Failed to allocate memory for libuv packet buffer.");
+		caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Failed to allocate memory for packet buffer.");
 		return;
-	}
-
-	// Put packet buffer onto output ring-buffer. Retry until successful.
-	while (!caerRingBufferPut(state->outputRing, packetBuffer)) {
-		// If the output thread failed, we'd forever block here, if it can't accept
-		// any more data. So we detect that condition and discard remaining packets.
-		if (state->outputThreadFailure.load(std::memory_order_relaxed)) {
-			break;
-		}
-
-		// Delay by 500 µs if no change, to avoid a wasteful busy loop.
-		std::this_thread::sleep_for(std::chrono::microseconds(500));
 	}
 }
 
@@ -790,7 +788,7 @@ static size_t compressFramePNG(outputCommonState state, caerEventPacketHeader pa
  * ============================================================================
  */
 bool setupOutputThread(outputCommonState state, void (*headerInitFunc)(outputCommonState state));
-void initializeNetworkHeader(outputCommonState state);
+struct aedat3_network_header initializeNetworkHeader(outputCommonState state);
 void writeFileHeader(outputCommonState state);
 
 static inline void errorCleanup(outputCommonState state, asio::const_buffer *packetBuffer) {
@@ -852,78 +850,80 @@ bool setupOutputThread(outputCommonState state, void (*headerInitFunc)(outputCom
 	return (true);
 }
 
-static void initializeNetworkHeader(outputCommonState state) {
+struct aedat3_network_header initializeNetworkHeader(outputCommonState state) {
+	struct aedat3_network_header networkHeader;
+
 	// Generate AEDAT 3.1 header for network streams (20 bytes total).
-	state->networkIO->networkHeader.magicNumber = htole64(AEDAT3_NETWORK_MAGIC_NUMBER);
-	state->networkIO->networkHeader.sequenceNumber = htole64(0);
-	state->networkIO->networkHeader.versionNumber = AEDAT3_NETWORK_VERSION;
-	state->networkIO->networkHeader.formatNumber = state->formatID; // Send numeric format ID.
-	state->networkIO->networkHeader.sourceID = htole16(I16T(atomic_load(&state->sourceID))); // Always one source per output module.
+	networkHeader.magicNumber = htole64(AEDAT3_NETWORK_MAGIC_NUMBER);
+	networkHeader.sequenceNumber = htole64(0);
+	networkHeader.versionNumber = AEDAT3_NETWORK_VERSION;
+	networkHeader.formatNumber = state->formatID; // Send numeric format ID.
+	networkHeader.sourceID = htole16(I16T(atomic_load(&state->sourceID))); // Always one source per output module.
+
+	return (networkHeader);
 }
 
-static bool writeNetworkHeader(outputCommonNetIO streams, libuvWriteBuf buf, bool startOfUDPPacket) {
+asio::const_buffer *generateNetworkHeader(struct aedat3_network_header &networkHeader, bool isUDP, bool startOfUDPPacket) {
 	// Create memory chunk for network header to be sent via libuv.
 	// libuv takes care of freeing memory. This is also needed for UDP
 	// to have different sequence numbers in flight.
-	libuvWriteBufInit(buf, AEDAT3_NETWORK_HEADER_LENGTH);
-	if (buf->buf.base == nullptr) {
-		return (false);
-	}
+	auto networkHeaderBuffer = new uint8_t[AEDAT3_NETWORK_HEADER_LENGTH];
 
-	if (streams->isUDP && startOfUDPPacket) {
+	if (isUDP && startOfUDPPacket) {
 		// Set highest bit of sequence number to one.
-		streams->networkHeader.sequenceNumber = htole64(
-			I64T(le64toh(streams->networkHeader.sequenceNumber) | I64T(0x8000000000000000LL)));
+		networkHeader.sequenceNumber = htole64(
+			I64T(le64toh(networkHeader.sequenceNumber) | I64T(0x8000000000000000LL)));
 	}
 
 	// Copy in current header.
-	memcpy(buf->buf.base, &streams->networkHeader, AEDAT3_NETWORK_HEADER_LENGTH);
+	memcpy(networkHeaderBuffer, &networkHeader, AEDAT3_NETWORK_HEADER_LENGTH);
 
-	if (streams->isUDP) {
+	if (isUDP) {
 		if (startOfUDPPacket) {
 			// Unset highest bit of sequence number (back to zero).
-			streams->networkHeader.sequenceNumber = htole64(
-				I64T(le64toh(streams->networkHeader.sequenceNumber) & I64T(0x7FFFFFFFFFFFFFFFLL)));
+			networkHeader.sequenceNumber = htole64(
+				I64T(le64toh(networkHeader.sequenceNumber) & I64T(0x7FFFFFFFFFFFFFFFLL)));
 		}
 
 		// Increase sequence number for successive headers, if this is a
 		// message-based network protocol (UDP for example).
-		streams->networkHeader.sequenceNumber = htole64(I64T(le64toh(streams->networkHeader.sequenceNumber) + 1));
+		networkHeader.sequenceNumber = htole64(I64T(le64toh(networkHeader.sequenceNumber) + 1));
 	}
 
-	return (true);
+	auto networkHeaderASIO = new asio::const_buffer(networkHeaderBuffer, AEDAT3_NETWORK_HEADER_LENGTH);
+
+	return (networkHeaderASIO);
 }
 
-static void writeFileHeader(outputCommonState state) {
+static void writeFileHeader(outputCommonState state, std::fstream &file) {
 	// Write AEDAT 3.1 header.
-	writeUntilDone(state->fileIO, (const uint8_t *) "#!AER-DAT" AEDAT3_FILE_VERSION "\r\n",
-		11 + strlen(AEDAT3_FILE_VERSION));
+	file.write("#!AER-DAT" AEDAT3_FILE_VERSION "\r\n", 11 + strlen(AEDAT3_FILE_VERSION));
 
 	// Write format header for all supported formats.
-	writeUntilDone(state->fileIO, (const uint8_t *) "#Format: ", 9);
+	file.write("#Format: ", 9);
 
 	if (state->formatID == 0x00) {
-		writeUntilDone(state->fileIO, (const uint8_t *) "RAW", 3);
+		file.write("RAW", 3);
 	}
 	else {
 		// Support the various formats and their mixing.
 		if (state->formatID == 0x01) {
-			writeUntilDone(state->fileIO, (const uint8_t *) "SerializedTS", 12);
+			file.write("SerializedTS", 12);
 		}
 
 		if (state->formatID == 0x02) {
-			writeUntilDone(state->fileIO, (const uint8_t *) "PNGFrames", 9);
+			file.write("PNGFrames", 9);
 		}
 
 		if (state->formatID == 0x03) {
 			// Serial and PNG together.
-			writeUntilDone(state->fileIO, (const uint8_t *) "SerializedTS,PNGFrames", 12 + 1 + 9);
+			file.write("SerializedTS,PNGFrames", 12 + 1 + 9);
 		}
 	}
 
-	writeUntilDone(state->fileIO, (const uint8_t *) "\r\n", 2);
+	file.write("\r\n", 2);
 
-	writeUntilDone(state->fileIO, (const uint8_t *) state->sourceInfoString, strlen(state->sourceInfoString));
+	file.write(state->sourceInfoString.c_str(), state->sourceInfoString.length());
 
 	// First prepend the time.
 	time_t currentTimeEpoch = time(nullptr);
@@ -935,7 +935,7 @@ static void writeFileHeader(outputCommonState state) {
 	// Windows doesn't support %z (numerical timezone), so no TZ info here.
 	// Following time format uses exactly 34 characters (20 separators/characters,
 	// 4 year, 2 month, 2 day, 2 hours, 2 minutes, 2 seconds).
-	size_t currentTimeStringLength = 34;
+	const size_t currentTimeStringLength = 34;
 	char currentTimeString[currentTimeStringLength + 1];// + 1 for terminating NUL byte.
 	strftime(currentTimeString, currentTimeStringLength + 1, "#Start-Time: %Y-%m-%d %H:%M:%S\r\n", currentTime);
 #else
@@ -950,14 +950,14 @@ static void writeFileHeader(outputCommonState state) {
 
 	// Following time format uses exactly 44 characters (25 separators/characters,
 	// 4 year, 2 month, 2 day, 2 hours, 2 minutes, 2 seconds, 5 time-zone).
-	size_t currentTimeStringLength = 44;
+	const size_t currentTimeStringLength = 44;
 	char currentTimeString[currentTimeStringLength + 1]; // + 1 for terminating NUL byte.
 	strftime(currentTimeString, currentTimeStringLength + 1, "#Start-Time: %Y-%m-%d %H:%M:%S (TZ%z)\r\n", &currentTime);
 #endif
 
-	writeUntilDone(state->fileIO, (const uint8_t *) currentTimeString, currentTimeStringLength);
+	file.write(currentTimeString, currentTimeStringLength);
 
-	writeUntilDone(state->fileIO, (const uint8_t *) "#!END-HEADER\r\n", 14);
+	file.write("#!END-HEADER\r\n", 14);
 }
 
 void caerOutputCommonOnServerConnection(uv_stream_t *server, int status) {
