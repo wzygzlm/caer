@@ -9,6 +9,7 @@
 #include <mutex>
 #include <shared_mutex>
 #include <regex>
+#include <string>
 
 #include <boost/asio.hpp>
 #include <boost/format.hpp>
@@ -47,7 +48,7 @@ struct output_common_state {
 	std::atomic<int16_t> sourceID;
 	/// Source information string for that particular source ID.
 	/// Must be set by mainloop, external threads cannot get it directly!
-	char *sourceInfoString;
+	std::string sourceInfoString;
 	/// Filter out invalidated events or not.
 	std::atomic<bool> validOnly;
 	/// Force all incoming packets to be committed to the transfer ring-buffer.

@@ -76,10 +76,11 @@
 #include <png.h>
 #endif
 
-#include <libcaer/events/common.h>
-#include <libcaer/events/packetContainer.h>
-#include <libcaer/events/frame.h>
-#include <libcaer/events/special.h>
+#include <libcaercpp/events/packetContainer.hpp>
+#include <libcaercpp/events/frame.hpp>
+#include <libcaercpp/events/special.hpp>
+
+namespace cevt = libcaer::events;
 
 static void caerOutputCommonConfigListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
@@ -92,14 +93,16 @@ static void caerOutputCommonConfigListener(sshsNode node, void *userData, enum s
  * the transferRing for processing by the compressor thread.
  * ============================================================================
  */
-static void copyPacketsToTransferRing(outputCommonState state, caerEventPacketContainer packetsContainer);
+static void copyPacketsToTransferRing(outputCommonState state, const cevt::EventPacketContainer &packetsContainer);
 
 void caerOutputCommonRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out) {
 	UNUSED_ARGUMENT(out);
 
 	outputCommonState state = (outputCommonState) moduleData->moduleState;
 
-	copyPacketsToTransferRing(state, in);
+	const cevt::EventPacketContainer container(in, false);
+
+	copyPacketsToTransferRing(state, container);
 }
 
 void caerOutputCommonReset(caerModuleData moduleData, int16_t resetCallSourceID) {
@@ -150,18 +153,15 @@ void caerOutputCommonReset(caerModuleData moduleData, int16_t resetCallSourceID)
  * @param state output module state.
  * @param packetsContainer a container with all the event packets to send out.
  */
-static void copyPacketsToTransferRing(outputCommonState state, caerEventPacketContainer packetsContainer) {
-	caerEventPacketHeaderConst packets[caerEventPacketContainerGetEventPacketsNumber(packetsContainer)];
-	size_t packetsSize = 0;
+static void copyPacketsToTransferRing(outputCommonState state, const cevt::EventPacketContainer &packetsContainer) {
+	std::vector<std::shared_ptr<const cevt::EventPacket>> packets;
 
 	// Count how many packets are really there, skipping empty event packets.
-	for (int32_t i = 0; i < caerEventPacketContainerGetEventPacketsNumber(packetsContainer); i++) {
-		caerEventPacketHeaderConst packetHeader = caerEventPacketContainerGetEventPacketConst(packetsContainer, i);
-
+	for (auto &packet : packetsContainer) {
 		// Found non-empty event packet.
-		if (packetHeader != nullptr) {
+		if (packet) {
 			// Get source information from the event packet.
-			int16_t eventSource = caerEventPacketHeaderGetEventSource(packetHeader);
+			int16_t eventSource = packet->getEventSource();
 
 			// Check that source is unique.
 			int16_t sourceID = state->sourceID.load(std::memory_order_relaxed);
@@ -175,7 +175,7 @@ static void copyPacketsToTransferRing(outputCommonState state, caerEventPacketCo
 					return;
 				}
 
-				state->sourceInfoString = sshsNodeGetString(sourceInfoNode, "sourceString");
+				state->sourceInfoString = sshsNodeGetStdString(sourceInfoNode, "sourceString");
 
 				state->sourceID.store(eventSource); // Remember this!
 			}
@@ -188,12 +188,12 @@ static void copyPacketsToTransferRing(outputCommonState state, caerEventPacketCo
 			}
 
 			// Source ID is correct, packet is not empty, we got it!
-			packets[packetsSize++] = packetHeader;
+			packets.push_back(packet);
 		}
 	}
 
 	// There was nothing in this mainloop run!
-	if (packetsSize == 0) {
+	if (packets.empty()) {
 		return;
 	}
 
@@ -202,15 +202,16 @@ static void copyPacketsToTransferRing(outputCommonState state, caerEventPacketCo
 	// output/captured by this module, the TS_RESET event will be present in the output.
 	// The TS_RESET event would be alone in a packet that is also the only one in its
 	// packetContainer/mainloop cycle, so we can check for this very efficiently.
-	if ((packetsSize == 1) && (caerEventPacketHeaderGetEventType(packets[0]) == SPECIAL_EVENT)
-		&& (caerEventPacketHeaderGetEventNumber(packets[0]) == 1)
-		&& (caerSpecialEventPacketFindEventByTypeConst((caerSpecialEventPacketConst) packets[0], TIMESTAMP_RESET)
-			!= nullptr)) {
+	if ((packets.size() == 1)
+		&& (packets[0]->size() == 1)
+		&& (packets[0]->getEventType() == SPECIAL_EVENT)
+		&& ((*std::dynamic_pointer_cast<cevt::SpecialEventPacket>(packets[0]))[0].getType() == TIMESTAMP_RESET)) {
 		return;
 	}
 
 	// Allocate memory for event packet array structure that will get passed to output handler thread.
-	caerEventPacketContainer eventPackets = caerEventPacketContainerAllocate((int32_t) packetsSize);
+	// We use C-style structure henceforth because we work directly on the underlying memory.
+	caerEventPacketContainer eventPackets = caerEventPacketContainerAllocate((int32_t) packets.size());
 	if (eventPackets == nullptr) {
 		return;
 	}
@@ -224,54 +225,51 @@ static void copyPacketsToTransferRing(outputCommonState state, caerEventPacketCo
 	size_t idx = 0;
 	int64_t highestTimestamp = 0;
 
-	for (size_t i = 0; i < packetsSize; i++) {
-		if ((validOnly && (caerEventPacketHeaderGetEventValid(packets[i]) == 0))
-			|| (!validOnly && (caerEventPacketHeaderGetEventNumber(packets[i]) == 0))) {
+	for (auto &packet : packets) {
+		if ((validOnly && (packet->getEventValid() == 0))
+			|| (!validOnly && (packet->getEventNumber() == 0))) {
 			caerModuleLog(state->parentModule, CAER_LOG_NOTICE,
 				"Submitted empty event packet to output. Ignoring empty event packet.");
 			continue;
 		}
 
-		const void *cpFirstEvent = caerGenericEventGetEvent(packets[i], 0);
-		int64_t cpFirstEventTimestamp = caerGenericEventGetTimestamp64(cpFirstEvent, packets[i]);
+		int64_t cpFirstEventTimestamp = packet->genericGetEvent(0).getTimestamp64();
 
 		if (cpFirstEventTimestamp < state->lastTimestamp) {
 			// Smaller TS than already sent, illegal, ignore packet.
 			caerModuleLog(state->parentModule, CAER_LOG_ERROR,
 				"Detected timestamp going back, expected at least %" PRIi64 " but got %" PRIi64 "."
 				" Ignoring packet of type %" PRIi16 " from source %" PRIi16 ", with %" PRIi32 " events!",
-				state->lastTimestamp, cpFirstEventTimestamp, caerEventPacketHeaderGetEventType(packets[i]),
-				caerEventPacketHeaderGetEventSource(packets[i]), caerEventPacketHeaderGetEventNumber(packets[i]));
+				state->lastTimestamp, cpFirstEventTimestamp, packet->getEventType(),
+				packet->getEventSource(), packet->size());
 			continue;
 		}
 		else {
 			// Bigger or equal TS than already sent, this is good. Strict TS ordering ensures
 			// that all other packets in this container are the same.
 			// Update highest timestamp for this packet container, based upon its valid packets.
-			const void *cpLastEvent = caerGenericEventGetEvent(packets[i],
-				caerEventPacketHeaderGetEventNumber(packets[i]) - 1);
-			int64_t cpLastEventTimestamp = caerGenericEventGetTimestamp64(cpLastEvent, packets[i]);
+			int64_t cpLastEventTimestamp = packet->genericGetEvent(-1).getTimestamp64();
 
 			if (cpLastEventTimestamp > highestTimestamp) {
 				highestTimestamp = cpLastEventTimestamp;
 			}
 		}
 
-		if (validOnly) {
-			caerEventPacketContainerSetEventPacket(eventPackets, (int32_t) idx,
-				caerEventPacketCopyOnlyValidEvents(packets[i]));
-		}
-		else {
-			caerEventPacketContainerSetEventPacket(eventPackets, (int32_t) idx,
-				caerEventPacketCopyOnlyEvents(packets[i]));
-		}
+		try {
+			if (validOnly) {
+				caerEventPacketContainerSetEventPacket(eventPackets, (int32_t) idx, (caerEventPacketHeader)
+					packet->copy(cevt::EventPacket::copyTypes::VALID_EVENTS_ONLY).release());
+			}
+			else {
+				caerEventPacketContainerSetEventPacket(eventPackets, (int32_t) idx, (caerEventPacketHeader)
+					packet->copy(cevt::EventPacket::copyTypes::EVENTS_ONLY).release());
+			}
 
-		if (caerEventPacketContainerGetEventPacket(eventPackets, (int32_t) idx) == nullptr) {
+			idx++;
+		}
+		catch (const std::bad_alloc &) {
 			// Failed to copy packet. Signal but try to continue anyway.
 			caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Failed to copy event packet to output.");
-		}
-		else {
-			idx++;
 		}
 	}
 
