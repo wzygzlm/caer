@@ -960,130 +960,13 @@ static void writeFileHeader(outputCommonState state, std::fstream &file) {
 	file.write("#!END-HEADER\r\n", 14);
 }
 
-void caerOutputCommonOnServerConnection(uv_stream_t *server, int status) {
-	outputCommonNetIO streams = server->data;
+// Net server: check max num connections
+// Network: send network header, track client (conn/IP)
 
-	UV_RET_CHECK(status, __func__, "Connection", return);
-
-	uv_stream_t *client = nullptr;
-
-	if (streams->isTCP) {
-		client = malloc(sizeof(uv_tcp_t));
-	}
-	else {
-		client = malloc(sizeof(uv_pipe_t));
-	}
-
-	if (client == nullptr) {
-		caerLog(CAER_LOG_ERROR, __func__, "Failed to allocate memory for new client.");
-		return;
-	}
-
-	int retVal;
-
-	if (streams->isTCP) {
-		retVal = uv_tcp_init(server->loop, (uv_tcp_t *) client);
-		UV_RET_CHECK(retVal, __func__, "uv_tcp_init", free(client); return);
-	}
-	else {
-		retVal = uv_pipe_init(server->loop, (uv_pipe_t *) client, false);
-		UV_RET_CHECK(retVal, __func__, "uv_pipe_init", free(client); return);
-	}
-
-	// All clients need to remember the main streams structure.
-	client->data = streams;
-
-	retVal = uv_accept(server, client);
-	UV_RET_CHECK(retVal, __func__, "uv_accept", goto killConnection);
-
-	// Find place for new connection. If all exhausted, we've reached maximum
-	// number of clients and just kill the connection.
-	for (size_t i = 0; i < streams->clientsSize; i++) {
-		if (streams->clients[i] == nullptr) {
-			// TCP/PIPE: send out initial header. Only those two can call this function!
-			libuvWriteMultiBuf buffers = libuvWriteBufAlloc(1);
-			if (buffers == nullptr) {
-				caerLog(CAER_LOG_ERROR, __func__, "Failed to allocate memory for network header buffers.");
-
-				goto killConnection;
-			}
-
-			buffers->statusCheck = &libuvWriteStatusCheck;
-
-			if (!writeNetworkHeader(streams, &buffers->buffers[0], false)) {
-				caerLog(CAER_LOG_ERROR, __func__, "Failed to write network header.");
-
-				libuvWriteBufFree(buffers);
-				goto killConnection;
-			}
-
-			retVal = libuvWrite(client, buffers);
-			UV_RET_CHECK(retVal, __func__, "libuvWrite", libuvWriteBufFree(buffers); goto killConnection);
-
-			// Ready now for more data, so set client field for writePacket().
-			streams->clients[i] = client;
-			streams->activeClients++;
-
-			// TODO: add client IP to connected clients list.
-
-			return;
-		}
-	}
-
-	// Kill connection if maximum number reached.
-	killConnection: {
-		uv_close((uv_handle_t *) client, &libuvCloseFree);
-	}
-}
-
-void caerOutputCommonOnClientConnection(uv_connect_t *connectionRequest, int status) {
-	outputCommonNetIO streams = connectionRequest->handle->data;
-
-	UV_RET_CHECK(status, __func__, "Connection", goto cleanupRequest);
-
-	// TCP/PIPE: send out initial header. Only those two can call this function!
-	libuvWriteMultiBuf buffers = libuvWriteBufAlloc(1);
-	if (buffers == nullptr) {
-		caerLog(CAER_LOG_ERROR, __func__, "Failed to allocate memory for network header buffers.");
-
-		goto cleanupRequest;
-	}
-
-	buffers->statusCheck = &libuvWriteStatusCheck;
-
-	if (!writeNetworkHeader(streams, &buffers->buffers[0], false)) {
-		caerLog(CAER_LOG_ERROR, __func__, "Failed to write network header.");
-
-		libuvWriteBufFree(buffers);
-		goto cleanupRequest;
-	}
-
-	int retVal = libuvWrite(connectionRequest->handle, buffers);
-	UV_RET_CHECK(retVal, __func__, "libuvWrite", libuvWriteBufFree(buffers); goto cleanupRequest);
-
-	// Ready now for more data, so set client field for writePacket().
-	streams->clients[0] = connectionRequest->handle;
-	streams->activeClients++;
-
-	cleanupRequest: {
-		free(connectionRequest);
-	}
-}
-
-bool caerOutputCommonInit(caerModuleData moduleData, int fileDescriptor, outputCommonNetIO streams) {
+bool caerOutputCommonInit(caerModuleData moduleData) {
 	outputCommonState state = moduleData->moduleState;
 
 	state->parentModule = moduleData;
-
-	// Check for invalid input combinations.
-	if ((fileDescriptor < 0 && streams == nullptr) || (fileDescriptor != -1 && streams != nullptr)) {
-		return (false);
-	}
-
-	// Store network/file, message-based or not information.
-	state->isNetworkStream = (streams != nullptr);
-	state->fileIO = fileDescriptor;
-	state->networkIO = streams;
 
 	// If in server mode, add SSHS attribute to track connected client IPs.
 	if (state->isNetworkStream && state->networkIO->server != nullptr) {
