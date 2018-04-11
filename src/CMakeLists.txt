@@ -2,6 +2,7 @@
 SET(LIBCAERSDK_SRC_FILES
 	module_sdk.cpp
 	mainloop_sdk.cpp
+	portability_sdk.cpp
 	sshs/sshs.cpp
 	sshs/sshs_helper.cpp
 	sshs/sshs_node.cpp)
