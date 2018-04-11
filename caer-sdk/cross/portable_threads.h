@@ -17,7 +17,7 @@ extern "C" {
 #endif
 
 bool portable_thread_set_name(const char *name);
-bool portable_thread_set_priority(int priority);
+bool portable_thread_set_priority_highest(void);
 
 #ifdef __cplusplus
 }

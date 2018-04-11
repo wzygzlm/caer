@@ -1,6 +1,7 @@
 #include "input_common.h"
 #include "caer-sdk/mainloop.h"
 #include "caer-sdk/cross/portable_time.h"
+#include "caer-sdk/cross/portable_threads.h"
 #include "ext/net_rw.h"
 #include "ext/uthash/utlist.h"
 
@@ -1208,10 +1209,10 @@ static int inputReaderThread(void *stateArg) {
 	char threadName[threadNameLength + 1 + 8]; // +1 for NUL character.
 	strcpy(threadName, state->parentModule->moduleSubSystemString);
 	strcat(threadName, "[Reader]");
-	thrd_set_name(threadName);
+	portable_thread_set_name(threadName);
 
 	// Set thread priority to high. This may fail depending on your OS configuration.
-	if (thrd_set_priority(-1) != thrd_success) {
+	if (!portable_thread_set_priority_highest()) {
 		caerModuleLog(state->parentModule, CAER_LOG_INFO,
 			"Failed to raise thread priority for Input Reader thread. You may experience lags and delays.");
 	}
@@ -1670,10 +1671,10 @@ static int inputAssemblerThread(void *stateArg) {
 	char threadName[threadNameLength + 1 + 11]; // +1 for NUL character.
 	strcpy(threadName, state->parentModule->moduleSubSystemString);
 	strcat(threadName, "[Assembler]");
-	thrd_set_name(threadName);
+	portable_thread_set_name(threadName);
 
 	// Set thread priority to high. This may fail depending on your OS configuration.
-	if (thrd_set_priority(-1) != thrd_success) {
+	if (!portable_thread_set_priority_highest()) {
 		caerModuleLog(state->parentModule, CAER_LOG_INFO,
 			"Failed to raise thread priority for Input Assembler thread. You may experience lags and delays.");
 	}

@@ -48,6 +48,16 @@ char *portable_realpath(const char *path);
  */
 int portable_fsync(int fd);
 
+/**
+ * Get the user's home directory path as a string.
+ * Returned string is a dynamically allocated copy,
+ * always remember to free() it to avoid a memory leak.
+ *
+ * @return string containing user home directory path.
+ *         Always remember to free() this!
+ */
+char *portable_get_user_home_directory(void);
+
 #ifdef __cplusplus
 }
 #endif

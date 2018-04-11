@@ -68,6 +68,7 @@
 
 #include "output_common.h"
 #include "caer-sdk/mainloop.h"
+#include "caer-sdk/cross/portable_threads.h"
 #include "caer-sdk/cross/portable_io.h"
 #include "caer-sdk/buffers.h"
 #include "ext/net_rw.h"
@@ -338,7 +339,7 @@ static int compressorThread(void *stateArg) {
 	char threadName[threadNameLength + 1 + 12]; // +1 for NUL character.
 	strcpy(threadName, state->parentModule->moduleSubSystemString);
 	strcat(threadName, "[Compressor]");
-	thrd_set_name(threadName);
+	portable_thread_set_name(threadName);
 
 	// If no data is available on the transfer ring-buffer, sleep for 1 ms.
 	// to avoid wasting resources in a busy loop.
@@ -834,7 +835,7 @@ static int outputThread(void *stateArg) {
 	char threadName[threadNameLength + 1 + 8]; // +1 for NUL character.
 	strcpy(threadName, state->parentModule->moduleSubSystemString);
 	strcat(threadName, "[Output]");
-	thrd_set_name(threadName);
+	portable_thread_set_name(threadName);
 
 	bool headerSent = false;
 
