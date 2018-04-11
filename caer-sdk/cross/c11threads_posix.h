@@ -1,19 +1,22 @@
 #ifndef C11THREADS_POSIX_H_
 #define C11THREADS_POSIX_H_
 
+#include <stdlib.h>
 #include <stdint.h>
 #include <pthread.h>
 #include <time.h>
 #include <sched.h>
 #include <errno.h>
 
-#include "threads_ext.h"
-
 typedef pthread_t thrd_t;
 typedef pthread_once_t once_flag;
 typedef pthread_mutex_t mtx_t;
 typedef pthread_rwlock_t mtx_shared_t; // NON STANDARD!
 typedef int (*thrd_start_t)(void *);
+
+enum {
+	thrd_success = 0, thrd_error = 1, thrd_nomem = 2, thrd_timedout = 3, thrd_busy = 4,
+};
 
 enum {
 	mtx_plain = 0, mtx_timed = 1, mtx_recursive = 2,
