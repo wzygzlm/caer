@@ -26,17 +26,21 @@
 									<listOptionValue builtIn="false" value="ENABLE_INOUT_PNG_COMPRESSION=1"/>
 									<listOptionValue builtIn="false" value="_DEFAULT_SOURCE=1"/>
 									<listOptionValue builtIn="false" value="_XOPEN_SOURCE=700"/>
+									<listOptionValue builtIn="false" value="_Noreturn"/>
+									<listOptionValue builtIn="false" value="OS_UNIX=1"/>
+									<listOptionValue builtIn="false" value="OS_LINUX=1"/>
 								</option>
 								<inputType id="cdt.managedbuild.tool.gnu.cpp.compiler.input.592808353" superClass="cdt.managedbuild.tool.gnu.cpp.compiler.input"/>
 							</tool>
 							<tool id="cdt.managedbuild.tool.gnu.c.compiler.base.1181955887" name="GCC C Compiler" superClass="cdt.managedbuild.tool.gnu.c.compiler.base">
 								<option id="gnu.c.compiler.option.preprocessor.def.symbols.1668023173" name="Defined symbols (-D)" superClass="gnu.c.compiler.option.preprocessor.def.symbols" useByScannerDiscovery="false" valueType="definedSymbols">
-									<listOptionValue builtIn="false" value="_Thread_local"/>
 									<listOptionValue builtIn="false" value="_Noreturn"/>
 									<listOptionValue builtIn="false" value="HAVE_PTHREADS=1"/>
 									<listOptionValue builtIn="false" value="ENABLE_INOUT_PNG_COMPRESSION=1"/>
 									<listOptionValue builtIn="false" value="_DEFAULT_SOURCE=1"/>
 									<listOptionValue builtIn="false" value="_XOPEN_SOURCE=700"/>
+									<listOptionValue builtIn="false" value="OS_UNIX=1"/>
+									<listOptionValue builtIn="false" value="OS_LINUX=1"/>
 								</option>
 								<inputType id="cdt.managedbuild.tool.gnu.c.compiler.input.1645890299" superClass="cdt.managedbuild.tool.gnu.c.compiler.input"/>
 							</tool>
