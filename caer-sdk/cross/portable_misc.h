@@ -9,6 +9,7 @@
 	#define WIN32_LEAN_AND_MEAN
 	#include <windows.h>
 	#include <errno.h>
+	#include <io.h>
 #endif
 
 /**
@@ -39,26 +40,7 @@ static inline int portable_fsync(int fd) {
 #if defined(_BSD_SOURCE) || defined(_XOPEN_SOURCE)
 	return (fsync(fd));
 #elif defined(_WIN32)
-	intptr_t hFile = _get_osfhandle(fd);
-	HANDLE h = (HANDLE) hFile;
-
-	if (h == INVALID_HANDLE_VALUE) {
-		errno = EBADF;
-		return (-1);
-	}
-
-	if (!FlushFileBuffers(h)) {
-		if (GetLastError() == ERROR_INVALID_HANDLE) {
-			errno = EINVAL;
-		}
-		else {
-			errno = EIO;
-		}
-
-		return (-1);
-	}
-
-	return (0);
+	return (_commit(fd));
 #else
 	#error "No portable fsync() found."
 #endif
