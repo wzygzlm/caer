@@ -1,6 +1,6 @@
 #include "caer-sdk/mainloop.h"
 #include "input_common.h"
-#include "caer-sdk/cross/pathmax.h"
+#include "caer-sdk/cross/portable_io.h"
 #include <sys/types.h>
 #include <fcntl.h>
 

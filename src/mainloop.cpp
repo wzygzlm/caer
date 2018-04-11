@@ -1,5 +1,5 @@
 #include "mainloop.h"
-#include "caer-sdk/cross/pathmax.h"
+#include "caer-sdk/cross/portable_io.h"
 #include <csignal>
 
 #include <regex>

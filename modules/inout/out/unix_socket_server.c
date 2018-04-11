@@ -1,6 +1,6 @@
 #include "caer-sdk/mainloop.h"
 #include "output_common.h"
-#include "caer-sdk/cross/pathmax.h"
+#include "caer-sdk/cross/portable_io.h"
 
 static bool caerOutputUnixSocketServerInit(caerModuleData moduleData);
 

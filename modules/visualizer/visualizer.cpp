@@ -1,6 +1,6 @@
 #include "visualizer.hpp"
 #include "caer-sdk/mainloop.h"
-#include "caer-sdk/cross/threads_ext.h"
+#include "caer-sdk/cross/portable_threads.h"
 #include "ext/fonts/LiberationSans-Bold.h"
 #include "ext/sfml/helpers.hpp"
 #include "modules/statistics/statistics.h"
@@ -82,7 +82,7 @@ static void updateDisplayLocation(caerVisualizerState state);
 static void saveDisplayLocation(caerVisualizerState state);
 static void handleEvents(caerModuleData moduleData);
 static void renderScreen(caerModuleData moduleData);
-static int renderThread(void *inModuleData);
+static void renderThread(caerModuleData moduleData);
 
 static const struct caer_module_functions VisualizerFunctions = { .moduleConfigInit = &caerVisualizerConfigInit,
 	.moduleInit = &caerVisualizerInit, .moduleRun = &caerVisualizerRun, .moduleConfig = nullptr, .moduleExit =
@@ -779,22 +779,21 @@ static void renderScreen(caerModuleData moduleData) {
 	}
 }
 
-static int renderThread(void *inModuleData) {
-	if (inModuleData == nullptr) {
-		return (thrd_error);
+static void renderThread(caerModuleData moduleData) {
+	if (moduleData == nullptr) {
+		return;
 	}
 
-	caerModuleData moduleData = (caerModuleData) inModuleData;
 	caerVisualizerState state = (caerVisualizerState) moduleData->moduleState;
 
 	// Set thread name.
-	thrd_set_name(moduleData->moduleSubSystemString);
+	portable_thread_set_name(moduleData->moduleSubSystemString);
 
 #if VISUALIZER_HANDLE_EVENTS_MAIN == 0
 	// Initialize graphics on separate thread. Mostly to avoid Windows quirkiness.
 	if (!initGraphics(moduleData)) {
 		caerModuleLog(moduleData, CAER_LOG_ERROR, "Failed to initialize rendering window.");
-		return (thrd_error);
+		return;
 	}
 #endif
 
@@ -812,7 +811,7 @@ static int renderThread(void *inModuleData) {
 #endif
 
 		caerModuleLog(moduleData, CAER_LOG_ERROR, "Failed to initialize GLEW, error: %s.", glewGetErrorString(res));
-		return (thrd_error);
+		return;
 	}
 
 	// Initialize renderer state.
@@ -825,7 +824,7 @@ static int renderThread(void *inModuleData) {
 
 			// Failed at requested state initialization, error out!
 			caerModuleLog(moduleData, CAER_LOG_ERROR, "Failed to initialize renderer state.");
-			return (thrd_error);
+			return;
 		}
 	}
 
@@ -851,8 +850,6 @@ static int renderThread(void *inModuleData) {
 	// Destroy graphics objects on same thread that created them.
 	exitGraphics(moduleData);
 #endif
-
-	return (thrd_success);
 }
 
 void caerVisualizerResetRenderSize(caerVisualizerPublicState pubState, uint32_t newX, uint32_t newY) {

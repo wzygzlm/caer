@@ -1,7 +1,7 @@
 #include "config_server.h"
 #include "mainloop.h"
-#include "caer-sdk/cross/threads_ext.h"
-#include "caer-sdk/cross/pathmax.h"
+#include "caer-sdk/cross/portable_threads.h"
+#include "caer-sdk/cross/portable_io.h"
 
 #include <atomic>
 #include <thread>
@@ -191,7 +191,7 @@ private:
 	void threadStart() {
 		ioThread = std::thread([this]() {
 			// Set thread name.
-			thrd_set_name("ConfigServer");
+			portable_thread_set_name("ConfigServer");
 
 			// Run IO service.
 			while (!ioService.stopped()) {
