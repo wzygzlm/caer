@@ -35,7 +35,7 @@ typedef struct simple_buffer *simpleBuffer;
 
 static inline simpleBuffer simpleBufferInit(size_t size) {
 	// Allocate new buffer.
-	simpleBuffer newBuffer = calloc(1, sizeof(*newBuffer) + (size * sizeof(uint8_t)));
+	simpleBuffer newBuffer = (simpleBuffer) calloc(1, sizeof(*newBuffer) + (size * sizeof(uint8_t)));
 	if (newBuffer == NULL) {
 		return (NULL);
 	}
@@ -61,12 +61,12 @@ static inline simpleBuffer simpleBufferInit(size_t size) {
 typedef struct simple_2d_buffer_##TYPE *simple2DBuffer##NAME; \
 \
 static inline simple2DBuffer##NAME simple2DBufferInit##NAME(size_t sizeX, size_t sizeY) { \
-	simple2DBuffer##NAME buffer2d = malloc(sizeof(*buffer2d) + (sizeX * sizeof(TYPE *))); \
+	simple2DBuffer##NAME buffer2d = (simple2DBuffer##NAME) malloc(sizeof(*buffer2d) + (sizeX * sizeof(TYPE *))); \
 	if (buffer2d == NULL) { \
 		return (NULL); \
 	} \
 \
-	buffer2d->buffer2d[0] = calloc(sizeX * sizeY, sizeof(TYPE)); \
+	buffer2d->buffer2d[0] = (TYPE *) calloc(sizeX * sizeY, sizeof(TYPE)); \
 	if (buffer2d->buffer2d[0] == NULL) { \
 		free(buffer2d); \
 		return (NULL); \
