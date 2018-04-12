@@ -105,10 +105,18 @@ char *portable_get_user_home_directory(void) {
 	}
 #endif
 
-	// Check if anything worked, else get a temporary path.
+	// If nothing else worked, try getting a temporary path.
 	if (homeDir == nullptr) {
-		boost::filesystem::path tmpDir = boost::filesystem::temp_directory_path();
-		homeDir = strdup(tmpDir.c_str());
+		boost::filesystem::path tempDir = boost::filesystem::temp_directory_path();
+
+		if (checkPath(tempDir)) {
+			homeDir = strdup(tempDir.c_str());
+		}
+	}
+
+	// Absolutely nothing worked: stop and return NULL.
+	if (homeDir == nullptr) {
+		return (nullptr);
 	}
 
 	char *realHomeDir = portable_realpath(homeDir);
