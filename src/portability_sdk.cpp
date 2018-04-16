@@ -58,7 +58,7 @@ char *portable_get_user_home_directory(void) {
 	boost::filesystem::path envHome(getenv("HOME"));
 
 	if (checkPath(envHome)) {
-		homeDir = strdup(envHome.c_str());
+		homeDir = strdup(envHome.string().c_str());
 	}
 
 	// Else try to get it from the user data storage.
@@ -71,7 +71,7 @@ char *portable_get_user_home_directory(void) {
 			boost::filesystem::path passwdPwDir(userPasswd.pw_dir);
 
 			if (checkPath(passwdPwDir)) {
-				homeDir = strdup(passwdPwDir.c_str());
+				homeDir = strdup(passwdPwDir.string().c_str());
 			}
 		}
 	}
@@ -80,7 +80,7 @@ char *portable_get_user_home_directory(void) {
 	boost::filesystem::path envUserProfile(getenv("USERPROFILE"));
 
 	if (checkPath(envUserProfile)) {
-		homeDir = strdup(envUserProfile.c_str());
+		homeDir = strdup(envUserProfile.string().c_str());
 	}
 
 	// Else try the concatenation of $HOMEDRIVE and $HOMEPATH.
@@ -91,7 +91,7 @@ char *portable_get_user_home_directory(void) {
 		envHomeDrive /= envHomePath;
 
 		if (checkPath(envHomeDrive)) {
-			homeDir = strdup(envHomeDrive.c_str());
+			homeDir = strdup(envHomeDrive.string().c_str());
 		}
 	}
 
@@ -100,7 +100,7 @@ char *portable_get_user_home_directory(void) {
 		boost::filesystem::path envHome(getenv("HOME"));
 
 		if (checkPath(envHome)) {
-			homeDir = strdup(envHome.c_str());
+			homeDir = strdup(envHome.string().c_str());
 		}
 	}
 #endif
@@ -110,7 +110,7 @@ char *portable_get_user_home_directory(void) {
 		boost::filesystem::path tempDir = boost::filesystem::temp_directory_path();
 
 		if (checkPath(tempDir)) {
-			homeDir = strdup(tempDir.c_str());
+			homeDir = strdup(tempDir.string().c_str());
 		}
 	}
 
