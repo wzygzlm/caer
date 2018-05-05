@@ -636,12 +636,6 @@ static void createDefaultLogicConfiguration(caerModuleData moduleData, const cha
 		sshsNodeCreateAttributePollTime(statNode, "muxDroppedExtInput", SSHS_LONG, 2);
 		sshsNodeAddAttributeReadModifier(statNode, "muxDroppedExtInput", SSHS_LONG, moduleData->moduleState,
 			&statisticsPassthrough);
-
-		sshsNodeCreateLong(statNode, "muxDroppedMic", 0, 0, INT64_MAX, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT,
-			"Number of dropped Microphone sample events due to USB full.");
-		sshsNodeCreateAttributePollTime(statNode, "muxDroppedMic", SSHS_LONG, 2);
-		sshsNodeAddAttributeReadModifier(statNode, "muxDroppedMic", SSHS_LONG, moduleData->moduleState,
-			&statisticsPassthrough);
 	}
 
 	if (devInfo->dvsHasStatistics) {
@@ -2365,9 +2359,6 @@ static void statisticsPassthrough(void *userData, const char *key, enum sshs_nod
 	}
 	else if (caerStrEquals(key, "muxDroppedExtInput")) {
 		caerDeviceConfigGet64(handle, DAVIS_CONFIG_MUX, DAVIS_CONFIG_MUX_STATISTICS_EXTINPUT_DROPPED, &statisticValue);
-	}
-	else if (caerStrEquals(key, "muxDroppedMic")) {
-		caerDeviceConfigGet64(handle, DAVIS_CONFIG_MUX, DAVIS_CONFIG_MUX_STATISTICS_MIC_DROPPED, &statisticValue);
 	}
 	else if (caerStrEquals(key, "dvsEventsRow")) {
 		caerDeviceConfigGet64(handle, DAVIS_CONFIG_DVS, DAVIS_CONFIG_DVS_STATISTICS_EVENTS_ROW, &statisticValue);
