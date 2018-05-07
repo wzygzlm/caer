@@ -1,9 +1,9 @@
 <sshs version="1.0">
     <node name="" path="/">
-        <node name="bafilter" path="/bafilter/">
+        <node name="noisefilter" path="/noisefilter/">
             <attr key="moduleId" type="short">2</attr>
             <attr key="moduleInput" type="string">1[1]</attr>
-            <attr key="moduleLibrary" type="string">caer_bafilter</attr>
+            <attr key="moduleLibrary" type="string">caer_dvsnoisefilter</attr>
         </node>
         <node name="caer" path="/caer/">
             <node name="logger" path="/caer/logger/">
