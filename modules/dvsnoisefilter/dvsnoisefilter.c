@@ -30,6 +30,18 @@ caerModuleInfo caerModuleGetInfo(void) {
 }
 
 static void caerDVSNoiseFilterConfigInit(sshsNode moduleNode) {
+	sshsNodeCreateBool(moduleNode, "hotPixelLearn", false, SSHS_FLAGS_NOTIFY_ONLY,
+		"Learn the position of current hot (abnormally active) pixels, so they can be filtered out.");
+	sshsNodeCreateInt(moduleNode, "hotPixelTime", 1000000, 0, 30000000, SSHS_FLAGS_NORMAL,
+		"Time in µs to accumulate events for learning new hot pixels.");
+	sshsNodeCreateInt(moduleNode, "hotPixelCount", 10000, 0, 10000000, SSHS_FLAGS_NORMAL,
+		"Number of events needed in a learning time period for a pixel to be considered hot.");
+
+	sshsNodeCreateBool(moduleNode, "hotPixelEnable", false, SSHS_FLAGS_NORMAL, "Enable the hot pixel filter.");
+	sshsNodeCreateLong(moduleNode, "hotPixelFiltered", 0, 0, INT64_MAX, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT,
+		"Number of events filtered out by the hot pixel filter.");
+	sshsNodeCreateAttributePollTime(moduleNode, "hotPixelFiltered", SSHS_LONG, 2);
+
 	sshsNodeCreateBool(moduleNode, "backgroundActivityEnable", true, SSHS_FLAGS_NORMAL,
 		"Enable the background activity filter.");
 	sshsNodeCreateInt(moduleNode, "backgroundActivityTime", 20000, 0, 10000000, SSHS_FLAGS_NORMAL,
@@ -56,7 +68,10 @@ static void statisticsPassthrough(void *userData, const char *key, enum sshs_nod
 
 	uint64_t statisticValue = 0;
 
-	if (caerStrEquals(key, "backgroundActivityFiltered")) {
+	if (caerStrEquals(key, "hotPixelFiltered")) {
+		caerFilterDVSNoiseConfigGet(state, CAER_FILTER_DVS_HOTPIXEL_STATISTICS, &statisticValue);
+	}
+	else if (caerStrEquals(key, "backgroundActivityFiltered")) {
 		caerFilterDVSNoiseConfigGet(state, CAER_FILTER_DVS_BACKGROUND_ACTIVITY_STATISTICS, &statisticValue);
 	}
 	else if (caerStrEquals(key, "refractoryPeriodFiltered")) {
@@ -95,6 +110,8 @@ static bool caerDVSNoiseFilterInit(caerModuleData moduleData) {
 	caerDVSNoiseFilterConfig(moduleData);
 
 	// Add read passthrough modifiers, they need access to moduleState.
+	sshsNodeAddAttributeReadModifier(moduleData->moduleNode, "hotPixelFiltered", SSHS_LONG, moduleData->moduleState,
+		&statisticsPassthrough);
 	sshsNodeAddAttributeReadModifier(moduleData->moduleNode, "backgroundActivityFiltered", SSHS_LONG,
 		moduleData->moduleState, &statisticsPassthrough);
 	sshsNodeAddAttributeReadModifier(moduleData->moduleNode, "refractoryPeriodFiltered", SSHS_LONG,
@@ -120,6 +137,15 @@ static void caerDVSNoiseFilterConfig(caerModuleData moduleData) {
 	caerModuleConfigUpdateReset(moduleData);
 
 	caerFilterDVSNoise state = moduleData->moduleState;
+
+	// TODO: how to handle hotPixelLearn, a NOTIFY_ONLY (button-like) config?
+	caerFilterDVSNoiseConfigSet(state, CAER_FILTER_DVS_HOTPIXEL_TIME,
+		U32T(sshsNodeGetInt(moduleData->moduleNode, "hotPixelTime")));
+	caerFilterDVSNoiseConfigSet(state, CAER_FILTER_DVS_HOTPIXEL_COUNT,
+		U32T(sshsNodeGetInt(moduleData->moduleNode, "hotPixelCount")));
+
+	caerFilterDVSNoiseConfigSet(state, CAER_FILTER_DVS_HOTPIXEL_ENABLE,
+		sshsNodeGetBool(moduleData->moduleNode, "hotPixelEnable"));
 
 	caerFilterDVSNoiseConfigSet(state, CAER_FILTER_DVS_BACKGROUND_ACTIVITY_ENABLE,
 		sshsNodeGetBool(moduleData->moduleNode, "backgroundActivityEnable"));
