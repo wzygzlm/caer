@@ -399,20 +399,24 @@ public:
 			return (false);
 		}
 
-		// Key and valueType have to be the same, so only update the value
-		// itself with the new one, and save the old one for later.
-		const sshs_value attrValueOld = attr.getValue();
+		// Key and valueType have to be the same, so we first check that the
+		// actual values, that we want to update, are different. If not, there's
+		// nothing to do, no listeners to call, and it doesn't make sense to
+		// set the value twice to the same content.
+		if (attr.getValue() != value) {
+			if (!attr.isFlagSet(SSHS_FLAGS_NOTIFY_ONLY)) {
+				// Only update stored value if NOTIFY_ONLY is not set.
+				attr.setValue(value);
+			}
 
-		attr.setValue(value);
-
-		// Let's check if anything changed with this update and call
-		// the appropriate listeners if needed. Check the pure, internal
-		// values here, as they are what matters internally.
-		if (attrValueOld != attr.getValue()) {
-			// Listener support. Call only on change, which is always the case here.
+			// Call the appropriate listeners, on change only, which is always
+			// true at this point. We use the new value directly, to support
+			// the case where NOTIFY_ONLY prevented the updated of the stored
+			// attribute, but the call to the listeners has to happen with the
+			// new value (call-listeners-only behavior).
 			for (const auto &l : attrListeners) {
 				(*l.getListener())(this, l.getUserData(), SSHS_ATTRIBUTE_MODIFIED, key.c_str(),
-					attr.getValue().getType(), attr.getValue().toCUnion(true));
+					value.getType(), value.toCUnion(true));
 			}
 		}
 
@@ -442,7 +446,7 @@ public:
 
 		// Synchronize value in attribute with modified value on removal.
 		// This guarantees that the value in the node will be valid and expected
-		// after the read modifier is disabled. After that it willl behave like
+		// after the read modifier is disabled. After that it will behave like
 		// any other normal attribute.
 		attr.setValue(attr.getModifiedValue(key));
 
