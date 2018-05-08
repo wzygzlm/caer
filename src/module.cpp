@@ -77,6 +77,10 @@ void caerModuleSM(caerModuleFunctions moduleFunctions, caerModuleData moduleData
 		}
 	}
 	else if (moduleData->moduleStatus == CAER_MODULE_STOPPED && running) {
+		// Check that all modules this module depends on are also running.
+		// TODO: ^^.
+
+		// Allocate memory for module state.
 		if (memSize != 0) {
 			moduleData->moduleState = calloc(1, memSize);
 			if (moduleData->moduleState == nullptr) {
@@ -98,6 +102,11 @@ void caerModuleSM(caerModuleFunctions moduleFunctions, caerModuleData moduleData
 		}
 
 		moduleData->moduleStatus = CAER_MODULE_RUNNING;
+
+		// After starting successfully, try to enable dependent
+		// modules if their 'runAtStartup' is true. Else shutting down
+		// an input would kill everything until mainloop restart.
+		// TODO: ^^.
 	}
 	else if (moduleData->moduleStatus == CAER_MODULE_RUNNING && !running) {
 		moduleData->moduleStatus = CAER_MODULE_STOPPED;
@@ -108,6 +117,10 @@ void caerModuleSM(caerModuleFunctions moduleFunctions, caerModuleData moduleData
 
 		free(moduleData->moduleState);
 		moduleData->moduleState = nullptr;
+
+		// Shutdown of module: ensure all modules depending on this
+		// one also get stopped (running set to false).
+		// TODO: ^^.
 	}
 }
 
