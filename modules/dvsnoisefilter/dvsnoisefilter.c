@@ -12,7 +12,7 @@ static void caerDVSNoiseFilterReset(caerModuleData moduleData, int16_t resetCall
 
 static void statisticsPassthrough(void *userData, const char *key, enum sshs_node_attr_value_type type,
 	union sshs_node_attr_value *value);
-static void caerDVSNoiseFilterConfigNotifyOnly(sshsNode node, void *userData, enum sshs_node_attribute_events event,
+static void caerDVSNoiseFilterConfigCustom(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
 
 static const struct caer_module_functions DVSNoiseFilterFunctions = { .moduleConfigInit = &caerDVSNoiseFilterConfigInit,
@@ -111,6 +111,9 @@ static bool caerDVSNoiseFilterInit(caerModuleData moduleData) {
 
 	caerDVSNoiseFilterConfig(moduleData);
 
+	caerFilterDVSNoiseConfigSet(moduleData->moduleState, CAER_FILTER_DVS_LOG_LEVEL,
+		atomic_load(&moduleData->moduleLogLevel));
+
 	// Add read passthrough modifiers, they need access to moduleState.
 	sshsNodeAddAttributeReadModifier(moduleData->moduleNode, "hotPixelFiltered", SSHS_LONG, moduleData->moduleState,
 		&statisticsPassthrough);
@@ -121,7 +124,7 @@ static bool caerDVSNoiseFilterInit(caerModuleData moduleData) {
 
 	// Add config listeners last, to avoid having them dangling if Init doesn't succeed.
 	sshsNodeAddAttributeListener(moduleData->moduleNode, moduleData, &caerModuleConfigDefaultListener);
-	sshsNodeAddAttributeListener(moduleData->moduleNode, moduleData->moduleState, &caerDVSNoiseFilterConfigNotifyOnly);
+	sshsNodeAddAttributeListener(moduleData->moduleNode, moduleData->moduleState, &caerDVSNoiseFilterConfigCustom);
 
 	// Nothing that can fail here.
 	return (true);
@@ -160,27 +163,31 @@ static void caerDVSNoiseFilterConfig(caerModuleData moduleData) {
 		U32T(sshsNodeGetInt(moduleData->moduleNode, "refractoryPeriodTime")));
 }
 
-static void caerDVSNoiseFilterConfigNotifyOnly(sshsNode node, void *userData, enum sshs_node_attribute_events event,
+static void caerDVSNoiseFilterConfigCustom(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue) {
 	UNUSED_ARGUMENT(node);
 	UNUSED_ARGUMENT(changeValue);
 
 	caerFilterDVSNoise state = userData;
 
-	if (event == SSHS_ATTRIBUTE_MODIFIED && changeType == SSHS_BOOL && caerStrEquals(changeKey, "hotPixelLearn")
-		&& changeValue.boolean) {
-		// Button-like, NOTIFY_ONLY SSHS configuration parameters need special
-		// handling as only the change is delivered, so we have to listen for
-		// it directly. The usual Config mechanism doesn't work, as Get()
-		// would always return false.
-		caerFilterDVSNoiseConfigSet(state, CAER_FILTER_DVS_HOTPIXEL_LEARN, true);
+	if (event == SSHS_ATTRIBUTE_MODIFIED) {
+		if (changeType == SSHS_BOOL && caerStrEquals(changeKey, "hotPixelLearn") && changeValue.boolean) {
+			// Button-like, NOTIFY_ONLY SSHS configuration parameters need special
+			// handling as only the change is delivered, so we have to listen for
+			// it directly. The usual Config mechanism doesn't work, as Get()
+			// would always return false.
+			caerFilterDVSNoiseConfigSet(state, CAER_FILTER_DVS_HOTPIXEL_LEARN, true);
+		}
+		else if (changeType == SSHS_BYTE && caerStrEquals(changeKey, "logLevel")) {
+			caerFilterDVSNoiseConfigSet(state, CAER_FILTER_DVS_LOG_LEVEL, U8T(changeValue.ibyte));
+		}
 	}
 }
 
 static void caerDVSNoiseFilterExit(caerModuleData moduleData) {
 	// Remove listener, which can reference invalid memory in userData.
 	sshsNodeRemoveAttributeListener(moduleData->moduleNode, moduleData, &caerModuleConfigDefaultListener);
-	sshsNodeRemoveAttributeListener(moduleData->moduleNode, moduleData->moduleState, &caerDVSNoiseFilterConfigNotifyOnly);
+	sshsNodeRemoveAttributeListener(moduleData->moduleNode, moduleData->moduleState, &caerDVSNoiseFilterConfigCustom);
 
 	sshsNodeRemoveAllAttributeReadModifiers(moduleData->moduleNode);
 
