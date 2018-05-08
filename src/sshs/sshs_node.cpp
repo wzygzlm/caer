@@ -263,6 +263,14 @@ public:
 				"the NOTIFY_ONLY flag is set, but attribute is not of type BOOL. Only booleans can have this flag set!");
 		}
 
+		// Restrict NOTIFY_ONLY flag to a default value of false only. This avoids
+		// strange inverted logic for buttons.
+		if ((flags & SSHS_FLAGS_NOTIFY_ONLY) && defaultValue.getBool() != false) {
+			// Fail on wrong notify-only flag usage.
+			sshsNodeError("sshsNodeCreateAttribute", key, defaultValue.getType(),
+				"the NOTIFY_ONLY flag is set for this BOOL type attribute, only 'false' can be used as default value.");
+		}
+
 		sshs_node_attr newAttr(defaultValue, ranges, flags, description);
 
 		std::lock_guard<std::recursive_mutex> lock(node_lock);
@@ -415,8 +423,8 @@ public:
 			// attribute, but the call to the listeners has to happen with the
 			// new value (call-listeners-only behavior).
 			for (const auto &l : attrListeners) {
-				(*l.getListener())(this, l.getUserData(), SSHS_ATTRIBUTE_MODIFIED, key.c_str(),
-					value.getType(), value.toCUnion(true));
+				(*l.getListener())(this, l.getUserData(), SSHS_ATTRIBUTE_MODIFIED, key.c_str(), value.getType(),
+					value.toCUnion(true));
 			}
 		}
 
