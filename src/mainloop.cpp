@@ -1830,7 +1830,7 @@ static void caerModulesUpdateInformation(sshsNode node, void *userData, enum ssh
 	UNUSED_ARGUMENT(changeValue);
 
 	if (event == SSHS_ATTRIBUTE_MODIFIED && changeType == SSHS_BOOL
-		&& caerStrEquals(changeKey, "updateModulesInformation")) {
+		&& caerStrEquals(changeKey, "updateModulesInformation") && changeValue.boolean) {
 		// Get information on available modules, put it into SSHS.
 		try {
 			caerUpdateModulesInformation();

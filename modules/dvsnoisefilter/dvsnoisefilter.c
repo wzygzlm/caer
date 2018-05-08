@@ -12,6 +12,8 @@ static void caerDVSNoiseFilterReset(caerModuleData moduleData, int16_t resetCall
 
 static void statisticsPassthrough(void *userData, const char *key, enum sshs_node_attr_value_type type,
 	union sshs_node_attr_value *value);
+static void caerDVSNoiseFilterConfigNotifyOnly(sshsNode node, void *userData, enum sshs_node_attribute_events event,
+	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
 
 static const struct caer_module_functions DVSNoiseFilterFunctions = { .moduleConfigInit = &caerDVSNoiseFilterConfigInit,
 	.moduleInit = &caerDVSNoiseFilterInit, .moduleRun = &caerDVSNoiseFilterRun, .moduleConfig =
@@ -119,6 +121,7 @@ static bool caerDVSNoiseFilterInit(caerModuleData moduleData) {
 
 	// Add config listeners last, to avoid having them dangling if Init doesn't succeed.
 	sshsNodeAddAttributeListener(moduleData->moduleNode, moduleData, &caerModuleConfigDefaultListener);
+	sshsNodeAddAttributeListener(moduleData->moduleNode, moduleData->moduleState, &caerDVSNoiseFilterConfigNotifyOnly);
 
 	// Nothing that can fail here.
 	return (true);
@@ -138,7 +141,6 @@ static void caerDVSNoiseFilterConfig(caerModuleData moduleData) {
 
 	caerFilterDVSNoise state = moduleData->moduleState;
 
-	// TODO: how to handle hotPixelLearn, a NOTIFY_ONLY (button-like) config?
 	caerFilterDVSNoiseConfigSet(state, CAER_FILTER_DVS_HOTPIXEL_TIME,
 		U32T(sshsNodeGetInt(moduleData->moduleNode, "hotPixelTime")));
 	caerFilterDVSNoiseConfigSet(state, CAER_FILTER_DVS_HOTPIXEL_COUNT,
@@ -158,9 +160,27 @@ static void caerDVSNoiseFilterConfig(caerModuleData moduleData) {
 		U32T(sshsNodeGetInt(moduleData->moduleNode, "refractoryPeriodTime")));
 }
 
+static void caerDVSNoiseFilterConfigNotifyOnly(sshsNode node, void *userData, enum sshs_node_attribute_events event,
+	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue) {
+	UNUSED_ARGUMENT(node);
+	UNUSED_ARGUMENT(changeValue);
+
+	caerFilterDVSNoise state = userData;
+
+	if (event == SSHS_ATTRIBUTE_MODIFIED && changeType == SSHS_BOOL && caerStrEquals(changeKey, "hotPixelLearn")
+		&& changeValue.boolean) {
+		// Button-like, NOTIFY_ONLY SSHS configuration parameters need special
+		// handling as only the change is delivered, so we have to listen for
+		// it directly. The usual Config mechanism doesn't work, as Get()
+		// would always return false.
+		caerFilterDVSNoiseConfigSet(state, CAER_FILTER_DVS_HOTPIXEL_LEARN, true);
+	}
+}
+
 static void caerDVSNoiseFilterExit(caerModuleData moduleData) {
 	// Remove listener, which can reference invalid memory in userData.
 	sshsNodeRemoveAttributeListener(moduleData->moduleNode, moduleData, &caerModuleConfigDefaultListener);
+	sshsNodeRemoveAttributeListener(moduleData->moduleNode, moduleData->moduleState, &caerDVSNoiseFilterConfigNotifyOnly);
 
 	sshsNodeRemoveAllAttributeReadModifiers(moduleData->moduleNode);
 
