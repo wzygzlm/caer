@@ -1789,11 +1789,15 @@ static void printDebugInformation() {
 			m.get().name.c_str());
 
 		for (const auto &i : m.get().inputs) {
-			log(logLevel::DEBUG, "Mainloop", " --> IN: %d - %d", i.first, i.second);
+			log(logLevel::DEBUG, "Mainloop", " --> IN: slot=%d - dest=%d", i.first, i.second);
 		}
 
-		for (const auto &o : m.get().outputs) {
-			log(logLevel::DEBUG, "Mainloop", " --> OUT: %d - %d", o.first, o.second);
+		std::vector<std::pair<int16_t, ssize_t>> orderedOutputs(m.get().outputs.cbegin(), m.get().outputs.cend());
+
+		std::sort(orderedOutputs.begin(), orderedOutputs.end());
+
+		for (const auto &o : orderedOutputs) {
+			log(logLevel::DEBUG, "Mainloop", " --> OUT: type=%d - slot=%d", o.first, o.second);
 		}
 	}
 }
