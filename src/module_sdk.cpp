@@ -8,8 +8,7 @@ bool caerModuleSetSubSystemString(caerModuleData moduleData, const char *subSyst
 	char *newSubSystemString = (char *) malloc(subSystemStringLenght + 1);
 	if (newSubSystemString == nullptr) {
 		// Failed to allocate memory. Log this and don't use the new string.
-		caerLog(CAER_LOG_ERROR, moduleData->moduleSubSystemString,
-			"Failed to allocate new sub-system string for module.");
+		caerModuleLog(moduleData, CAER_LOG_ERROR, "Failed to allocate new sub-system string for module.");
 		return (false);
 	}
 
