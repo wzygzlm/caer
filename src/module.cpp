@@ -94,7 +94,10 @@ void caerModuleSM(caerModuleFunctions moduleFunctions, caerModuleData moduleData
 
 		if (moduleFunctions->moduleInit != nullptr) {
 			if (!moduleFunctions->moduleInit(moduleData)) {
-				free(moduleData->moduleState);
+				if (memSize != 0) {
+					// Only deallocate if we were the original allocator.
+					free(moduleData->moduleState);
+				}
 				moduleData->moduleState = nullptr;
 
 				return;
@@ -116,7 +119,10 @@ void caerModuleSM(caerModuleFunctions moduleFunctions, caerModuleData moduleData
 			moduleFunctions->moduleExit(moduleData);
 		}
 
-		free(moduleData->moduleState);
+		if (memSize != 0) {
+			// Only deallocate if we were the original allocator.
+			free(moduleData->moduleState);
+		}
 		moduleData->moduleState = nullptr;
 
 		// Shutdown of module: ensure all modules depending on this
