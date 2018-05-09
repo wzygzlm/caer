@@ -1868,7 +1868,7 @@ bool isNetworkMessageBased) {
 	sshsNodeCreateInt(moduleData->moduleNode, "ringBufferSize", 128, 8, 1024, SSHS_FLAGS_NORMAL,
 		"Size of EventPacketContainer and EventPacket queues, used for transfers between input threads and mainloop.");
 
-	sshsNodeCreateInt(moduleData->moduleNode, "PacketContainerMaxPacketSize", 8192, 1, 10 * 1024 * 1024,
+	sshsNodeCreateInt(moduleData->moduleNode, "PacketContainerMaxPacketSize", 0, 0, 10 * 1024 * 1024,
 		SSHS_FLAGS_NORMAL,
 		"Maximum packet size in events, when any packet reaches this size, the EventPacketContainer is sent for processing.");
 	sshsNodeCreateInt(moduleData->moduleNode, "PacketContainerInterval", 10000, 1, 120 * 1000 * 1000, SSHS_FLAGS_NORMAL,
