@@ -155,7 +155,7 @@ void caerMainloopRun(void) {
 			caerUpdateModulesInformation();
 		}
 		catch (const std::exception &ex) {
-			sshsNodePutBool(glMainloopData.configNode, "running", false);
+			sshsNodePut(glMainloopData.configNode, "running", false);
 
 			log(logLevel::CRITICAL, "Mainloop",
 				"Failed to find any modules (error: '%s'), please fix the configuration and try again!", ex.what());
@@ -167,7 +167,7 @@ void caerMainloopRun(void) {
 
 		// On failure, make sure to disable mainloop, user will have to fix it.
 		if (result == EXIT_FAILURE) {
-			sshsNodePutBool(glMainloopData.configNode, "running", false);
+			sshsNodePut(glMainloopData.configNode, "running", false);
 
 			log(logLevel::CRITICAL, "Mainloop",
 				"Failed to start mainloop, please fix the configuration and try again!");
@@ -1738,7 +1738,12 @@ static int caerMainloopRunner() {
 
 	// Shutdown all modules.
 	for (const auto &m : glMainloopData.globalExecution) {
-		sshsNodePutBool(m.get().configNode, "running", false);
+		// Record modules that were still running at mainloop shutdown,
+		// by enabling their 'runAtStartup' flag, so they come back
+		// on a subsequent mainloop execution.
+		sshsNodePut(m.get().configNode, "runAtStartup", sshsNodeGetBool(m.get().configNode, "running"));
+
+		sshsNodePut(m.get().configNode, "running", false);
 	}
 
 	// Run through the loop one last time to correctly shutdown all the modules.
