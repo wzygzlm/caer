@@ -88,7 +88,8 @@ static bool caerVisualizerRendererPolarityEvents(caerVisualizerPublicState state
 
 	const libcaer::events::PolarityEventPacket polarityPacket(polarityPacketHeader, false);
 
-	std::vector<sf::Vertex> vertices((size_t) polarityPacket.getEventValid() * 4);
+	std::vector<sf::Vertex> vertices;
+	vertices.reserve((size_t) polarityPacket.getEventValid() * 4);
 
 	// Render all valid events.
 	for (const auto &polarityEvent : polarityPacket) {
@@ -381,7 +382,8 @@ static bool caerVisualizerRendererPoint2DEvents(caerVisualizerPublicState state,
 
 	const libcaer::events::Point2DEventPacket point2DPacket(point2DPacketHeader, false);
 
-	std::vector<sf::Vertex> vertices((size_t) point2DPacket.getEventValid() * 4);
+	std::vector<sf::Vertex> vertices;
+	vertices.reserve((size_t) point2DPacket.getEventValid() * 4);
 
 	// Render all valid events.
 	for (const auto &point2DEvent : point2DPacket) {
@@ -425,7 +427,8 @@ static bool caerVisualizerRendererSpikeEvents(caerVisualizerPublicState state, c
 
 	const libcaer::events::SpikeEventPacket spikePacket(spikePacketHeader, false);
 
-	std::vector<sf::Vertex> vertices((size_t) spikePacket.getEventValid() * 4);
+	std::vector<sf::Vertex> vertices;
+	vertices.reserve((size_t) spikePacket.getEventValid() * 4);
 
 	// Render all valid events.
 	for (const auto &spikeEvent : spikePacket) {
@@ -604,7 +607,8 @@ static bool caerVisualizerRendererMatrix4x4EventsPose(caerVisualizerPublicState 
 	}
 
 	// init vertices
-	std::vector<sf::Vertex> vertices((size_t) matrix4x4Packet.getEventNumber() * 4);
+	std::vector<sf::Vertex> vertices;
+	vertices.reserve((size_t) matrix4x4Packet.getEventNumber() * 4);
 
 	// draw all points
 	for (int i = 0; i < memInt->worldXPosition; i++) {
@@ -804,7 +808,8 @@ static bool caerVisualizerRendererSpikeEventsRaster(caerVisualizerPublicState st
 	float scaleX = (sizeX / 2.0f) / (float) timeSpan;
 	float scaleY = (sizeY / 2.0f) / (float) DYNAPSE_CONFIG_NUMNEURONS;
 
-	std::vector<sf::Vertex> vertices((size_t) spikePacket.getEventNumber() * 4);
+	std::vector<sf::Vertex> vertices;
+	vertices.reserve((size_t) spikePacket.getEventNumber() * 4);
 
 	// Render all spikes.
 	for (const auto &spikeEvent : spikePacket) {

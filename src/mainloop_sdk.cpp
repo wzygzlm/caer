@@ -50,7 +50,8 @@ size_t caerMainloopModuleGetInputDeps(int16_t id, int16_t **inputDepIds) {
 		return (0);
 	}
 
-	std::vector<int16_t> inputModuleIds(glMainloopDataPtr->modules.at(id).inputDefinition.size());
+	std::vector<int16_t> inputModuleIds;
+	inputModuleIds.reserve(glMainloopDataPtr->modules.at(id).inputDefinition.size());
 
 	// Get all module IDs of inputs to this module (each present only once in
 	// 'inputDefinition' of module), then sort them and return if so requested.
