@@ -296,7 +296,7 @@ static std::vector<OrderedInput> parseAugmentedTypeIDString(const std::string &t
 			// Verify that the module ID belongs to a PROCESSOR module,
 			// as only those can ever modify event streams and thus impose
 			// an ordering on it and modules using it.
-			if (!caerMainloopModuleIsType(static_cast<int16_t>(afterModuleOrder), CAER_MODULE_PROCESSOR)) {
+			if (caerMainloopModuleGetType(static_cast<int16_t>(afterModuleOrder)) != CAER_MODULE_PROCESSOR) {
 				throw std::out_of_range("Module ID doesn't belong to a PROCESSOR type modules.");
 			}
 		}

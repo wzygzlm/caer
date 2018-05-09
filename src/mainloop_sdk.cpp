@@ -20,60 +20,42 @@ void caerMainloopDataNotifyDecrease(void *p) {
 	glMainloopDataPtr->dataAvailable.fetch_sub(1, std::memory_order_relaxed);
 }
 
+bool caerMainloopStreamExists(int16_t sourceId, int16_t typeId) {
+	return (findBool(glMainloopDataPtr->streams.cbegin(), glMainloopDataPtr->streams.cend(),
+		ActiveStreams(sourceId, typeId)));
+}
+
 bool caerMainloopModuleExists(int16_t id) {
 	return (glMainloopDataPtr->modules.count(id) == 1);
 }
 
-bool caerMainloopModuleIsType(int16_t id, enum caer_module_type type) {
-	return (glMainloopDataPtr->modules.at(id).libraryInfo->type == type);
+enum caer_module_type caerMainloopModuleGetType(int16_t id) {
+	return (glMainloopDataPtr->modules.at(id).libraryInfo->type);
 }
 
-bool caerMainloopStreamExists(int16_t sourceId, int16_t typeId) {
-	return (findBool(glMainloopDataPtr->streams.begin(), glMainloopDataPtr->streams.end(), ActiveStreams(sourceId, typeId)));
+sshsNode caerMainloopModuleGetConfigNode(int16_t id) {
+	return (glMainloopDataPtr->modules.at(id).runtimeData->moduleNode);
 }
 
-int16_t *caerMainloopGetModuleInputIDs(int16_t id, size_t *inputsSize) {
-	// If inputsSize is known, allow not passing it in.
-	if (inputsSize != nullptr) {
-		*inputsSize = 0;
-	}
+size_t caerMainloopModuleGetInputDeps(int16_t id, int16_t **inputDepIds) {
 
-	// Only makes sense to be called from PROCESSORs or OUTPUTs, as INPUTs
-	// do not have inputs themselves.
-	if (caerMainloopModuleIsType(id, CAER_MODULE_INPUT)) {
-		return (nullptr);
-	}
+}
 
-	size_t inDefSize = glMainloopDataPtr->modules.at(id).inputDefinition.size();
+size_t caerMainloopModuleGetOutputRevDeps(int16_t id, int16_t **outputRevDepIds) {
 
-	int16_t *inputs = (int16_t *) malloc(inDefSize * sizeof(int16_t));
-	if (inputs == nullptr) {
-		return (nullptr);
-	}
+}
 
-	size_t idx = 0;
-	for (auto inDef : glMainloopDataPtr->modules.at(id).inputDefinition) {
-		inputs[idx++] = inDef.first;
-	}
+void caerMainloopModuleResetOutputRevDeps(int16_t sourceID) {
 
-	if (inputsSize != nullptr) {
-		*inputsSize = idx;
-	}
-	return (inputs);
 }
 
 static inline caerModuleData caerMainloopGetSourceData(int16_t sourceID) {
-	caerModuleData moduleData = glMainloopDataPtr->modules.at(sourceID).runtimeData;
-	if (moduleData == nullptr) {
-		return (nullptr);
-	}
-
 	// Sources must be INPUTs or PROCESSORs.
-	if (caerMainloopModuleIsType(sourceID, CAER_MODULE_OUTPUT)) {
+	if (caerMainloopModuleGetType(sourceID) == CAER_MODULE_OUTPUT) {
 		return (nullptr);
 	}
 
-	return (moduleData);
+	return (glMainloopDataPtr->modules.at(sourceID).runtimeData);
 }
 
 sshsNode caerMainloopGetSourceNode(int16_t sourceID) {
@@ -83,6 +65,15 @@ sshsNode caerMainloopGetSourceNode(int16_t sourceID) {
 	}
 
 	return (moduleData->moduleNode);
+}
+
+void *caerMainloopGetSourceState(int16_t sourceID) {
+	caerModuleData moduleData = caerMainloopGetSourceData(sourceID);
+	if (moduleData == nullptr) {
+		return (nullptr);
+	}
+
+	return (moduleData->moduleState);
 }
 
 sshsNode caerMainloopGetSourceInfo(int16_t sourceID) {
@@ -104,27 +95,10 @@ sshsNode caerMainloopGetSourceInfo(int16_t sourceID) {
 	return (sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/"));
 }
 
-void *caerMainloopGetSourceState(int16_t sourceID) {
-	caerModuleData moduleData = caerMainloopGetSourceData(sourceID);
-	if (moduleData == nullptr) {
-		return (nullptr);
-	}
-
-	return (moduleData->moduleState);
-}
-
-sshsNode caerMainloopGetModuleNode(int16_t sourceID) {
-	caerModuleData moduleData = glMainloopDataPtr->modules.at(sourceID).runtimeData;
-	if (moduleData == nullptr) {
-		return (nullptr);
-	}
-
-	return (moduleData->moduleNode);
-}
-
 void caerMainloopResetInputs(int16_t sourceID) {
 	for (auto &m : glMainloopDataPtr->globalExecution) {
-		if (m.get().libraryInfo->type == CAER_MODULE_INPUT) {
+		if (m.get().libraryInfo->type == CAER_MODULE_INPUT
+			&& m.get().runtimeData->moduleStatus == CAER_MODULE_RUNNING) {
 			m.get().runtimeData->doReset.store(sourceID);
 		}
 	}
@@ -132,7 +106,8 @@ void caerMainloopResetInputs(int16_t sourceID) {
 
 void caerMainloopResetOutputs(int16_t sourceID) {
 	for (auto &m : glMainloopDataPtr->globalExecution) {
-		if (m.get().libraryInfo->type == CAER_MODULE_OUTPUT) {
+		if (m.get().libraryInfo->type == CAER_MODULE_OUTPUT
+			&& m.get().runtimeData->moduleStatus == CAER_MODULE_RUNNING) {
 			m.get().runtimeData->doReset.store(sourceID);
 		}
 	}
@@ -140,7 +115,8 @@ void caerMainloopResetOutputs(int16_t sourceID) {
 
 void caerMainloopResetProcessors(int16_t sourceID) {
 	for (auto &m : glMainloopDataPtr->globalExecution) {
-		if (m.get().libraryInfo->type == CAER_MODULE_PROCESSOR) {
+		if (m.get().libraryInfo->type == CAER_MODULE_PROCESSOR
+			&& m.get().runtimeData->moduleStatus == CAER_MODULE_RUNNING) {
 			m.get().runtimeData->doReset.store(sourceID);
 		}
 	}
