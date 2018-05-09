@@ -106,6 +106,7 @@ void caerModuleSM(caerModuleFunctions moduleFunctions, caerModuleData moduleData
 		// After starting successfully, try to enable dependent
 		// modules if their 'runAtStartup' is true. Else shutting down
 		// an input would kill everything until mainloop restart.
+		// This is consistent with initial mainloop start.
 		// TODO: ^^.
 	}
 	else if (moduleData->moduleStatus == CAER_MODULE_RUNNING && !running) {
@@ -119,7 +120,10 @@ void caerModuleSM(caerModuleFunctions moduleFunctions, caerModuleData moduleData
 		moduleData->moduleState = nullptr;
 
 		// Shutdown of module: ensure all modules depending on this
-		// one also get stopped (running set to false).
+		// one also get stopped (running set to false). Also rewrite their
+		// 'runAtStartup' flag, so that if/when the input module comes
+		// back online, they also get started again (or not). This is a
+		// consistent behavior with full mainloop shutdown.
 		// TODO: ^^.
 	}
 }
