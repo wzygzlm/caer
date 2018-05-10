@@ -1090,26 +1090,26 @@ static void buildConnectivity() {
 				int16_t sourceId = inputDef.first;
 
 				for (const auto &orderIn : inputDef.second) {
+					// Get input slot from indexes.
+					auto &indexes = streamIndexes[sourceId];
+
+					const auto idx = std::find(indexes.cbegin(), indexes.cend(),
+						ModuleSlot(orderIn.typeId, orderIn.afterModuleId, 0));
+
+					if (idx == indexes.cend()) {
+						boost::format exMsg =
+							boost::format(
+								"Cannot find valid index slot for module '%s' (ID %d) on input definition [s: %d, t: %d, a: %d]. "
+									"This should never happen, please report this to the developers and attach your XML configuration file.")
+								% m.get().name % m.get().id % sourceId % orderIn.typeId % orderIn.afterModuleId;
+						throw std::out_of_range(exMsg.str());
+					}
+
 					if (orderIn.copyNeeded) {
 						// Copy needed (in theory), to make sure we first check if
 						// any other modules in this stream that come later on have
 						// an input definition that requires exactly this data.
 						// If yes, we must do the copy. Tables updated accordingly.
-						// Get old slot from indexes.
-						auto &indexes = streamIndexes[sourceId];
-
-						const auto idx = std::find(indexes.begin(), indexes.end(),
-							ModuleSlot(orderIn.typeId, orderIn.afterModuleId, 0));
-
-						if (idx == indexes.end()) {
-							boost::format exMsg =
-								boost::format(
-									"Cannot find valid index slot for module '%s' (ID %d) on input definition [s: %d, t: %d, a: %d]. "
-										"This should never happen, please report this to the developers and attach your XML configuration file.")
-									% m.get().name % m.get().id % sourceId % orderIn.typeId % orderIn.afterModuleId;
-							throw std::out_of_range(exMsg.str());
-						}
-
 						if (!isOutputBeingUsed(sourceId, orderIn.typeId, orderIn.afterModuleId, m.get().id,
 							m.get().name)) {
 							// Nobody else needs this data, use it directly.
@@ -1137,27 +1137,13 @@ static void buildConnectivity() {
 					}
 					else {
 						// Copy not needed, just use index from indexes table.
-						const auto &indexes = streamIndexes[sourceId];
-
-						const auto idx = std::find(indexes.begin(), indexes.end(),
-							ModuleSlot(orderIn.typeId, orderIn.afterModuleId, 0));
-
-						if (idx == indexes.end()) {
-							boost::format exMsg =
-								boost::format(
-									"Cannot find valid index slot for module '%s' (ID %d) on input definition [s: %d, t: %d, a: %d]. "
-										"This should never happen, please report this to the developers and attach your XML configuration file.")
-									% m.get().name % m.get().id % sourceId % orderIn.typeId % orderIn.afterModuleId;
-							throw std::out_of_range(exMsg.str());
-						}
-
 						// Update active inputs with a viable index.
 						m.get().inputs.push_back(std::make_pair(idx->index, -1));
 					}
-
-					std::sort(m.get().inputs.begin(), m.get().inputs.end());
 				}
 			}
+
+			std::sort(m.get().inputs.begin(), m.get().inputs.end());
 		}
 	}
 
