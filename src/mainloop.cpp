@@ -1173,49 +1173,68 @@ static size_t getMaximumInputNumber() {
 static void runModules(caerEventPacketContainer in) {
 	// Run through all modules in order.
 	for (const auto &m : glMainloopData.globalExecution) {
-		// Prepare input container.
-		// Clean up container. NULL pointers, memory has been already freed
-		// previously from the global event packets storage.
-		for (int32_t i = 0; i < caerEventPacketContainerGetEventPacketsNumber(in); i++) {
-			in->eventPackets[i] = nullptr;
+		size_t inputsToPass = 0;
+		size_t outputsExpectedBack = 0;
+
+		// Prepare input container. Only do if the module is running.
+		if (m.get().runtimeData->moduleStatus == CAER_MODULE_RUNNING) {
+			// Clean up container. NULL pointers, memory has been already freed
+			// previously from the global event packets storage.
+			for (int32_t i = 0; i < caerEventPacketContainerGetEventPacketsNumber(in); i++) {
+				in->eventPackets[i] = nullptr;
+			}
+
+			// Insert new packets into container based on declared inputs.
+			// If needed, copy the packet and publish the copy globally.
+			for (const auto &input : m.get().inputs) {
+				if (input.second == -1) {
+					// No copy needed.
+					in->eventPackets[inputsToPass] = glMainloopData.eventPackets[static_cast<size_t>(input.first)];
+				}
+				else {
+					// Copy is needed. Do it and update the global event packet storage.
+					caerEventPacketHeader packetCopy = caerEventPacketCopyOnlyEvents(
+						glMainloopData.eventPackets[static_cast<size_t>(input.second)]);
+
+					in->eventPackets[inputsToPass] = packetCopy;
+					glMainloopData.eventPackets[static_cast<size_t>(input.first)] = packetCopy;
+				}
+
+				// Only increment container size if we actually added a packet with data.
+				if (in->eventPackets[inputsToPass] != nullptr) {
+					inputsToPass++;
+				}
+			}
+
+			// Reset number of contained event packets, this also updates statistics.
+			caerEventPacketContainerSetEventPacketsNumber(in, static_cast<int32_t>(inputsToPass));
+
+			// If module is running, expected outputs are as many as are defined.
+			outputsExpectedBack = m.get().outputs.size();
 		}
-
-		// Insert new packets into container based on declared inputs.
-		// If needed, copy the packet and publish the copy globally.
-		int32_t idx = 0;
-
-		for (const auto &input : m.get().inputs) {
-			if (input.second == -1) {
-				// No copy needed.
-				in->eventPackets[idx] = glMainloopData.eventPackets[static_cast<size_t>(input.first)];
-			}
-			else {
-				// Copy is needed. Do it and update the global event packet storage.
-				caerEventPacketHeader packetCopy = caerEventPacketCopyOnlyEvents(
-					glMainloopData.eventPackets[static_cast<size_t>(input.second)]);
-
-				in->eventPackets[idx] = packetCopy;
-				glMainloopData.eventPackets[static_cast<size_t>(input.first)] = packetCopy;
-			}
-
-			// Only increment container size if we actually added a packet with data.
-			if (in->eventPackets[idx] != nullptr) {
-				idx++;
+		else {
+			// !CAER_MODULE_RUNNING, so we need to make any side-effects of the
+			// above code happen, in this case any packet copy operation, which
+			// would fill a slot with new data, has to happen. The copy must
+			// happen, because later modules in this stream might be using the
+			// data and modifying it, even if this modules obviously doesn't.
+			for (const auto &input : m.get().inputs) {
+				if (input.second != -1) {
+					glMainloopData.eventPackets[static_cast<size_t>(input.first)] = caerEventPacketCopyOnlyEvents(
+						glMainloopData.eventPackets[static_cast<size_t>(input.second)]);
+				}
 			}
 		}
-
-		// Reset number of contained event packets, this also updates statistics.
-		caerEventPacketContainerSetEventPacketsNumber(in, idx);
 
 		// Debug logging.
-		caerModuleLog(m.get().runtimeData, CAER_LOG_DEBUG, "Module Input: passing %" PRIi32 " packets.", idx);
-		caerModuleLog(m.get().runtimeData, CAER_LOG_DEBUG, "Module Output: expecting %zu packets.",
-			m.get().outputs.size());
+		caerModuleLog(m.get().runtimeData, CAER_LOG_DEBUG, "Module Input: passing %zu packets in.", inputsToPass);
+		caerModuleLog(m.get().runtimeData, CAER_LOG_DEBUG, "Module Output: expecting %zu packets back out.",
+			outputsExpectedBack);
 
 		// Run module state machine.
 		caerEventPacketContainer out = nullptr;
 		caerModuleSM(m.get().libraryInfo->functions, m.get().runtimeData, m.get().libraryInfo->memSize,
-			(idx > 0) ? (in) : (nullptr), (m.get().outputs.size() > 0) ? (&out) : (nullptr));
+			(inputsToPass > 0) ? (in) : (nullptr), (outputsExpectedBack > 0) ? (&out) : (nullptr));
 
 		// Parse possible output container.
 		if (out != nullptr) {
