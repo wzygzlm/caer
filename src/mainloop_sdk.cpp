@@ -175,30 +175,3 @@ sshsNode caerMainloopGetSourceInfo(int16_t sourceID) {
 
 	return (sshsGetRelativeNode(moduleData->moduleNode, "sourceInfo/"));
 }
-
-void caerMainloopResetInputs(int16_t sourceID) {
-	for (auto &m : glMainloopDataPtr->globalExecution) {
-		if (m.get().libraryInfo->type == CAER_MODULE_INPUT
-			&& m.get().runtimeData->moduleStatus == CAER_MODULE_RUNNING) {
-			m.get().runtimeData->doReset.store(sourceID);
-		}
-	}
-}
-
-void caerMainloopResetOutputs(int16_t sourceID) {
-	for (auto &m : glMainloopDataPtr->globalExecution) {
-		if (m.get().libraryInfo->type == CAER_MODULE_OUTPUT
-			&& m.get().runtimeData->moduleStatus == CAER_MODULE_RUNNING) {
-			m.get().runtimeData->doReset.store(sourceID);
-		}
-	}
-}
-
-void caerMainloopResetProcessors(int16_t sourceID) {
-	for (auto &m : glMainloopDataPtr->globalExecution) {
-		if (m.get().libraryInfo->type == CAER_MODULE_PROCESSOR
-			&& m.get().runtimeData->moduleStatus == CAER_MODULE_RUNNING) {
-			m.get().runtimeData->doReset.store(sourceID);
-		}
-	}
-}
