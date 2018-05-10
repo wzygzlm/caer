@@ -38,7 +38,8 @@ caerModuleInfo caerModuleGetInfo(void) {
 static bool caerFrameEnhancerInit(caerModuleData moduleData) {
 	// Wait for input to be ready. All inputs, once they are up and running, will
 	// have a valid sourceInfo node to query, especially if dealing with data.
-	int16_t *inputs = caerMainloopGetModuleInputIDs(moduleData->moduleID, NULL);
+	int16_t *inputs;
+	caerMainloopModuleGetInputDeps(moduleData->moduleID, &inputs);
 	if (inputs == NULL) {
 		return (false);
 	}

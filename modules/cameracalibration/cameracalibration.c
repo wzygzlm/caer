@@ -45,8 +45,8 @@ caerModuleInfo caerModuleGetInfo(void) {
 static bool caerCameraCalibrationInit(caerModuleData moduleData) {
 	// Wait for input to be ready. All inputs, once they are up and running, will
 	// have a valid sourceInfo node to query, especially if dealing with data.
-	size_t inputsSize;
-	int16_t *inputs = caerMainloopGetModuleInputIDs(moduleData->moduleID, &inputsSize);
+	int16_t *inputs;
+	size_t inputsSize = caerMainloopModuleGetInputDeps(moduleData->moduleID, &inputs);
 	if (inputs == NULL) {
 		return (false);
 	}
