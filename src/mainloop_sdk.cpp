@@ -121,7 +121,9 @@ size_t caerMainloopModuleResetOutputRevDeps(int16_t id) {
 
 	if (numRevDeps > 0) {
 		for (size_t i = 0; i < numRevDeps; i++) {
-			glMainloopDataPtr->modules.at(outputRevDepIds[i]).runtimeData->doReset.store(id);
+			if (glMainloopDataPtr->modules.at(outputRevDepIds[i]).runtimeData->moduleStatus == CAER_MODULE_RUNNING) {
+				glMainloopDataPtr->modules.at(outputRevDepIds[i]).runtimeData->doReset.store(id);
+			}
 		}
 
 		free(outputRevDepIds);
