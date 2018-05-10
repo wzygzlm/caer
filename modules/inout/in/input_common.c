@@ -2055,8 +2055,7 @@ void caerInputCommonRun(caerModuleData moduleData, caerEventPacketContainer in, 
 
 		if ((special != NULL) && (caerEventPacketHeaderGetEventNumber(special) == 1)
 			&& (caerSpecialEventPacketFindValidEventByTypeConst((caerSpecialEventPacketConst) special, TIMESTAMP_RESET) != NULL)) {
-			caerMainloopResetProcessors(moduleData->moduleID);
-			caerMainloopResetOutputs(moduleData->moduleID);
+			caerMainloopModuleResetOutputRevDeps(moduleData->moduleID);
 		}
 	}
 }

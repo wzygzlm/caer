@@ -205,8 +205,7 @@ static void caerInputDVS128Run(caerModuleData moduleData, caerEventPacketContain
 
 		if ((special != NULL) && (caerEventPacketHeaderGetEventNumber(special) == 1)
 			&& (caerSpecialEventPacketFindValidEventByTypeConst((caerSpecialEventPacketConst) special, TIMESTAMP_RESET) != NULL)) {
-			caerMainloopResetProcessors(moduleData->moduleID);
-			caerMainloopResetOutputs(moduleData->moduleID);
+			caerMainloopModuleResetOutputRevDeps(moduleData->moduleID);
 
 			// Update master/slave information.
 			struct caer_dvs128_info devInfo = caerDVS128InfoGet(moduleData->moduleState);
