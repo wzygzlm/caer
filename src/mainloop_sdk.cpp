@@ -115,7 +115,17 @@ size_t caerMainloopModuleGetOutputRevDeps(int16_t id, int16_t **outputRevDepIds)
 }
 
 void caerMainloopModuleResetOutputRevDeps(int16_t sourceID) {
-	// TODO: *.
+	// Find and reset all reverse dependencies of a particular module.
+	int16_t *outputRevDepIds;
+	size_t numRevDeps = caerMainloopModuleGetOutputRevDeps(sourceID, &outputRevDepIds);
+
+	if (numRevDeps > 0) {
+		for (size_t i = 0; i < numRevDeps; i++) {
+			glMainloopDataPtr->modules.at(outputRevDepIds[i]).runtimeData->doReset.store(sourceID);
+		}
+
+		free(outputRevDepIds);
+	}
 }
 
 static inline caerModuleData caerMainloopGetSourceData(int16_t sourceID) {
