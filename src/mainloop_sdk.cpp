@@ -87,9 +87,31 @@ size_t caerMainloopModuleGetOutputRevDeps(int16_t id, int16_t **outputRevDepIds)
 		return (0);
 	}
 
-	// TODO: *.
+	std::vector<int16_t> outputModuleIds;
 
-	return (0);
+	// Get all IDs of modules that depend on outputs of this module.
+	// Those are usually called reverse dependencies.
+	// Look at all the streams that originate from this module ID,
+	// if any exist take their users and then remove duplicates.
+	for (const auto &st : glMainloopDataPtr->streams) {
+		if (st.sourceId == id) {
+			outputModuleIds.insert(outputModuleIds.end(), st.users.cbegin(), st.users.cend());
+		}
+	}
+
+	vectorSortUnique(outputModuleIds);
+
+	if (outputRevDepIds != nullptr && !outputModuleIds.empty()) {
+		*outputRevDepIds = (int16_t *) malloc(outputModuleIds.size() * sizeof(int16_t));
+		if (*outputRevDepIds == nullptr) {
+			// Memory allocation failure, report as if nothing found.
+			return (0);
+		}
+
+		memcpy(*outputRevDepIds, outputModuleIds.data(), outputModuleIds.size() * sizeof(int16_t));
+	}
+
+	return (outputModuleIds.size());
 }
 
 void caerMainloopModuleResetOutputRevDeps(int16_t sourceID) {
