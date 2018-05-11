@@ -107,6 +107,13 @@ void caerModuleSM(caerModuleFunctions moduleFunctions, caerModuleData moduleData
 			moduleData->moduleState = nullptr;
 		}
 
+		// Reset variables, as the following Init() is stronger than a reset
+		// and implies a full configuration update. This avoids stale state
+		// forcing an update and/or reset right away in the first run of
+		// the module, which is unneeded and wasteful.
+		moduleData->configUpdate.store(0);
+		moduleData->doReset.store(0);
+
 		if (moduleFunctions->moduleInit != nullptr) {
 			if (!moduleFunctions->moduleInit(moduleData)) {
 				if (memSize != 0) {
