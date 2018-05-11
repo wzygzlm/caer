@@ -20,6 +20,8 @@ bool caerMainloopStreamExists(int16_t sourceId, int16_t typeId);
 
 bool caerMainloopModuleExists(int16_t id);
 enum caer_module_type caerMainloopModuleGetType(int16_t id);
+uint32_t caerMainloopModuleGetVersion(int16_t id);
+enum caer_module_status caerMainloopModuleGetStatus(int16_t id);
 sshsNode caerMainloopModuleGetConfigNode(int16_t id);
 size_t caerMainloopModuleGetInputDeps(int16_t id, int16_t **inputDepIds);
 size_t caerMainloopModuleGetOutputRevDeps(int16_t id, int16_t **outputRevDepIds);
