@@ -5,27 +5,28 @@
 #include <libcaer/events/polarity.h>
 #include <libcaer/devices/edvs.h>
 
+static void caerInputEDVSConfigInit(sshsNode moduleNode);
 static bool caerInputEDVSInit(caerModuleData moduleData);
 static void caerInputEDVSRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out);
 // CONFIG: Nothing to do here in the main thread!
 // All configuration is asynchronous through SSHS listeners.
 static void caerInputEDVSExit(caerModuleData moduleData);
 
-static const struct caer_module_functions EDVSFunctions = { .moduleInit = &caerInputEDVSInit, .moduleRun =
-	&caerInputEDVSRun, .moduleConfig = NULL, .moduleExit = &caerInputEDVSExit };
+static const struct caer_module_functions EDVSFunctions = { .moduleConfigInit = &caerInputEDVSConfigInit, .moduleInit =
+	&caerInputEDVSInit, .moduleRun = &caerInputEDVSRun, .moduleConfig = NULL, .moduleExit = &caerInputEDVSExit,
+	.moduleReset = NULL };
 
 static const struct caer_event_stream_out EDVSOutputs[] = { { .type = SPECIAL_EVENT }, { .type = POLARITY_EVENT } };
 
 static const struct caer_module_info EDVSInfo = { .version = 1, .name = "eDVS", .description =
-	"Connects to an eDVS/minieDVS camera to get data.", .type = CAER_MODULE_INPUT, .memSize = 0, .functions = &EDVSFunctions,
-	.inputStreams = NULL, .inputStreamsSize = 0, .outputStreams = EDVSOutputs, .outputStreamsSize =
-		CAER_EVENT_STREAM_OUT_SIZE(EDVSOutputs), };
+	"Connects to an eDVS/minieDVS camera to get data.", .type = CAER_MODULE_INPUT, .memSize = 0, .functions =
+	&EDVSFunctions, .inputStreams = NULL, .inputStreamsSize = 0, .outputStreams = EDVSOutputs, .outputStreamsSize =
+	CAER_EVENT_STREAM_OUT_SIZE(EDVSOutputs), };
 
 caerModuleInfo caerModuleGetInfo(void) {
 	return (&EDVSInfo);
 }
 
-static void createDefaultConfiguration(caerModuleData moduleData);
 static void sendDefaultConfiguration(caerModuleData moduleData);
 static void moduleShutdownNotify(void *p);
 static void biasConfigSend(sshsNode node, caerModuleData moduleData);
@@ -43,18 +44,63 @@ static void systemConfigListener(sshsNode node, void *userData, enum sshs_node_a
 static void logLevelListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
 
-static bool caerInputEDVSInit(caerModuleData moduleData) {
-	caerModuleLog(moduleData, CAER_LOG_DEBUG, "Initializing module ...");
-
+static void caerInputEDVSConfigInit(sshsNode moduleNode) {
 	// Serial port settings.
-	sshsNodeCreateString(moduleData->moduleNode, "serialPort", "/dev/ttyUSB0", 0, 128, SSHS_FLAGS_NORMAL,
+	sshsNodeCreateString(moduleNode, "serialPort", "/dev/ttyUSB0", 0, 128, SSHS_FLAGS_NORMAL,
 		"Serial port to connect to.");
-	sshsNodeCreateInt(moduleData->moduleNode, "baudRate", CAER_HOST_CONFIG_SERIAL_BAUD_RATE_12M, 0, 20000000,
-		SSHS_FLAGS_NORMAL, "Baud-rate for serial port.");
+	sshsNodeCreateInt(moduleNode, "baudRate", CAER_HOST_CONFIG_SERIAL_BAUD_RATE_12M, 0, 20000000, SSHS_FLAGS_NORMAL,
+		"Baud-rate for serial port.");
 
 	// Add auto-restart setting.
-	sshsNodeCreateBool(moduleData->moduleNode, "autoRestart", true, SSHS_FLAGS_NORMAL,
+	sshsNodeCreateBool(moduleNode, "autoRestart", true, SSHS_FLAGS_NORMAL,
 		"Automatically restart module after shutdown.");
+
+	// Set default biases, from EDVSFast.xml settings.
+	sshsNode biasNode = sshsGetRelativeNode(moduleNode, "bias/");
+	sshsNodeCreateInt(biasNode, "cas", 1992, 0, (0x01 << 24) - 1, SSHS_FLAGS_NORMAL, "Photoreceptor cascode.");
+	sshsNodeCreateInt(biasNode, "injGnd", 1108364, 0, (0x01 << 24) - 1, SSHS_FLAGS_NORMAL,
+		"Differentiator switch level.");
+	sshsNodeCreateInt(biasNode, "reqPd", 16777215, 0, (0x01 << 24) - 1, SSHS_FLAGS_NORMAL, "AER request pull-down.");
+	sshsNodeCreateInt(biasNode, "puX", 8159221, 0, (0x01 << 24) - 1, SSHS_FLAGS_NORMAL,
+		"2nd dimension AER static pull-up.");
+	sshsNodeCreateInt(biasNode, "diffOff", 132, 0, (0x01 << 24) - 1, SSHS_FLAGS_NORMAL,
+		"OFF threshold - lower to raise threshold.");
+	sshsNodeCreateInt(biasNode, "req", 309590, 0, (0x01 << 24) - 1, SSHS_FLAGS_NORMAL, "OFF request inverter bias.");
+	sshsNodeCreateInt(biasNode, "refr", 969, 0, (0x01 << 24) - 1, SSHS_FLAGS_NORMAL, "Refractory period.");
+	sshsNodeCreateInt(biasNode, "puY", 16777215, 0, (0x01 << 24) - 1, SSHS_FLAGS_NORMAL,
+		"1st dimension AER static pull-up.");
+	sshsNodeCreateInt(biasNode, "diffOn", 209996, 0, (0x01 << 24) - 1, SSHS_FLAGS_NORMAL,
+		"ON threshold - higher to raise threshold.");
+	sshsNodeCreateInt(biasNode, "diff", 13125, 0, (0x01 << 24) - 1, SSHS_FLAGS_NORMAL, "Differentiator.");
+	sshsNodeCreateInt(biasNode, "foll", 271, 0, (0x01 << 24) - 1, SSHS_FLAGS_NORMAL,
+		"Source follower buffer between photoreceptor and differentiator.");
+	sshsNodeCreateInt(biasNode, "pr", 217, 0, (0x01 << 24) - 1, SSHS_FLAGS_NORMAL, "Photoreceptor.");
+
+	// DVS settings.
+	sshsNode dvsNode = sshsGetRelativeNode(moduleNode, "dvs/");
+	sshsNodeCreateBool(dvsNode, "Run", true, SSHS_FLAGS_NORMAL, "Run DVS to get polarity events.");
+	sshsNodeCreateBool(dvsNode, "TimestampReset", false, SSHS_FLAGS_NOTIFY_ONLY, "Reset timestamps to zero.");
+
+	// Serial communication buffer settings.
+	sshsNode serialNode = sshsGetRelativeNode(moduleNode, "serial/");
+	sshsNodeCreateInt(serialNode, "ReadSize", 1024, 128, 32768, SSHS_FLAGS_NORMAL,
+		"Size in bytes of data buffer for serial port read operations.");
+
+	sshsNode sysNode = sshsGetRelativeNode(moduleNode, "system/");
+
+	// Packet settings (size (in events) and time interval (in µs)).
+	sshsNodeCreateInt(sysNode, "PacketContainerMaxPacketSize", 0, 0, 10 * 1024 * 1024, SSHS_FLAGS_NORMAL,
+		"Maximum packet size in events, when any packet reaches this size, the EventPacketContainer is sent for processing.");
+	sshsNodeCreateInt(sysNode, "PacketContainerInterval", 10000, 1, 120 * 1000 * 1000, SSHS_FLAGS_NORMAL,
+		"Time interval in µs, each sent EventPacketContainer will span this interval.");
+
+	// Ring-buffer setting (only changes value on module init/shutdown cycles).
+	sshsNodeCreateInt(sysNode, "DataExchangeBufferSize", 64, 8, 1024, SSHS_FLAGS_NORMAL,
+		"Size of EventPacketContainer queue, used for transfers between data acquisition thread and mainloop.");
+}
+
+static bool caerInputEDVSInit(caerModuleData moduleData) {
+	caerModuleLog(moduleData, CAER_LOG_DEBUG, "Initializing module ...");
 
 	// Start data acquisition, and correctly notify mainloop of new data and module of exceptional
 	// shutdown cases (device pulled, ...).
@@ -112,7 +158,6 @@ static bool caerInputEDVSInit(caerModuleData moduleData) {
 	CAER_HOST_CONFIG_DATAEXCHANGE_STOP_PRODUCERS, true);
 
 	// Create default settings and send them to the device.
-	createDefaultConfiguration(moduleData);
 	sendDefaultConfiguration(moduleData);
 
 	// Start data acquisition.
@@ -185,58 +230,11 @@ static void caerInputEDVSRun(caerModuleData moduleData, caerEventPacketContainer
 		caerEventPacketHeader special = caerEventPacketContainerGetEventPacket(*out, SPECIAL_EVENT);
 
 		if ((special != NULL) && (caerEventPacketHeaderGetEventNumber(special) == 1)
-			&& (caerSpecialEventPacketFindValidEventByTypeConst((caerSpecialEventPacketConst) special, TIMESTAMP_RESET) != NULL)) {
+			&& (caerSpecialEventPacketFindValidEventByTypeConst((caerSpecialEventPacketConst) special, TIMESTAMP_RESET)
+				!= NULL)) {
 			caerMainloopModuleResetOutputRevDeps(moduleData->moduleID);
 		}
 	}
-}
-
-static void createDefaultConfiguration(caerModuleData moduleData) {
-	// First, always create all needed setting nodes, set their default values
-	// and add their listeners.
-
-	// Set default biases, from EDVSFast.xml settings.
-	sshsNode biasNode = sshsGetRelativeNode(moduleData->moduleNode, "bias/");
-	sshsNodeCreateInt(biasNode, "cas", 1992, 0, (0x01 << 24) - 1, SSHS_FLAGS_NORMAL, "Photoreceptor cascode.");
-	sshsNodeCreateInt(biasNode, "injGnd", 1108364, 0, (0x01 << 24) - 1, SSHS_FLAGS_NORMAL,
-		"Differentiator switch level.");
-	sshsNodeCreateInt(biasNode, "reqPd", 16777215, 0, (0x01 << 24) - 1, SSHS_FLAGS_NORMAL, "AER request pull-down.");
-	sshsNodeCreateInt(biasNode, "puX", 8159221, 0, (0x01 << 24) - 1, SSHS_FLAGS_NORMAL,
-		"2nd dimension AER static pull-up.");
-	sshsNodeCreateInt(biasNode, "diffOff", 132, 0, (0x01 << 24) - 1, SSHS_FLAGS_NORMAL,
-		"OFF threshold - lower to raise threshold.");
-	sshsNodeCreateInt(biasNode, "req", 309590, 0, (0x01 << 24) - 1, SSHS_FLAGS_NORMAL, "OFF request inverter bias.");
-	sshsNodeCreateInt(biasNode, "refr", 969, 0, (0x01 << 24) - 1, SSHS_FLAGS_NORMAL, "Refractory period.");
-	sshsNodeCreateInt(biasNode, "puY", 16777215, 0, (0x01 << 24) - 1, SSHS_FLAGS_NORMAL,
-		"1st dimension AER static pull-up.");
-	sshsNodeCreateInt(biasNode, "diffOn", 209996, 0, (0x01 << 24) - 1, SSHS_FLAGS_NORMAL,
-		"ON threshold - higher to raise threshold.");
-	sshsNodeCreateInt(biasNode, "diff", 13125, 0, (0x01 << 24) - 1, SSHS_FLAGS_NORMAL, "Differentiator.");
-	sshsNodeCreateInt(biasNode, "foll", 271, 0, (0x01 << 24) - 1, SSHS_FLAGS_NORMAL,
-		"Source follower buffer between photoreceptor and differentiator.");
-	sshsNodeCreateInt(biasNode, "pr", 217, 0, (0x01 << 24) - 1, SSHS_FLAGS_NORMAL, "Photoreceptor.");
-
-	// DVS settings.
-	sshsNode dvsNode = sshsGetRelativeNode(moduleData->moduleNode, "dvs/");
-	sshsNodeCreateBool(dvsNode, "Run", true, SSHS_FLAGS_NORMAL, "Run DVS to get polarity events.");
-	sshsNodeCreateBool(dvsNode, "TimestampReset", false, SSHS_FLAGS_NOTIFY_ONLY, "Reset timestamps to zero.");
-
-	// Serial communication buffer settings.
-	sshsNode serialNode = sshsGetRelativeNode(moduleData->moduleNode, "serial/");
-	sshsNodeCreateInt(serialNode, "ReadSize", 1024, 128, 32768, SSHS_FLAGS_NORMAL,
-		"Size in bytes of data buffer for serial port read operations.");
-
-	sshsNode sysNode = sshsGetRelativeNode(moduleData->moduleNode, "system/");
-
-	// Packet settings (size (in events) and time interval (in µs)).
-	sshsNodeCreateInt(sysNode, "PacketContainerMaxPacketSize", 0, 0, 10 * 1024 * 1024, SSHS_FLAGS_NORMAL,
-		"Maximum packet size in events, when any packet reaches this size, the EventPacketContainer is sent for processing.");
-	sshsNodeCreateInt(sysNode, "PacketContainerInterval", 10000, 1, 120 * 1000 * 1000, SSHS_FLAGS_NORMAL,
-		"Time interval in µs, each sent EventPacketContainer will span this interval.");
-
-	// Ring-buffer setting (only changes value on module init/shutdown cycles).
-	sshsNodeCreateInt(sysNode, "DataExchangeBufferSize", 64, 8, 1024, SSHS_FLAGS_NORMAL,
-		"Size of EventPacketContainer queue, used for transfers between data acquisition thread and mainloop.");
 }
 
 static void sendDefaultConfiguration(caerModuleData moduleData) {

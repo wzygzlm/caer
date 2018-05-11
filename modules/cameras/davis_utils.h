@@ -10,6 +10,7 @@
 #include <libcaer/events/imu6.h>
 #include <libcaer/devices/davis.h>
 
+static void caerInputDAVISCommonSystemConfigInit(sshsNode moduleNode);
 static void caerInputDAVISCommonRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out);
 static void moduleShutdownNotify(void *p);
 
@@ -101,6 +102,20 @@ static inline const char *chipIDToName(int16_t chipID, bool withEndSlash) {
 	}
 
 	return ((withEndSlash) ? ("Unsupported/") : ("Unsupported"));
+}
+
+static void caerInputDAVISCommonSystemConfigInit(sshsNode moduleNode) {
+	sshsNode sysNode = sshsGetRelativeNode(moduleNode, "system/");
+
+	// Packet settings (size (in events) and time interval (in µs)).
+	sshsNodeCreateInt(sysNode, "PacketContainerMaxPacketSize", 0, 0, 10 * 1024 * 1024, SSHS_FLAGS_NORMAL,
+		"Maximum packet size in events, when any packet reaches this size, the EventPacketContainer is sent for processing.");
+	sshsNodeCreateInt(sysNode, "PacketContainerInterval", 10000, 1, 120 * 1000 * 1000, SSHS_FLAGS_NORMAL,
+		"Time interval in µs, each sent EventPacketContainer will span this interval.");
+
+	// Ring-buffer setting (only changes value on module init/shutdown cycles).
+	sshsNodeCreateInt(sysNode, "DataExchangeBufferSize", 64, 8, 1024, SSHS_FLAGS_NORMAL,
+		"Size of EventPacketContainer queue, used for transfers between data acquisition thread and mainloop.");
 }
 
 static void caerInputDAVISCommonRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out) {
@@ -681,18 +696,6 @@ static void createDefaultLogicConfiguration(caerModuleData moduleData, const cha
 				&statisticsPassthrough);
 		}
 	}
-
-	sshsNode sysNode = sshsGetRelativeNode(moduleData->moduleNode, "system/");
-
-	// Packet settings (size (in events) and time interval (in µs)).
-	sshsNodeCreateInt(sysNode, "PacketContainerMaxPacketSize", 0, 0, 10 * 1024 * 1024, SSHS_FLAGS_NORMAL,
-		"Maximum packet size in events, when any packet reaches this size, the EventPacketContainer is sent for processing.");
-	sshsNodeCreateInt(sysNode, "PacketContainerInterval", 10000, 1, 120 * 1000 * 1000, SSHS_FLAGS_NORMAL,
-		"Time interval in µs, each sent EventPacketContainer will span this interval.");
-
-	// Ring-buffer setting (only changes value on module init/shutdown cycles).
-	sshsNodeCreateInt(sysNode, "DataExchangeBufferSize", 64, 8, 1024, SSHS_FLAGS_NORMAL,
-		"Size of EventPacketContainer queue, used for transfers between data acquisition thread and mainloop.");
 }
 
 static void biasConfigSend(sshsNode node, caerModuleData moduleData, struct caer_davis_info *devInfo) {

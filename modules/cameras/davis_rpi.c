@@ -1,10 +1,12 @@
 #include "davis_utils.h"
 
+static void caerInputDAVISRPiConfigInit(sshsNode moduleNode);
 static bool caerInputDAVISRPiInit(caerModuleData moduleData);
 static void caerInputDAVISRPiExit(caerModuleData moduleData);
 
-static const struct caer_module_functions DAVISRPiFunctions = { .moduleInit = &caerInputDAVISRPiInit, .moduleRun =
-	&caerInputDAVISCommonRun, .moduleConfig = NULL, .moduleExit = &caerInputDAVISRPiExit };
+static const struct caer_module_functions DAVISRPiFunctions = { .moduleConfigInit = &caerInputDAVISRPiConfigInit,
+	.moduleInit = &caerInputDAVISRPiInit, .moduleRun = &caerInputDAVISCommonRun, .moduleConfig = NULL, .moduleExit =
+		&caerInputDAVISRPiExit, .moduleReset = NULL };
 
 static const struct caer_event_stream_out DAVISRPiOutputs[] = { { .type = SPECIAL_EVENT }, { .type = POLARITY_EVENT }, {
 	.type = FRAME_EVENT }, { .type = IMU6_EVENT } };
@@ -25,12 +27,16 @@ static void aerConfigSend(sshsNode node, caerModuleData moduleData);
 static void aerConfigListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
 
+static void caerInputDAVISRPiConfigInit(sshsNode moduleNode) {
+	// Add auto-restart setting.
+	sshsNodeCreateBool(moduleNode, "autoRestart", true, SSHS_FLAGS_NORMAL,
+		"Automatically restart module after shutdown.");
+
+	caerInputDAVISCommonSystemConfigInit(moduleNode);
+}
+
 static bool caerInputDAVISRPiInit(caerModuleData moduleData) {
 	caerModuleLog(moduleData, CAER_LOG_DEBUG, "Initializing module ...");
-
-	// Add auto-restart setting.
-	sshsNodeCreateBool(moduleData->moduleNode, "autoRestart", true, SSHS_FLAGS_NORMAL,
-		"Automatically restart module after shutdown.");
 
 	// Start data acquisition, and correctly notify mainloop of new data and module of exceptional
 	// shutdown cases (device pulled, ...).

@@ -2,11 +2,13 @@
 
 #include <libcaer/events/sample.h>
 
+static void caerInputDAVISConfigInit(sshsNode moduleNode);
 static bool caerInputDAVISInit(caerModuleData moduleData);
 static void caerInputDAVISExit(caerModuleData moduleData);
 
-static const struct caer_module_functions DAVISFunctions = { .moduleInit = &caerInputDAVISInit, .moduleRun =
-	&caerInputDAVISCommonRun, .moduleConfig = NULL, .moduleExit = &caerInputDAVISExit };
+static const struct caer_module_functions DAVISFunctions = { .moduleConfigInit = &caerInputDAVISConfigInit,
+	.moduleInit = &caerInputDAVISInit, .moduleRun = &caerInputDAVISCommonRun, .moduleConfig = NULL, .moduleExit =
+		&caerInputDAVISExit, .moduleReset = NULL };
 
 static const struct caer_event_stream_out DAVISOutputs[] = { { .type = SPECIAL_EVENT }, { .type = POLARITY_EVENT }, {
 	.type = FRAME_EVENT }, { .type = IMU6_EVENT } };
@@ -27,21 +29,23 @@ static void usbConfigSend(sshsNode node, caerModuleData moduleData);
 static void usbConfigListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
 
-static bool caerInputDAVISInit(caerModuleData moduleData) {
-	caerModuleLog(moduleData, CAER_LOG_DEBUG, "Initializing module ...");
-
+static void caerInputDAVISConfigInit(sshsNode moduleNode) {
 	// USB port/bus/SN settings/restrictions.
 	// These can be used to force connection to one specific device at startup.
-	sshsNodeCreateShort(moduleData->moduleNode, "busNumber", 0, 0, INT16_MAX, SSHS_FLAGS_NORMAL,
-		"USB bus number restriction.");
-	sshsNodeCreateShort(moduleData->moduleNode, "devAddress", 0, 0, INT16_MAX, SSHS_FLAGS_NORMAL,
+	sshsNodeCreateShort(moduleNode, "busNumber", 0, 0, INT16_MAX, SSHS_FLAGS_NORMAL, "USB bus number restriction.");
+	sshsNodeCreateShort(moduleNode, "devAddress", 0, 0, INT16_MAX, SSHS_FLAGS_NORMAL,
 		"USB device address restriction.");
-	sshsNodeCreateString(moduleData->moduleNode, "serialNumber", "", 0, 8, SSHS_FLAGS_NORMAL,
-		"USB serial number restriction.");
+	sshsNodeCreateString(moduleNode, "serialNumber", "", 0, 8, SSHS_FLAGS_NORMAL, "USB serial number restriction.");
 
 	// Add auto-restart setting.
-	sshsNodeCreateBool(moduleData->moduleNode, "autoRestart", true, SSHS_FLAGS_NORMAL,
+	sshsNodeCreateBool(moduleNode, "autoRestart", true, SSHS_FLAGS_NORMAL,
 		"Automatically restart module after shutdown.");
+
+	caerInputDAVISCommonSystemConfigInit(moduleNode);
+}
+
+static bool caerInputDAVISInit(caerModuleData moduleData) {
+	caerModuleLog(moduleData, CAER_LOG_DEBUG, "Initializing module ...");
 
 	// Start data acquisition, and correctly notify mainloop of new data and module of exceptional
 	// shutdown cases (device pulled, ...).
