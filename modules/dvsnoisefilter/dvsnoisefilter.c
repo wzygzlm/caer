@@ -141,8 +141,6 @@ static void caerDVSNoiseFilterRun(caerModuleData moduleData, caerEventPacketCont
 }
 
 static void caerDVSNoiseFilterConfig(caerModuleData moduleData) {
-	caerModuleConfigUpdateReset(moduleData);
-
 	caerFilterDVSNoise state = moduleData->moduleState;
 
 	caerFilterDVSNoiseConfigSet(state, CAER_FILTER_DVS_HOTPIXEL_TIME,

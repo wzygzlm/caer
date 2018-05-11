@@ -135,8 +135,6 @@ static void caerFrameStatisticsExit(caerModuleData moduleData) {
 }
 
 static void caerFrameStatisticsConfig(caerModuleData moduleData) {
-	caerModuleConfigUpdateReset(moduleData);
-
 	caerFrameStatisticsState state = (caerFrameStatisticsState) moduleData->moduleState;
 	state->numBins = sshsNodeGetInt(moduleData->moduleNode, "numBins");
 	state->roiRegion = sshsNodeGetInt(moduleData->moduleNode, "roiRegion");

@@ -171,8 +171,6 @@ static void updateSettings(caerModuleData moduleData) {
 }
 
 static void caerCameraCalibrationConfig(caerModuleData moduleData) {
-	caerModuleConfigUpdateReset(moduleData);
-
 	CameraCalibrationState state = moduleData->moduleState;
 
 	// Free filename strings, get reloaded in next step.

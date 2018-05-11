@@ -150,8 +150,6 @@ static void caerBackgroundActivityFilterRun(caerModuleData moduleData, caerEvent
 }
 
 static void caerBackgroundActivityFilterConfig(caerModuleData moduleData) {
-	caerModuleConfigUpdateReset(moduleData);
-
 	BAFilterState state = moduleData->moduleState;
 
 	state->deltaT = sshsNodeGetInt(moduleData->moduleNode, "deltaT");

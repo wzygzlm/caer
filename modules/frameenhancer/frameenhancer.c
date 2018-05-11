@@ -154,8 +154,6 @@ static void caerFrameEnhancerRun(caerModuleData moduleData, caerEventPacketConta
 }
 
 static void caerFrameEnhancerConfig(caerModuleData moduleData) {
-	caerModuleConfigUpdateReset(moduleData);
-
 	FrameEnhancerState state = moduleData->moduleState;
 
 	state->doDemosaic = sshsNodeGetBool(moduleData->moduleNode, "doDemosaic");
