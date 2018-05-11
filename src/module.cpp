@@ -58,8 +58,10 @@ void caerModuleSM(caerModuleFunctions moduleFunctions, caerModuleData moduleData
 
 	if (moduleData->moduleStatus == CAER_MODULE_RUNNING && running) {
 		if (moduleData->configUpdate.load(std::memory_order_relaxed) != 0) {
+			moduleData->configUpdate.store(0);
+
 			if (moduleFunctions->moduleConfig != nullptr) {
-				// Call config function, which will have to reset configUpdate.
+				// Call config function. 'configUpdate' variable reset is done above.
 				moduleFunctions->moduleConfig(moduleData);
 			}
 		}
@@ -69,9 +71,10 @@ void caerModuleSM(caerModuleFunctions moduleFunctions, caerModuleData moduleData
 		}
 
 		if (moduleData->doReset.load(std::memory_order_relaxed) != 0) {
+			int16_t resetCallSourceID = I16T(moduleData->doReset.exchange(0));
+
 			if (moduleFunctions->moduleReset != nullptr) {
-				// Call reset function. 'doReset' variable reset is done here.
-				int16_t resetCallSourceID = I16T(moduleData->doReset.exchange(0));
+				// Call reset function. 'doReset' variable reset is done above.
 				moduleFunctions->moduleReset(moduleData, resetCallSourceID);
 			}
 		}

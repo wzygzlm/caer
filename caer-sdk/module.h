@@ -138,7 +138,6 @@ caerModuleInfo caerModuleGetInfo(void);
 void caerModuleLog(caerModuleData moduleData, enum caer_log_level logLevel, const char *format, ...)
 	ATTRIBUTE_FORMAT(3);
 bool caerModuleSetSubSystemString(caerModuleData moduleData, const char *subSystemString);
-void caerModuleConfigUpdateReset(caerModuleData moduleData);
 void caerModuleConfigDefaultListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
 

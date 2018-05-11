@@ -23,10 +23,6 @@ bool caerModuleSetSubSystemString(caerModuleData moduleData, const char *subSyst
 	return (true);
 }
 
-void caerModuleConfigUpdateReset(caerModuleData moduleData) {
-	moduleData->configUpdate.store(0);
-}
-
 void caerModuleConfigDefaultListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue) {
 	UNUSED_ARGUMENT(node);
