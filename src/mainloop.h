@@ -2,6 +2,7 @@
 #define MAINLOOP_H_
 
 #include "caer-sdk/mainloop.h"
+#include "caer-sdk/module.h"
 #include "module.h"
 
 #include <memory>

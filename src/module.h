@@ -2,6 +2,7 @@
 #define MODULE_H_
 
 #include "caer-sdk/module.h"
+#include "caer-sdk/mainloop.h"
 
 #ifdef __cplusplus
 extern "C" {
