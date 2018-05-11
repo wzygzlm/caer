@@ -78,7 +78,19 @@ void caerModuleSM(caerModuleFunctions moduleFunctions, caerModuleData moduleData
 	}
 	else if (moduleData->moduleStatus == CAER_MODULE_STOPPED && running) {
 		// Check that all modules this module depends on are also running.
-		// TODO: ^^.
+		int16_t *neededModules;
+		size_t neededModulesSize = caerMainloopModuleGetInputDeps(moduleData->moduleID, &neededModules);
+
+		if (neededModulesSize > 0) {
+			for (size_t i = 0; i < neededModulesSize; i++) {
+				if (caerMainloopModuleGetStatus(neededModules[i]) != CAER_MODULE_RUNNING) {
+					free(neededModules);
+					return;
+				}
+			}
+
+			free(neededModules);
+		}
 
 		// Allocate memory for module state.
 		if (memSize != 0) {
