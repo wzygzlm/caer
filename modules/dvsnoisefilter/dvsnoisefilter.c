@@ -196,6 +196,5 @@ static void caerDVSNoiseFilterExit(caerModuleData moduleData) {
 static void caerDVSNoiseFilterReset(caerModuleData moduleData, int16_t resetCallSourceID) {
 	UNUSED_ARGUMENT(resetCallSourceID);
 
-	// TODO: how to handle changes in size (sourceInfo content) in source modules,
-	// without a init/destroy cycle? Document/solve this!
+	caerFilterDVSNoiseConfigSet(moduleData->moduleState, CAER_FILTER_DVS_RESET, true);
 }
