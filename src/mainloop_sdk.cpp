@@ -146,6 +146,20 @@ static inline caerModuleData caerMainloopGetSourceData(int16_t sourceID) {
 		return (nullptr);
 	}
 
+	// Sources must actually produce some event stream.
+	bool isSource = false;
+
+	for (const auto &st : glMainloopDataPtr->streams) {
+		if (st.sourceId == sourceID) {
+			isSource = true;
+			break;
+		}
+	}
+
+	if (!isSource) {
+		return (nullptr);
+	}
+
 	return (glMainloopDataPtr->modules.at(sourceID).runtimeData);
 }
 
