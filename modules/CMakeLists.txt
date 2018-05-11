@@ -4,7 +4,6 @@ SET(CMAKE_INSTALL_RPATH ${CAER_MODULES_DIR})
 # Add SDK library to default libs
 SET(CAER_LIBS ${CAER_LIBS} caersdk)
 
-ADD_SUBDIRECTORY(backgroundactivityfilter)
 ADD_SUBDIRECTORY(cameracalibration)
 ADD_SUBDIRECTORY(cameras)
 ADD_SUBDIRECTORY(dvsnoisefilter)
