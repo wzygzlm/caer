@@ -16,15 +16,16 @@ struct caer_frame_statistics_state {
 
 typedef struct caer_frame_statistics_state *caerFrameStatisticsState;
 
+static void caerFrameStatisticsConfigInit(sshsNode moduleNode);
 static bool caerFrameStatisticsInit(caerModuleData moduleData);
 static void caerFrameStatisticsRun(caerModuleData moduleData, caerEventPacketContainer in,
 	caerEventPacketContainer *out);
 static void caerFrameStatisticsExit(caerModuleData moduleData);
 static void caerFrameStatisticsConfig(caerModuleData moduleData);
 
-static const struct caer_module_functions FrameStatisticsFunctions = { .moduleConfigInit = NULL, .moduleInit =
-	&caerFrameStatisticsInit, .moduleRun = &caerFrameStatisticsRun, .moduleConfig = &caerFrameStatisticsConfig,
-	.moduleExit = &caerFrameStatisticsExit, .moduleReset = NULL };
+static const struct caer_module_functions FrameStatisticsFunctions = { .moduleConfigInit =
+	&caerFrameStatisticsConfigInit, .moduleInit = &caerFrameStatisticsInit, .moduleRun = &caerFrameStatisticsRun,
+	.moduleConfig = &caerFrameStatisticsConfig, .moduleExit = &caerFrameStatisticsExit, .moduleReset = NULL };
 
 static const struct caer_event_stream_in FrameStatisticsInputs[] = { { .type = FRAME_EVENT, .number = 1, .readOnly =
 	true } };
@@ -39,39 +40,25 @@ caerModuleInfo caerModuleGetInfo(void) {
 	return (&FrameStatisticsInfo);
 }
 
-static inline void setWindowPosition(sshsNode moduleNode, const char *windowName) {
-	int posX = sshsNodeGetInt(moduleNode, "windowPositionX");
-	int posY = sshsNodeGetInt(moduleNode, "windowPositionY");
-
-	cv::moveWindow(windowName, posX, posY);
+static void caerFrameStatisticsConfigInit(sshsNode moduleNode) {
+	sshsNodeCreate(moduleNode, "numBins", 1024, 4, UINT16_MAX + 1, SSHS_FLAGS_NORMAL,
+		"Number of bins in which to divide values up.");
+	sshsNodeCreate(moduleNode, "roiRegion", 0, 0, 7, SSHS_FLAGS_NORMAL, "Selects which ROI region to display.");
+	sshsNodeCreateInt(moduleNode, "windowPositionX", 20, 0, UINT16_MAX, SSHS_FLAGS_NORMAL,
+		"Position of window on screen (X coordinate).");
+	sshsNodeCreateInt(moduleNode, "windowPositionY", 20, 0, UINT16_MAX, SSHS_FLAGS_NORMAL,
+		"Position of window on screen (Y coordinate).");
 }
 
 static bool caerFrameStatisticsInit(caerModuleData moduleData) {
-	caerFrameStatisticsState state = (caerFrameStatisticsState) moduleData->moduleState;
-
-	// Configurable number of bins.
-	sshsNodeCreate(moduleData->moduleNode, "numBins", 1024, 4, UINT16_MAX + 1, SSHS_FLAGS_NORMAL,
-		"Number of bins in which to divide values up.");
-	state->numBins = sshsNodeGetInt(moduleData->moduleNode, "numBins");
-
-	// Add configuration for ROI region.
-	sshsNodeCreate(moduleData->moduleNode, "roiRegion", 0, 0, 7, SSHS_FLAGS_NORMAL,
-		"Selects which ROI region to display.");
-	state->roiRegion = sshsNodeGetInt(moduleData->moduleNode, "roiRegion");
-
-	// Restore position of OpenCV window.
-	sshsNodeCreateInt(moduleData->moduleNode, "windowPositionX", 20, 0, UINT16_MAX, SSHS_FLAGS_NORMAL,
-		"Position of window on screen (X coordinate).");
-	sshsNodeCreateInt(moduleData->moduleNode, "windowPositionY", 20, 0, UINT16_MAX, SSHS_FLAGS_NORMAL,
-		"Position of window on screen (Y coordinate).");
+	// Get configuration.
+	caerFrameStatisticsConfig(moduleData);
 
 	// Add config listeners last, to avoid having them dangling if Init doesn't succeed.
 	sshsNodeAddAttributeListener(moduleData->moduleNode, moduleData, &caerModuleConfigDefaultListener);
 
-	cv::namedWindow(moduleData->moduleSubSystemString, cv::WindowFlags::WINDOW_AUTOSIZE |
-		cv::WindowFlags::WINDOW_KEEPRATIO | cv::WindowFlags::WINDOW_GUI_EXPANDED);
-
-	setWindowPosition(moduleData->moduleNode, moduleData->moduleSubSystemString);
+	cv::namedWindow(moduleData->moduleSubSystemString,
+		cv::WindowFlags::WINDOW_AUTOSIZE | cv::WindowFlags::WINDOW_KEEPRATIO | cv::WindowFlags::WINDOW_GUI_EXPANDED);
 
 	return (true);
 }
@@ -136,8 +123,12 @@ static void caerFrameStatisticsExit(caerModuleData moduleData) {
 
 static void caerFrameStatisticsConfig(caerModuleData moduleData) {
 	caerFrameStatisticsState state = (caerFrameStatisticsState) moduleData->moduleState;
+
 	state->numBins = sshsNodeGetInt(moduleData->moduleNode, "numBins");
 	state->roiRegion = sshsNodeGetInt(moduleData->moduleNode, "roiRegion");
 
-	setWindowPosition(moduleData->moduleNode, moduleData->moduleSubSystemString);
+	int posX = sshsNodeGetInt(moduleData->moduleNode, "windowPositionX");
+	int posY = sshsNodeGetInt(moduleData->moduleNode, "windowPositionY");
+
+	cv::moveWindow(moduleData->moduleSubSystemString, posX, posY);
 }

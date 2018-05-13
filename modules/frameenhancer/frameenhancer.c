@@ -12,13 +12,15 @@ struct FrameEnhancer_state {
 
 typedef struct FrameEnhancer_state *FrameEnhancerState;
 
+static void caerFrameEnhancerConfigInit(sshsNode moduleNode);
 static bool caerFrameEnhancerInit(caerModuleData moduleData);
 static void caerFrameEnhancerRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out);
 static void caerFrameEnhancerConfig(caerModuleData moduleData);
 static void caerFrameEnhancerExit(caerModuleData moduleData);
 
-static const struct caer_module_functions FrameEnhancerFunctions = { .moduleInit = &caerFrameEnhancerInit, .moduleRun =
-	&caerFrameEnhancerRun, .moduleConfig = &caerFrameEnhancerConfig, .moduleExit = &caerFrameEnhancerExit };
+static const struct caer_module_functions FrameEnhancerFunctions = { .moduleConfigInit = &caerFrameEnhancerConfigInit,
+	.moduleInit = &caerFrameEnhancerInit, .moduleRun = &caerFrameEnhancerRun, .moduleConfig = &caerFrameEnhancerConfig,
+	.moduleExit = &caerFrameEnhancerExit, .moduleReset = NULL };
 
 static const struct caer_event_stream_in FrameEnhancerInputs[] = {
 	{ .type = FRAME_EVENT, .number = 1, .readOnly = true } };
@@ -35,6 +37,31 @@ caerModuleInfo caerModuleGetInfo(void) {
 	return (&FrameEnhancerInfo);
 }
 
+static void caerFrameEnhancerConfigInit(sshsNode moduleNode) {
+	sshsNodeCreateBool(moduleNode, "doDemosaic", false, SSHS_FLAGS_NORMAL,
+		"Do demosaicing (color interpolation) on frame.");
+	sshsNodeCreateBool(moduleNode, "doContrast", false, SSHS_FLAGS_NORMAL, "Do contrast enhancement on frame.");
+
+#if defined(LIBCAER_HAVE_OPENCV) && LIBCAER_HAVE_OPENCV == 1
+	sshsNodeCreateString(moduleNode, "demosaicType", "opencv_edge_aware", 8, 17, SSHS_FLAGS_NORMAL,
+		"Demoisaicing (color interpolation) algorithm to apply.");
+	sshsNodeCreateAttributeListOptions(moduleNode, "demosaicType", SSHS_STRING,
+		"opencv_edge_aware,opencv_normal,standard", false);
+	sshsNodeCreateString(moduleNode, "contrastType", "opencv_normalization", 8, 29, SSHS_FLAGS_NORMAL,
+		"Contrast enhancement algorithm to apply.");
+	sshsNodeCreateAttributeListOptions(moduleNode, "contrastType", SSHS_STRING,
+		"opencv_normalization,opencv_histogram_equalization,opencv_clahe,standard", false);
+#else
+	// Only standard algorithms are available here, so we force those and make it read-only.
+	sshsNodeRemoveAttribute(moduleNode, "demosaicType", SSHS_STRING);
+	sshsNodeCreateString(moduleNode, "demosaicType", "standard", 8, 8,
+		SSHS_FLAGS_READ_ONLY, "Demoisaicing (color interpolation) algorithm to apply.");
+	sshsNodeRemoveAttribute(moduleNode, "contrastType", SSHS_STRING);
+	sshsNodeCreateString(moduleNode, "contrastType", "standard", 8, 8,
+		SSHS_FLAGS_READ_ONLY, "Contrast enhancement algorithm to apply.");
+#endif
+}
+
 static bool caerFrameEnhancerInit(caerModuleData moduleData) {
 	// Wait for input to be ready. All inputs, once they are up and running, will
 	// have a valid sourceInfo node to query, especially if dealing with data.
@@ -46,30 +73,6 @@ static bool caerFrameEnhancerInit(caerModuleData moduleData) {
 
 	int16_t sourceID = inputs[0];
 	free(inputs);
-
-	sshsNodeCreateBool(moduleData->moduleNode, "doDemosaic", false, SSHS_FLAGS_NORMAL,
-		"Do demosaicing (color interpolation) on frame.");
-	sshsNodeCreateBool(moduleData->moduleNode, "doContrast", false, SSHS_FLAGS_NORMAL,
-		"Do contrast enhancement on frame.");
-
-#if defined(LIBCAER_HAVE_OPENCV) && LIBCAER_HAVE_OPENCV == 1
-	sshsNodeCreateString(moduleData->moduleNode, "demosaicType", "opencv_edge_aware", 8, 17, SSHS_FLAGS_NORMAL,
-		"Demoisaicing (color interpolation) algorithm to apply.");
-	sshsNodeCreateAttributeListOptions(moduleData->moduleNode, "demosaicType", SSHS_STRING,
-		"opencv_edge_aware,opencv_normal,standard", false);
-	sshsNodeCreateString(moduleData->moduleNode, "contrastType", "opencv_normalization", 8, 29, SSHS_FLAGS_NORMAL,
-		"Contrast enhancement algorithm to apply.");
-	sshsNodeCreateAttributeListOptions(moduleData->moduleNode, "contrastType", SSHS_STRING,
-		"opencv_normalization,opencv_histogram_equalization,opencv_clahe,standard", false);
-#else
-	// Only standard algorithms are available here, so we force those and make it read-only.
-	sshsNodeRemoveAttribute(moduleData->moduleNode, "demosaicType", SSHS_STRING);
-	sshsNodeCreateString(moduleData->moduleNode, "demosaicType", "standard", 8, 8,
-		SSHS_FLAGS_READ_ONLY, "Demoisaicing (color interpolation) algorithm to apply.");
-	sshsNodeRemoveAttribute(moduleData->moduleNode, "contrastType", SSHS_STRING);
-	sshsNodeCreateString(moduleData->moduleNode, "contrastType", "standard", 8, 8,
-		SSHS_FLAGS_READ_ONLY, "Contrast enhancement algorithm to apply.");
-#endif
 
 	sshsNode sourceInfoSource = caerMainloopGetSourceInfo(sourceID);
 	if (sourceInfoSource == NULL) {
