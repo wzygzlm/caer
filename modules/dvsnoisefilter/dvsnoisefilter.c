@@ -160,6 +160,9 @@ static void caerDVSNoiseFilterConfig(caerModuleData moduleData) {
 		sshsNodeGetBool(moduleData->moduleNode, "refractoryPeriodEnable"));
 	caerFilterDVSNoiseConfigSet(state, CAER_FILTER_DVS_REFRACTORY_PERIOD_TIME,
 		U32T(sshsNodeGetInt(moduleData->moduleNode, "refractoryPeriodTime")));
+
+	caerFilterDVSNoiseConfigSet(state, CAER_FILTER_DVS_LOG_LEVEL,
+		U8T(sshsNodeGetByte(moduleData->moduleNode, "logLevel")));
 }
 
 static void caerDVSNoiseFilterConfigCustom(sshsNode node, void *userData, enum sshs_node_attribute_events event,
@@ -169,17 +172,13 @@ static void caerDVSNoiseFilterConfigCustom(sshsNode node, void *userData, enum s
 
 	caerFilterDVSNoise state = userData;
 
-	if (event == SSHS_ATTRIBUTE_MODIFIED) {
-		if (changeType == SSHS_BOOL && caerStrEquals(changeKey, "hotPixelLearn") && changeValue.boolean) {
-			// Button-like, NOTIFY_ONLY SSHS configuration parameters need special
-			// handling as only the change is delivered, so we have to listen for
-			// it directly. The usual Config mechanism doesn't work, as Get()
-			// would always return false.
-			caerFilterDVSNoiseConfigSet(state, CAER_FILTER_DVS_HOTPIXEL_LEARN, true);
-		}
-		else if (changeType == SSHS_BYTE && caerStrEquals(changeKey, "logLevel")) {
-			caerFilterDVSNoiseConfigSet(state, CAER_FILTER_DVS_LOG_LEVEL, U8T(changeValue.ibyte));
-		}
+	if (event == SSHS_ATTRIBUTE_MODIFIED && changeType == SSHS_BOOL && caerStrEquals(changeKey, "hotPixelLearn")
+		&& changeValue.boolean) {
+		// Button-like, NOTIFY_ONLY SSHS configuration parameters need special
+		// handling as only the change is delivered, so we have to listen for
+		// it directly. The usual Config mechanism doesn't work, as Get()
+		// would always return false.
+		caerFilterDVSNoiseConfigSet(state, CAER_FILTER_DVS_HOTPIXEL_LEARN, true);
 	}
 }
 
