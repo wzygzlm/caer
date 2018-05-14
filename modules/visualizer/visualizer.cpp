@@ -73,7 +73,7 @@ static void caerVisualizerReset(caerModuleData moduleData, int16_t resetCallSour
 static void caerVisualizerConfigListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
 static void initSystemOnce(caerModuleData moduleData);
-static bool initRenderSize(caerModuleData moduleData, int16_t *inputs, size_t inputsSize);
+static bool initRenderSize(caerModuleData moduleData);
 static void initRenderersHandlers(caerModuleData moduleData);
 static bool initGraphics(caerModuleData moduleData);
 static void exitGraphics(caerModuleData moduleData);
@@ -125,28 +125,17 @@ static bool caerVisualizerInit(caerModuleData moduleData) {
 	// Initialize visualizer framework (global font sizes). Do only once per startup!
 	std::call_once(visualizerSystemIsInitialized, &initSystemOnce, moduleData);
 
-	// Wait for input to be ready. All inputs, once they are up and running, will
-	// have a valid sourceInfo node to query, especially if dealing with data.
-	int16_t *inputs;
-	size_t inputsSize = caerMainloopModuleGetInputDeps(moduleData->moduleID, &inputs);
-	if (inputs == nullptr) {
-		return (false);
-	}
-
 	// Initialize visualizer. Needs size information from the source.
-	if (!initRenderSize(moduleData, inputs, inputsSize)) {
+	if (!initRenderSize(moduleData)) {
 		caerModuleLog(moduleData, CAER_LOG_ERROR, "Failed to initialize render sizes from source.");
 
-		free(inputs);
 		return (false);
 	}
 
 	initRenderersHandlers(moduleData);
 
 	state->visualizerConfigNode = moduleData->moduleNode;
-	state->eventSourceConfigNode = caerMainloopGetSourceNode(inputs[0]);
-
-	free(inputs);
+	state->eventSourceConfigNode = caerMainloopModuleGetSourceInfoForInput(moduleData->moduleID, 0);
 
 	state->packetSubsampleRendering.store(U32T(sshsNodeGetInt(moduleData->moduleNode, "subsampleRendering")));
 
@@ -364,20 +353,19 @@ static void initSystemOnce(caerModuleData moduleData) {
 	STATISTICS_HEIGHT = (4 * GLOBAL_FONT_SPACING) + (3 * U32T(maxStatText.getLocalBounds().height));
 }
 
-static bool initRenderSize(caerModuleData moduleData, int16_t *inputs, size_t inputsSize) {
+static bool initRenderSize(caerModuleData moduleData) {
 	caerVisualizerState state = (caerVisualizerState) moduleData->moduleState;
 
 	// Default sizes if nothing else is specified in sourceInfo node.
 	uint32_t sizeX = 32;
 	uint32_t sizeY = 32;
-	int16_t sourceID = -1;
 
-	// Search for biggest sizes amongst all event packets.
+	// Search for biggest sizes amongst all event inputs.
+	size_t inputsSize = caerMainloopModuleGetInputDeps(moduleData->moduleID, NULL);
+
 	for (size_t i = 0; i < inputsSize; i++) {
 		// Get size information from source.
-		sourceID = inputs[i];
-
-		sshsNode sourceInfoNode = caerMainloopGetSourceInfo(sourceID);
+		sshsNode sourceInfoNode = caerMainloopModuleGetSourceInfoForInput(moduleData->moduleID, i);
 		if (sourceInfoNode == nullptr) {
 			return (false);
 		}

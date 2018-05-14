@@ -79,33 +79,26 @@ static void caerCameraCalibrationConfigInit(sshsNode moduleNode) {
 }
 
 static bool caerCameraCalibrationInit(caerModuleData moduleData) {
-	// Wait for input to be ready. All inputs, once they are up and running, will
-	// have a valid sourceInfo node to query, especially if dealing with data.
-	int16_t *inputs;
-	size_t inputsSize = caerMainloopModuleGetInputDeps(moduleData->moduleID, &inputs);
-	if (inputs == NULL) {
-		return (false);
-	}
-
-	int16_t sourceID = inputs[0];
-	free(inputs);
-
 	// Both input packets (polarity and frame) must be from the same source, which
 	// means inputSize should be 1 here (one module from which both come). If it isn't,
 	// it means we connected the module wrongly.
+	size_t inputsSize = caerMainloopModuleGetInputDeps(moduleData->moduleID, NULL);
+
 	if (inputsSize != 1) {
 		caerModuleLog(moduleData, CAER_LOG_ERROR,
 			"Polarity and Frame inputs come from two different sources. Both must be from the same source!");
 		return (false);
 	}
 
-	CameraCalibrationState state = moduleData->moduleState;
-
-	// Update all settings.
-	sshsNode sourceInfo = caerMainloopGetSourceInfo(sourceID);
+	// Wait for input to be ready. All inputs, once they are up and running, will
+	// have a valid sourceInfo node to query, especially if dealing with data.
+	sshsNode sourceInfo = caerMainloopModuleGetSourceInfoForInput(moduleData->moduleID, 0);
 	if (sourceInfo == NULL) {
 		return (false);
 	}
+
+	// Update all settings.
+	CameraCalibrationState state = moduleData->moduleState;
 
 	state->settings.imageWidth = U32T(sshsNodeGetShort(sourceInfo, "frameSizeX"));
 	state->settings.imageHeigth = U32T(sshsNodeGetShort(sourceInfo, "frameSizeY"));
