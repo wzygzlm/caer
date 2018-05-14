@@ -140,6 +140,36 @@ size_t caerMainloopModuleResetOutputRevDeps(int16_t id) {
 	return (numRevDeps);
 }
 
+sshsNode caerMainloopModuleGetSourceNodeForInput(int16_t id, size_t inputNum) {
+	int16_t *inputModules;
+	size_t inputModulesNum = caerMainloopModuleGetInputDeps(id, &inputModules);
+
+	if (inputNum >= inputModulesNum) {
+		return (nullptr);
+	}
+
+	int16_t sourceId = inputModules[inputNum];
+
+	free(inputModules);
+
+	return (caerMainloopGetSourceNode(sourceId));
+}
+
+sshsNode caerMainloopModuleGetSourceInfoForInput(int16_t id, size_t inputNum) {
+	int16_t *inputModules;
+	size_t inputModulesNum = caerMainloopModuleGetInputDeps(id, &inputModules);
+
+	if (inputNum >= inputModulesNum) {
+		return (nullptr);
+	}
+
+	int16_t sourceId = inputModules[inputNum];
+
+	free(inputModules);
+
+	return (caerMainloopGetSourceInfo(sourceId));
+}
+
 static inline caerModuleData caerMainloopGetSourceData(int16_t sourceID) {
 	// Sources must be INPUTs or PROCESSORs.
 	if (caerMainloopModuleGetType(sourceID) == CAER_MODULE_OUTPUT) {
