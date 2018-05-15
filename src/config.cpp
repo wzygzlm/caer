@@ -3,6 +3,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include "caer-sdk/cross/portable_io.h"
 
 #include <iostream>
 #include <string>
@@ -103,9 +104,6 @@ void caerConfigInit(int argc, char *argv[]) {
 		// This means it exists and we can access it, so let's remember
 		// it for writing the configuration later at shutdown.
 		configFile = boost::filesystem::canonical(configFile);
-
-		// Ensure configuration is written back at shutdown.
-		atexit(&caerConfigWriteBack);
 	}
 	else {
 		std::cout << "Supplied configuration file " << configFile << " could not be created or read. Error: "
@@ -163,7 +161,10 @@ void caerConfigWriteBack(void) {
 	if (configFileFd >= 0) {
 		sshsNodeExportSubTreeToXML(sshsGetNode(sshsGetGlobal(), "/"), configFileFd);
 
+		portable_fsync(configFileFd);
 		close(configFileFd);
+
+		caerLog(CAER_LOG_DEBUG, "Config", "Configuration file '%s' written to disk.", configFile.string().c_str());
 	}
 	else {
 		caerLog(CAER_LOG_EMERGENCY, "Config", "Could not write to the configuration file '%s'. Error: %d.",

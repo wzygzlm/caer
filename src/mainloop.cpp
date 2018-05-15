@@ -1,4 +1,5 @@
 #include "mainloop.h"
+#include "config.h"
 #include "caer-sdk/cross/portable_io.h"
 #include <csignal>
 
@@ -1721,6 +1722,9 @@ static int caerMainloopRunner() {
 	// getting some initial data (dataAvailable > 0).
 	runModules(inputContainer);
 
+	// Write config to file, at this point basic configuration is available.
+	caerConfigWriteBack();
+
 	// If no data is available, sleep for a millisecond to avoid wasting resources.
 	// Wait for someone to toggle the module shutdown flag OR for the loop
 	// itself to signal termination.
@@ -1763,6 +1767,9 @@ static int caerMainloopRunner() {
 
 	// Cleanup modules and streams on exit.
 	cleanupGlobals();
+
+	// Write config to file on shutdown.
+	caerConfigWriteBack();
 
 	log(logLevel::INFO, "Mainloop", "Terminated successfully.");
 
