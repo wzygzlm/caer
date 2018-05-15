@@ -48,7 +48,9 @@ static void caerMainloopSystemRunningListener(sshsNode node, void *userData, enu
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
 static void caerMainloopRunningListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
-static void caerModulesUpdateInformation(sshsNode node, void *userData, enum sshs_node_attribute_events event,
+static void caerUpdateModulesInformationListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
+	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
+static void caerWriteConfigurationListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
 
 void caerMainloopRun(void) {
@@ -124,7 +126,11 @@ void caerMainloopRun(void) {
 
 	sshsNodeCreate(modulesNode, "updateModulesInformation", false, SSHS_FLAGS_NOTIFY_ONLY | SSHS_FLAGS_NO_EXPORT,
 		"Update modules information.");
-	sshsNodeAddAttributeListener(modulesNode, nullptr, &caerModulesUpdateInformation);
+	sshsNodeAddAttributeListener(modulesNode, nullptr, &caerUpdateModulesInformationListener);
+
+	sshsNodeCreate(modulesNode, "writeConfiguration", false, SSHS_FLAGS_NOTIFY_ONLY | SSHS_FLAGS_NO_EXPORT,
+		"Write current configuration to XML config file.");
+	sshsNodeAddAttributeListener(modulesNode, nullptr, &caerWriteConfigurationListener);
 
 	// No data at start-up.
 	glMainloopData.dataAvailable.store(0);
@@ -179,7 +185,8 @@ void caerMainloopRun(void) {
 	// Remove attribute listeners for clean shutdown.
 	sshsNodeRemoveAttributeListener(glMainloopData.configNode, nullptr, &caerMainloopRunningListener);
 	sshsNodeRemoveAttributeListener(systemNode, nullptr, &caerMainloopSystemRunningListener);
-	sshsNodeRemoveAttributeListener(modulesNode, nullptr, &caerModulesUpdateInformation);
+	sshsNodeRemoveAttributeListener(modulesNode, nullptr, &caerUpdateModulesInformationListener);
+	sshsNodeRemoveAttributeListener(modulesNode, nullptr, &caerWriteConfigurationListener);
 }
 
 /**
@@ -1844,7 +1851,7 @@ static void caerMainloopRunningListener(sshsNode node, void *userData, enum sshs
 	}
 }
 
-static void caerModulesUpdateInformation(sshsNode node, void *userData, enum sshs_node_attribute_events event,
+static void caerUpdateModulesInformationListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue) {
 	UNUSED_ARGUMENT(node);
 	UNUSED_ARGUMENT(userData);
@@ -1859,5 +1866,17 @@ static void caerModulesUpdateInformation(sshsNode node, void *userData, enum ssh
 		catch (const std::exception &ex) {
 			log(logLevel::CRITICAL, "Mainloop", "Failed to find any modules (error: '%s').", ex.what());
 		}
+	}
+}
+
+static void caerWriteConfigurationListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
+	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue) {
+	UNUSED_ARGUMENT(node);
+	UNUSED_ARGUMENT(userData);
+	UNUSED_ARGUMENT(changeValue);
+
+	if (event == SSHS_ATTRIBUTE_MODIFIED && changeType == SSHS_BOOL && caerStrEquals(changeKey, "writeConfiguration")
+		&& changeValue.boolean) {
+		caerConfigWriteBack();
 	}
 }
