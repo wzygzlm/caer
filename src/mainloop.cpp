@@ -128,10 +128,6 @@ void caerMainloopRun(void) {
 		"Update modules information.");
 	sshsNodeAddAttributeListener(modulesNode, nullptr, &caerUpdateModulesInformationListener);
 
-	sshsNodeCreate(modulesNode, "writeConfiguration", false, SSHS_FLAGS_NOTIFY_ONLY | SSHS_FLAGS_NO_EXPORT,
-		"Write current configuration to XML config file.");
-	sshsNodeAddAttributeListener(modulesNode, nullptr, &caerWriteConfigurationListener);
-
 	// No data at start-up.
 	glMainloopData.dataAvailable.store(0);
 
@@ -139,6 +135,11 @@ void caerMainloopRun(void) {
 	glMainloopData.systemRunning.store(true);
 
 	sshsNode systemNode = sshsGetNode(sshsGetGlobal(), "/caer/");
+
+	sshsNodeCreate(systemNode, "writeConfiguration", false, SSHS_FLAGS_NOTIFY_ONLY | SSHS_FLAGS_NO_EXPORT,
+		"Write current configuration to XML config file.");
+	sshsNodeAddAttributeListener(systemNode, nullptr, &caerWriteConfigurationListener);
+
 	sshsNodeCreateBool(systemNode, "running", true, SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT,
 		"Global system start/stop.");
 	sshsNodeAddAttributeListener(systemNode, nullptr, &caerMainloopSystemRunningListener);
@@ -185,8 +186,8 @@ void caerMainloopRun(void) {
 	// Remove attribute listeners for clean shutdown.
 	sshsNodeRemoveAttributeListener(glMainloopData.configNode, nullptr, &caerMainloopRunningListener);
 	sshsNodeRemoveAttributeListener(systemNode, nullptr, &caerMainloopSystemRunningListener);
-	sshsNodeRemoveAttributeListener(modulesNode, nullptr, &caerUpdateModulesInformationListener);
 	sshsNodeRemoveAttributeListener(modulesNode, nullptr, &caerWriteConfigurationListener);
+	sshsNodeRemoveAttributeListener(modulesNode, nullptr, &caerUpdateModulesInformationListener);
 }
 
 /**
