@@ -1753,13 +1753,9 @@ static int caerMainloopRunner() {
 		}
 	}
 
-	// Shutdown all modules.
+	// Shutdown all modules. This makes them all go into the exit
+	// state for the next and last runModules() call.
 	for (const auto &m : glMainloopData.globalExecution) {
-		// Record modules that were still running at mainloop shutdown,
-		// by enabling their 'runAtStartup' flag, so they come back
-		// on a subsequent mainloop execution.
-		sshsNodePut(m.get().configNode, "runAtStartup", sshsNodeGetBool(m.get().configNode, "running"));
-
 		sshsNodePut(m.get().configNode, "running", false);
 	}
 

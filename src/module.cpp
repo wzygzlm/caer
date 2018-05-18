@@ -139,7 +139,9 @@ void caerModuleSM(caerModuleFunctions moduleFunctions, caerModuleData moduleData
 			for (size_t i = 0; i < dependantModulesSize; i++) {
 				sshsNode moduleConfigNode = caerMainloopModuleGetConfigNode(dependantModules[i]);
 
-				sshsNodePut(moduleConfigNode, "running", sshsNodeGetBool(moduleConfigNode, "runAtStartup"));
+				if (sshsNodeGetBool(moduleConfigNode, "runAtStartup")) {
+					sshsNodePut(moduleConfigNode, "running", true);
+				}
 			}
 
 			free(dependantModules);
@@ -159,18 +161,13 @@ void caerModuleSM(caerModuleFunctions moduleFunctions, caerModuleData moduleData
 		moduleData->moduleState = nullptr;
 
 		// Shutdown of module: ensure all modules depending on this
-		// one also get stopped (running set to false). Also rewrite their
-		// 'runAtStartup' flag, so that if/when the input module comes
-		// back online, they also get started again (or not). This is a
-		// consistent behavior with full mainloop shutdown.
+		// one also get stopped (running set to false).
 		int16_t *dependantModules;
 		size_t dependantModulesSize = caerMainloopModuleGetOutputRevDeps(moduleData->moduleID, &dependantModules);
 
 		if (dependantModulesSize > 0) {
 			for (size_t i = 0; i < dependantModulesSize; i++) {
 				sshsNode moduleConfigNode = caerMainloopModuleGetConfigNode(dependantModules[i]);
-
-				sshsNodePut(moduleConfigNode, "runAtStartup", sshsNodeGetBool(moduleConfigNode, "running"));
 
 				sshsNodePut(moduleConfigNode, "running", false);
 			}
