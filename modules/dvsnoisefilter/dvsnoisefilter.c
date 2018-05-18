@@ -46,6 +46,12 @@ static void caerDVSNoiseFilterConfigInit(sshsNode moduleNode) {
 
 	sshsNodeCreateBool(moduleNode, "backgroundActivityEnable", true, SSHS_FLAGS_NORMAL,
 		"Enable the background activity filter.");
+	sshsNodeCreateBool(moduleNode, "backgroundActivityTwoLevels", false, SSHS_FLAGS_NORMAL,
+		"Use two-level background activity filtering.");
+	sshsNodeCreateByte(moduleNode, "backgroundActivitySupportMin", 2, 1, 8, SSHS_FLAGS_NORMAL,
+		"Minimum number of direct neighbor pixels that must support this pixel for it to be valid.");
+	sshsNodeCreateByte(moduleNode, "backgroundActivitySupportMax", 8, 1, 8, SSHS_FLAGS_NORMAL,
+		"Maximum number of direct neighbor pixels that can support this pixel for it to be valid.");
 	sshsNodeCreateInt(moduleNode, "backgroundActivityTime", 20000, 0, 10000000, SSHS_FLAGS_NORMAL,
 		"Maximum time difference in µs for events to be considered correlated and not be filtered out.");
 	sshsNodeCreateLong(moduleNode, "backgroundActivityFiltered", 0, 0, INT64_MAX,
@@ -144,6 +150,12 @@ static void caerDVSNoiseFilterConfig(caerModuleData moduleData) {
 
 	caerFilterDVSNoiseConfigSet(state, CAER_FILTER_DVS_BACKGROUND_ACTIVITY_ENABLE,
 		sshsNodeGetBool(moduleData->moduleNode, "backgroundActivityEnable"));
+	caerFilterDVSNoiseConfigSet(state, CAER_FILTER_DVS_BACKGROUND_ACTIVITY_TWO_LEVELS,
+		sshsNodeGetBool(moduleData->moduleNode, "backgroundActivityTwoLevels"));
+	caerFilterDVSNoiseConfigSet(state, CAER_FILTER_DVS_BACKGROUND_ACTIVITY_SUPPORT_MIN,
+		U8T(sshsNodeGetByte(moduleData->moduleNode, "backgroundActivitySupportMin")));
+	caerFilterDVSNoiseConfigSet(state, CAER_FILTER_DVS_BACKGROUND_ACTIVITY_SUPPORT_MAX,
+		U8T(sshsNodeGetByte(moduleData->moduleNode, "backgroundActivitySupportMax")));
 	caerFilterDVSNoiseConfigSet(state, CAER_FILTER_DVS_BACKGROUND_ACTIVITY_TIME,
 		U32T(sshsNodeGetInt(moduleData->moduleNode, "backgroundActivityTime")));
 
