@@ -40,13 +40,19 @@ void caerModuleConfigInit(sshsNode moduleNode) {
 		mLoad = caerLoadModuleLibrary(moduleName);
 	}
 	catch (const std::exception &ex) {
-		boost::format exMsg = boost::format("Module '%s': %s") % moduleName % ex.what();
-		libcaer::log::log(libcaer::log::logLevel::ERROR, "Module", exMsg.str().c_str());
+		boost::format exMsg = boost::format("moduleConfigInit() load for '%s': %s") % moduleName % ex.what();
+		libcaer::log::log(libcaer::log::logLevel::ERROR, sshsNodeGetName(moduleNode), exMsg.str().c_str());
 		return;
 	}
 
 	if (mLoad.second->functions->moduleConfigInit != nullptr) {
-		mLoad.second->functions->moduleConfigInit(moduleNode);
+		try {
+			mLoad.second->functions->moduleConfigInit(moduleNode);
+		}
+		catch (const std::exception &ex) {
+			boost::format exMsg = boost::format("moduleConfigInit() for '%s': %s") % moduleName % ex.what();
+			libcaer::log::log(libcaer::log::logLevel::ERROR, sshsNodeGetName(moduleNode), exMsg.str().c_str());
+		}
 	}
 
 	caerUnloadModuleLibrary(mLoad.first);
@@ -62,12 +68,28 @@ void caerModuleSM(caerModuleFunctions moduleFunctions, caerModuleData moduleData
 
 			if (moduleFunctions->moduleConfig != nullptr) {
 				// Call config function. 'configUpdate' variable reset is done above.
-				moduleFunctions->moduleConfig(moduleData);
+				try {
+					moduleFunctions->moduleConfig(moduleData);
+				}
+				catch (const std::exception &ex) {
+					libcaer::log::log(libcaer::log::logLevel::ERROR, moduleData->moduleSubSystemString,
+						"moduleConfig(): '%s', disabling module.", ex.what());
+					sshsNodePut(moduleData->moduleNode, "running", false);
+					return;
+				}
 			}
 		}
 
 		if (moduleFunctions->moduleRun != nullptr) {
-			moduleFunctions->moduleRun(moduleData, in, out);
+			try {
+				moduleFunctions->moduleRun(moduleData, in, out);
+			}
+			catch (const std::exception &ex) {
+				libcaer::log::log(libcaer::log::logLevel::ERROR, moduleData->moduleSubSystemString,
+					"moduleRun(): '%s', disabling module.", ex.what());
+				sshsNodePut(moduleData->moduleNode, "running", false);
+				return;
+			}
 		}
 
 		if (moduleData->doReset.load(std::memory_order_relaxed) != 0) {
@@ -75,7 +97,15 @@ void caerModuleSM(caerModuleFunctions moduleFunctions, caerModuleData moduleData
 
 			if (moduleFunctions->moduleReset != nullptr) {
 				// Call reset function. 'doReset' variable reset is done above.
-				moduleFunctions->moduleReset(moduleData, resetCallSourceID);
+				try {
+					moduleFunctions->moduleReset(moduleData, resetCallSourceID);
+				}
+				catch (const std::exception &ex) {
+					libcaer::log::log(libcaer::log::logLevel::ERROR, moduleData->moduleSubSystemString,
+						"moduleReset(): '%s', disabling module.", ex.what());
+					sshsNodePut(moduleData->moduleNode, "running", false);
+					return;
+				}
 			}
 		}
 	}
@@ -115,7 +145,15 @@ void caerModuleSM(caerModuleFunctions moduleFunctions, caerModuleData moduleData
 		moduleData->doReset.store(0);
 
 		if (moduleFunctions->moduleInit != nullptr) {
-			if (!moduleFunctions->moduleInit(moduleData)) {
+			try {
+				if (!moduleFunctions->moduleInit(moduleData)) {
+					throw std::runtime_error("Failed to initialize module.");
+				}
+			}
+			catch (const std::exception &ex) {
+				libcaer::log::log(libcaer::log::logLevel::ERROR, moduleData->moduleSubSystemString, "moduleInit(): %s",
+					ex.what());
+
 				if (memSize != 0) {
 					// Only deallocate if we were the original allocator.
 					free(moduleData->moduleState);
@@ -151,7 +189,13 @@ void caerModuleSM(caerModuleFunctions moduleFunctions, caerModuleData moduleData
 		moduleData->moduleStatus = CAER_MODULE_STOPPED;
 
 		if (moduleFunctions->moduleExit != nullptr) {
-			moduleFunctions->moduleExit(moduleData);
+			try {
+				moduleFunctions->moduleExit(moduleData);
+			}
+			catch (const std::exception &ex) {
+				libcaer::log::log(libcaer::log::logLevel::ERROR, moduleData->moduleSubSystemString, "moduleExit(): %s",
+					ex.what());
+			}
 		}
 
 		if (memSize != 0) {
