@@ -20,7 +20,7 @@
 
 // If Boost version recent enough, enable better stack traces on segfault.
 #include <boost/version.hpp>
-#if defined(BOOST_VERSION) && (BOOST_VERSION / 100000) == 1 && (BOOST_VERSION / 100 % 1000) >= 65
+#if defined(BOOST_VERSION) && (BOOST_VERSION / 100000) == 1 && (BOOST_VERSION / 100 % 1000) >= 66
 #define BOOST_HAS_STACKTRACE 1
 #else
 #define BOOST_HAS_STACKTRACE 0
