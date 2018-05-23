@@ -18,6 +18,20 @@
 #include <boost/format.hpp>
 #include <boost/algorithm/string.hpp>
 
+// If Boost version recent enough, enable better stack traces on segfault.
+#include <boost/version.hpp>
+#if defined(BOOST_VERSION) && (BOOST_VERSION / 100000) == 1 && (BOOST_VERSION / 100 % 1000) >= 65
+#define BOOST_HAS_STACKTRACE 1
+#else
+#define BOOST_HAS_STACKTRACE 0
+#endif
+
+#if BOOST_HAS_STACKTRACE
+#include <boost/stacktrace.hpp>
+#elif defined(OS_LINUX)
+#include <execinfo.h>
+#endif
+
 #define INTERNAL_XSTR(a) INTERNAL_STR(a)
 #define INTERNAL_STR(a) #a
 
@@ -43,7 +57,8 @@ static MainloopData glMainloopData;
 
 static int caerMainloopRunner();
 static void printDebugInformation();
-static void caerMainloopSignalHandler(int signal);
+static void caerMainloopShutdownHandler(int signum);
+static void caerMainloopSegfaultHandler(int signum);
 static void caerMainloopSystemRunningListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
 static void caerMainloopRunningListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
@@ -59,18 +74,28 @@ void caerMainloopRun(void) {
 
 	// Install signal handler for global shutdown.
 #if defined(OS_WINDOWS)
-	if (signal(SIGTERM, &caerMainloopSignalHandler) == SIG_ERR) {
+	if (signal(SIGTERM, &caerMainloopShutdownHandler) == SIG_ERR) {
 		log(logLevel::EMERGENCY, "Mainloop", "Failed to set signal handler for SIGTERM. Error: %d.", errno);
 		exit(EXIT_FAILURE);
 	}
 
-	if (signal(SIGINT, &caerMainloopSignalHandler) == SIG_ERR) {
+	if (signal(SIGINT, &caerMainloopShutdownHandler) == SIG_ERR) {
 		log(logLevel::EMERGENCY, "Mainloop", "Failed to set signal handler for SIGINT. Error: %d.", errno);
 		exit(EXIT_FAILURE);
 	}
 
-	if (signal(SIGBREAK, &caerMainloopSignalHandler) == SIG_ERR) {
+	if (signal(SIGBREAK, &caerMainloopShutdownHandler) == SIG_ERR) {
 		log(logLevel::EMERGENCY, "Mainloop", "Failed to set signal handler for SIGBREAK. Error: %d.", errno);
+		exit(EXIT_FAILURE);
+	}
+
+	if (signal(SIGSEGV, &caerMainloopSegfaultHandler) == SIG_ERR) {
+		log(logLevel::EMERGENCY, "Mainloop", "Failed to set signal handler for SIGSEGV. Error: %d.", errno);
+		exit(EXIT_FAILURE);
+	}
+
+	if (signal(SIGABRT, &caerMainloopSegfaultHandler) == SIG_ERR) {
+		log(logLevel::EMERGENCY, "Mainloop", "Failed to set signal handler for SIGABRT. Error: %d.", errno);
 		exit(EXIT_FAILURE);
 	}
 
@@ -89,7 +114,7 @@ void caerMainloopRun(void) {
 #else
 	struct sigaction shutdown;
 
-	shutdown.sa_handler = &caerMainloopSignalHandler;
+	shutdown.sa_handler = &caerMainloopShutdownHandler;
 	shutdown.sa_flags = 0;
 	sigemptyset(&shutdown.sa_mask);
 	sigaddset(&shutdown.sa_mask, SIGTERM);
@@ -102,6 +127,24 @@ void caerMainloopRun(void) {
 
 	if (sigaction(SIGINT, &shutdown, nullptr) == -1) {
 		log(logLevel::EMERGENCY, "Mainloop", "Failed to set signal handler for SIGINT. Error: %d.", errno);
+		exit(EXIT_FAILURE);
+	}
+
+	struct sigaction segfault;
+
+	segfault.sa_handler = &caerMainloopSegfaultHandler;
+	segfault.sa_flags = 0;
+	sigemptyset(&segfault.sa_mask);
+	sigaddset(&segfault.sa_mask, SIGSEGV);
+	sigaddset(&segfault.sa_mask, SIGABRT);
+
+	if (sigaction(SIGSEGV, &segfault, nullptr) == -1) {
+		log(logLevel::EMERGENCY, "Mainloop", "Failed to set signal handler for SIGSEGV. Error: %d.", errno);
+		exit(EXIT_FAILURE);
+	}
+
+	if (sigaction(SIGABRT, &segfault, nullptr) == -1) {
+		log(logLevel::EMERGENCY, "Mainloop", "Failed to set signal handler for SIGABRT. Error: %d.", errno);
 		exit(EXIT_FAILURE);
 	}
 
@@ -1818,12 +1861,27 @@ static void printDebugInformation() {
 	}
 }
 
-static void caerMainloopSignalHandler(int signal) {
-	UNUSED_ARGUMENT(signal);
+static void caerMainloopShutdownHandler(int signum) {
+	UNUSED_ARGUMENT(signum);
 
 	// Simply set all the running flags to false on SIGTERM and SIGINT (CTRL+C) for global shutdown.
 	glMainloopData.systemRunning.store(false);
 	glMainloopData.running.store(false);
+}
+
+static void caerMainloopSegfaultHandler(int signum) {
+	signal(signum, SIG_DFL);
+
+	// Segfault or abnormal termination, try to print a stack trace if possible.
+#if BOOST_HAS_STACKTRACE
+	std::cout << boost::stacktrace::stacktrace();
+#elif defined(OS_LINUX)
+	void *traces[128];
+	int tracesActualNum = backtrace(traces, 128);
+	backtrace_symbols_fd(traces, tracesActualNum, STDOUT_FILENO);
+#endif
+
+	raise(signum);
 }
 
 static void caerMainloopSystemRunningListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
