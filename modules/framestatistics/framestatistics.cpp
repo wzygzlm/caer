@@ -5,10 +5,6 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 
-#if !defined(LIBCAER_HAVE_OPENCV) || LIBCAER_HAVE_OPENCV == 0
-#error "FrameStatistics module requires libcaer built with OpenCV support (LIBCAER_HAVE_OPENCV=1)."
-#endif
-
 struct caer_frame_statistics_state {
 	int numBins;
 	int roiRegion;
