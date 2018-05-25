@@ -16,7 +16,7 @@ dependencies as described in detail in libcaer's 'README.Windows'.
 
 3) Install any additional dependencies as required: pacman -S <pkg-name>
  Input/Output modules: mingw-w64-x86_64-libpng mingw-w64-x86_64-libuv
- Visualizer module: mingw-w64-x86_64-sfml
+ Visualizer module: mingw-w64-x86_64-sfml mingw-w64-x86_64-glew
  CameraCalibration, FrameStatistics modules: mingw-w64-x86_64-opencv
 
 4) Place the cAER source in a location easily accessible to MSYS2. We usually
