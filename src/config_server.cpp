@@ -20,7 +20,7 @@
 #include <boost/algorithm/string.hpp>
 
 #include <libcaercpp/libcaer.hpp>
-using namespace libcaer::log;
+namespace logger = libcaer::log;
 
 namespace asio = boost::asio;
 namespace asioIP = boost::asio::ip;
@@ -42,12 +42,12 @@ private:
 public:
 	ConfigServerConnection(asioTCP::socket s) :
 			socket(std::move(s)) {
-		log(logLevel::INFO, CONFIG_SERVER_NAME, "New connection from client %s:%d.",
+		logger::log(logger::logLevel::INFO, CONFIG_SERVER_NAME, "New connection from client %s:%d.",
 			socket.remote_endpoint().address().to_string().c_str(), socket.remote_endpoint().port());
 	}
 
 	~ConfigServerConnection() {
-		log(logLevel::INFO, CONFIG_SERVER_NAME, "Closing connection from client %s:%d.",
+		logger::log(logger::logLevel::INFO, CONFIG_SERVER_NAME, "Closing connection from client %s:%d.",
 			socket.remote_endpoint().address().to_string().c_str(), socket.remote_endpoint().port());
 	}
 
@@ -98,7 +98,7 @@ private:
 					// Check for wrong (excessive) requested read length.
 					// Close connection by falling out of scope.
 					if (readLength > (CAER_CONFIG_SERVER_BUFFER_SIZE - CAER_CONFIG_SERVER_HEADER_SIZE)) {
-						log(logLevel::INFO, CONFIG_SERVER_NAME, "Client %s:%d: read length error (%d bytes requested).",
+						logger::log(logger::logLevel::INFO, CONFIG_SERVER_NAME, "Client %s:%d: read length error (%d bytes requested).",
 							socket.remote_endpoint().address().to_string().c_str(), socket.remote_endpoint().port(), readLength);
 						return;
 					}
@@ -142,11 +142,11 @@ private:
 	void handleError(const boost::system::error_code &error, const char *message) {
 		if (error == asio::error::eof) {
 			// Handle EOF separately.
-			log(logLevel::INFO, CONFIG_SERVER_NAME, "Client %s:%d: connection closed.",
+			logger::log(logger::logLevel::INFO, CONFIG_SERVER_NAME, "Client %s:%d: connection closed.",
 				socket.remote_endpoint().address().to_string().c_str(), socket.remote_endpoint().port());
 		}
 		else {
-			log(logLevel::ERROR, CONFIG_SERVER_NAME, "Client %s:%d: %s. Error: %s (%d).",
+			logger::log(logger::logLevel::ERROR, CONFIG_SERVER_NAME, "Client %s:%d: %s. Error: %s (%d).",
 				socket.remote_endpoint().address().to_string().c_str(), socket.remote_endpoint().port(), message,
 				error.message().c_str(), error.value());
 		}
@@ -177,7 +177,7 @@ private:
 	void acceptStart() {
 		acceptor.async_accept(socket, [this](const boost::system::error_code &error) {
 			if (error) {
-				log(logLevel::ERROR, CONFIG_SERVER_NAME,
+				logger::log(logger::logLevel::ERROR, CONFIG_SERVER_NAME,
 					"Failed to accept new connection. Error: %s (%d).", error.message().c_str(), error.value());
 			}
 			else {
@@ -230,12 +230,12 @@ void caerConfigServerStart(void) {
 	}
 	catch (const std::system_error &ex) {
 		// Failed to create thread.
-		caerLog(CAER_LOG_EMERGENCY, CONFIG_SERVER_NAME, "Failed to create thread. Error: %s.", ex.what());
+		logger::log(logger::logLevel::EMERGENCY, CONFIG_SERVER_NAME, "Failed to create thread. Error: %s.", ex.what());
 		exit(EXIT_FAILURE);
 	}
 
 	// Successfully started thread.
-	caerLog(CAER_LOG_DEBUG, CONFIG_SERVER_NAME, "Thread created successfully.");
+	logger::log(logger::logLevel::DEBUG, CONFIG_SERVER_NAME, "Thread created successfully.");
 }
 
 void caerConfigServerStop(void) {
@@ -244,12 +244,13 @@ void caerConfigServerStop(void) {
 	}
 	catch (const std::system_error &ex) {
 		// Failed to join thread.
-		caerLog(CAER_LOG_EMERGENCY, CONFIG_SERVER_NAME, "Failed to terminate thread. Error: %s.", ex.what());
+		logger::log(logger::logLevel::EMERGENCY, CONFIG_SERVER_NAME, "Failed to terminate thread. Error: %s.",
+			ex.what());
 		exit(EXIT_FAILURE);
 	}
 
 	// Successfully joined thread.
-	caerLog(CAER_LOG_DEBUG, CONFIG_SERVER_NAME, "Thread terminated successfully.");
+	logger::log(logger::logLevel::DEBUG, CONFIG_SERVER_NAME, "Thread terminated successfully.");
 }
 
 // The response from the server follows a simplified version of the request
@@ -274,7 +275,7 @@ static inline void caerConfigSendError(std::shared_ptr<ConfigServerConnection> c
 
 	client->writeResponse(responseLength);
 
-	caerLog(CAER_LOG_DEBUG, CONFIG_SERVER_NAME, "Sent back error message '%s' to client.", errorMsg);
+	logger::log(logger::logLevel::DEBUG, CONFIG_SERVER_NAME, "Sent back error message '%s' to client.", errorMsg);
 }
 
 static inline void caerConfigSendResponse(std::shared_ptr<ConfigServerConnection> client, uint8_t action, uint8_t type,
@@ -291,7 +292,7 @@ static inline void caerConfigSendResponse(std::shared_ptr<ConfigServerConnection
 
 	client->writeResponse(responseLength);
 
-	caerLog(CAER_LOG_DEBUG, CONFIG_SERVER_NAME,
+	logger::log(logger::logLevel::DEBUG, CONFIG_SERVER_NAME,
 		"Sent back message to client: action=%" PRIu8 ", type=%" PRIu8 ", msgLength=%zu.", action, type, msgLength);
 }
 
@@ -335,7 +336,7 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 	size_t keyLength, const uint8_t *value, size_t valueLength) {
 	UNUSED_ARGUMENT(extra);
 
-	caerLog(CAER_LOG_DEBUG, CONFIG_SERVER_NAME,
+	logger::log(logger::logLevel::DEBUG, CONFIG_SERVER_NAME,
 		"Handling request: action=%" PRIu8 ", type=%" PRIu8 ", extraLength=%zu, nodeLength=%zu, keyLength=%zu, valueLength=%zu.",
 		action, type, extraLength, nodeLength, keyLength, valueLength);
 
