@@ -135,7 +135,7 @@ static bool caerVisualizerInit(caerModuleData moduleData) {
 	initRenderersHandlers(moduleData);
 
 	state->visualizerConfigNode = moduleData->moduleNode;
-	state->eventSourceConfigNode = caerMainloopModuleGetSourceInfoForInput(moduleData->moduleID, 0);
+	state->eventSourceConfigNode = caerMainloopModuleGetSourceNodeForInput(moduleData->moduleID, 0);
 
 	state->packetSubsampleRendering.store(U32T(sshsNodeGetInt(moduleData->moduleNode, "subsampleRendering")));
 
