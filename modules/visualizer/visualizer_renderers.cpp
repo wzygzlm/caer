@@ -56,12 +56,17 @@ static const struct caer_visualizer_renderer_info rendererPolarityAndFrameEvents
 	&caerVisualizerRendererPolarityAndFrameEvents, false, &caerVisualizerRendererPolarityAndFrameEventsStateInit,
 	&caerVisualizerRendererPolarityAndFrameEventsStateExit);
 
+static bool caerVisualizerRendererPolarityAnd2DEvents(caerVisualizerPublicState state,
+	caerEventPacketContainer container);
+static const struct caer_visualizer_renderer_info rendererPolarityAnd2DEvents("Polarity_and_2D_Points",
+	&caerVisualizerRendererPolarityAnd2DEvents);
+
 const std::string caerVisualizerRendererListOptionsString =
-	"Polarity,Frame,IMU_6-axes,2D_Points,Spikes,Spikes_Raster_Plot,Polarity_and_Frames,Camera_pose";
+	"Polarity,Frame,IMU_6-axes,2D_Points,Spikes,Spikes_Raster_Plot,Polarity_and_Frames,Camera_pose,Polarity_and_2D_Points";
 
 const struct caer_visualizer_renderer_info caerVisualizerRendererList[] = { { "None", nullptr }, rendererPolarityEvents,
 	rendererFrameEvents, rendererIMU6Events, rendererPoint2DEvents, rendererSpikeEvents, rendererSpikeEventsRaster,
-	rendererPolarityAndFrameEvents, rendererMatrix4x4EventsPose };
+	rendererPolarityAndFrameEvents, rendererMatrix4x4EventsPose, rendererPolarityAnd2DEvents };
 
 const size_t caerVisualizerRendererListLength = (sizeof(caerVisualizerRendererList)
 	/ sizeof(struct caer_visualizer_renderer_info));
@@ -878,4 +883,13 @@ static bool caerVisualizerRendererPolarityAndFrameEvents(caerVisualizerPublicSta
 	bool drewPolarityEvents = caerVisualizerRendererPolarityEvents(state, container);
 
 	return (drewFrameEvents || drewPolarityEvents);
+}
+
+static bool caerVisualizerRendererPolarityAnd2DEvents(caerVisualizerPublicState state,
+	caerEventPacketContainer container) {
+	bool drewPolarityEvents = caerVisualizerRendererPolarityEvents(state, container);
+
+	bool drew2DEvents = caerVisualizerRendererPoint2DEvents(state, container);
+
+	return (drewPolarityEvents || drew2DEvents);
 }
