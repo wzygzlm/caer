@@ -417,15 +417,11 @@ static void createDefaultLogicConfiguration(caerModuleData moduleData, const cha
 	if (devInfo->dvsHasBackgroundActivityFilter) {
 		sshsNodeCreateBool(dvsNode, "FilterBackgroundActivity", true, SSHS_FLAGS_NORMAL,
 			"Filter background events using hardware filter on FPGA.");
-		sshsNodeCreateInt(dvsNode, "FilterBackgroundActivityTime", 80, 0, (0x01 << 12) - 1, SSHS_FLAGS_NORMAL,
+		sshsNodeCreateInt(dvsNode, "FilterBackgroundActivityTime", 8, 0, (0x01 << 12) - 1, SSHS_FLAGS_NORMAL,
 			"Maximum time difference for events to be considered correlated and not be filtered out (in 250µs units).");
-		sshsNodeCreateByte(dvsNode, "FilterBackgroundActivitySupportMin", 1, 1, 8, SSHS_FLAGS_NORMAL,
-			"Minimum number of direct neighbor pixels that must support this pixel for it to be valid.");
-		sshsNodeCreateByte(dvsNode, "FilterBackgroundActivitySupportMax", 8, 1, 8, SSHS_FLAGS_NORMAL,
-			"Maximum number of direct neighbor pixels that can support this pixel for it to be valid.");
 		sshsNodeCreateBool(dvsNode, "FilterRefractoryPeriod", false, SSHS_FLAGS_NORMAL,
 			"Limit pixel firing rate using hardware filter on FPGA.");
-		sshsNodeCreateInt(dvsNode, "FilterRefractoryPeriodTime", 2, 0, (0x01 << 12) - 1, SSHS_FLAGS_NORMAL,
+		sshsNodeCreateInt(dvsNode, "FilterRefractoryPeriodTime", 1, 0, (0x01 << 12) - 1, SSHS_FLAGS_NORMAL,
 			"Minimum time between events to not be filtered out (in 250µs units).");
 	}
 
@@ -1584,10 +1580,6 @@ static void dvsConfigSend(sshsNode node, caerModuleData moduleData, struct caer_
 			sshsNodeGetBool(node, "FilterBackgroundActivity"));
 		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_DVS,
 		DAVIS_CONFIG_DVS_FILTER_BACKGROUND_ACTIVITY_TIME, U32T(sshsNodeGetInt(node, "FilterBackgroundActivityTime")));
-		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_DVS,
-		DAVIS_CONFIG_DVS_FILTER_BACKGROUND_ACTIVITY_SUPPORT_MIN, U8T(sshsNodeGetByte(node, "FilterBackgroundActivitySupportMin")));
-		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_DVS,
-			DAVIS_CONFIG_DVS_FILTER_BACKGROUND_ACTIVITY_SUPPORT_MAX, U8T(sshsNodeGetByte(node, "FilterBackgroundActivitySupportMax")));
 		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_DVS, DAVIS_CONFIG_DVS_FILTER_REFRACTORY_PERIOD,
 			sshsNodeGetBool(node, "FilterRefractoryPeriod"));
 		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_DVS,
@@ -1719,14 +1711,6 @@ static void dvsConfigListener(sshsNode node, void *userData, enum sshs_node_attr
 		else if (changeType == SSHS_INT && caerStrEquals(changeKey, "FilterBackgroundActivityTime")) {
 			caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_DVS,
 			DAVIS_CONFIG_DVS_FILTER_BACKGROUND_ACTIVITY_TIME, U32T(changeValue.iint));
-		}
-		else if (changeType == SSHS_BYTE && caerStrEquals(changeKey, "FilterBackgroundActivitySupportMin")) {
-			caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_DVS,
-			DAVIS_CONFIG_DVS_FILTER_BACKGROUND_ACTIVITY_SUPPORT_MIN, U8T(changeValue.ibyte));
-		}
-		else if (changeType == SSHS_BYTE && caerStrEquals(changeKey, "FilterBackgroundActivitySupportMax")) {
-			caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_DVS,
-				DAVIS_CONFIG_DVS_FILTER_BACKGROUND_ACTIVITY_SUPPORT_MAX, U8T(changeValue.ibyte));
 		}
 		else if (changeType == SSHS_BOOL && caerStrEquals(changeKey, "FilterRefractoryPeriod")) {
 			caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_DVS, DAVIS_CONFIG_DVS_FILTER_REFRACTORY_PERIOD,
