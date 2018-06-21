@@ -412,6 +412,8 @@ static void createDefaultLogicConfiguration(caerModuleData moduleData, const cha
 			"Row/Y address of pixel 7 to filter out.");
 		sshsNodeCreateShort(dvsNode, "FilterPixel7Column", devInfo->dvsSizeX, 0, devInfo->dvsSizeX, SSHS_FLAGS_NORMAL,
 			"Column/X address of pixel 7 to filter out.");
+		sshsNodeCreateBool(dvsNode, "FilterPixelAutoTrain", false, SSHS_FLAGS_NORMAL,
+			"Set hardware pixel filter up automatically using software hot-pixel detection.");
 	}
 
 	if (devInfo->dvsHasBackgroundActivityFilter) {
@@ -1573,6 +1575,8 @@ static void dvsConfigSend(sshsNode node, caerModuleData moduleData, struct caer_
 			U32T(sshsNodeGetShort(node, "FilterPixel7Row")));
 		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_DVS, DAVIS_CONFIG_DVS_FILTER_PIXEL_7_COLUMN,
 			U32T(sshsNodeGetShort(node, "FilterPixel7Column")));
+		caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_DVS, DAVIS_CONFIG_DVS_FILTER_PIXEL_AUTO_TRAIN,
+			sshsNodeGetBool(node, "FilterPixelAutoTrain"));
 	}
 
 	if (devInfo->dvsHasBackgroundActivityFilter) {
@@ -1703,6 +1707,10 @@ static void dvsConfigListener(sshsNode node, void *userData, enum sshs_node_attr
 		else if (changeType == SSHS_SHORT && caerStrEquals(changeKey, "FilterPixel7Column")) {
 			caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_DVS, DAVIS_CONFIG_DVS_FILTER_PIXEL_7_COLUMN,
 				U32T(changeValue.ishort));
+		}
+		else if (changeType == SSHS_BOOL && caerStrEquals(changeKey, "FilterPixelAutoTrain")) {
+			caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_DVS, DAVIS_CONFIG_DVS_FILTER_PIXEL_AUTO_TRAIN,
+				changeValue.boolean);
 		}
 		else if (changeType == SSHS_BOOL && caerStrEquals(changeKey, "FilterBackgroundActivity")) {
 			caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_DVS, DAVIS_CONFIG_DVS_FILTER_BACKGROUND_ACTIVITY,
