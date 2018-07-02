@@ -3,7 +3,7 @@
         <node name="bafilter" path="/bafilter/">
             <attr key="moduleId" type="short">2</attr>
             <attr key="moduleInput" type="string">1[1]</attr>
-            <attr key="moduleLibrary" type="string">caer_bafilter</attr>
+            <attr key="moduleLibrary" type="string">caer_noisefilter</attr>
         </node>
         <node name="caer" path="/caer/">
             <node name="logger" path="/caer/logger/">
@@ -25,15 +25,10 @@
             <attr key="renderer" type="string">Polarity</attr>
         </node>
         <node name="eventVisualizerUnfiltered" path="/eventVisualizerUnfiltered/">
-            <attr key="moduleId" type="short">6</attr>
+            <attr key="moduleId" type="short">4</attr>
             <attr key="moduleInput" type="string">1[1]</attr>
             <attr key="moduleLibrary" type="string">caer_visualizer</attr>
             <attr key="renderer" type="string">Polarity</attr>
-        </node>
-        <node name="stat" path="/stat/">
-            <attr key="moduleId" type="short">7</attr>
-            <attr key="moduleInput" type="string">1[0]</attr>
-            <attr key="moduleLibrary" type="string">caer_statistics</attr>
         </node>
     </node>
 </sshs>
