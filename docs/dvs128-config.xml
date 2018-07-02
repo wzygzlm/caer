@@ -3,7 +3,7 @@
         <node name="bafilter" path="/bafilter/">
             <attr key="moduleId" type="short">2</attr>
             <attr key="moduleInput" type="string">1[1]</attr>
-            <attr key="moduleLibrary" type="string">caer_noisefilter</attr>
+            <attr key="moduleLibrary" type="string">caer_dvsnoisefilter</attr>
         </node>
         <node name="caer" path="/caer/">
             <node name="logger" path="/caer/logger/">
