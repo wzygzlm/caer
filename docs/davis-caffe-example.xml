@@ -1,11 +1,11 @@
 <sshs version="1.0">
     <node name="" path="/">
-        <node name="bafilter" path="/bafilter/">
+        <node name="dvsnoisefilter" path="/dvsnoisefilter/">
             <attr key="deltaT" type="int">30000</attr>
             <attr key="logLevel" type="byte">5</attr>
             <attr key="moduleId" type="short">2</attr>
             <attr key="moduleInput" type="string">1[1]</attr>
-            <attr key="moduleLibrary" type="string">caer_bafilter</attr>
+            <attr key="moduleLibrary" type="string">caer_dvsnoisefilter</attr>
             <attr key="runAtStartup" type="bool">true</attr>
             <attr key="subSampleBy" type="byte">0</attr>
         </node>
