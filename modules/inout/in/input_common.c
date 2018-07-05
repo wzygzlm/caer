@@ -1949,7 +1949,31 @@ bool isNetworkMessageBased) {
 
 	// Wait for header to be parsed. TODO: this can block indefinitely, better solution needed!
 	while (!atomic_load_explicit(&state->header.isValidHeader, memory_order_relaxed)) {
-		;
+		if (atomic_load_explicit(&state->inputReaderThreadState, memory_order_relaxed) != READER_OK) {
+			caerRingBufferFree(state->transferRingPackets);
+			caerRingBufferFree(state->transferRingPacketContainers);
+			free(state->dataBuffer);
+
+			// Stop assembler thread (started just above) and wait on it.
+			atomic_store(&state->running, false);
+
+			if ((errno = thrd_join(state->inputAssemblerThread, NULL)) != thrd_success) {
+				// This should never happen!
+				caerModuleLog(state->parentModule, CAER_LOG_CRITICAL,
+					"Failed to join input assembler thread. Error: %d.",
+					errno);
+			}
+
+			if ((errno = thrd_join(state->inputReaderThread, NULL)) != thrd_success) {
+				// This should never happen!
+				caerModuleLog(state->parentModule, CAER_LOG_CRITICAL,
+					"Failed to join input reader thread. Error: %d.",
+					errno);
+			}
+
+			caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Failed to start input reader thread.");
+			return (false);
+		}
 	}
 
 	// Add config listeners last, to avoid having them dangling if Init doesn't succeed.
