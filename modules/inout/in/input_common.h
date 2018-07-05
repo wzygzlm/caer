@@ -14,7 +14,7 @@
 
 struct input_common_header_info {
 	/// Header has been completely read and is valid.
-	bool isValidHeader;
+	atomic_bool isValidHeader;
 	/// Format is AEDAT 3.
 	bool isAEDAT3;
 	/// Major AEDAT format version (X.y).

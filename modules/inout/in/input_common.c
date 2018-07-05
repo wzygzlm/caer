@@ -150,7 +150,7 @@ static bool parseNetworkHeader(inputCommonState state) {
 	// TODO: Network: add sourceString.
 
 	// We're done!
-	state->header.isValidHeader = true;
+	atomic_store(&state->header.isValidHeader, true);
 
 	return (true);
 }
@@ -345,14 +345,14 @@ static bool parseFileHeader(inputCommonState state) {
 			// also got the required headers Format and Source at least.
 			if ((state->header.majorVersion == 2 && state->header.minorVersion == 0) && versionHeader) {
 				// Parsed AEDAT 2.0 header successfully (version).
-				state->header.isValidHeader = true;
+				atomic_store(&state->header.isValidHeader, true);
 				return (true);
 			}
 
 			if ((state->header.majorVersion == 3 && state->header.minorVersion == 0) && versionHeader && formatHeader
 				&& sourceHeader) {
 				// Parsed AEDAT 3.0 header successfully (version, format, source).
-				state->header.isValidHeader = true;
+				atomic_store(&state->header.isValidHeader, true);
 				return (true);
 			}
 
@@ -520,7 +520,7 @@ static bool parseFileHeader(inputCommonState state) {
 	}
 
 	// Parsed AEDAT 3.1 header successfully.
-	state->header.isValidHeader = true;
+	atomic_store(&state->header.isValidHeader, true);
 	return (true);
 }
 
@@ -1249,7 +1249,7 @@ static int inputReaderThread(void *stateArg) {
 		state->dataBuffer->bufferUsedSize = (size_t) result;
 
 		// Parse header and setup header info structure.
-		if (!state->header.isValidHeader && !parseHeader(state)) {
+		if (!atomic_load_explicit(&state->header.isValidHeader, memory_order_relaxed) && !parseHeader(state)) {
 			// Header invalid, exit.
 			caerModuleLog(state->parentModule, CAER_LOG_ERROR,
 				"Failed to parse header. Only AEDAT 2.X and 3.x compliant files are supported.");
@@ -1945,6 +1945,11 @@ bool isNetworkMessageBased) {
 
 		caerModuleLog(state->parentModule, CAER_LOG_ERROR, "Failed to start input reader thread.");
 		return (false);
+	}
+
+	// Wait for header to be parsed. TODO: this can block indefinitely, better solution needed!
+	while (!atomic_load_explicit(&state->header.isValidHeader, memory_order_relaxed)) {
+		;
 	}
 
 	// Add config listeners last, to avoid having them dangling if Init doesn't succeed.
