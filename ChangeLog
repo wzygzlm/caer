@@ -5,7 +5,7 @@ INCOMPATIBLE CHANGES
   with the shared CMake module 'caer-base.cmake' installed by libcaer 2.4.2,
   it is now possible to easily build modules outside of the cAER source tree.
   All Dynap-SE related modules have been moved to their own external repo at
-  https://github.com/inilabs/caer-modules-dynapse/ and can now be managed
+  https://gitlab.com/aiCTX/caer-modules-dynapse/ and can now be managed
   independently. Only core system and vision modules remain in the main repo.
   This change will require updates in your modules source code to use the
   new header locations, in most cases:
