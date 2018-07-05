@@ -103,7 +103,7 @@ matrix:
             - libboost-system-dev
             - libusb-1.0-0-dev
         sonarcloud:
-          organization: "inilabs-github"
+          organization: "inivation-github"
           token: $SONAR_TOKEN
       env:
          - BUILD_NAME="linux-sonar-analysis"
@@ -124,7 +124,7 @@ matrix:
         - BUILD_NAME="osx-gcc-xcode8"
       before_install:
         - brew update
-        - brew tap inilabs/inilabs
+        - brew tap inivation/inivation
         - brew update
         - brew install boost libpng
         - brew install libcaer --with-opencv --with-libserialport
@@ -135,7 +135,7 @@ matrix:
         - BUILD_NAME="osx-clang-xcode8"
       before_install:
         - brew update
-        - brew tap inilabs/inilabs
+        - brew tap inivation/inivation
         - brew update
         - brew install boost libpng
         - brew install libcaer --with-opencv --with-libserialport

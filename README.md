@@ -1,7 +1,7 @@
 # caer
 
 Event-based processing framework for neuromorphic devices, written in C/C++, targeting embedded and desktop systems. <br />
-[![Build Status](https://travis-ci.org/inilabs/caer.svg?branch=master)](https://travis-ci.org/inilabs/caer)
+[![Build Status](https://travis-ci.org/inivation/caer.svg?branch=master)](https://travis-ci.org/inivation/caer)
 
 # Dependencies:
 
@@ -54,8 +54,8 @@ $ caer-ctl (command-line run-time control program, optional) <br />
 Please use our GitHub bug tracker to report issues and bugs, or
 our Google Groups mailing list for discussions and announcements.
 
-BUG TRACKER: https://github.com/inilabs/caer/issues/
+BUG TRACKER: https://github.com/inivation/caer/issues/
 MAILING LIST: https://groups.google.com/d/forum/caer-users/
 
-BUILD STATUS: https://travis-ci.org/inilabs/caer/
-CODE ANALYSIS: https://sonarcloud.io/dashboard?id=com.inilabs.caer
+BUILD STATUS: https://travis-ci.org/inivation/caer/
+CODE ANALYSIS: https://sonarcloud.io/dashboard?id=com.inivation.caer
