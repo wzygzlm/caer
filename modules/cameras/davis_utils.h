@@ -412,7 +412,7 @@ static void createDefaultLogicConfiguration(caerModuleData moduleData, const cha
 			"Row/Y address of pixel 7 to filter out.");
 		sshsNodeCreateShort(dvsNode, "FilterPixel7Column", devInfo->dvsSizeX, 0, devInfo->dvsSizeX, SSHS_FLAGS_NORMAL,
 			"Column/X address of pixel 7 to filter out.");
-		sshsNodeCreateBool(dvsNode, "FilterPixelAutoTrain", false, SSHS_FLAGS_NORMAL,
+		sshsNodeCreateBool(dvsNode, "FilterPixelAutoTrain", false, SSHS_FLAGS_NOTIFY_ONLY,
 			"Set hardware pixel filter up automatically using software hot-pixel detection.");
 	}
 
