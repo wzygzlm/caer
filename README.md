@@ -5,6 +5,9 @@ Event-based processing framework for neuromorphic devices, written in C/C++, tar
 
 # Dependencies:
 
+NOTE: if you intend to install the latest cAER git master checkout, please also make sure to use the latest
+libcaer git master checkout, as we often depend on new features of the libcare development version.
+
 Linux, MacOS X or Windows (for Windows build instructions see README.Windows) <br />
 gcc >= 5.2 or clang >= 3.6 <br />
 cmake >= 2.6 <br />
