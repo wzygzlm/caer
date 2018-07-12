@@ -22,7 +22,7 @@ namespace po = boost::program_options;
 #include <pwd.h>
 #endif
 
-#define CAERCTL_HISTORY_FILE_NAME ".caerctl_history"
+#define CAERCTL_HISTORY_FILE_NAME ".caer-ctl.history"
 
 static inline boost::filesystem::path getHomeDirectory() {
 	// First query main environment variables: HOME on Unix, USERPROFILE on Windows.
