@@ -4,8 +4,8 @@
 #include "calibration_settings.h"
 #include <iostream>
 #include <sstream>
-#include <stdio.h>
-#include <time.h>
+#include <cstdio>
+#include <ctime>
 
 #include <libcaer/events/frame.h>
 #include <libcaer/events/polarity.h>
