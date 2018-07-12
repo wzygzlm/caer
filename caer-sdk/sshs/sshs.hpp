@@ -100,8 +100,8 @@ inline bool sshsNodeUpdateReadOnlyAttribute(sshsNode node, const char *key, cons
 	return (sshsNodeUpdateReadOnlyAttribute(node, key, SSHS_STRING, newValue));
 }
 
-inline void sshsNodeCreateAttributePollTime(sshsNode node, const std::string &key, enum sshs_node_attr_value_type type,
-	int32_t pollTimeSeconds) {
+inline void sshsNodeCreateAttributePollTime(
+	sshsNode node, const std::string &key, enum sshs_node_attr_value_type type, int32_t pollTimeSeconds) {
 	sshsNodeCreateAttributePollTime(node, key.c_str(), type, pollTimeSeconds);
 }
 
@@ -110,8 +110,8 @@ inline void sshsNodeCreateAttributeListOptions(sshsNode node, const std::string 
 	sshsNodeCreateAttributeListOptions(node, key.c_str(), type, listOptions.c_str(), allowMultipleSelections);
 }
 
-inline void sshsNodeCreateAttributeFileChooser(sshsNode node, const std::string &key,
-	enum sshs_node_attr_value_type type, const std::string &allowedExtensions) {
+inline void sshsNodeCreateAttributeFileChooser(
+	sshsNode node, const std::string &key, enum sshs_node_attr_value_type type, const std::string &allowedExtensions) {
 	sshsNodeCreateAttributeFileChooser(node, key.c_str(), type, allowedExtensions.c_str());
 }
 

@@ -3,20 +3,20 @@
 
 #ifdef __cplusplus
 
-#include <cstdlib>
-#include <cstdio>
-#include <cstdint>
-#include <cinttypes>
 #include <cerrno>
+#include <cinttypes>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
 
 #else
 
-#include <stdlib.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include <stdint.h>
-#include <inttypes.h>
 #include <errno.h>
+#include <inttypes.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #endif
 
@@ -29,14 +29,14 @@ typedef struct sshs_node *sshsNode;
 
 enum sshs_node_attr_value_type {
 	SSHS_UNKNOWN = -1,
-	SSHS_BOOL = 0,
-	SSHS_BYTE = 1,
-	SSHS_SHORT = 2,
-	SSHS_INT = 3,
-	SSHS_LONG = 4,
-	SSHS_FLOAT = 5,
-	SSHS_DOUBLE = 6,
-	SSHS_STRING = 7,
+	SSHS_BOOL    = 0,
+	SSHS_BYTE    = 1,
+	SSHS_SHORT   = 2,
+	SSHS_INT     = 3,
+	SSHS_LONG    = 4,
+	SSHS_FLOAT   = 5,
+	SSHS_DOUBLE  = 6,
+	SSHS_STRING  = 7,
 };
 
 union sshs_node_attr_value {
@@ -66,31 +66,31 @@ struct sshs_node_attr_ranges {
 };
 
 enum sshs_node_attr_flags {
-	SSHS_FLAGS_NORMAL = 0,
-	SSHS_FLAGS_READ_ONLY = 1,
+	SSHS_FLAGS_NORMAL      = 0,
+	SSHS_FLAGS_READ_ONLY   = 1,
 	SSHS_FLAGS_NOTIFY_ONLY = 2,
-	SSHS_FLAGS_NO_EXPORT = 4,
+	SSHS_FLAGS_NO_EXPORT   = 4,
 };
 
 enum sshs_node_node_events {
-	SSHS_CHILD_NODE_ADDED = 0,
+	SSHS_CHILD_NODE_ADDED   = 0,
 	SSHS_CHILD_NODE_REMOVED = 1,
 };
 
 enum sshs_node_attribute_events {
-	SSHS_ATTRIBUTE_ADDED = 0,
+	SSHS_ATTRIBUTE_ADDED    = 0,
 	SSHS_ATTRIBUTE_MODIFIED = 1,
-	SSHS_ATTRIBUTE_REMOVED = 2,
+	SSHS_ATTRIBUTE_REMOVED  = 2,
 };
 
-typedef void (*sshsNodeChangeListener)(sshsNode node, void *userData, enum sshs_node_node_events event,
-	const char *changeNode);
+typedef void (*sshsNodeChangeListener)(
+	sshsNode node, void *userData, enum sshs_node_node_events event, const char *changeNode);
 
 typedef void (*sshsAttributeChangeListener)(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
 
-typedef void (*sshsAttributeReadModifier)(void *userData, const char *key, enum sshs_node_attr_value_type attrType,
-	union sshs_node_attr_value *attrValue);
+typedef void (*sshsAttributeReadModifier)(
+	void *userData, const char *key, enum sshs_node_attr_value_type attrType, union sshs_node_attr_value *attrValue);
 
 const char *sshsNodeGetName(sshsNode node);
 const char *sshsNodeGetPath(sshsNode node);
@@ -122,11 +122,11 @@ void sshsNodeCreateAttribute(sshsNode node, const char *key, enum sshs_node_attr
 void sshsNodeRemoveAttribute(sshsNode node, const char *key, enum sshs_node_attr_value_type type);
 void sshsNodeRemoveAllAttributes(sshsNode node);
 bool sshsNodeAttributeExists(sshsNode node, const char *key, enum sshs_node_attr_value_type type);
-bool sshsNodePutAttribute(sshsNode node, const char *key, enum sshs_node_attr_value_type type,
-	union sshs_node_attr_value value);
+bool sshsNodePutAttribute(
+	sshsNode node, const char *key, enum sshs_node_attr_value_type type, union sshs_node_attr_value value);
 union sshs_node_attr_value sshsNodeGetAttribute(sshsNode node, const char *key, enum sshs_node_attr_value_type type);
-bool sshsNodeUpdateReadOnlyAttribute(sshsNode node, const char *key, enum sshs_node_attr_value_type type,
-	union sshs_node_attr_value value);
+bool sshsNodeUpdateReadOnlyAttribute(
+	sshsNode node, const char *key, enum sshs_node_attr_value_type type, union sshs_node_attr_value value);
 
 void sshsNodeCreateBool(sshsNode node, const char *key, bool defaultValue, int flags, const char *description);
 bool sshsNodePutBool(sshsNode node, const char *key, bool value);
@@ -169,8 +169,8 @@ bool sshsNodeStringToAttributeConverter(sshsNode node, const char *key, const ch
 const char **sshsNodeGetChildNames(sshsNode node, size_t *numNames);
 const char **sshsNodeGetAttributeKeys(sshsNode node, size_t *numKeys);
 enum sshs_node_attr_value_type *sshsNodeGetAttributeTypes(sshsNode node, const char *key, size_t *numTypes);
-struct sshs_node_attr_ranges sshsNodeGetAttributeRanges(sshsNode node, const char *key,
-	enum sshs_node_attr_value_type type);
+struct sshs_node_attr_ranges sshsNodeGetAttributeRanges(
+	sshsNode node, const char *key, enum sshs_node_attr_value_type type);
 int sshsNodeGetAttributeFlags(sshsNode node, const char *key, enum sshs_node_attr_value_type type);
 char *sshsNodeGetAttributeDescription(sshsNode node, const char *key, enum sshs_node_attr_value_type type);
 
@@ -178,15 +178,15 @@ char *sshsNodeGetAttributeDescription(sshsNode node, const char *key, enum sshs_
 const char *sshsHelperTypeToStringConverter(enum sshs_node_attr_value_type type);
 enum sshs_node_attr_value_type sshsHelperStringToTypeConverter(const char *typeString);
 char *sshsHelperValueToStringConverter(enum sshs_node_attr_value_type type, union sshs_node_attr_value value);
-union sshs_node_attr_value sshsHelperStringToValueConverter(enum sshs_node_attr_value_type type,
-	const char *valueString);
+union sshs_node_attr_value sshsHelperStringToValueConverter(
+	enum sshs_node_attr_value_type type, const char *valueString);
 
-void sshsNodeCreateAttributePollTime(sshsNode node, const char *key, enum sshs_node_attr_value_type type,
-	int32_t pollTimeSeconds);
+void sshsNodeCreateAttributePollTime(
+	sshsNode node, const char *key, enum sshs_node_attr_value_type type, int32_t pollTimeSeconds);
 void sshsNodeCreateAttributeListOptions(sshsNode node, const char *key, enum sshs_node_attr_value_type type,
 	const char *listOptions, bool allowMultipleSelections);
-void sshsNodeCreateAttributeFileChooser(sshsNode node, const char *key, enum sshs_node_attr_value_type type,
-	const char *allowedExtensions);
+void sshsNodeCreateAttributeFileChooser(
+	sshsNode node, const char *key, enum sshs_node_attr_value_type type, const char *allowedExtensions);
 
 // SSHS
 typedef struct sshs_struct *sshs;

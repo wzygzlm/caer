@@ -14,23 +14,32 @@ typedef struct caer_frame_statistics_state *caerFrameStatisticsState;
 
 static void caerFrameStatisticsConfigInit(sshsNode moduleNode);
 static bool caerFrameStatisticsInit(caerModuleData moduleData);
-static void caerFrameStatisticsRun(caerModuleData moduleData, caerEventPacketContainer in,
-	caerEventPacketContainer *out);
+static void caerFrameStatisticsRun(
+	caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out);
 static void caerFrameStatisticsExit(caerModuleData moduleData);
 static void caerFrameStatisticsConfig(caerModuleData moduleData);
 
-static const struct caer_module_functions FrameStatisticsFunctions = { .moduleConfigInit =
-	&caerFrameStatisticsConfigInit, .moduleInit = &caerFrameStatisticsInit, .moduleRun = &caerFrameStatisticsRun,
-	.moduleConfig = &caerFrameStatisticsConfig, .moduleExit = &caerFrameStatisticsExit, .moduleReset = NULL };
+static const struct caer_module_functions FrameStatisticsFunctions
+	= {.moduleConfigInit = &caerFrameStatisticsConfigInit,
+		.moduleInit      = &caerFrameStatisticsInit,
+		.moduleRun       = &caerFrameStatisticsRun,
+		.moduleConfig    = &caerFrameStatisticsConfig,
+		.moduleExit      = &caerFrameStatisticsExit,
+		.moduleReset     = NULL};
 
-static const struct caer_event_stream_in FrameStatisticsInputs[] = { { .type = FRAME_EVENT, .number = 1, .readOnly =
-	true } };
+static const struct caer_event_stream_in FrameStatisticsInputs[]
+	= {{.type = FRAME_EVENT, .number = 1, .readOnly = true}};
 
-static const struct caer_module_info FrameStatisticsInfo = { .version = 1, .name = "FrameStatistics", .description =
-	"Display statistics on frames (histogram).", .type = CAER_MODULE_OUTPUT, .memSize =
-	sizeof(struct caer_frame_statistics_state), .functions = &FrameStatisticsFunctions, .inputStreamsSize =
-	CAER_EVENT_STREAM_IN_SIZE(FrameStatisticsInputs), .inputStreams = FrameStatisticsInputs, .outputStreamsSize = 0,
-	.outputStreams = NULL };
+static const struct caer_module_info FrameStatisticsInfo = {.version = 1,
+	.name                                                            = "FrameStatistics",
+	.description                                                     = "Display statistics on frames (histogram).",
+	.type                                                            = CAER_MODULE_OUTPUT,
+	.memSize                                                         = sizeof(struct caer_frame_statistics_state),
+	.functions                                                       = &FrameStatisticsFunctions,
+	.inputStreamsSize                                                = CAER_EVENT_STREAM_IN_SIZE(FrameStatisticsInputs),
+	.inputStreams                                                    = FrameStatisticsInputs,
+	.outputStreamsSize                                               = 0,
+	.outputStreams                                                   = NULL};
 
 caerModuleInfo caerModuleGetInfo(void) {
 	return (&FrameStatisticsInfo);
@@ -59,12 +68,12 @@ static bool caerFrameStatisticsInit(caerModuleData moduleData) {
 	return (true);
 }
 
-static void caerFrameStatisticsRun(caerModuleData moduleData, caerEventPacketContainer in,
-	caerEventPacketContainer *out) {
+static void caerFrameStatisticsRun(
+	caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out) {
 	UNUSED_ARGUMENT(out);
 
-	caerFrameEventPacket inPacket =
-		reinterpret_cast<caerFrameEventPacket>(caerEventPacketContainerGetEventPacket(in, 0));
+	caerFrameEventPacket inPacket
+		= reinterpret_cast<caerFrameEventPacket>(caerEventPacketContainerGetEventPacket(in, 0));
 
 	// Only process packets with content.
 	if (inPacket == nullptr) {
@@ -83,8 +92,8 @@ static void caerFrameStatisticsRun(caerModuleData moduleData, caerEventPacketCon
 		const cv::Mat frameOpenCV = frame.getOpenCVMat(false);
 
 		// Calculate histogram, full uint16 range.
-		const float range[] = { 0, UINT16_MAX + 1 };
-		const float *histRange = { range };
+		const float range[]    = {0, UINT16_MAX + 1};
+		const float *histRange = {range};
 
 		cv::Mat hist;
 		cv::calcHist(&frameOpenCV, 1, nullptr, cv::Mat(), hist, 1, &state->numBins, &histRange, true, false);
@@ -120,7 +129,7 @@ static void caerFrameStatisticsExit(caerModuleData moduleData) {
 static void caerFrameStatisticsConfig(caerModuleData moduleData) {
 	caerFrameStatisticsState state = (caerFrameStatisticsState) moduleData->moduleState;
 
-	state->numBins = sshsNodeGetInt(moduleData->moduleNode, "numBins");
+	state->numBins   = sshsNodeGetInt(moduleData->moduleNode, "numBins");
 	state->roiRegion = sshsNodeGetInt(moduleData->moduleNode, "roiRegion");
 
 	int posX = sshsNodeGetInt(moduleData->moduleNode, "windowPositionX");

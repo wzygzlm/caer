@@ -6,20 +6,20 @@
 #include <string>
 #include <vector>
 
+#include <boost/algorithm/string/join.hpp>
+#include <boost/asio.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/format.hpp>
-#include <boost/asio.hpp>
 #include <boost/program_options.hpp>
-#include <boost/algorithm/string/join.hpp>
 
-namespace asio = boost::asio;
+namespace asio   = boost::asio;
 namespace asioIP = boost::asio::ip;
-using asioTCP = boost::asio::ip::tcp;
-namespace po = boost::program_options;
+using asioTCP    = boost::asio::ip::tcp;
+namespace po     = boost::program_options;
 
 #if defined(OS_UNIX) && OS_UNIX == 1
-#include <sys/types.h>
 #include <pwd.h>
+#include <sys/types.h>
 #endif
 
 #define CAERCTL_HISTORY_FILE_NAME ".caer-ctl.history"
@@ -32,7 +32,7 @@ static inline boost::filesystem::path getHomeDirectory() {
 		return (boost::filesystem::path(std::string(homeDir)));
 	}
 
-	// Unix: try to get it from the user data storage.
+// Unix: try to get it from the user data storage.
 #if defined(OS_UNIX) && OS_UNIX == 1
 	struct passwd userPasswd;
 	struct passwd *userPasswdPtr;
@@ -46,7 +46,7 @@ static inline boost::filesystem::path getHomeDirectory() {
 #if defined(OS_WINDOWS) && OS_WINDOWS == 1
 	// Windows: try to get HOMEDRIVE and HOMEPATH from environment and concatenate them.
 	const char *homeDrive = getenv("HOMEDRIVE");
-	const char *homePath = getenv("HOMEPATH");
+	const char *homePath  = getenv("HOMEPATH");
 
 	if (homeDrive && homePath) {
 		std::string winHome(homeDrive);
@@ -83,20 +83,16 @@ static const struct {
 	size_t nameLen;
 	uint8_t code;
 } actions[] = {
-	{ "node_exists", 11, CAER_CONFIG_NODE_EXISTS },
-	{ "attr_exists", 11, CAER_CONFIG_ATTR_EXISTS },
-	{ "get", 3, CAER_CONFIG_GET },
-	{ "put", 3, CAER_CONFIG_PUT },
-	{ "help", 4, CAER_CONFIG_GET_DESCRIPTION },
-	{ "add_module", 10, CAER_CONFIG_ADD_MODULE },
-	{ "remove_module", 13, CAER_CONFIG_REMOVE_MODULE },
+	{"node_exists", 11, CAER_CONFIG_NODE_EXISTS}, {"attr_exists", 11, CAER_CONFIG_ATTR_EXISTS},
+	{"get", 3, CAER_CONFIG_GET}, {"put", 3, CAER_CONFIG_PUT}, {"help", 4, CAER_CONFIG_GET_DESCRIPTION},
+	{"add_module", 10, CAER_CONFIG_ADD_MODULE}, {"remove_module", 13, CAER_CONFIG_REMOVE_MODULE},
 };
 static const size_t actionsLength = sizeof(actions) / sizeof(actions[0]);
 
 static asio::io_service ioService;
 static asioTCP::socket netSocket(ioService);
 
-[[ noreturn ]] static inline void printHelpAndExit(po::options_description &desc) {
+[[noreturn]] static inline void printHelpAndExit(po::options_description &desc) {
 	std::cout << std::endl << desc << std::endl;
 	exit(EXIT_FAILURE);
 }
@@ -108,7 +104,7 @@ int main(int argc, char *argv[]) {
 		"IP-address or hostname to connect to")("port,p", po::value<std::string>(), "port to connect to")("script,s",
 		po::value<std::vector<std::string>>()->multitoken(),
 		"script mode, sends the given command directly to the server as if typed in and exits.\n"
-			"Format: <action> <node> [<attribute> <type> [<value>]]\nExample: set /caer/logger/ logLevel byte 7");
+		"Format: <action> <node> [<attribute> <type> [<value>]]\nExample: set /caer/logger/ logLevel byte 7");
 
 	po::variables_map cliVarMap;
 	try {
@@ -175,11 +171,11 @@ int main(int argc, char *argv[]) {
 	// Connect to the remote cAER config server.
 	try {
 		asioTCP::resolver resolver(ioService);
-		asio::connect(netSocket, resolver.resolve( { ipAddress, portNumber }));
+		asio::connect(netSocket, resolver.resolve({ipAddress, portNumber}));
 	}
 	catch (const boost::system::system_error &ex) {
 		boost::format exMsg = boost::format("Failed to connect to %s:%s, error message is:\n\t%s.") % ipAddress
-			% portNumber % ex.what();
+							  % portNumber % ex.what();
 		std::cerr << exMsg.str() << std::endl;
 		return (EXIT_FAILURE);
 	}
@@ -191,7 +187,7 @@ int main(int argc, char *argv[]) {
 		std::vector<std::string> commandComponents = cliVarMap["script"].as<std::vector<std::string>>();
 
 		std::string inputString = boost::algorithm::join(commandComponents, " ");
-		const char *inputLine = inputString.c_str();
+		const char *inputLine   = inputString.c_str();
 
 		// Add input to command history.
 		linenoiseHistoryAdd(inputLine);
@@ -274,14 +270,14 @@ static inline void setValueLen(uint8_t *buf, uint16_t valueLen) {
 
 static void handleInputLine(const char *buf, size_t bufLength) {
 	// First let's split up the command into its constituents.
-	char *commandParts[MAX_CMD_PARTS + 1] = { nullptr };
+	char *commandParts[MAX_CMD_PARTS + 1] = {nullptr};
 
 	// Create a copy of buf, so that strtok_r() can modify it.
 	char bufCopy[bufLength + 1];
 	strcpy(bufCopy, buf);
 
 	// Split string into usable parts.
-	size_t idx = 0;
+	size_t idx         = 0;
 	char *tokenSavePtr = nullptr, *nextCmdPart = nullptr, *currCmdPart = bufCopy;
 	while ((nextCmdPart = strtok_r(currCmdPart, " ", &tokenSavePtr)) != nullptr) {
 		if (idx < MAX_CMD_PARTS) {
@@ -338,10 +334,10 @@ static void handleInputLine(const char *buf, size_t bufLength) {
 			size_t nodeLength = strlen(commandParts[CMD_PART_NODE]) + 1; // +1 for terminating NUL byte.
 
 			dataBuffer[0] = actionCode;
-			dataBuffer[1] = 0; // UNUSED.
+			dataBuffer[1] = 0;          // UNUSED.
 			setExtraLen(dataBuffer, 0); // UNUSED.
 			setNodeLen(dataBuffer, (uint16_t) nodeLength);
-			setKeyLen(dataBuffer, 0); // UNUSED.
+			setKeyLen(dataBuffer, 0);   // UNUSED.
 			setValueLen(dataBuffer, 0); // UNUSED.
 
 			memcpy(dataBuffer + CAER_CONFIG_SERVER_HEADER_SIZE, commandParts[CMD_PART_NODE], nodeLength);
@@ -373,7 +369,7 @@ static void handleInputLine(const char *buf, size_t bufLength) {
 			}
 
 			size_t nodeLength = strlen(commandParts[CMD_PART_NODE]) + 1; // +1 for terminating NUL byte.
-			size_t keyLength = strlen(commandParts[CMD_PART_KEY]) + 1; // +1 for terminating NUL byte.
+			size_t keyLength  = strlen(commandParts[CMD_PART_KEY]) + 1;  // +1 for terminating NUL byte.
 
 			enum sshs_node_attr_value_type type = sshsHelperStringToTypeConverter(commandParts[CMD_PART_TYPE]);
 			if (type == SSHS_UNKNOWN) {
@@ -419,8 +415,8 @@ static void handleInputLine(const char *buf, size_t bufLength) {
 				return;
 			}
 
-			size_t nodeLength = strlen(commandParts[CMD_PART_NODE]) + 1; // +1 for terminating NUL byte.
-			size_t keyLength = strlen(commandParts[CMD_PART_KEY]) + 1; // +1 for terminating NUL byte.
+			size_t nodeLength  = strlen(commandParts[CMD_PART_NODE]) + 1;  // +1 for terminating NUL byte.
+			size_t keyLength   = strlen(commandParts[CMD_PART_KEY]) + 1;   // +1 for terminating NUL byte.
 			size_t valueLength = strlen(commandParts[CMD_PART_VALUE]) + 1; // +1 for terminating NUL byte.
 
 			enum sshs_node_attr_value_type type = sshsHelperStringToTypeConverter(commandParts[CMD_PART_TYPE]);
@@ -462,10 +458,10 @@ static void handleInputLine(const char *buf, size_t bufLength) {
 			}
 
 			size_t nodeLength = strlen(commandParts[CMD_PART_NODE]) + 1; // +1 for terminating NUL byte.
-			size_t keyLength = strlen(commandParts[CMD_PART_KEY]) + 1; // +1 for terminating NUL byte.
+			size_t keyLength  = strlen(commandParts[CMD_PART_KEY]) + 1;  // +1 for terminating NUL byte.
 
 			dataBuffer[0] = actionCode;
-			dataBuffer[1] = 0; // UNUSED.
+			dataBuffer[1] = 0;          // UNUSED.
 			setExtraLen(dataBuffer, 0); // UNUSED.
 			setNodeLen(dataBuffer, (uint16_t) nodeLength);
 			setKeyLen(dataBuffer, (uint16_t) keyLength);
@@ -493,10 +489,10 @@ static void handleInputLine(const char *buf, size_t bufLength) {
 			size_t nodeLength = strlen(commandParts[CMD_PART_NODE]) + 1; // +1 for terminating NUL byte.
 
 			dataBuffer[0] = actionCode;
-			dataBuffer[1] = 0; // UNUSED.
+			dataBuffer[1] = 0;          // UNUSED.
 			setExtraLen(dataBuffer, 0); // UNUSED.
 			setNodeLen(dataBuffer, (uint16_t) nodeLength);
-			setKeyLen(dataBuffer, 0); // UNUSED.
+			setKeyLen(dataBuffer, 0);   // UNUSED.
 			setValueLen(dataBuffer, 0); // UNUSED.
 
 			memcpy(dataBuffer + CAER_CONFIG_SERVER_HEADER_SIZE, commandParts[CMD_PART_NODE], nodeLength);
@@ -516,8 +512,8 @@ static void handleInputLine(const char *buf, size_t bufLength) {
 		asio::write(netSocket, asio::buffer(dataBuffer, dataBufferLength));
 	}
 	catch (const boost::system::system_error &ex) {
-		boost::format exMsg = boost::format("Unable to send data to config server, error message is:\n\t%s.")
-			% ex.what();
+		boost::format exMsg
+			= boost::format("Unable to send data to config server, error message is:\n\t%s.") % ex.what();
 		std::cerr << exMsg.str() << std::endl;
 		return;
 	}
@@ -530,24 +526,24 @@ static void handleInputLine(const char *buf, size_t bufLength) {
 		asio::read(netSocket, asio::buffer(dataBuffer, 4));
 	}
 	catch (const boost::system::system_error &ex) {
-		boost::format exMsg = boost::format("Unable to receive data from config server, error message is:\n\t%s.")
-			% ex.what();
+		boost::format exMsg
+			= boost::format("Unable to receive data from config server, error message is:\n\t%s.") % ex.what();
 		std::cerr << exMsg.str() << std::endl;
 		return;
 	}
 
 	// Decode response header fields (all in little-endian).
-	uint8_t action = dataBuffer[0];
-	uint8_t type = dataBuffer[1];
-	uint16_t msgLength = le16toh(*(uint16_t * )(dataBuffer + 2));
+	uint8_t action     = dataBuffer[0];
+	uint8_t type       = dataBuffer[1];
+	uint16_t msgLength = le16toh(*(uint16_t *) (dataBuffer + 2));
 
 	// Total length to get for response.
 	try {
 		asio::read(netSocket, asio::buffer(dataBuffer + 4, msgLength));
 	}
 	catch (const boost::system::system_error &ex) {
-		boost::format exMsg = boost::format("Unable to receive data from config server, error message is:\n\t%s.")
-			% ex.what();
+		boost::format exMsg
+			= boost::format("Unable to receive data from config server, error message is:\n\t%s.") % ex.what();
 		std::cerr << exMsg.str() << std::endl;
 		return;
 	}
@@ -569,8 +565,8 @@ static void handleInputLine(const char *buf, size_t bufLength) {
 
 	// Display results.
 	boost::format resultMsg = boost::format("Result: action=%s, type=%s, msgLength=%" PRIu16 ", msg='%s'.")
-		% actionString % sshsHelperTypeToStringConverter((enum sshs_node_attr_value_type) type) % msgLength
-		% (dataBuffer + 4);
+							  % actionString % sshsHelperTypeToStringConverter((enum sshs_node_attr_value_type) type)
+							  % msgLength % (dataBuffer + 4);
 
 	std::cout << resultMsg.str() << std::endl;
 }
@@ -579,14 +575,14 @@ static void handleCommandCompletion(const char *buf, linenoiseCompletions *autoC
 	size_t bufLength = strlen(buf);
 
 	// First let's split up the command into its constituents.
-	char *commandParts[MAX_CMD_PARTS + 1] = { nullptr };
+	char *commandParts[MAX_CMD_PARTS + 1] = {nullptr};
 
 	// Create a copy of buf, so that strtok_r() can modify it.
 	char bufCopy[bufLength + 1];
 	strcpy(bufCopy, buf);
 
 	// Split string into usable parts.
-	size_t idx = 0;
+	size_t idx         = 0;
 	char *tokenSavePtr = nullptr, *nextCmdPart = nullptr, *currCmdPart = bufCopy;
 	while ((nextCmdPart = strtok_r(currCmdPart, " ", &tokenSavePtr)) != nullptr) {
 		if (idx < MAX_CMD_PARTS) {
@@ -761,17 +757,17 @@ static void nodeCompletion(const char *buf, size_t bufLength, linenoiseCompletio
 		return;
 	}
 
-	size_t lastNodeLength = (size_t) (lastNode - partialNodeString) + 1;
+	size_t lastNodeLength = (size_t)(lastNode - partialNodeString) + 1;
 
 	uint8_t dataBuffer[CAER_CONFIG_SERVER_BUFFER_SIZE];
 
 	// Send request for all children names.
 	dataBuffer[0] = CAER_CONFIG_GET_CHILDREN;
-	dataBuffer[1] = 0; // UNUSED.
-	setExtraLen(dataBuffer, 0); // UNUSED.
-	setNodeLen(dataBuffer, (uint16_t) (lastNodeLength + 1)); // +1 for terminating NUL byte.
-	setKeyLen(dataBuffer, 0); // UNUSED.
-	setValueLen(dataBuffer, 0); // UNUSED.
+	dataBuffer[1] = 0;                                      // UNUSED.
+	setExtraLen(dataBuffer, 0);                             // UNUSED.
+	setNodeLen(dataBuffer, (uint16_t)(lastNodeLength + 1)); // +1 for terminating NUL byte.
+	setKeyLen(dataBuffer, 0);                               // UNUSED.
+	setValueLen(dataBuffer, 0);                             // UNUSED.
 
 	memcpy(dataBuffer + CAER_CONFIG_SERVER_HEADER_SIZE, partialNodeString, lastNodeLength);
 	dataBuffer[CAER_CONFIG_SERVER_HEADER_SIZE + lastNodeLength] = '\0';
@@ -793,9 +789,9 @@ static void nodeCompletion(const char *buf, size_t bufLength, linenoiseCompletio
 	}
 
 	// Decode response header fields (all in little-endian).
-	uint8_t action = dataBuffer[0];
-	uint8_t type = dataBuffer[1];
-	uint16_t msgLength = le16toh(*(uint16_t * )(dataBuffer + 2));
+	uint8_t action     = dataBuffer[0];
+	uint8_t type       = dataBuffer[1];
+	uint16_t msgLength = le16toh(*(uint16_t *) (dataBuffer + 2));
 
 	// Total length to get for response.
 	try {
@@ -814,8 +810,8 @@ static void nodeCompletion(const char *buf, size_t bufLength, linenoiseCompletio
 	// At this point we made a valid request and got back a full response.
 	for (size_t i = 0; i < msgLength; i++) {
 		if (strncasecmp((const char *) dataBuffer + 4 + i, lastNode + 1, strlen(lastNode + 1)) == 0) {
-			addCompletionSuffix(autoComplete, buf, bufLength - strlen(lastNode + 1), (const char *) dataBuffer + 4 + i,
-				false, true);
+			addCompletionSuffix(
+				autoComplete, buf, bufLength - strlen(lastNode + 1), (const char *) dataBuffer + 4 + i, false, true);
 		}
 
 		// Jump to the NUL character after this string.
@@ -831,11 +827,11 @@ static void keyCompletion(const char *buf, size_t bufLength, linenoiseCompletion
 
 	// Send request for all attribute names for this node.
 	dataBuffer[0] = CAER_CONFIG_GET_ATTRIBUTES;
-	dataBuffer[1] = 0; // UNUSED.
-	setExtraLen(dataBuffer, 0); // UNUSED.
-	setNodeLen(dataBuffer, (uint16_t) (nodeStringLength + 1)); // +1 for terminating NUL byte.
-	setKeyLen(dataBuffer, 0); // UNUSED.
-	setValueLen(dataBuffer, 0); // UNUSED.
+	dataBuffer[1] = 0;                                        // UNUSED.
+	setExtraLen(dataBuffer, 0);                               // UNUSED.
+	setNodeLen(dataBuffer, (uint16_t)(nodeStringLength + 1)); // +1 for terminating NUL byte.
+	setKeyLen(dataBuffer, 0);                                 // UNUSED.
+	setValueLen(dataBuffer, 0);                               // UNUSED.
 
 	memcpy(dataBuffer + CAER_CONFIG_SERVER_HEADER_SIZE, nodeString, nodeStringLength);
 	dataBuffer[CAER_CONFIG_SERVER_HEADER_SIZE + nodeStringLength] = '\0';
@@ -857,9 +853,9 @@ static void keyCompletion(const char *buf, size_t bufLength, linenoiseCompletion
 	}
 
 	// Decode response header fields (all in little-endian).
-	uint8_t action = dataBuffer[0];
-	uint8_t type = dataBuffer[1];
-	uint16_t msgLength = le16toh(*(uint16_t * )(dataBuffer + 2));
+	uint8_t action     = dataBuffer[0];
+	uint8_t type       = dataBuffer[1];
+	uint16_t msgLength = le16toh(*(uint16_t *) (dataBuffer + 2));
 
 	// Total length to get for response.
 	try {
@@ -878,8 +874,8 @@ static void keyCompletion(const char *buf, size_t bufLength, linenoiseCompletion
 	// At this point we made a valid request and got back a full response.
 	for (size_t i = 0; i < msgLength; i++) {
 		if (strncasecmp((const char *) dataBuffer + 4 + i, partialKeyString, partialKeyStringLength) == 0) {
-			addCompletionSuffix(autoComplete, buf, bufLength - partialKeyStringLength,
-				(const char *) dataBuffer + 4 + i, true, false);
+			addCompletionSuffix(
+				autoComplete, buf, bufLength - partialKeyStringLength, (const char *) dataBuffer + 4 + i, true, false);
 		}
 
 		// Jump to the NUL character after this string.
@@ -896,11 +892,11 @@ static void typeCompletion(const char *buf, size_t bufLength, linenoiseCompletio
 
 	// Send request for all type names for this key on this node.
 	dataBuffer[0] = CAER_CONFIG_GET_TYPES;
-	dataBuffer[1] = 0; // UNUSED.
-	setExtraLen(dataBuffer, 0); // UNUSED.
-	setNodeLen(dataBuffer, (uint16_t) (nodeStringLength + 1)); // +1 for terminating NUL byte.
-	setKeyLen(dataBuffer, (uint16_t) (keyStringLength + 1)); // +1 for terminating NUL byte.
-	setValueLen(dataBuffer, 0); // UNUSED.
+	dataBuffer[1] = 0;                                        // UNUSED.
+	setExtraLen(dataBuffer, 0);                               // UNUSED.
+	setNodeLen(dataBuffer, (uint16_t)(nodeStringLength + 1)); // +1 for terminating NUL byte.
+	setKeyLen(dataBuffer, (uint16_t)(keyStringLength + 1));   // +1 for terminating NUL byte.
+	setValueLen(dataBuffer, 0);                               // UNUSED.
 
 	memcpy(dataBuffer + CAER_CONFIG_SERVER_HEADER_SIZE, nodeString, nodeStringLength);
 	dataBuffer[CAER_CONFIG_SERVER_HEADER_SIZE + nodeStringLength] = '\0';
@@ -926,9 +922,9 @@ static void typeCompletion(const char *buf, size_t bufLength, linenoiseCompletio
 	}
 
 	// Decode response header fields (all in little-endian).
-	uint8_t action = dataBuffer[0];
-	uint8_t type = dataBuffer[1];
-	uint16_t msgLength = le16toh(*(uint16_t * )(dataBuffer + 2));
+	uint8_t action     = dataBuffer[0];
+	uint8_t type       = dataBuffer[1];
+	uint16_t msgLength = le16toh(*(uint16_t *) (dataBuffer + 2));
 
 	// Total length to get for response.
 	try {
@@ -947,8 +943,8 @@ static void typeCompletion(const char *buf, size_t bufLength, linenoiseCompletio
 	// At this point we made a valid request and got back a full response.
 	for (size_t i = 0; i < msgLength; i++) {
 		if (strncasecmp((const char *) dataBuffer + 4 + i, partialTypeString, partialTypeStringLength) == 0) {
-			addCompletionSuffix(autoComplete, buf, bufLength - partialTypeStringLength,
-				(const char *) dataBuffer + 4 + i, true, false);
+			addCompletionSuffix(
+				autoComplete, buf, bufLength - partialTypeStringLength, (const char *) dataBuffer + 4 + i, true, false);
 		}
 
 		// Jump to the NUL character after this string.
@@ -989,10 +985,10 @@ static void valueCompletion(const char *buf, size_t bufLength, linenoiseCompleti
 	// Send request for the current value, so we can auto-complete with it as default.
 	dataBuffer[0] = CAER_CONFIG_GET;
 	dataBuffer[1] = (uint8_t) type;
-	setExtraLen(dataBuffer, 0); // UNUSED.
-	setNodeLen(dataBuffer, (uint16_t) (nodeStringLength + 1)); // +1 for terminating NUL byte.
-	setKeyLen(dataBuffer, (uint16_t) (keyStringLength + 1)); // +1 for terminating NUL byte.
-	setValueLen(dataBuffer, 0); // UNUSED.
+	setExtraLen(dataBuffer, 0);                               // UNUSED.
+	setNodeLen(dataBuffer, (uint16_t)(nodeStringLength + 1)); // +1 for terminating NUL byte.
+	setKeyLen(dataBuffer, (uint16_t)(keyStringLength + 1));   // +1 for terminating NUL byte.
+	setValueLen(dataBuffer, 0);                               // UNUSED.
 
 	memcpy(dataBuffer + CAER_CONFIG_SERVER_HEADER_SIZE, nodeString, nodeStringLength);
 	dataBuffer[CAER_CONFIG_SERVER_HEADER_SIZE + nodeStringLength] = '\0';
@@ -1018,8 +1014,8 @@ static void valueCompletion(const char *buf, size_t bufLength, linenoiseCompleti
 	}
 
 	// Decode response header fields (all in little-endian).
-	uint8_t action = dataBuffer[0];
-	uint16_t msgLength = le16toh(*(uint16_t * )(dataBuffer + 2));
+	uint8_t action     = dataBuffer[0];
+	uint16_t msgLength = le16toh(*(uint16_t *) (dataBuffer + 2));
 
 	// Total length to get for response.
 	try {

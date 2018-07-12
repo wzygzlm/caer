@@ -1,22 +1,22 @@
 #include "config.h"
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <unistd.h>
 #include "caer-sdk/cross/portable_io.h"
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 #include <iostream>
 #include <string>
 #include <vector>
 
-#include <boost/program_options.hpp>
 #include <boost/filesystem.hpp>
+#include <boost/program_options.hpp>
 
 namespace po = boost::program_options;
 
 static boost::filesystem::path configFile;
 
-[[ noreturn ]] static inline void printHelpAndExit(po::options_description &desc) {
+[[noreturn]] static inline void printHelpAndExit(po::options_description &desc) {
 	std::cout << std::endl << desc << std::endl;
 	exit(EXIT_FAILURE);
 }
@@ -27,7 +27,7 @@ void caerConfigInit(int argc, char *argv[]) {
 	cliDescription.add_options()("help,h", "print help text")("config,c", po::value<std::string>(),
 		"use the specified XML configuration file")("override,o", po::value<std::vector<std::string>>()->multitoken(),
 		"override a configuration parameter from the XML configuration file with the supplied value.\n"
-			"Format: <node> <attribute> <type> <value>\nExample: /caer/logger/ logLevel byte 7");
+		"Format: <node> <attribute> <type> <value>\nExample: /caer/logger/ logLevel byte 7");
 
 	po::variables_map cliVarMap;
 	try {
@@ -81,7 +81,7 @@ void caerConfigInit(int argc, char *argv[]) {
 		// at least exists and is a directory.
 		if (!boost::filesystem::is_directory(configFile.parent_path())) {
 			std::cout << "Supplied configuration file directory " << configFile.parent_path()
-				<< " could not be accessed." << std::endl;
+					  << " could not be accessed." << std::endl;
 			printHelpAndExit(cliDescription);
 		}
 	}
@@ -106,8 +106,8 @@ void caerConfigInit(int argc, char *argv[]) {
 		configFile = boost::filesystem::canonical(configFile);
 	}
 	else {
-		std::cout << "Supplied configuration file " << configFile << " could not be created or read. Error: "
-			<< strerror(errno) << "." << std::endl;
+		std::cout << "Supplied configuration file " << configFile
+				  << " could not be created or read. Error: " << strerror(errno) << "." << std::endl;
 		printHelpAndExit(cliDescription);
 	}
 
@@ -132,12 +132,12 @@ void caerConfigInit(int argc, char *argv[]) {
 			sshsNode node = sshsGetNode(sshsGetGlobal(), iter[0].c_str());
 
 			// Check if attribute exists. Only allow operations on existing attributes!
-			bool attrExists = sshsNodeAttributeExists(node, iter[1].c_str(),
-				sshsHelperStringToTypeConverter(iter[2].c_str()));
+			bool attrExists
+				= sshsNodeAttributeExists(node, iter[1].c_str(), sshsHelperStringToTypeConverter(iter[2].c_str()));
 
 			if (!attrExists) {
 				std::cout << "SSHS: attribute '" << iter[1] << "' of type '" << iter[2]
-					<< "' doesn't exist on override." << std::endl;
+						  << "' doesn't exist on override." << std::endl;
 
 				iter += 4;
 				continue;
@@ -145,7 +145,7 @@ void caerConfigInit(int argc, char *argv[]) {
 
 			if (!sshsNodeStringToAttributeConverter(node, iter[1].c_str(), iter[2].c_str(), iter[3].c_str())) {
 				std::cout << "SSHS: failed to convert attribute '" << iter[1] << "' of type '" << iter[2]
-					<< "' with value '" << iter[3] << "' on override." << std::endl;
+						  << "' with value '" << iter[3] << "' on override." << std::endl;
 			}
 
 			iter += 4;

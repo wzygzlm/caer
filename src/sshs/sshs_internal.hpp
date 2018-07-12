@@ -3,10 +3,10 @@
 
 // Implementation relevant common includes.
 #include "caer-sdk/sshs/sshs.h"
-#include <cstring>
-#include <string>
-#include <stdexcept>
 #include <boost/format.hpp>
+#include <cstring>
+#include <stdexcept>
+#include <string>
 
 // C linkage to guarantee no name mangling.
 extern "C" {
@@ -19,8 +19,7 @@ void sshsNodeTransactionUnlock(sshsNode node);
 }
 
 // Terminate process on failed memory allocation.
-template<typename T>
-static inline void sshsMemoryCheck(T *ptr, const std::string &funcName) {
+template<typename T> static inline void sshsMemoryCheck(T *ptr, const std::string &funcName) {
 	if (ptr == nullptr) {
 		boost::format errorMsg = boost::format("%s(): unable to allocate memory.") % funcName;
 
@@ -46,7 +45,7 @@ private:
 
 public:
 	sshs_value() {
-		type = SSHS_UNKNOWN;
+		type        = SSHS_UNKNOWN;
 		value.ilong = 0;
 	}
 
@@ -63,7 +62,7 @@ public:
 	}
 
 	void setBool(bool v) noexcept {
-		type = SSHS_BOOL;
+		type          = SSHS_BOOL;
 		value.boolean = v;
 	}
 
@@ -76,7 +75,7 @@ public:
 	}
 
 	void setByte(int8_t v) noexcept {
-		type = SSHS_BYTE;
+		type        = SSHS_BYTE;
 		value.ibyte = v;
 	}
 
@@ -89,7 +88,7 @@ public:
 	}
 
 	void setShort(int16_t v) noexcept {
-		type = SSHS_SHORT;
+		type         = SSHS_SHORT;
 		value.ishort = v;
 	}
 
@@ -102,7 +101,7 @@ public:
 	}
 
 	void setInt(int32_t v) noexcept {
-		type = SSHS_INT;
+		type       = SSHS_INT;
 		value.iint = v;
 	}
 
@@ -115,7 +114,7 @@ public:
 	}
 
 	void setLong(int64_t v) noexcept {
-		type = SSHS_LONG;
+		type        = SSHS_LONG;
 		value.ilong = v;
 	}
 
@@ -128,7 +127,7 @@ public:
 	}
 
 	void setFloat(float v) noexcept {
-		type = SSHS_FLOAT;
+		type         = SSHS_FLOAT;
 		value.ffloat = v;
 	}
 
@@ -141,7 +140,7 @@ public:
 	}
 
 	void setDouble(double v) noexcept {
-		type = SSHS_DOUBLE;
+		type          = SSHS_DOUBLE;
 		value.ddouble = v;
 	}
 
@@ -154,7 +153,7 @@ public:
 	}
 
 	void setString(const std::string &v) noexcept {
-		type = SSHS_STRING;
+		type        = SSHS_STRING;
 		valueString = v;
 	}
 
@@ -183,7 +182,8 @@ public:
 				return (value.ddouble >= ranges.min.ddoubleRange && value.ddouble <= ranges.max.ddoubleRange);
 
 			case SSHS_STRING:
-				return (valueString.length() >= ranges.min.stringRange && valueString.length() <= ranges.max.stringRange);
+				return (
+					valueString.length() >= ranges.min.stringRange && valueString.length() <= ranges.max.stringRange);
 
 			case SSHS_UNKNOWN:
 			default:

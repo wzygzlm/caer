@@ -1,11 +1,11 @@
 #ifndef CAER_SDK_NET_RW_H_
 #define CAER_SDK_NET_RW_H_
 
-#include <stdlib.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <unistd.h>
+#include <stdlib.h>
 #include <sys/socket.h>
+#include <unistd.h>
 
 /**
  * Write N bytes to the socket S from buffer B.

@@ -1,9 +1,9 @@
 #include "log.h"
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <unistd.h>
 #include "caer-sdk/cross/portable_io.h"
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 int CAER_LOG_FILE_FD = -1;
 
@@ -19,7 +19,7 @@ void caerLogInit(void) {
 	// The default path is a file named caer.log inside the program's CWD.
 	const char *logFileName = "/caer.log";
 
-	char *logFileDir = getcwd(NULL, 0);
+	char *logFileDir      = getcwd(NULL, 0);
 	char *logFileDirClean = portable_realpath(logFileDir);
 
 	char *logFilePath = malloc(strlen(logFileDirClean) + strlen(logFileName) + 1); // +1 for terminating NUL byte.
@@ -37,7 +37,7 @@ void caerLogInit(void) {
 		"Global log-level.");
 
 	// Try to open the specified file and error out if not possible.
-	char *logFile = sshsNodeGetString(logNode, "logFile");
+	char *logFile    = sshsNodeGetString(logNode, "logFile");
 	CAER_LOG_FILE_FD = open(logFile, O_WRONLY | O_APPEND | O_CREAT, S_IWUSR | S_IRUSR | S_IRGRP);
 
 	if (CAER_LOG_FILE_FD < 0) {

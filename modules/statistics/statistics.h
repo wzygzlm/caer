@@ -4,9 +4,9 @@
 #include "caer-sdk/utils.h"
 
 #include <libcaer/events/common.h>
-#include <time.h>
-#include <sys/time.h>
 #include "caer-sdk/cross/portable_time.h"
+#include <sys/time.h>
+#include <time.h>
 
 #define CAER_STATISTICS_STRING_TOTAL "Total events/second: %10" PRIu64
 #define CAER_STATISTICS_STRING_VALID "Valid events/second: %10" PRIu64
@@ -32,12 +32,14 @@ static inline bool caerStatisticsStringInit(caerStatisticsState state) {
 	// Total and Valid parts have same length.
 	size_t maxSplitStatStringLength = (size_t) snprintf(NULL, 0, CAER_STATISTICS_STRING_TOTAL, UINT64_MAX);
 
-	state->currentStatisticsStringTotal = (char *) calloc(maxSplitStatStringLength + 1, sizeof(char)); // +1 for NUL termination.
+	state->currentStatisticsStringTotal
+		= (char *) calloc(maxSplitStatStringLength + 1, sizeof(char)); // +1 for NUL termination.
 	if (state->currentStatisticsStringTotal == NULL) {
 		return (false);
 	}
 
-	state->currentStatisticsStringValid = (char *) calloc(maxSplitStatStringLength + 1, sizeof(char)); // +1 for NUL termination.
+	state->currentStatisticsStringValid
+		= (char *) calloc(maxSplitStatStringLength + 1, sizeof(char)); // +1 for NUL termination.
 	if (state->currentStatisticsStringValid == NULL) {
 		free(state->currentStatisticsStringTotal);
 		state->currentStatisticsStringTotal = NULL;
@@ -45,7 +47,8 @@ static inline bool caerStatisticsStringInit(caerStatisticsState state) {
 		return (false);
 	}
 
-	state->currentStatisticsStringGap = (char *) calloc(maxSplitStatStringLength + 1, sizeof(char)); // +1 for NUL termination.
+	state->currentStatisticsStringGap
+		= (char *) calloc(maxSplitStatStringLength + 1, sizeof(char)); // +1 for NUL termination.
 	if (state->currentStatisticsStringGap == NULL) {
 		free(state->currentStatisticsStringTotal);
 		state->currentStatisticsStringTotal = NULL;
@@ -63,7 +66,7 @@ static inline bool caerStatisticsStringInit(caerStatisticsState state) {
 	state->divisionFactor = 1;
 
 	// Last packet timestamp, zero init
-	state->lastTs = 0;
+	state->lastTs     = 0;
 	state->maxTimeGap = 0;
 
 	return (true);
@@ -80,23 +83,23 @@ static inline void caerStatisticsStringUpdate(caerEventPacketHeaderConst packetH
 	struct timespec currentTime;
 	portable_clock_gettime_monotonic(&currentTime);
 
-	uint64_t diffNanoTime = (uint64_t) (((int64_t) (currentTime.tv_sec - state->lastTime.tv_sec) * 1000000000LL)
-		+ (int64_t) (currentTime.tv_nsec - state->lastTime.tv_nsec));
+	uint64_t diffNanoTime = (uint64_t)(((int64_t)(currentTime.tv_sec - state->lastTime.tv_sec) * 1000000000LL)
+									   + (int64_t)(currentTime.tv_nsec - state->lastTime.tv_nsec));
 
 	// Calculate packets time gap
 	if (packetHeader != NULL) {
-		int32_t evNumber = caerEventPacketHeaderGetEventNumber(packetHeader);
-		const void * event_last = caerGenericEventGetEvent(packetHeader, evNumber - 1); // last event
-		const void * event_first = caerGenericEventGetEvent(packetHeader, 0);			// first event
-		int32_t tspacket_last = caerGenericEventGetTimestamp(event_last, packetHeader);
-		int32_t tspacket_first = caerGenericEventGetTimestamp(event_first, packetHeader);
-		int32_t gap = 0;
+		int32_t evNumber        = caerEventPacketHeaderGetEventNumber(packetHeader);
+		const void *event_last  = caerGenericEventGetEvent(packetHeader, evNumber - 1); // last event
+		const void *event_first = caerGenericEventGetEvent(packetHeader, 0);            // first event
+		int32_t tspacket_last   = caerGenericEventGetTimestamp(event_last, packetHeader);
+		int32_t tspacket_first  = caerGenericEventGetTimestamp(event_first, packetHeader);
+		int32_t gap             = 0;
 
 		if (state->lastTs == 0) {
 			state->lastTs = tspacket_last;
 		}
 		else {
-			gap = tspacket_first - state->lastTs;
+			gap           = tspacket_first - state->lastTs;
 			state->lastTs = tspacket_last;
 		}
 
@@ -108,12 +111,12 @@ static inline void caerStatisticsStringUpdate(caerEventPacketHeaderConst packetH
 	// DiffNanoTime is the difference in nanoseconds; we want to trigger roughly every second.
 	if (diffNanoTime >= 1000000000LLU) {
 		// Print current values.
-		uint64_t totalEventsPerTime = (state->totalEventsCounter * (1000000000LLU / state->divisionFactor))
-			/ diffNanoTime;
-		uint64_t validEventsPerTime = (state->validEventsCounter * (1000000000LLU / state->divisionFactor))
-			/ diffNanoTime;
+		uint64_t totalEventsPerTime
+			= (state->totalEventsCounter * (1000000000LLU / state->divisionFactor)) / diffNanoTime;
+		uint64_t validEventsPerTime
+			= (state->validEventsCounter * (1000000000LLU / state->divisionFactor)) / diffNanoTime;
 
-		uint64_t gapTime = (uint64_t) (state->maxTimeGap);
+		uint64_t gapTime = (uint64_t)(state->maxTimeGap);
 
 		sprintf(state->currentStatisticsStringTotal, CAER_STATISTICS_STRING_TOTAL, totalEventsPerTime);
 		sprintf(state->currentStatisticsStringValid, CAER_STATISTICS_STRING_VALID, validEventsPerTime);
@@ -122,8 +125,8 @@ static inline void caerStatisticsStringUpdate(caerEventPacketHeaderConst packetH
 		// Reset for next update.
 		state->totalEventsCounter = 0;
 		state->validEventsCounter = 0;
-		state->lastTime = currentTime;
-		state->maxTimeGap = 0;
+		state->lastTime           = currentTime;
+		state->maxTimeGap         = 0;
 	}
 }
 
@@ -149,8 +152,8 @@ static inline void caerStatisticsStringReset(caerStatisticsState state) {
 	// Reset counters.
 	state->totalEventsCounter = 0;
 	state->validEventsCounter = 0;
-	state->lastTs = 0;
-	state->maxTimeGap = 0;
+	state->lastTs             = 0;
+	state->maxTimeGap         = 0;
 
 	// Update to current time.
 	portable_clock_gettime_monotonic(&state->lastTime);

@@ -1,23 +1,23 @@
 #include "visualizer.hpp"
-#include "caer-sdk/mainloop.h"
+#include <libcaer/ringbuffer.h>
 #include "caer-sdk/cross/portable_threads.h"
+#include "caer-sdk/mainloop.h"
 #include "ext/fonts/LiberationSans-Bold.h"
 #include "ext/sfml/helpers.hpp"
 #include "modules/statistics/statistics.h"
-#include <libcaer/ringbuffer.h>
 
 #include "visualizer_handlers.hpp"
 #include "visualizer_renderers.hpp"
 
-#include <thread>
 #include <mutex>
+#include <thread>
 
 #if defined(OS_LINUX) && OS_LINUX == 1
 #include <X11/Xlib.h>
 #endif
 
 #define VISUALIZER_REFRESH_RATE 60
-#define VISUALIZER_ZOOM_DEF  2.0f
+#define VISUALIZER_ZOOM_DEF 2.0f
 #define VISUALIZER_ZOOM_INC 0.25f
 #define VISUALIZER_ZOOM_MIN 0.50f
 #define VISUALIZER_ZOOM_MAX 50.0f
@@ -31,11 +31,11 @@
 #define VISUALIZER_HANDLE_EVENTS_MAIN 0
 #endif
 
-#define GLOBAL_FONT_SIZE 20 // in pixels
+#define GLOBAL_FONT_SIZE 20   // in pixels
 #define GLOBAL_FONT_SPACING 5 // in pixels
 
 // Calculated at system init.
-static uint32_t STATISTICS_WIDTH = 0;
+static uint32_t STATISTICS_WIDTH  = 0;
 static uint32_t STATISTICS_HEIGHT = 0;
 
 // Track system init.
@@ -84,16 +84,25 @@ static void handleEvents(caerModuleData moduleData);
 static void renderScreen(caerModuleData moduleData);
 static void renderThread(caerModuleData moduleData);
 
-static const struct caer_module_functions VisualizerFunctions = { .moduleConfigInit = &caerVisualizerConfigInit,
-	.moduleInit = &caerVisualizerInit, .moduleRun = &caerVisualizerRun, .moduleConfig = nullptr, .moduleExit =
-		&caerVisualizerExit, .moduleReset = &caerVisualizerReset };
+static const struct caer_module_functions VisualizerFunctions = {.moduleConfigInit = &caerVisualizerConfigInit,
+	.moduleInit                                                                    = &caerVisualizerInit,
+	.moduleRun                                                                     = &caerVisualizerRun,
+	.moduleConfig                                                                  = nullptr,
+	.moduleExit                                                                    = &caerVisualizerExit,
+	.moduleReset                                                                   = &caerVisualizerReset};
 
-static const struct caer_event_stream_in VisualizerInputs[] = { { .type = -1, .number = -1, .readOnly = true } };
+static const struct caer_event_stream_in VisualizerInputs[] = {{.type = -1, .number = -1, .readOnly = true}};
 
-static const struct caer_module_info VisualizerInfo = { .version = 1, .name = "Visualizer", .description =
-	"Visualize data in various ways.", .type = CAER_MODULE_OUTPUT, .memSize = sizeof(struct caer_visualizer_state),
-	.functions = &VisualizerFunctions, .inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(VisualizerInputs), .inputStreams =
-		VisualizerInputs, .outputStreamsSize = 0, .outputStreams = nullptr };
+static const struct caer_module_info VisualizerInfo = {.version = 1,
+	.name                                                       = "Visualizer",
+	.description                                                = "Visualize data in various ways.",
+	.type                                                       = CAER_MODULE_OUTPUT,
+	.memSize                                                    = sizeof(struct caer_visualizer_state),
+	.functions                                                  = &VisualizerFunctions,
+	.inputStreamsSize                                           = CAER_EVENT_STREAM_IN_SIZE(VisualizerInputs),
+	.inputStreams                                               = VisualizerInputs,
+	.outputStreamsSize                                          = 0,
+	.outputStreams                                              = nullptr};
 
 caerModuleInfo caerModuleGetInfo(void) {
 	return (&VisualizerInfo);
@@ -101,18 +110,19 @@ caerModuleInfo caerModuleGetInfo(void) {
 
 static void caerVisualizerConfigInit(sshsNode moduleNode) {
 	sshsNodeCreate(moduleNode, "renderer", "", 0, 500, SSHS_FLAGS_NORMAL, "Renderer to use to generate content.");
-	sshsNodeCreateAttributeListOptions(moduleNode, "renderer", SSHS_STRING, caerVisualizerRendererListOptionsString, true);
+	sshsNodeCreateAttributeListOptions(
+		moduleNode, "renderer", SSHS_STRING, caerVisualizerRendererListOptionsString, true);
 	sshsNodeCreate(moduleNode, "eventHandler", "", 0, 500, SSHS_FLAGS_NORMAL,
 		"Event handler to handle mouse and keyboard events.");
-	sshsNodeCreateAttributeListOptions(moduleNode, "eventHandler", SSHS_STRING,
-		caerVisualizerEventHandlerListOptionsString, true);
+	sshsNodeCreateAttributeListOptions(
+		moduleNode, "eventHandler", SSHS_STRING, caerVisualizerEventHandlerListOptionsString, true);
 
 	sshsNodeCreateInt(moduleNode, "subsampleRendering", 1, 1, 100000, SSHS_FLAGS_NORMAL,
 		"Speed-up rendering by only taking every Nth EventPacketContainer to render.");
 	sshsNodeCreateBool(moduleNode, "showStatistics", true, SSHS_FLAGS_NORMAL,
 		"Show useful statistics below content (bottom of window).");
-	sshsNodeCreateFloat(moduleNode, "zoomFactor", VISUALIZER_ZOOM_DEF, VISUALIZER_ZOOM_MIN,
-	VISUALIZER_ZOOM_MAX, SSHS_FLAGS_NORMAL, "Content zoom factor.");
+	sshsNodeCreateFloat(moduleNode, "zoomFactor", VISUALIZER_ZOOM_DEF, VISUALIZER_ZOOM_MIN, VISUALIZER_ZOOM_MAX,
+		SSHS_FLAGS_NORMAL, "Content zoom factor.");
 	sshsNodeCreateInt(moduleNode, "windowPositionX", VISUALIZER_POSITION_X_DEF, 0, UINT16_MAX, SSHS_FLAGS_NORMAL,
 		"Position of window on screen (X coordinate).");
 	sshsNodeCreateInt(moduleNode, "windowPositionY", VISUALIZER_POSITION_Y_DEF, 0, UINT16_MAX, SSHS_FLAGS_NORMAL,
@@ -134,7 +144,7 @@ static bool caerVisualizerInit(caerModuleData moduleData) {
 
 	initRenderersHandlers(moduleData);
 
-	state->visualizerConfigNode = moduleData->moduleNode;
+	state->visualizerConfigNode  = moduleData->moduleNode;
 	state->eventSourceConfigNode = caerMainloopModuleGetSourceNodeForInput(moduleData->moduleID, 0);
 
 	state->packetSubsampleRendering.store(U32T(sshsNodeGetInt(moduleData->moduleNode, "subsampleRendering")));
@@ -257,10 +267,10 @@ static void caerVisualizerRun(caerModuleData moduleData, caerEventPacketContaine
 
 	// Keep statistics up-to-date with all events, always.
 	CAER_EVENT_PACKET_CONTAINER_ITERATOR_START(in)
-			caerStatisticsStringUpdate(caerEventPacketContainerIteratorElement, &state->packetStatistics);
-		CAER_EVENT_PACKET_CONTAINER_ITERATOR_END
+	caerStatisticsStringUpdate(caerEventPacketContainerIteratorElement, &state->packetStatistics);
+	CAER_EVENT_PACKET_CONTAINER_ITERATOR_END
 
-		// Only render every Nth container (or packet, if using standard visualizer).
+	// Only render every Nth container (or packet, if using standard visualizer).
 	state->packetSubsampleCount++;
 
 	if (state->packetSubsampleCount >= state->packetSubsampleRendering.load(std::memory_order_relaxed)) {
@@ -326,7 +336,7 @@ static void caerVisualizerConfigListener(sshsNode node, void *userData, enum ssh
 }
 
 static void initSystemOnce(caerModuleData moduleData) {
-	// Call XInitThreads() on Linux.
+// Call XInitThreads() on Linux.
 #if defined(OS_LINUX) && OS_LINUX == 1
 	XInitThreads();
 #endif
@@ -440,17 +450,17 @@ static bool initGraphics(caerModuleData moduleData) {
 	// even on MacOS X where newer OpenGL's only support the core profile.
 	sf::ContextSettings openGLSettings;
 
-	openGLSettings.depthBits = 24;
+	openGLSettings.depthBits   = 24;
 	openGLSettings.stencilBits = 8;
 
 	if (state->renderer->needsOpenGL3) {
-		openGLSettings.majorVersion = 3;
-		openGLSettings.minorVersion = 3;
+		openGLSettings.majorVersion   = 3;
+		openGLSettings.minorVersion   = 3;
 		openGLSettings.attributeFlags = sf::ContextSettings::Core;
 	}
 	else {
-		openGLSettings.majorVersion = 2;
-		openGLSettings.minorVersion = 1;
+		openGLSettings.majorVersion   = 2;
+		openGLSettings.minorVersion   = 1;
 		openGLSettings.attributeFlags = sf::ContextSettings::Default;
 	}
 
@@ -479,13 +489,13 @@ static bool initGraphics(caerModuleData moduleData) {
 	// Load font here to have it always available on request.
 	state->font = new sf::Font();
 	if (state->font == nullptr) {
-		caerModuleLog(moduleData, CAER_LOG_WARNING,
-			"Failed to create display font. Text rendering will not be possible.");
+		caerModuleLog(
+			moduleData, CAER_LOG_WARNING, "Failed to create display font. Text rendering will not be possible.");
 	}
 	else {
 		if (!state->font->loadFromMemory(LiberationSans_Bold_ttf, LiberationSans_Bold_ttf_len)) {
-			caerModuleLog(moduleData, CAER_LOG_WARNING,
-				"Failed to load display font. Text rendering will not be possible.");
+			caerModuleLog(
+				moduleData, CAER_LOG_WARNING, "Failed to load display font. Text rendering will not be possible.");
 
 			delete state->font;
 			state->font = nullptr;
@@ -510,7 +520,7 @@ static void exitGraphics(caerModuleData moduleData) {
 
 static void updateDisplaySize(caerVisualizerState state) {
 	state->showStatistics = sshsNodeGetBool(state->visualizerConfigNode, "showStatistics");
-	float zoomFactor = sshsNodeGetFloat(state->visualizerConfigNode, "zoomFactor");
+	float zoomFactor      = sshsNodeGetFloat(state->visualizerConfigNode, "zoomFactor");
 
 	sf::Vector2u newRenderWindowSize(state->renderSizeX, state->renderSizeY);
 
@@ -579,7 +589,7 @@ static void handleEvents(caerModuleData moduleData) {
 			state->windowResize.store(true);
 		}
 		else if (event.type == sf::Event::KeyPressed || event.type == sf::Event::KeyReleased
-			|| event.type == sf::Event::TextEntered) {
+				 || event.type == sf::Event::TextEntered) {
 			// React to key presses, but only if they came from the corresponding display.
 			if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Key::PageUp) {
 				float currentZoomFactor = sshsNodeGetFloat(moduleData->moduleNode, "zoomFactor");
@@ -646,8 +656,8 @@ static void handleEvents(caerModuleData moduleData) {
 			}
 		}
 		else if (event.type == sf::Event::MouseButtonPressed || event.type == sf::Event::MouseButtonReleased
-			|| event.type == sf::Event::MouseWheelScrolled || event.type == sf::Event::MouseEntered
-			|| event.type == sf::Event::MouseLeft || event.type == sf::Event::MouseMoved) {
+				 || event.type == sf::Event::MouseWheelScrolled || event.type == sf::Event::MouseEntered
+				 || event.type == sf::Event::MouseLeft || event.type == sf::Event::MouseMoved) {
 			if (event.type == sf::Event::MouseWheelScrolled && event.mouseWheelScroll.delta > 0) {
 				float currentZoomFactor = sshsNodeGetFloat(moduleData->moduleNode, "zoomFactor");
 
@@ -703,7 +713,8 @@ static void renderScreen(caerModuleData moduleData) {
 	// and multiple render passes per displayed frame.
 	caerEventPacketContainer container = (caerEventPacketContainer) caerRingBufferGet(state->dataTransfer);
 
-	repeat: if (container != nullptr) {
+repeat:
+	if (container != nullptr) {
 		// Are there others? Only render last one, to avoid getting backed up!
 		caerEventPacketContainer container2 = (caerEventPacketContainer) caerRingBufferGet(state->dataTransfer);
 
@@ -737,25 +748,25 @@ static void renderScreen(caerModuleData moduleData) {
 			// Split statistics string in two to use less horizontal space.
 			// Put it below the normal render region, so people can access from
 			// (0,0) to (x-1,y-1) normally without fear of overwriting statistics.
-			sf::Text totalEventsText(state->packetStatistics.currentStatisticsStringTotal, *state->font,
-			GLOBAL_FONT_SIZE);
+			sf::Text totalEventsText(
+				state->packetStatistics.currentStatisticsStringTotal, *state->font, GLOBAL_FONT_SIZE);
 			sfml::Helpers::setTextColor(totalEventsText, sf::Color::White);
-			totalEventsText.setPosition(GLOBAL_FONT_SPACING,
-				state->renderSizeY * state->renderZoomFactor.load(std::memory_order_relaxed));
+			totalEventsText.setPosition(
+				GLOBAL_FONT_SPACING, state->renderSizeY * state->renderZoomFactor.load(std::memory_order_relaxed));
 			state->renderWindow->draw(totalEventsText);
 
-			sf::Text validEventsText(state->packetStatistics.currentStatisticsStringValid, *state->font,
-			GLOBAL_FONT_SIZE);
+			sf::Text validEventsText(
+				state->packetStatistics.currentStatisticsStringValid, *state->font, GLOBAL_FONT_SIZE);
 			sfml::Helpers::setTextColor(validEventsText, sf::Color::White);
 			validEventsText.setPosition(GLOBAL_FONT_SPACING,
 				(state->renderSizeY * state->renderZoomFactor.load(std::memory_order_relaxed)) + GLOBAL_FONT_SIZE);
 			state->renderWindow->draw(validEventsText);
 
-			sf::Text GapEventsText(state->packetStatistics.currentStatisticsStringGap, *state->font,
-			GLOBAL_FONT_SIZE);
+			sf::Text GapEventsText(state->packetStatistics.currentStatisticsStringGap, *state->font, GLOBAL_FONT_SIZE);
 			sfml::Helpers::setTextColor(GapEventsText, sf::Color::White);
 			GapEventsText.setPosition(GLOBAL_FONT_SPACING,
-				(state->renderSizeY * state->renderZoomFactor.load(std::memory_order_relaxed)) + (2 * GLOBAL_FONT_SIZE));
+				(state->renderSizeY * state->renderZoomFactor.load(std::memory_order_relaxed))
+					+ (2 * GLOBAL_FONT_SIZE));
 			state->renderWindow->draw(GapEventsText);
 		}
 
@@ -841,7 +852,8 @@ static void renderThread(caerModuleData moduleData) {
 }
 
 void caerVisualizerResetRenderSize(caerVisualizerPublicState pubState, uint32_t newX, uint32_t newY) {
-	caerVisualizerState state = (caerVisualizerState) pubState;
+	caerVisualizerState state
+		= reinterpret_cast<caerVisualizerState>(const_cast<struct caer_visualizer_public_state *>(pubState));
 
 	// Set render sizes to new values and force update.
 	state->renderSizeX = newX;

@@ -1,19 +1,19 @@
-#include <stdlib.h>
-#include <stdio.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <inttypes.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include <netinet/in.h>
 #include "ext/net_rw.h"
 #include "modules/inout/inout_common.h"
+#include <arpa/inet.h>
+#include <inttypes.h>
+#include <netinet/in.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <unistd.h>
 
 #include <libcaer/events/common.h>
-#include <libcaer/events/polarity.h>
 #include <libcaer/events/frame.h>
+#include <libcaer/events/polarity.h>
 
 #include <signal.h>
 #include <stdatomic.h>
@@ -28,7 +28,7 @@ static void globalShutdownSignalHandler(int signal) {
 }
 
 int main(int argc, char *argv[]) {
-	// Install signal handler for global shutdown.
+// Install signal handler for global shutdown.
 #if defined(_WIN32)
 	if (signal(SIGTERM, &globalShutdownSignalHandler) == SIG_ERR) {
 		caerLog(CAER_LOG_CRITICAL, "ShutdownAction", "Failed to set signal handler for SIGTERM. Error: %d.", errno);
@@ -43,7 +43,7 @@ int main(int argc, char *argv[]) {
 	struct sigaction shutdownAction;
 
 	shutdownAction.sa_handler = &globalShutdownSignalHandler;
-	shutdownAction.sa_flags = 0;
+	shutdownAction.sa_flags   = 0;
 	sigemptyset(&shutdownAction.sa_mask);
 	sigaddset(&shutdownAction.sa_mask, SIGTERM);
 	sigaddset(&shutdownAction.sa_mask, SIGINT);
@@ -63,11 +63,11 @@ int main(int argc, char *argv[]) {
 	// Those are for now also the only two parameters permitted.
 	// If none passed, attempt to connect to default TCP IP:Port.
 	const char *ipAddress = "127.0.0.1";
-	uint16_t portNumber = 7777;
+	uint16_t portNumber   = 7777;
 
 	if (argc != 1 && argc != 3) {
 		fprintf(stderr, "Incorrect argument number. Either pass none for default IP:Port"
-			"combination of 127.0.0.1:7777, or pass the IP followed by the Port.\n");
+						"combination of 127.0.0.1:7777, or pass the IP followed by the Port.\n");
 		return (EXIT_FAILURE);
 	}
 
@@ -81,7 +81,7 @@ int main(int argc, char *argv[]) {
 	memset(&listenTCPAddress, 0, sizeof(struct sockaddr_in));
 
 	listenTCPAddress.sin_family = AF_INET;
-	listenTCPAddress.sin_port = htons(portNumber);
+	listenTCPAddress.sin_port   = htons(portNumber);
 
 	if (inet_pton(AF_INET, ipAddress, &listenTCPAddress.sin_addr) == 0) {
 		fprintf(stderr, "No valid IP address found. '%s' is invalid!\n", ipAddress);
@@ -104,7 +104,7 @@ int main(int argc, char *argv[]) {
 
 	// 1M data buffer should be enough for the TCP event packets. Frames are very big!
 	size_t dataBufferLength = 1024 * 1024;
-	uint8_t *dataBuffer = malloc(dataBufferLength);
+	uint8_t *dataBuffer     = malloc(dataBufferLength);
 	if (dataBuffer == NULL) {
 		close(listenTCPSocket);
 
@@ -143,22 +143,22 @@ int main(int argc, char *argv[]) {
 		// Decode successfully received data.
 		caerEventPacketHeader header = (caerEventPacketHeader) dataBuffer;
 
-		int16_t eventType = caerEventPacketHeaderGetEventType(header);
-		int16_t eventSource = caerEventPacketHeaderGetEventSource(header);
-		int32_t eventSize = caerEventPacketHeaderGetEventSize(header);
-		int32_t eventTSOffset = caerEventPacketHeaderGetEventTSOffset(header);
+		int16_t eventType       = caerEventPacketHeaderGetEventType(header);
+		int16_t eventSource     = caerEventPacketHeaderGetEventSource(header);
+		int32_t eventSize       = caerEventPacketHeaderGetEventSize(header);
+		int32_t eventTSOffset   = caerEventPacketHeaderGetEventTSOffset(header);
 		int32_t eventTSOverflow = caerEventPacketHeaderGetEventTSOverflow(header);
-		int32_t eventCapacity = caerEventPacketHeaderGetEventCapacity(header);
-		int32_t eventNumber = caerEventPacketHeaderGetEventNumber(header);
-		int32_t eventValid = caerEventPacketHeaderGetEventValid(header);
+		int32_t eventCapacity   = caerEventPacketHeaderGetEventCapacity(header);
+		int32_t eventNumber     = caerEventPacketHeaderGetEventNumber(header);
+		int32_t eventValid      = caerEventPacketHeaderGetEventValid(header);
 
-		printf(
-			"type = %" PRIi16 ", source = %" PRIi16 ", size = %" PRIi32 ", tsOffset = %" PRIi32 ", tsOverflow = %" PRIi32 ", capacity = %" PRIi32 ", number = %" PRIi32 ", valid = %" PRIi32 ".\n",
+		printf("type = %" PRIi16 ", source = %" PRIi16 ", size = %" PRIi32 ", tsOffset = %" PRIi32
+			   ", tsOverflow = %" PRIi32 ", capacity = %" PRIi32 ", number = %" PRIi32 ", valid = %" PRIi32 ".\n",
 			eventType, eventSource, eventSize, eventTSOffset, eventTSOverflow, eventCapacity, eventNumber, eventValid);
 
 		// Get rest of event packet, the part with the events themselves.
-		if (!recvUntilDone(listenTCPSocket, dataBuffer + CAER_EVENT_PACKET_HEADER_SIZE,
-			(size_t) (eventCapacity * eventSize))) {
+		if (!recvUntilDone(
+				listenTCPSocket, dataBuffer + CAER_EVENT_PACKET_HEADER_SIZE, (size_t)(eventCapacity * eventSize))) {
 			free(dataBuffer);
 			close(listenTCPSocket);
 
@@ -168,10 +168,10 @@ int main(int argc, char *argv[]) {
 
 		if (eventValid > 0) {
 			void *firstEvent = caerGenericEventGetEvent(header, 0);
-			void *lastEvent = caerGenericEventGetEvent(header, eventValid - 1);
+			void *lastEvent  = caerGenericEventGetEvent(header, eventValid - 1);
 
 			int32_t firstTS = caerGenericEventGetTimestamp(firstEvent, header);
-			int32_t lastTS = caerGenericEventGetTimestamp(lastEvent, header);
+			int32_t lastTS  = caerGenericEventGetTimestamp(lastEvent, header);
 
 			int32_t tsDifference = lastTS - firstTS;
 
@@ -187,7 +187,7 @@ int main(int argc, char *argv[]) {
 
 				uint16_t xAddr = caerPolarityEventGetX(polarityEvent);
 				uint16_t yAddr = caerPolarityEventGetY(polarityEvent);
-				bool polarity = caerPolarityEventGetPolarity(polarityEvent);
+				bool polarity  = caerPolarityEventGetPolarity(polarityEvent);
 
 				printf("First polarity event data - X Address: %" PRIu16 ", Y Address %" PRIu16 ", Polarity: %d.\n",
 					xAddr, yAddr, polarity);
@@ -198,12 +198,12 @@ int main(int argc, char *argv[]) {
 				// Only get first event as example.
 				caerFrameEvent frameEvent = caerFrameEventPacketGetEvent(framePacket, 0);
 
-				int32_t frameSizeX = caerFrameEventGetLengthX(frameEvent);
-				int32_t frameSizeY = caerFrameEventGetLengthY(frameEvent);
+				int32_t frameSizeX    = caerFrameEventGetLengthX(frameEvent);
+				int32_t frameSizeY    = caerFrameEventGetLengthY(frameEvent);
 				uint16_t *framePixels = caerFrameEventGetPixelArrayUnsafe(frameEvent);
 
-				printf(
-					"First frame event data - X Size: %" PRIi32 ", Y Size: %" PRIi32 ", Pixel 0 Value: %" PRIu16 ".\n",
+				printf("First frame event data - X Size: %" PRIi32 ", Y Size: %" PRIi32 ", Pixel 0 Value: %" PRIu16
+					   ".\n",
 					frameSizeX, frameSizeY, framePixels[0]);
 			}
 		}

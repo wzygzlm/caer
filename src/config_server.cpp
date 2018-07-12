@@ -1,30 +1,30 @@
 #include "config_server.h"
-#include "mainloop.h"
-#include "caer-sdk/cross/portable_threads.h"
 #include "caer-sdk/cross/portable_io.h"
+#include "caer-sdk/cross/portable_threads.h"
+#include "mainloop.h"
 
-#include <atomic>
-#include <thread>
-#include <new>
-#include <memory>
 #include <algorithm>
-#include <regex>
+#include <atomic>
+#include <memory>
 #include <mutex>
+#include <new>
+#include <regex>
 #include <shared_mutex>
 #include <string>
-#include <vector>
 #include <system_error>
+#include <thread>
+#include <vector>
 
+#include <boost/algorithm/string.hpp>
 #include <boost/asio.hpp>
 #include <boost/format.hpp>
-#include <boost/algorithm/string.hpp>
 
 #include <libcaercpp/libcaer.hpp>
 namespace logger = libcaer::log;
 
-namespace asio = boost::asio;
+namespace asio   = boost::asio;
 namespace asioIP = boost::asio::ip;
-using asioTCP = boost::asio::ip::tcp;
+using asioTCP    = boost::asio::ip::tcp;
 
 #define CONFIG_SERVER_NAME "Config Server"
 
@@ -34,14 +34,13 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 	const uint8_t *extra, size_t extraLength, const uint8_t *node, size_t nodeLength, const uint8_t *key,
 	size_t keyLength, const uint8_t *value, size_t valueLength);
 
-class ConfigServerConnection: public std::enable_shared_from_this<ConfigServerConnection> {
+class ConfigServerConnection : public std::enable_shared_from_this<ConfigServerConnection> {
 private:
 	asioTCP::socket socket;
 	uint8_t data[CAER_CONFIG_SERVER_BUFFER_SIZE];
 
 public:
-	ConfigServerConnection(asioTCP::socket s) :
-			socket(std::move(s)) {
+	ConfigServerConnection(asioTCP::socket s) : socket(std::move(s)) {
 		logger::log(logger::logLevel::INFO, CONFIG_SERVER_NAME, "New connection from client %s:%d.",
 			socket.remote_endpoint().address().to_string().c_str(), socket.remote_endpoint().port());
 	}
@@ -87,19 +86,21 @@ private:
 					// If we have enough data, we start parsing the lengths.
 					// The main header is 10 bytes.
 					// Decode length header fields (all in little-endian).
-					uint16_t extraLength = le16toh(*(uint16_t * )(data + 2));
-					uint16_t nodeLength = le16toh(*(uint16_t * )(data + 4));
-					uint16_t keyLength = le16toh(*(uint16_t * )(data + 6));
-					uint16_t valueLength = le16toh(*(uint16_t * )(data + 8));
+					uint16_t extraLength = le16toh(*(uint16_t *) (data + 2));
+					uint16_t nodeLength  = le16toh(*(uint16_t *) (data + 4));
+					uint16_t keyLength   = le16toh(*(uint16_t *) (data + 6));
+					uint16_t valueLength = le16toh(*(uint16_t *) (data + 8));
 
 					// Total length to get for command.
-					size_t readLength = (size_t) (extraLength + nodeLength + keyLength + valueLength);
+					size_t readLength = (size_t)(extraLength + nodeLength + keyLength + valueLength);
 
 					// Check for wrong (excessive) requested read length.
 					// Close connection by falling out of scope.
 					if (readLength > (CAER_CONFIG_SERVER_BUFFER_SIZE - CAER_CONFIG_SERVER_HEADER_SIZE)) {
-						logger::log(logger::logLevel::INFO, CONFIG_SERVER_NAME, "Client %s:%d: read length error (%d bytes requested).",
-							socket.remote_endpoint().address().to_string().c_str(), socket.remote_endpoint().port(), readLength);
+						logger::log(logger::logLevel::INFO, CONFIG_SERVER_NAME,
+							"Client %s:%d: read length error (%d bytes requested).",
+							socket.remote_endpoint().address().to_string().c_str(), socket.remote_endpoint().port(),
+							readLength);
 						return;
 					}
 
@@ -119,22 +120,27 @@ private:
 				else {
 					// Decode command header fields.
 					uint8_t action = data[0];
-					uint8_t type = data[1];
+					uint8_t type   = data[1];
 
 					// Decode length header fields (all in little-endian).
-					uint16_t extraLength = le16toh(*(uint16_t * )(data + 2));
-					uint16_t nodeLength = le16toh(*(uint16_t * )(data + 4));
-					uint16_t keyLength = le16toh(*(uint16_t * )(data + 6));
-					uint16_t valueLength = le16toh(*(uint16_t * )(data + 8));
+					uint16_t extraLength = le16toh(*(uint16_t *) (data + 2));
+					uint16_t nodeLength  = le16toh(*(uint16_t *) (data + 4));
+					uint16_t keyLength   = le16toh(*(uint16_t *) (data + 6));
+					uint16_t valueLength = le16toh(*(uint16_t *) (data + 8));
 
 					// Now we have everything. The header fields are already
 					// fully decoded: handle request (and send back data eventually).
 					const uint8_t *extra = (extraLength == 0) ? (nullptr) : (data + CAER_CONFIG_SERVER_HEADER_SIZE);
-					const uint8_t *node = (nodeLength == 0) ? (nullptr) : (data + CAER_CONFIG_SERVER_HEADER_SIZE + extraLength);
-					const uint8_t *key = (keyLength == 0) ? (nullptr) : (data + CAER_CONFIG_SERVER_HEADER_SIZE + extraLength + nodeLength);
-					const uint8_t *value = (valueLength == 0) ? (nullptr) : (data + CAER_CONFIG_SERVER_HEADER_SIZE + extraLength + nodeLength + keyLength);
+					const uint8_t *node
+						= (nodeLength == 0) ? (nullptr) : (data + CAER_CONFIG_SERVER_HEADER_SIZE + extraLength);
+					const uint8_t *key = (keyLength == 0)
+											 ? (nullptr)
+											 : (data + CAER_CONFIG_SERVER_HEADER_SIZE + extraLength + nodeLength);
+					const uint8_t *value = (valueLength == 0) ? (nullptr) : (data + CAER_CONFIG_SERVER_HEADER_SIZE
+																				+ extraLength + nodeLength + keyLength);
 
-					caerConfigServerHandleRequest(self, action, type, extra, extraLength, node, nodeLength, key, keyLength, value, valueLength);
+					caerConfigServerHandleRequest(
+						self, action, type, extra, extraLength, node, nodeLength, key, keyLength, value, valueLength);
 				}
 			});
 	}
@@ -161,9 +167,8 @@ private:
 	std::thread ioThread;
 
 public:
-	ConfigServer(const asioIP::address &listenAddress, unsigned short listenPort) :
-			acceptor(ioService, asioTCP::endpoint(listenAddress, listenPort)),
-			socket(ioService) {
+	ConfigServer(const asioIP::address &listenAddress, unsigned short listenPort)
+		: acceptor(ioService, asioTCP::endpoint(listenAddress, listenPort)), socket(ioService) {
 		acceptStart();
 
 		threadStart();
@@ -244,8 +249,8 @@ void caerConfigServerStop(void) {
 	}
 	catch (const std::system_error &ex) {
 		// Failed to join thread.
-		logger::log(logger::logLevel::EMERGENCY, CONFIG_SERVER_NAME, "Failed to terminate thread. Error: %s.",
-			ex.what());
+		logger::log(
+			logger::logLevel::EMERGENCY, CONFIG_SERVER_NAME, "Failed to terminate thread. Error: %s.", ex.what());
 		exit(EXIT_FAILURE);
 	}
 
@@ -269,7 +274,7 @@ static inline void caerConfigSendError(std::shared_ptr<ConfigServerConnection> c
 
 	response[0] = CAER_CONFIG_ERROR;
 	response[1] = SSHS_STRING;
-	setMsgLen(response, (uint16_t) (errorMsgLength + 1));
+	setMsgLen(response, (uint16_t)(errorMsgLength + 1));
 	memcpy(response + 4, errorMsg, errorMsgLength);
 	response[4 + errorMsgLength] = '\0';
 
@@ -316,18 +321,18 @@ static inline bool checkAttributeExists(sshsNode wantedNode, const char *key, en
 
 	if (!attrExists) {
 		// Send back error message to client.
-		caerConfigSendError(client,
-			"Attribute of given type doesn't exist. Operations are only allowed on existing data.");
+		caerConfigSendError(
+			client, "Attribute of given type doesn't exist. Operations are only allowed on existing data.");
 	}
 
 	return (attrExists);
 }
 
-static inline void caerConfigSendBoolResponse(std::shared_ptr<ConfigServerConnection> client, uint8_t action,
-	bool result) {
+static inline void caerConfigSendBoolResponse(
+	std::shared_ptr<ConfigServerConnection> client, uint8_t action, bool result) {
 	// Send back result to client. Format is the same as incoming data.
 	const uint8_t *sendResult = (const uint8_t *) ((result) ? ("true") : ("false"));
-	size_t sendResultLength = (result) ? (5) : (6);
+	size_t sendResultLength   = (result) ? (5) : (6);
 	caerConfigSendResponse(client, action, SSHS_BOOL, sendResult, sendResultLength);
 }
 
@@ -337,7 +342,8 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 	UNUSED_ARGUMENT(extra);
 
 	logger::log(logger::logLevel::DEBUG, CONFIG_SERVER_NAME,
-		"Handling request: action=%" PRIu8 ", type=%" PRIu8 ", extraLength=%zu, nodeLength=%zu, keyLength=%zu, valueLength=%zu.",
+		"Handling request: action=%" PRIu8 ", type=%" PRIu8
+		", extraLength=%zu, nodeLength=%zu, keyLength=%zu, valueLength=%zu.",
 		action, type, extraLength, nodeLength, keyLength, valueLength);
 
 	// Interpretation of data is up to each action individually.
@@ -367,8 +373,8 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 			sshsNode wantedNode = sshsGetNode(configStore, (const char *) node);
 
 			// Check if attribute exists.
-			bool result = sshsNodeAttributeExists(wantedNode, (const char *) key,
-				(enum sshs_node_attr_value_type) type);
+			bool result
+				= sshsNodeAttributeExists(wantedNode, (const char *) key, (enum sshs_node_attr_value_type) type);
 
 			// Send back result to client. Format is the same as incoming data.
 			caerConfigSendBoolResponse(client, CAER_CONFIG_ATTR_EXISTS, result);
@@ -390,8 +396,8 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 				break;
 			}
 
-			union sshs_node_attr_value result = sshsNodeGetAttribute(wantedNode, (const char *) key,
-				(enum sshs_node_attr_value_type) type);
+			union sshs_node_attr_value result
+				= sshsNodeGetAttribute(wantedNode, (const char *) key, (enum sshs_node_attr_value_type) type);
 
 			char *resultStr = sshsHelperValueToStringConverter((enum sshs_node_attr_value_type) type, result);
 
@@ -400,8 +406,8 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 				caerConfigSendError(client, "Failed to allocate memory for value string.");
 			}
 			else {
-				caerConfigSendResponse(client, CAER_CONFIG_GET, type, (const uint8_t *) resultStr,
-					strlen(resultStr) + 1);
+				caerConfigSendResponse(
+					client, CAER_CONFIG_GET, type, (const uint8_t *) resultStr, strlen(resultStr) + 1);
 
 				free(resultStr);
 			}
@@ -497,8 +503,8 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 
 			free(childNames);
 
-			caerConfigSendResponse(client, CAER_CONFIG_GET_CHILDREN, SSHS_STRING, (const uint8_t *) namesBuffer,
-				namesLength);
+			caerConfigSendResponse(
+				client, CAER_CONFIG_GET_CHILDREN, SSHS_STRING, (const uint8_t *) namesBuffer, namesLength);
 
 			break;
 		}
@@ -544,8 +550,8 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 
 			free(attrKeys);
 
-			caerConfigSendResponse(client, CAER_CONFIG_GET_ATTRIBUTES, SSHS_STRING, (const uint8_t *) keysBuffer,
-				keysLength);
+			caerConfigSendResponse(
+				client, CAER_CONFIG_GET_ATTRIBUTES, SSHS_STRING, (const uint8_t *) keysBuffer, keysLength);
 
 			break;
 		}
@@ -562,8 +568,8 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 
 			// Check if any keys match the given one and return its types.
 			size_t numTypes;
-			enum sshs_node_attr_value_type *attrTypes = sshsNodeGetAttributeTypes(wantedNode, (const char *) key,
-				&numTypes);
+			enum sshs_node_attr_value_type *attrTypes
+				= sshsNodeGetAttributeTypes(wantedNode, (const char *) key, &numTypes);
 
 			// No attributes for specified key, return empty.
 			if (attrTypes == NULL) {
@@ -587,15 +593,15 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 
 			for (size_t i = 0, acc = 0; i < numTypes; i++) {
 				const char *typeString = sshsHelperTypeToStringConverter(attrTypes[i]);
-				size_t len = strlen(typeString) + 1;
+				size_t len             = strlen(typeString) + 1;
 				memcpy(typesBuffer + acc, typeString, len);
 				acc += len;
 			}
 
 			free(attrTypes);
 
-			caerConfigSendResponse(client, CAER_CONFIG_GET_TYPES, SSHS_STRING, (const uint8_t *) typesBuffer,
-				typesLength);
+			caerConfigSendResponse(
+				client, CAER_CONFIG_GET_TYPES, SSHS_STRING, (const uint8_t *) typesBuffer, typesLength);
 
 			break;
 		}
@@ -614,8 +620,8 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 				break;
 			}
 
-			struct sshs_node_attr_ranges ranges = sshsNodeGetAttributeRanges(wantedNode, (const char *) key,
-				(enum sshs_node_attr_value_type) type);
+			struct sshs_node_attr_ranges ranges
+				= sshsNodeGetAttributeRanges(wantedNode, (const char *) key, (enum sshs_node_attr_value_type) type);
 
 			// We need to return a string with the two ranges,
 			// separated by a NUL character.
@@ -625,38 +631,52 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 			switch (type) {
 				case SSHS_BOOL:
 				case SSHS_BYTE:
-					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%" PRIi8, ranges.min.ibyteRange) + 1; // Terminating NUL byte.
-					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%" PRIi8, ranges.max.ibyteRange) + 1; // Terminating NUL byte.
+					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%" PRIi8, ranges.min.ibyteRange)
+							  + 1; // Terminating NUL byte.
+					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%" PRIi8, ranges.max.ibyteRange)
+							  + 1; // Terminating NUL byte.
 					break;
 
 				case SSHS_SHORT:
-					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%" PRIi16, ranges.min.ishortRange) + 1; // Terminating NUL byte.
-					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%" PRIi16, ranges.max.ishortRange) + 1; // Terminating NUL byte.
+					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%" PRIi16, ranges.min.ishortRange)
+							  + 1; // Terminating NUL byte.
+					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%" PRIi16, ranges.max.ishortRange)
+							  + 1; // Terminating NUL byte.
 					break;
 
 				case SSHS_INT:
-					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%" PRIi32, ranges.min.iintRange) + 1; // Terminating NUL byte.
-					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%" PRIi32, ranges.max.iintRange) + 1; // Terminating NUL byte.
+					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%" PRIi32, ranges.min.iintRange)
+							  + 1; // Terminating NUL byte.
+					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%" PRIi32, ranges.max.iintRange)
+							  + 1; // Terminating NUL byte.
 					break;
 
 				case SSHS_LONG:
-					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%" PRIi64, ranges.min.ilongRange) + 1; // Terminating NUL byte.
-					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%" PRIi64, ranges.max.ilongRange) + 1; // Terminating NUL byte.
+					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%" PRIi64, ranges.min.ilongRange)
+							  + 1; // Terminating NUL byte.
+					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%" PRIi64, ranges.max.ilongRange)
+							  + 1; // Terminating NUL byte.
 					break;
 
 				case SSHS_FLOAT:
-					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%g", (double) ranges.min.ffloatRange) + 1; // Terminating NUL byte.
-					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%g", (double) ranges.max.ffloatRange) + 1; // Terminating NUL byte.
+					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%g", (double) ranges.min.ffloatRange)
+							  + 1; // Terminating NUL byte.
+					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%g", (double) ranges.max.ffloatRange)
+							  + 1; // Terminating NUL byte.
 					break;
 
 				case SSHS_DOUBLE:
-					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%g", ranges.min.ddoubleRange) + 1; // Terminating NUL byte.
-					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%g", ranges.max.ddoubleRange) + 1; // Terminating NUL byte.
+					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%g", ranges.min.ddoubleRange)
+							  + 1; // Terminating NUL byte.
+					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%g", ranges.max.ddoubleRange)
+							  + 1; // Terminating NUL byte.
 					break;
 
 				case SSHS_STRING:
-					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%zu", ranges.min.stringRange) + 1; // Terminating NUL byte.
-					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%zu", ranges.max.stringRange) + 1; // Terminating NUL byte.
+					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%zu", ranges.min.stringRange)
+							  + 1; // Terminating NUL byte.
+					bufLen += snprintf(buf + bufLen, 256 - bufLen, "%zu", ranges.max.stringRange)
+							  + 1; // Terminating NUL byte.
 					break;
 			}
 
@@ -679,8 +699,8 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 				break;
 			}
 
-			int flags = sshsNodeGetAttributeFlags(wantedNode, (const char *) key,
-				(enum sshs_node_attr_value_type) type);
+			int flags
+				= sshsNodeGetAttributeFlags(wantedNode, (const char *) key, (enum sshs_node_attr_value_type) type);
 
 			std::string flagsStr;
 
@@ -698,8 +718,8 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 				flagsStr += ",NO_EXPORT";
 			}
 
-			caerConfigSendResponse(client, CAER_CONFIG_GET_FLAGS, SSHS_STRING, (const uint8_t *) flagsStr.c_str(),
-				flagsStr.length() + 1);
+			caerConfigSendResponse(
+				client, CAER_CONFIG_GET_FLAGS, SSHS_STRING, (const uint8_t *) flagsStr.c_str(), flagsStr.length() + 1);
 
 			break;
 		}
@@ -718,8 +738,8 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 				break;
 			}
 
-			char *description = sshsNodeGetAttributeDescription(wantedNode, (const char *) key,
-				(enum sshs_node_attr_value_type) type);
+			char *description = sshsNodeGetAttributeDescription(
+				wantedNode, (const char *) key, (enum sshs_node_attr_value_type) type);
 
 			caerConfigSendResponse(client, CAER_CONFIG_GET_DESCRIPTION, SSHS_STRING, (const uint8_t *) description,
 				strlen(description) + 1);
@@ -755,7 +775,7 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 			}
 
 			// Check module library.
-			sshsNode modulesSysNode = sshsGetNode(configStore, "/caer/modules/");
+			sshsNode modulesSysNode              = sshsGetNode(configStore, "/caer/modules/");
 			const std::string modulesListOptions = sshsNodeGetStdString(modulesSysNode, "modulesListOptions");
 
 			std::vector<std::string> modulesList;
@@ -787,7 +807,7 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 
 			vectorSortUnique(usedModuleIDs);
 
-			size_t idx = 0;
+			size_t idx               = 0;
 			int16_t nextFreeModuleID = 1;
 
 			while (idx < usedModuleIDs.size() && usedModuleIDs[idx] == nextFreeModuleID) {
@@ -800,18 +820,18 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 
 			sshsNodeCreate(newModuleNode, "moduleId", nextFreeModuleID, I16T(1), I16T(INT16_MAX), SSHS_FLAGS_READ_ONLY,
 				"Module ID.");
-			sshsNodeCreate(newModuleNode, "moduleLibrary", moduleLibrary, 1, PATH_MAX, SSHS_FLAGS_READ_ONLY,
-				"Module library.");
+			sshsNodeCreate(
+				newModuleNode, "moduleLibrary", moduleLibrary, 1, PATH_MAX, SSHS_FLAGS_READ_ONLY, "Module library.");
 
 			// Add moduleInput/moduleOutput as appropriate.
 			sshsNode moduleSysNode = sshsGetRelativeNode(modulesSysNode, moduleLibrary + "/");
-			std::string inputType = sshsNodeGetStdString(moduleSysNode, "type");
+			std::string inputType  = sshsNodeGetStdString(moduleSysNode, "type");
 
 			if (inputType != "INPUT") {
 				// CAER_MODULE_OUTPUT / CAER_MODULE_PROCESSOR
 				// moduleInput must exist for OUTPUT and PROCESSOR modules.
-				sshsNodeCreate(newModuleNode, "moduleInput", "", 0, 1024, SSHS_FLAGS_NORMAL,
-					"Module dynamic input definition.");
+				sshsNodeCreate(
+					newModuleNode, "moduleInput", "", 0, 1024, SSHS_FLAGS_NORMAL, "Module dynamic input definition.");
 			}
 
 			if (inputType != "OUTPUT") {
@@ -819,7 +839,7 @@ static void caerConfigServerHandleRequest(std::shared_ptr<ConfigServerConnection
 				// moduleOutput must exist for INPUT and PROCESSOR modules, only
 				// if their outputs are undefined (-1).
 				if (sshsExistsRelativeNode(moduleSysNode, "outputStreams/0/")) {
-					sshsNode outputNode0 = sshsGetRelativeNode(moduleSysNode, "outputStreams/0/");
+					sshsNode outputNode0    = sshsGetRelativeNode(moduleSysNode, "outputStreams/0/");
 					int16_t outputNode0Type = sshsNodeGetShort(outputNode0, "type");
 
 					if (outputNode0Type == -1) {

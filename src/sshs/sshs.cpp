@@ -1,8 +1,8 @@
 #include "sshs_internal.hpp"
+#include <boost/tokenizer.hpp>
+#include <iostream>
 #include <mutex>
 #include <regex>
-#include <iostream>
-#include <boost/tokenizer.hpp>
 
 struct sshs_struct {
 	sshsNode root;

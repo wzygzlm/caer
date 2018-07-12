@@ -4,17 +4,28 @@ static void caerInputDAVISRPiConfigInit(sshsNode moduleNode);
 static bool caerInputDAVISRPiInit(caerModuleData moduleData);
 static void caerInputDAVISRPiExit(caerModuleData moduleData);
 
-static const struct caer_module_functions DAVISRPiFunctions = { .moduleConfigInit = &caerInputDAVISRPiConfigInit,
-	.moduleInit = &caerInputDAVISRPiInit, .moduleRun = &caerInputDAVISCommonRun, .moduleConfig = NULL, .moduleExit =
-		&caerInputDAVISRPiExit, .moduleReset = NULL };
+static const struct caer_module_functions DAVISRPiFunctions = {.moduleConfigInit = &caerInputDAVISRPiConfigInit,
+	.moduleInit                                                                  = &caerInputDAVISRPiInit,
+	.moduleRun                                                                   = &caerInputDAVISCommonRun,
+	.moduleConfig                                                                = NULL,
+	.moduleExit                                                                  = &caerInputDAVISRPiExit,
+	.moduleReset                                                                 = NULL};
 
-static const struct caer_event_stream_out DAVISRPiOutputs[] = { { .type = SPECIAL_EVENT }, { .type = POLARITY_EVENT }, {
-	.type = FRAME_EVENT }, { .type = IMU6_EVENT } };
+static const struct caer_event_stream_out DAVISRPiOutputs[]
+	= {{.type = SPECIAL_EVENT}, {.type = POLARITY_EVENT}, {.type = FRAME_EVENT}, {.type = IMU6_EVENT}};
 
-static const struct caer_module_info DAVISRPiInfo = { .version = 1, .name = "DAVISRPi", .description =
-	"Connects to a DAVIS Raspberry-Pi camera module to get data.", .type = CAER_MODULE_INPUT, .memSize = 0, .functions =
-	&DAVISRPiFunctions, .inputStreams = NULL, .inputStreamsSize = 0, .outputStreams = DAVISRPiOutputs,
-	.outputStreamsSize = CAER_EVENT_STREAM_OUT_SIZE(DAVISRPiOutputs), };
+static const struct caer_module_info DAVISRPiInfo = {
+	.version           = 1,
+	.name              = "DAVISRPi",
+	.description       = "Connects to a DAVIS Raspberry-Pi camera module to get data.",
+	.type              = CAER_MODULE_INPUT,
+	.memSize           = 0,
+	.functions         = &DAVISRPiFunctions,
+	.inputStreams      = NULL,
+	.inputStreamsSize  = 0,
+	.outputStreams     = DAVISRPiOutputs,
+	.outputStreamsSize = CAER_EVENT_STREAM_OUT_SIZE(DAVISRPiOutputs),
+};
 
 caerModuleInfo caerModuleGetInfo(void) {
 	return (&DAVISRPiInfo);
@@ -29,8 +40,8 @@ static void aerConfigListener(sshsNode node, void *userData, enum sshs_node_attr
 
 static void caerInputDAVISRPiConfigInit(sshsNode moduleNode) {
 	// Add auto-restart setting.
-	sshsNodeCreateBool(moduleNode, "autoRestart", true, SSHS_FLAGS_NORMAL,
-		"Automatically restart module after shutdown.");
+	sshsNodeCreateBool(
+		moduleNode, "autoRestart", true, SSHS_FLAGS_NORMAL, "Automatically restart module after shutdown.");
 
 	caerInputDAVISCommonSystemConfigInit(moduleNode);
 }
@@ -112,8 +123,8 @@ static bool caerInputDAVISRPiInit(caerModuleData moduleData) {
 		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Data height.");
 
 	// Generate source string for output modules.
-	size_t sourceStringLength = (size_t) snprintf(NULL, 0, "#Source %" PRIu16 ": %s\r\n", moduleData->moduleID,
-		chipIDToName(devInfo.chipID, false));
+	size_t sourceStringLength = (size_t) snprintf(
+		NULL, 0, "#Source %" PRIu16 ": %s\r\n", moduleData->moduleID, chipIDToName(devInfo.chipID, false));
 
 	char sourceString[sourceStringLength + 1];
 	snprintf(sourceString, sourceStringLength + 1, "#Source %" PRIu16 ": %s\r\n", moduleData->moduleID,
@@ -126,12 +137,12 @@ static bool caerInputDAVISRPiInit(caerModuleData moduleData) {
 	// Ensure good defaults for data acquisition settings.
 	// No blocking behavior due to mainloop notification, and no auto-start of
 	// all producers to ensure cAER settings are respected.
-	caerDeviceConfigSet(moduleData->moduleState, CAER_HOST_CONFIG_DATAEXCHANGE,
-	CAER_HOST_CONFIG_DATAEXCHANGE_BLOCKING, false);
-	caerDeviceConfigSet(moduleData->moduleState, CAER_HOST_CONFIG_DATAEXCHANGE,
-	CAER_HOST_CONFIG_DATAEXCHANGE_START_PRODUCERS, false);
-	caerDeviceConfigSet(moduleData->moduleState, CAER_HOST_CONFIG_DATAEXCHANGE,
-	CAER_HOST_CONFIG_DATAEXCHANGE_STOP_PRODUCERS, true);
+	caerDeviceConfigSet(
+		moduleData->moduleState, CAER_HOST_CONFIG_DATAEXCHANGE, CAER_HOST_CONFIG_DATAEXCHANGE_BLOCKING, false);
+	caerDeviceConfigSet(
+		moduleData->moduleState, CAER_HOST_CONFIG_DATAEXCHANGE, CAER_HOST_CONFIG_DATAEXCHANGE_START_PRODUCERS, false);
+	caerDeviceConfigSet(
+		moduleData->moduleState, CAER_HOST_CONFIG_DATAEXCHANGE, CAER_HOST_CONFIG_DATAEXCHANGE_STOP_PRODUCERS, true);
 
 	// Create default settings and send them to the device.
 	createDefaultBiasConfiguration(moduleData, chipIDToName(devInfo.chipID, true), devInfo.chipID);
@@ -141,8 +152,7 @@ static bool caerInputDAVISRPiInit(caerModuleData moduleData) {
 
 	// Start data acquisition.
 	bool ret = caerDeviceDataStart(moduleData->moduleState, &caerMainloopDataNotifyIncrease,
-		&caerMainloopDataNotifyDecrease,
-		NULL, &moduleShutdownNotify, moduleData->moduleNode);
+		&caerMainloopDataNotifyDecrease, NULL, &moduleShutdownNotify, moduleData->moduleNode);
 
 	if (!ret) {
 		// Failed to start data acquisition, close device and exit.
@@ -182,7 +192,7 @@ static bool caerInputDAVISRPiInit(caerModuleData moduleData) {
 	sshsNode biasNode = sshsGetRelativeNode(deviceConfigNode, "bias/");
 
 	size_t biasNodesLength = 0;
-	sshsNode *biasNodes = sshsNodeGetChildren(biasNode, &biasNodesLength);
+	sshsNode *biasNodes    = sshsNodeGetChildren(biasNode, &biasNodesLength);
 
 	if (biasNodes != NULL) {
 		for (size_t i = 0; i < biasNodesLength; i++) {
@@ -201,7 +211,7 @@ static bool caerInputDAVISRPiInit(caerModuleData moduleData) {
 static void caerInputDAVISRPiExit(caerModuleData moduleData) {
 	// Device related configuration has its own sub-node.
 	struct caer_davis_info devInfo = caerDavisInfoGet(moduleData->moduleState);
-	sshsNode deviceConfigNode = sshsGetRelativeNode(moduleData->moduleNode, chipIDToName(devInfo.chipID, true));
+	sshsNode deviceConfigNode      = sshsGetRelativeNode(moduleData->moduleNode, chipIDToName(devInfo.chipID, true));
 
 	// Remove listener, which can reference invalid memory in userData.
 	sshsNodeRemoveAttributeListener(moduleData->moduleNode, moduleData, &logLevelListener);
@@ -233,7 +243,7 @@ static void caerInputDAVISRPiExit(caerModuleData moduleData) {
 	sshsNode biasNode = sshsGetRelativeNode(deviceConfigNode, "bias/");
 
 	size_t biasNodesLength = 0;
-	sshsNode *biasNodes = sshsNodeGetChildren(biasNode, &biasNodesLength);
+	sshsNode *biasNodes    = sshsNodeGetChildren(biasNode, &biasNodesLength);
 
 	if (biasNodes != NULL) {
 		for (size_t i = 0; i < biasNodesLength; i++) {
@@ -301,8 +311,8 @@ static void aerConfigSend(sshsNode node, caerModuleData moduleData) {
 		U32T(sshsNodeGetShort(node, "ReqDelay")));
 	caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_DDRAER, DAVIS_CONFIG_DDRAER_ACK_DELAY,
 		U32T(sshsNodeGetShort(node, "AckDelay")));
-	caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_DDRAER, DAVIS_CONFIG_DDRAER_RUN,
-		sshsNodeGetBool(node, "Run"));
+	caerDeviceConfigSet(
+		moduleData->moduleState, DAVIS_CONFIG_DDRAER, DAVIS_CONFIG_DDRAER_RUN, sshsNodeGetBool(node, "Run"));
 }
 
 static void aerConfigListener(sshsNode node, void *userData, enum sshs_node_attribute_events event,
@@ -313,16 +323,16 @@ static void aerConfigListener(sshsNode node, void *userData, enum sshs_node_attr
 
 	if (event == SSHS_ATTRIBUTE_MODIFIED) {
 		if (changeType == SSHS_SHORT && caerStrEquals(changeKey, "ReqDelay")) {
-			caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_DDRAER, DAVIS_CONFIG_DDRAER_REQ_DELAY,
-				U32T(changeValue.ishort));
+			caerDeviceConfigSet(
+				moduleData->moduleState, DAVIS_CONFIG_DDRAER, DAVIS_CONFIG_DDRAER_REQ_DELAY, U32T(changeValue.ishort));
 		}
 		else if (changeType == SSHS_SHORT && caerStrEquals(changeKey, "AckDelay")) {
-			caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_DDRAER, DAVIS_CONFIG_DDRAER_ACK_DELAY,
-				U32T(changeValue.ishort));
+			caerDeviceConfigSet(
+				moduleData->moduleState, DAVIS_CONFIG_DDRAER, DAVIS_CONFIG_DDRAER_ACK_DELAY, U32T(changeValue.ishort));
 		}
 		else if (changeType == SSHS_BOOL && caerStrEquals(changeKey, "Run")) {
-			caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_DDRAER, DAVIS_CONFIG_DDRAER_RUN,
-				changeValue.boolean);
+			caerDeviceConfigSet(
+				moduleData->moduleState, DAVIS_CONFIG_DDRAER, DAVIS_CONFIG_DDRAER_RUN, changeValue.boolean);
 		}
 	}
 }

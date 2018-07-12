@@ -10,12 +10,12 @@ void Calibration::updateSettings(void) {
 	if (settings->useFisheyeModel) {
 		// The fisheye model has its own enum, so overwrite the flags.
 		flag = fisheye::CALIB_FIX_SKEW | fisheye::CALIB_RECOMPUTE_EXTRINSIC | fisheye::CALIB_FIX_K2
-			| fisheye::CALIB_FIX_K3 | fisheye::CALIB_FIX_K4;
+			   | fisheye::CALIB_FIX_K3 | fisheye::CALIB_FIX_K4;
 	}
 	else {
 		flag = CALIB_FIX_K4 | CALIB_FIX_K5;
 
-		if (settings->aspectRatio) {
+		if (settings->aspectRatio == 0.0f) {
 			flag |= CALIB_FIX_ASPECT_RATIO;
 		}
 
@@ -29,7 +29,7 @@ void Calibration::updateSettings(void) {
 	}
 
 	// Update board size.
-	boardSize.width = settings->boardWidth;
+	boardSize.width  = settings->boardWidth;
 	boardSize.height = settings->boardHeigth;
 
 	// Clear current image points.
@@ -111,12 +111,12 @@ size_t Calibration::foundPoints(void) {
 	return (imagePoints.size());
 }
 
-double Calibration::computeReprojectionErrors(const vector<vector<Point3f> >& objectPoints,
-	const vector<vector<Point2f> >& imagePoints, const vector<Mat>& rvecs, const vector<Mat>& tvecs,
-	const Mat& cameraMatrix, const Mat& distCoeffs, vector<float>& perViewErrors, bool fisheye) {
+double Calibration::computeReprojectionErrors(const vector<vector<Point3f>> &objectPoints,
+	const vector<vector<Point2f>> &imagePoints, const vector<Mat> &rvecs, const vector<Mat> &tvecs,
+	const Mat &cameraMatrix, const Mat &distCoeffs, vector<float> &perViewErrors, bool fisheye) {
 	vector<Point2f> imagePoints2;
 	size_t totalPoints = 0;
-	double totalErr = 0;
+	double totalErr    = 0;
 	double err;
 
 	perViewErrors.resize(objectPoints.size());
@@ -131,7 +131,7 @@ double Calibration::computeReprojectionErrors(const vector<vector<Point3f> >& ob
 
 		err = norm(imagePoints[i], imagePoints2, NORM_L2);
 
-		size_t n = objectPoints[i].size();
+		size_t n         = objectPoints[i].size();
 		perViewErrors[i] = (float) std::sqrt(err * err / n);
 		totalErr += err * err;
 		totalPoints += n;
@@ -140,8 +140,8 @@ double Calibration::computeReprojectionErrors(const vector<vector<Point3f> >& ob
 	return (std::sqrt(totalErr / totalPoints));
 }
 
-void Calibration::calcBoardCornerPositions(Size boardSize, float squareSize, vector<Point3f>& corners,
-	enum CameraCalibrationPattern patternType) {
+void Calibration::calcBoardCornerPositions(
+	Size boardSize, float squareSize, vector<Point3f> &corners, enum CameraCalibrationPattern patternType) {
 	corners.clear();
 
 	switch (patternType) {
@@ -167,8 +167,8 @@ void Calibration::calcBoardCornerPositions(Size boardSize, float squareSize, vec
 	}
 }
 
-bool Calibration::runCalibration(Size& imageSize, Mat& cameraMatrix, Mat& distCoeffs,
-	vector<vector<Point2f> > imagePoints, vector<float>& reprojErrs, double& totalAvgErr) {
+bool Calibration::runCalibration(Size &imageSize, Mat &cameraMatrix, Mat &distCoeffs,
+	vector<vector<Point2f>> imagePoints, vector<float> &reprojErrs, double &totalAvgErr) {
 	// 3x3 camera matrix to fill in.
 	cameraMatrix = Mat::eye(3, 3, CV_64F);
 
@@ -183,7 +183,7 @@ bool Calibration::runCalibration(Size& imageSize, Mat& cameraMatrix, Mat& distCo
 		distCoeffs = Mat::zeros(8, 1, CV_64F);
 	}
 
-	vector<vector<Point3f> > objectPoints(1);
+	vector<vector<Point3f>> objectPoints(1);
 
 	calcBoardCornerPositions(boardSize, settings->boardSquareSize, objectPoints[0], settings->calibrationPattern);
 
@@ -208,8 +208,8 @@ bool Calibration::runCalibration(Size& imageSize, Mat& cameraMatrix, Mat& distCo
 		calibrateCamera(objectPoints, imagePoints, imageSize, cameraMatrix, distCoeffs, rvecs, tvecs, flag);
 	}
 
-	totalAvgErr = computeReprojectionErrors(objectPoints, imagePoints, rvecs, tvecs, cameraMatrix, distCoeffs,
-		reprojErrs, settings->useFisheyeModel);
+	totalAvgErr = computeReprojectionErrors(
+		objectPoints, imagePoints, rvecs, tvecs, cameraMatrix, distCoeffs, reprojErrs, settings->useFisheyeModel);
 
 	bool ok = checkRange(cameraMatrix) && checkRange(distCoeffs) && totalAvgErr < settings->maxTotalError;
 
@@ -217,8 +217,8 @@ bool Calibration::runCalibration(Size& imageSize, Mat& cameraMatrix, Mat& distCo
 }
 
 // Print camera parameters to the output file
-bool Calibration::saveCameraParams(Size& imageSize, Mat& cameraMatrix, Mat& distCoeffs, const vector<float>& reprojErrs,
-	double totalAvgErr) {
+bool Calibration::saveCameraParams(
+	Size &imageSize, Mat &cameraMatrix, Mat &distCoeffs, const vector<float> &reprojErrs, double totalAvgErr) {
 	FileStorage fs(settings->saveFileName, FileStorage::WRITE);
 
 	// Check file.
@@ -357,12 +357,12 @@ bool Calibration::loadUndistortMatrices(void) {
 
 	if (useFisheyeModel) {
 		Mat optimalCameramatrix;
-		fisheye::estimateNewCameraMatrixForUndistortRectify(undistortCameraMatrix, undistortDistCoeffs, imageSize,
-			Matx33d::eye(), optimalCameramatrix, 1);
+		fisheye::estimateNewCameraMatrixForUndistortRectify(
+			undistortCameraMatrix, undistortDistCoeffs, imageSize, Matx33d::eye(), optimalCameramatrix, 1);
 
 		fisheye::initUndistortRectifyMap(undistortCameraMatrix, undistortDistCoeffs, Matx33d::eye(),
-			(settings->fitAllPixels) ? (optimalCameramatrix) : (undistortCameraMatrix), imageSize,
-			CV_16SC2, undistortRemap1, undistortRemap2);
+			(settings->fitAllPixels) ? (optimalCameramatrix) : (undistortCameraMatrix), imageSize, CV_16SC2,
+			undistortRemap1, undistortRemap2);
 
 		fisheye::undistortPoints(undistortEventInputMap, undistortEventOutputMap, undistortCameraMatrix,
 			undistortDistCoeffs, Matx33d::eye(),
@@ -395,7 +395,7 @@ void Calibration::undistortEvent(caerPolarityEvent polarity, caerPolarityEventPa
 	}
 
 	// Get new coordinates at which event shall be remapped.
-	size_t mapIdx = (caerPolarityEventGetY(polarity) * settings->imageWidth) + caerPolarityEventGetX(polarity);
+	size_t mapIdx          = (caerPolarityEventGetY(polarity) * settings->imageWidth) + caerPolarityEventGetX(polarity);
 	Point2i eventUndistort = undistortEventMap.at(mapIdx);
 
 	// Check that new coordinates are still within view boundary. If not, keep old ones and invalidate event.

@@ -1,25 +1,25 @@
 #include "sshs_internal.hpp"
 
-#include <cfloat>
-#include <memory>
-#include <functional>
 #include <algorithm>
-#include <vector>
-#include <map>
-#include <mutex>
-#include <shared_mutex>
-#include <regex>
-#include <utility>
 #include <boost/iostreams/device/file_descriptor.hpp>
 #include <boost/iostreams/stream.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/xml_parser.hpp>
+#include <cfloat>
+#include <functional>
+#include <map>
+#include <memory>
+#include <mutex>
+#include <regex>
+#include <shared_mutex>
+#include <utility>
+#include <vector>
 
 // We don't care about unlocking anything here, as we exit hard on error anyway.
 static inline void sshsNodeError(const std::string &funcName, const std::string &key,
 	enum sshs_node_attr_value_type type, const std::string &msg, bool fatal = true) {
 	boost::format errorMsg = boost::format("%s(): attribute '%s' (type '%s'): %s.") % funcName % key
-		% sshsHelperCppTypeToStringConverter(type) % msg;
+							 % sshsHelperCppTypeToStringConverter(type) % msg;
 
 	(*sshsGetGlobalErrorLogCallback())(errorMsg.str().c_str());
 
@@ -29,13 +29,12 @@ static inline void sshsNodeError(const std::string &funcName, const std::string 
 	}
 }
 
-static inline void sshsNodeErrorNoAttribute(const std::string &funcName, const std::string &key,
-	enum sshs_node_attr_value_type type) {
+static inline void sshsNodeErrorNoAttribute(
+	const std::string &funcName, const std::string &key, enum sshs_node_attr_value_type type) {
 	sshsNodeError(funcName, key, type, "attribute doesn't exist, you must create it first");
 }
 
-template<typename InIter, typename Elem>
-static inline bool findBool(InIter begin, InIter end, const Elem &val) {
+template<typename InIter, typename Elem> static inline bool findBool(InIter begin, InIter end, const Elem &val) {
 	const auto result = std::find(begin, end, val);
 
 	if (result == end) {
@@ -56,20 +55,17 @@ private:
 	void *readModifierUserData;
 
 public:
-	sshs_node_attr() :
-			flags(SSHS_FLAGS_NORMAL),
-			readModifier(nullptr),
-			readModifierUserData(nullptr) {
+	sshs_node_attr() : flags(SSHS_FLAGS_NORMAL), readModifier(nullptr), readModifierUserData(nullptr) {
 	}
 
 	sshs_node_attr(const sshs_value &_value, const struct sshs_node_attr_ranges &_ranges, int _flags,
-		const std::string &_description) :
-			ranges(_ranges),
-			flags(_flags),
-			description(_description),
-			value(_value),
-			readModifier(nullptr),
-			readModifierUserData(nullptr) {
+		const std::string &_description)
+		: ranges(_ranges),
+		  flags(_flags),
+		  description(_description),
+		  value(_value),
+		  readModifier(nullptr),
+		  readModifierUserData(nullptr) {
 	}
 
 	sshs_value getModifiedValue(const std::string &key) const noexcept {
@@ -77,7 +73,7 @@ public:
 		// read modifier callback. The new value is not stored, only
 		// output. Use this feature with care!
 		if (readModifier != nullptr) {
-			union sshs_node_attr_value uValue = value.toCUnion();
+			union sshs_node_attr_value uValue    = value.toCUnion();
 			enum sshs_node_attr_value_type uType = value.getType();
 
 			(*readModifier)(readModifierUserData, key.c_str(), uType, &uValue);
@@ -120,17 +116,17 @@ public:
 		return ((flags & flag) == flag);
 	}
 
-	std::pair<sshsAttributeReadModifier, void*> getReadModifier() const noexcept {
-		std::pair<sshsAttributeReadModifier, void*> modifier;
+	std::pair<sshsAttributeReadModifier, void *> getReadModifier() const noexcept {
+		std::pair<sshsAttributeReadModifier, void *> modifier;
 
-		modifier.first = readModifier;
+		modifier.first  = readModifier;
 		modifier.second = readModifierUserData;
 
 		return (modifier);
 	}
 
 	void setReadModifier(sshsAttributeReadModifier modifier, void *userData) noexcept {
-		readModifier = modifier;
+		readModifier         = modifier;
 		readModifierUserData = userData;
 	}
 
@@ -145,9 +141,8 @@ private:
 	void *userData;
 
 public:
-	sshs_node_listener(sshsNodeChangeListener _listener, void *_userData) :
-			nodeChanged(_listener),
-			userData(_userData) {
+	sshs_node_listener(sshsNodeChangeListener _listener, void *_userData)
+		: nodeChanged(_listener), userData(_userData) {
 	}
 
 	sshsNodeChangeListener getListener() const noexcept {
@@ -174,9 +169,8 @@ private:
 	void *userData;
 
 public:
-	sshs_node_attr_listener(sshsAttributeChangeListener _listener, void *_userData) :
-			attributeChanged(_listener),
-			userData(_userData) {
+	sshs_node_attr_listener(sshsAttributeChangeListener _listener, void *_userData)
+		: attributeChanged(_listener), userData(_userData) {
 	}
 
 	sshsAttributeChangeListener getListener() const noexcept {
@@ -212,9 +206,7 @@ public:
 	std::shared_timed_mutex traversal_lock;
 	std::recursive_mutex node_lock;
 
-	sshs_node(const std::string &_name, sshsNode _parent) :
-			name(_name),
-			parent(_parent) {
+	sshs_node(const std::string &_name, sshsNode _parent) : name(_name), parent(_parent) {
 		// Path is based on parent.
 		if (_parent != nullptr) {
 			path = parent->path + _name + "/";
@@ -240,7 +232,8 @@ public:
 		if (defaultValue.getType() == SSHS_STRING) {
 			if ((ranges.min.stringRange > INT32_MAX) || (ranges.max.stringRange > INT32_MAX)) {
 				boost::format errorMsg = boost::format("minimum/maximum string range value outside allowed limits. "
-					"Please make sure the value is positive, between 0 and %d!") % INT32_MAX;
+													   "Please make sure the value is positive, between 0 and %d!")
+										 % INT32_MAX;
 
 				sshsNodeError("sshsNodeCreateAttribute", key, SSHS_STRING, errorMsg.str());
 			}
@@ -250,8 +243,8 @@ public:
 		if (!defaultValue.inRange(ranges)) {
 			// Fail on wrong default value. Must be within range!
 			boost::format errorMsg = boost::format("default value '%s' is out of specified range. "
-				"Please make sure the default value is within the given range!")
-				% sshsHelperCppValueToStringConverter(defaultValue);
+												   "Please make sure the default value is within the given range!")
+									 % sshsHelperCppValueToStringConverter(defaultValue);
 
 			sshsNodeError("sshsNodeCreateAttribute", key, defaultValue.getType(), errorMsg.str());
 		}
@@ -259,8 +252,9 @@ public:
 		// Restrict NOTIFY_ONLY flag to booleans only, for button-like behavior.
 		if ((flags & SSHS_FLAGS_NOTIFY_ONLY) && defaultValue.getType() != SSHS_BOOL) {
 			// Fail on wrong notify-only flag usage.
-			sshsNodeError("sshsNodeCreateAttribute", key, defaultValue.getType(),
-				"the NOTIFY_ONLY flag is set, but attribute is not of type BOOL. Only booleans can have this flag set!");
+			sshsNodeError("sshsNodeCreateAttribute", key, defaultValue.getType(), "the NOTIFY_ONLY flag is set, but "
+																				  "attribute is not of type BOOL. Only "
+																				  "booleans can have this flag set!");
 		}
 
 		// Restrict NOTIFY_ONLY flag to a default value of false only. This avoids
@@ -286,14 +280,14 @@ public:
 			}
 		}
 		else {
-			const sshs_node_attr &oldAttr = attributes[key];
+			const sshs_node_attr &oldAttr  = attributes[key];
 			const sshs_value &oldAttrValue = oldAttr.getValue();
 
 			// To simplify things, we don't support multiple types per key (though the API does).
 			if (oldAttrValue.getType() != newAttr.getValue().getType()) {
-				boost::format errorMsg = boost::format(
-					"value with this key already exists and has a different type of '%s'")
-					% sshsHelperCppTypeToStringConverter(oldAttrValue.getType());
+				boost::format errorMsg
+					= boost::format("value with this key already exists and has a different type of '%s'")
+					  % sshsHelperCppTypeToStringConverter(oldAttrValue.getType());
 
 				sshsNodeError("sshsNodeCreateAttribute", key, newAttr.getValue().getType(), errorMsg.str());
 			}
@@ -423,8 +417,8 @@ public:
 			// attribute, but the call to the listeners has to happen with the
 			// new value (call-listeners-only behavior).
 			for (const auto &l : attrListeners) {
-				(*l.getListener())(this, l.getUserData(), SSHS_ATTRIBUTE_MODIFIED, key.c_str(), value.getType(),
-					value.toCUnion(true));
+				(*l.getListener())(
+					this, l.getUserData(), SSHS_ATTRIBUTE_MODIFIED, key.c_str(), value.getType(), value.toCUnion(true));
 			}
 		}
 
@@ -527,7 +521,7 @@ sshsNode sshsNodeAddChild(sshsNode node, const char *childName) {
 
 // This returns a reference to a node, and as such must be carefully mediated with
 // any sshsNodeRemoveNode() calls.
-sshsNode sshsNodeGetChild(sshsNode node, const char* childName) {
+sshsNode sshsNodeGetChild(sshsNode node, const char *childName) {
 	std::shared_lock<std::shared_timed_mutex> lock(node->traversal_lock);
 
 	if (node->children.count(childName)) {
@@ -578,8 +572,8 @@ void sshsNodeRemoveNodeListener(sshsNode node, void *userData, sshsNodeChangeLis
 
 	std::lock_guard<std::recursive_mutex> lock(node->node_lock);
 
-	node->nodeListeners.erase(std::remove(node->nodeListeners.begin(), node->nodeListeners.end(), listener),
-		node->nodeListeners.end());
+	node->nodeListeners.erase(
+		std::remove(node->nodeListeners.begin(), node->nodeListeners.end(), listener), node->nodeListeners.end());
 }
 
 void sshsNodeRemoveAllNodeListeners(sshsNode node) {
@@ -603,8 +597,8 @@ void sshsNodeRemoveAttributeListener(sshsNode node, void *userData, sshsAttribut
 
 	std::lock_guard<std::recursive_mutex> lock(node->node_lock);
 
-	node->attrListeners.erase(std::remove(node->attrListeners.begin(), node->attrListeners.end(), listener),
-		node->attrListeners.end());
+	node->attrListeners.erase(
+		std::remove(node->attrListeners.begin(), node->attrListeners.end(), listener), node->attrListeners.end());
 }
 
 void sshsNodeRemoveAllAttributeListeners(sshsNode node) {
@@ -756,8 +750,8 @@ bool sshsNodeAttributeExists(sshsNode node, const char *key, enum sshs_node_attr
 	return (node->attributeExists(key, type));
 }
 
-bool sshsNodePutAttribute(sshsNode node, const char *key, enum sshs_node_attr_value_type type,
-	union sshs_node_attr_value value) {
+bool sshsNodePutAttribute(
+	sshsNode node, const char *key, enum sshs_node_attr_value_type type, union sshs_node_attr_value value) {
 	sshs_value val;
 	val.fromCUnion(value, type);
 
@@ -768,8 +762,8 @@ union sshs_node_attr_value sshsNodeGetAttribute(sshsNode node, const char *key, 
 	return (node->getAttribute(key, type).toCUnion());
 }
 
-bool sshsNodeUpdateReadOnlyAttribute(sshsNode node, const char *key, enum sshs_node_attr_value_type type,
-	union sshs_node_attr_value value) {
+bool sshsNodeUpdateReadOnlyAttribute(
+	sshsNode node, const char *key, enum sshs_node_attr_value_type type, union sshs_node_attr_value value) {
 	sshs_value val;
 	val.fromCUnion(value, type);
 
@@ -970,8 +964,8 @@ bool sshsNodeExportSubTreeToXML(sshsNode node, int fd) {
 }
 
 static bool sshsNodeToXML(sshsNode node, int fd, bool recursive) {
-	boost::iostreams::stream_buffer<boost::iostreams::file_descriptor_sink> fdStream(fd,
-		boost::iostreams::never_close_handle);
+	boost::iostreams::stream_buffer<boost::iostreams::file_descriptor_sink> fdStream(
+		fd, boost::iostreams::never_close_handle);
 
 	std::ostream outStream(&fdStream);
 
@@ -984,13 +978,13 @@ static bool sshsNodeToXML(sshsNode node, int fd, bool recursive) {
 	xmlTree.put_child("sshs.node", sshsNodeGenerateXML(node, recursive));
 
 	try {
-		boost::property_tree::xml_parser::xml_writer_settings<boost::property_tree::ptree::key_type> xmlIndent(' ',
-		XML_INDENT_SPACES);
+		boost::property_tree::xml_parser::xml_writer_settings<boost::property_tree::ptree::key_type> xmlIndent(
+			' ', XML_INDENT_SPACES);
 
 		// We manually call write_xml_element() here instead of write_xml() because
 		// the latter always prepends the XML declaration, which we don't want.
-		boost::property_tree::xml_parser::write_xml_element(outStream, boost::property_tree::ptree::key_type(), xmlTree,
-			-1, xmlIndent);
+		boost::property_tree::xml_parser::write_xml_element(
+			outStream, boost::property_tree::ptree::key_type(), xmlTree, -1, xmlIndent);
 		if (!outStream) {
 			throw boost::property_tree::xml_parser_error("write error.", std::string(), 0);
 		}
@@ -1031,7 +1025,7 @@ static boost::property_tree::ptree sshsNodeGenerateXML(sshsNode node, bool recur
 			continue;
 		}
 
-		const std::string type = sshsHelperCppTypeToStringConverter(attr.second.getValue().getType());
+		const std::string type  = sshsHelperCppTypeToStringConverter(attr.second.getValue().getType());
 		const std::string value = sshsHelperCppValueToStringConverter(attr.second.getModifiedValue(attr.first));
 
 		boost::property_tree::ptree attrNode(value);
@@ -1040,8 +1034,8 @@ static boost::property_tree::ptree sshsNodeGenerateXML(sshsNode node, bool recur
 
 		// Attributes should be in order, but at the start of the node (before
 		// other nodes), so we insert() them instead of just adding to the back.
-		attrFirstIterator = content.insert(attrFirstIterator,
-			boost::property_tree::ptree::value_type("attr", attrNode));
+		attrFirstIterator
+			= content.insert(attrFirstIterator, boost::property_tree::ptree::value_type("attr", attrNode));
 		attrFirstIterator++;
 	}
 
@@ -1077,16 +1071,16 @@ static std::vector<std::reference_wrapper<const boost::property_tree::ptree>> ss
 }
 
 static bool sshsNodeFromXML(sshsNode node, int fd, bool recursive, bool strict) {
-	boost::iostreams::stream_buffer<boost::iostreams::file_descriptor_source> fdStream(fd,
-		boost::iostreams::never_close_handle);
+	boost::iostreams::stream_buffer<boost::iostreams::file_descriptor_source> fdStream(
+		fd, boost::iostreams::never_close_handle);
 
 	std::istream inStream(&fdStream);
 
 	boost::property_tree::ptree xmlTree;
 
 	try {
-		boost::property_tree::xml_parser::read_xml(inStream, xmlTree,
-			boost::property_tree::xml_parser::trim_whitespace);
+		boost::property_tree::xml_parser::read_xml(
+			inStream, xmlTree, boost::property_tree::xml_parser::trim_whitespace);
 	}
 	catch (const boost::property_tree::xml_parser_error &ex) {
 		const std::string errorMsg = std::string("Failed to load XML from input stream. Exception: ") + ex.what();
@@ -1142,7 +1136,7 @@ static void sshsNodeConsumeXML(sshsNode node, const boost::property_tree::ptree 
 
 	for (auto &attr : attributes) {
 		// Check that the proper attributes exist.
-		const auto key = attr.get().get("<xmlattr>.key", "");
+		const auto key  = attr.get().get("<xmlattr>.key", "");
 		const auto type = attr.get().get("<xmlattr>.type", "");
 
 		if (key.empty() || type.empty()) {
@@ -1158,8 +1152,8 @@ static void sshsNodeConsumeXML(sshsNode node, const boost::property_tree::ptree 
 				continue;
 			}
 
-			boost::format errorMsg = boost::format("failed to convert attribute from XML, value string was '%s'")
-				% value;
+			boost::format errorMsg
+				= boost::format("failed to convert attribute from XML, value string was '%s'") % value;
 
 			sshsNodeError("sshsNodeConsumeXML", key, sshsHelperCppStringToTypeConverter(type), errorMsg.str(), false);
 		}
@@ -1238,61 +1232,61 @@ bool sshsNodeStringToAttributeConverter(sshsNode node, const char *key, const ch
 			case SSHS_BOOL:
 				ranges.min.ilongRange = 0;
 				ranges.max.ilongRange = 0;
-				node->createAttribute(key, value, ranges, SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT,
-					"XML loaded value.");
+				node->createAttribute(
+					key, value, ranges, SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT, "XML loaded value.");
 				break;
 
 			case SSHS_BYTE:
 				ranges.min.ibyteRange = INT8_MIN;
 				ranges.max.ibyteRange = INT8_MAX;
-				node->createAttribute(key, value, ranges, SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT,
-					"XML loaded value.");
+				node->createAttribute(
+					key, value, ranges, SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT, "XML loaded value.");
 				break;
 
 			case SSHS_SHORT:
 				ranges.min.ishortRange = INT16_MIN;
 				ranges.max.ishortRange = INT16_MAX;
-				node->createAttribute(key, value, ranges, SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT,
-					"XML loaded value.");
+				node->createAttribute(
+					key, value, ranges, SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT, "XML loaded value.");
 				break;
 
 			case SSHS_INT:
 				ranges.min.iintRange = INT32_MIN;
 				ranges.max.iintRange = INT32_MAX;
-				node->createAttribute(key, value, ranges, SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT,
-					"XML loaded value.");
+				node->createAttribute(
+					key, value, ranges, SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT, "XML loaded value.");
 				break;
 
 			case SSHS_LONG:
 				ranges.min.ilongRange = INT64_MIN;
 				ranges.max.ilongRange = INT64_MAX;
-				node->createAttribute(key, value, ranges, SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT,
-					"XML loaded value.");
+				node->createAttribute(
+					key, value, ranges, SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT, "XML loaded value.");
 				break;
 
 			case SSHS_FLOAT:
 				ranges.min.ffloatRange = -FLT_MAX;
 				ranges.max.ffloatRange = FLT_MAX;
-				node->createAttribute(key, value, ranges, SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT,
-					"XML loaded value.");
+				node->createAttribute(
+					key, value, ranges, SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT, "XML loaded value.");
 				break;
 
 			case SSHS_DOUBLE:
 				ranges.min.ddoubleRange = -DBL_MAX;
 				ranges.max.ddoubleRange = DBL_MAX;
-				node->createAttribute(key, value, ranges, SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT,
-					"XML loaded value.");
+				node->createAttribute(
+					key, value, ranges, SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT, "XML loaded value.");
 				break;
 
 			case SSHS_STRING:
 				ranges.min.stringRange = 0;
 				ranges.max.stringRange = INT32_MAX;
-				node->createAttribute(key, value, ranges, SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT,
-					"XML loaded value.");
+				node->createAttribute(
+					key, value, ranges, SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT, "XML loaded value.");
 				break;
 
 			case SSHS_UNKNOWN:
-				errno = EINVAL;
+				errno  = EINVAL;
 				result = false;
 				break;
 		}
@@ -1307,7 +1301,7 @@ const char **sshsNodeGetChildNames(sshsNode node, size_t *numNames) {
 
 	if (node->children.empty()) {
 		*numNames = 0;
-		errno = ENOENT;
+		errno     = ENOENT;
 		return (nullptr);
 	}
 
@@ -1349,7 +1343,7 @@ const char **sshsNodeGetAttributeKeys(sshsNode node, size_t *numKeys) {
 
 	if (node->attributes.empty()) {
 		*numKeys = 0;
-		errno = ENOENT;
+		errno    = ENOENT;
 		return (nullptr);
 	}
 
@@ -1391,13 +1385,13 @@ enum sshs_node_attr_value_type *sshsNodeGetAttributeTypes(sshsNode node, const c
 
 	if (!node->attributes.count(key)) {
 		*numTypes = 0;
-		errno = ENOENT;
+		errno     = ENOENT;
 		return (nullptr);
 	}
 
 	// There is at most 1 type for one specific attribute key.
-	enum sshs_node_attr_value_type *attributeTypes = (enum sshs_node_attr_value_type *) malloc(
-		1 * sizeof(*attributeTypes));
+	enum sshs_node_attr_value_type *attributeTypes
+		= (enum sshs_node_attr_value_type *) malloc(1 * sizeof(*attributeTypes));
 	sshsMemoryCheck(attributeTypes, __func__);
 
 	// Check each attribute if it matches, and save its type if true.
@@ -1408,8 +1402,8 @@ enum sshs_node_attr_value_type *sshsNodeGetAttributeTypes(sshsNode node, const c
 	return (attributeTypes);
 }
 
-struct sshs_node_attr_ranges sshsNodeGetAttributeRanges(sshsNode node, const char *key,
-	enum sshs_node_attr_value_type type) {
+struct sshs_node_attr_ranges sshsNodeGetAttributeRanges(
+	sshsNode node, const char *key, enum sshs_node_attr_value_type type) {
 	std::lock_guard<std::recursive_mutex> lockNode(node->node_lock);
 
 	if (!node->attributeExists(key, type)) {
@@ -1443,8 +1437,8 @@ char *sshsNodeGetAttributeDescription(sshsNode node, const char *key, enum sshs_
 	return (descriptionCopy);
 }
 
-void sshsNodeCreateAttributePollTime(sshsNode node, const char *key, enum sshs_node_attr_value_type type,
-	int32_t pollTimeSeconds) {
+void sshsNodeCreateAttributePollTime(
+	sshsNode node, const char *key, enum sshs_node_attr_value_type type, int32_t pollTimeSeconds) {
 	std::lock_guard<std::recursive_mutex> lockNode(node->node_lock);
 
 	if (!node->attributeExists(key, type)) {
@@ -1479,8 +1473,8 @@ void sshsNodeCreateAttributeListOptions(sshsNode node, const char *key, enum ssh
 		"Comma separated list of possible associated attribute values.");
 }
 
-void sshsNodeCreateAttributeFileChooser(sshsNode node, const char *key, enum sshs_node_attr_value_type type,
-	const char *allowedExtensions) {
+void sshsNodeCreateAttributeFileChooser(
+	sshsNode node, const char *key, enum sshs_node_attr_value_type type, const char *allowedExtensions) {
 	std::lock_guard<std::recursive_mutex> lockNode(node->node_lock);
 
 	if (!node->attributeExists(key, type)) {

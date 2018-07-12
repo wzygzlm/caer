@@ -2,8 +2,8 @@
 
 #include "caer-sdk/mainloop.h"
 
-#include <cmath>
 #include <boost/algorithm/string.hpp>
+#include <cmath>
 
 #include <libcaercpp/devices/dynapse.hpp> // Only for constants.
 
@@ -13,11 +13,11 @@ static void caerVisualizerEventHandlerInput(caerVisualizerPublicState state, con
 
 const std::string caerVisualizerEventHandlerListOptionsString = "Neuron_Monitor,Input";
 
-const struct caer_visualizer_event_handler_info caerVisualizerEventHandlerList[] = { { "None", nullptr }, {
-	"Neuron_Monitor", &caerVisualizerEventHandlerNeuronMonitor }, { "Input", &caerVisualizerEventHandlerInput } };
+const struct caer_visualizer_event_handler_info caerVisualizerEventHandlerList[] = {{"None", nullptr},
+	{"Neuron_Monitor", &caerVisualizerEventHandlerNeuronMonitor}, {"Input", &caerVisualizerEventHandlerInput}};
 
-const size_t caerVisualizerEventHandlerListLength = (sizeof(caerVisualizerEventHandlerList)
-	/ sizeof(struct caer_visualizer_event_handler_info));
+const size_t caerVisualizerEventHandlerListLength
+	= (sizeof(caerVisualizerEventHandlerList) / sizeof(struct caer_visualizer_event_handler_info));
 
 static void caerVisualizerEventHandlerNeuronMonitor(caerVisualizerPublicState state, const sf::Event &event) {
 	// This only works with actual hardware.
@@ -45,16 +45,16 @@ static void caerVisualizerEventHandlerNeuronMonitor(caerVisualizerPublicState st
 		// Transform into chip ID, core ID and neuron ID.
 		const struct caer_spike_event val = caerDynapseSpikeEventFromXY(U16T(positionX), U16T(positionY));
 
-		uint8_t chipId = caerSpikeEventGetChipID(&val);
-		uint8_t coreId = caerSpikeEventGetSourceCoreID(&val);
+		uint8_t chipId    = caerSpikeEventGetChipID(&val);
+		uint8_t coreId    = caerSpikeEventGetSourceCoreID(&val);
 		uint32_t neuronId = caerSpikeEventGetNeuronID(&val);
 
 		// Set value via SSHS.
 		sshsNode neuronMonitorNode = sshsGetRelativeNode(state->eventSourceConfigNode, "NeuronMonitor/");
 
 		char monitorKey[] = "Ux_Cy";
-		monitorKey[1] = (char) (48 + chipId);
-		monitorKey[4] = (char) (48 + coreId);
+		monitorKey[1]     = (char) (48 + chipId);
+		monitorKey[4]     = (char) (48 + coreId);
 
 		sshsNodePutShort(neuronMonitorNode, monitorKey, I16T(neuronId));
 

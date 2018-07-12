@@ -6,17 +6,28 @@ static void caerInputDAVISConfigInit(sshsNode moduleNode);
 static bool caerInputDAVISInit(caerModuleData moduleData);
 static void caerInputDAVISExit(caerModuleData moduleData);
 
-static const struct caer_module_functions DAVISFunctions = { .moduleConfigInit = &caerInputDAVISConfigInit,
-	.moduleInit = &caerInputDAVISInit, .moduleRun = &caerInputDAVISCommonRun, .moduleConfig = NULL, .moduleExit =
-		&caerInputDAVISExit, .moduleReset = NULL };
+static const struct caer_module_functions DAVISFunctions = {.moduleConfigInit = &caerInputDAVISConfigInit,
+	.moduleInit                                                               = &caerInputDAVISInit,
+	.moduleRun                                                                = &caerInputDAVISCommonRun,
+	.moduleConfig                                                             = NULL,
+	.moduleExit                                                               = &caerInputDAVISExit,
+	.moduleReset                                                              = NULL};
 
-static const struct caer_event_stream_out DAVISOutputs[] = { { .type = SPECIAL_EVENT }, { .type = POLARITY_EVENT }, {
-	.type = FRAME_EVENT }, { .type = IMU6_EVENT } };
+static const struct caer_event_stream_out DAVISOutputs[]
+	= {{.type = SPECIAL_EVENT}, {.type = POLARITY_EVENT}, {.type = FRAME_EVENT}, {.type = IMU6_EVENT}};
 
-static const struct caer_module_info DAVISInfo = { .version = 1, .name = "DAVIS", .description =
-	"Connects to a DAVIS camera to get data.", .type = CAER_MODULE_INPUT, .memSize = 0, .functions = &DAVISFunctions,
-	.inputStreams = NULL, .inputStreamsSize = 0, .outputStreams = DAVISOutputs, .outputStreamsSize =
-		CAER_EVENT_STREAM_OUT_SIZE(DAVISOutputs), };
+static const struct caer_module_info DAVISInfo = {
+	.version           = 1,
+	.name              = "DAVIS",
+	.description       = "Connects to a DAVIS camera to get data.",
+	.type              = CAER_MODULE_INPUT,
+	.memSize           = 0,
+	.functions         = &DAVISFunctions,
+	.inputStreams      = NULL,
+	.inputStreamsSize  = 0,
+	.outputStreams     = DAVISOutputs,
+	.outputStreamsSize = CAER_EVENT_STREAM_OUT_SIZE(DAVISOutputs),
+};
 
 caerModuleInfo caerModuleGetInfo(void) {
 	return (&DAVISInfo);
@@ -33,13 +44,13 @@ static void caerInputDAVISConfigInit(sshsNode moduleNode) {
 	// USB port/bus/SN settings/restrictions.
 	// These can be used to force connection to one specific device at startup.
 	sshsNodeCreateShort(moduleNode, "busNumber", 0, 0, INT16_MAX, SSHS_FLAGS_NORMAL, "USB bus number restriction.");
-	sshsNodeCreateShort(moduleNode, "devAddress", 0, 0, INT16_MAX, SSHS_FLAGS_NORMAL,
-		"USB device address restriction.");
+	sshsNodeCreateShort(
+		moduleNode, "devAddress", 0, 0, INT16_MAX, SSHS_FLAGS_NORMAL, "USB device address restriction.");
 	sshsNodeCreateString(moduleNode, "serialNumber", "", 0, 8, SSHS_FLAGS_NORMAL, "USB serial number restriction.");
 
 	// Add auto-restart setting.
-	sshsNodeCreateBool(moduleNode, "autoRestart", true, SSHS_FLAGS_NORMAL,
-		"Automatically restart module after shutdown.");
+	sshsNodeCreateBool(
+		moduleNode, "autoRestart", true, SSHS_FLAGS_NORMAL, "Automatically restart module after shutdown.");
 
 	caerInputDAVISCommonSystemConfigInit(moduleNode);
 }
@@ -49,7 +60,7 @@ static bool caerInputDAVISInit(caerModuleData moduleData) {
 
 	// Start data acquisition, and correctly notify mainloop of new data and module of exceptional
 	// shutdown cases (device pulled, ...).
-	char *serialNumber = sshsNodeGetString(moduleData->moduleNode, "serialNumber");
+	char *serialNumber      = sshsNodeGetString(moduleData->moduleNode, "serialNumber");
 	moduleData->moduleState = caerDeviceOpen(U16T(moduleData->moduleID), CAER_DEVICE_DAVIS,
 		U8T(sshsNodeGetShort(moduleData->moduleNode, "busNumber")),
 		U8T(sshsNodeGetShort(moduleData->moduleNode, "devAddress")), serialNumber);
@@ -125,8 +136,8 @@ static bool caerInputDAVISInit(caerModuleData moduleData) {
 		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Data height.");
 
 	// Generate source string for output modules.
-	size_t sourceStringLength = (size_t) snprintf(NULL, 0, "#Source %" PRIu16 ": %s\r\n", moduleData->moduleID,
-		chipIDToName(devInfo.chipID, false));
+	size_t sourceStringLength = (size_t) snprintf(
+		NULL, 0, "#Source %" PRIu16 ": %s\r\n", moduleData->moduleID, chipIDToName(devInfo.chipID, false));
 
 	char sourceString[sourceStringLength + 1];
 	snprintf(sourceString, sourceStringLength + 1, "#Source %" PRIu16 ": %s\r\n", moduleData->moduleID,
@@ -137,9 +148,9 @@ static bool caerInputDAVISInit(caerModuleData moduleData) {
 		SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Device source information.");
 
 	// Generate sub-system string for module.
-	size_t subSystemStringLength = (size_t) snprintf(NULL, 0, "%s[SN %s, %" PRIu8 ":%" PRIu8 "]",
-		moduleData->moduleSubSystemString, devInfo.deviceSerialNumber, devInfo.deviceUSBBusNumber,
-		devInfo.deviceUSBDeviceAddress);
+	size_t subSystemStringLength
+		= (size_t) snprintf(NULL, 0, "%s[SN %s, %" PRIu8 ":%" PRIu8 "]", moduleData->moduleSubSystemString,
+			devInfo.deviceSerialNumber, devInfo.deviceUSBBusNumber, devInfo.deviceUSBDeviceAddress);
 
 	char subSystemString[subSystemStringLength + 1];
 	snprintf(subSystemString, subSystemStringLength + 1, "%s[SN %s, %" PRIu8 ":%" PRIu8 "]",
@@ -152,12 +163,12 @@ static bool caerInputDAVISInit(caerModuleData moduleData) {
 	// Ensure good defaults for data acquisition settings.
 	// No blocking behavior due to mainloop notification, and no auto-start of
 	// all producers to ensure cAER settings are respected.
-	caerDeviceConfigSet(moduleData->moduleState, CAER_HOST_CONFIG_DATAEXCHANGE,
-	CAER_HOST_CONFIG_DATAEXCHANGE_BLOCKING, false);
-	caerDeviceConfigSet(moduleData->moduleState, CAER_HOST_CONFIG_DATAEXCHANGE,
-	CAER_HOST_CONFIG_DATAEXCHANGE_START_PRODUCERS, false);
-	caerDeviceConfigSet(moduleData->moduleState, CAER_HOST_CONFIG_DATAEXCHANGE,
-	CAER_HOST_CONFIG_DATAEXCHANGE_STOP_PRODUCERS, true);
+	caerDeviceConfigSet(
+		moduleData->moduleState, CAER_HOST_CONFIG_DATAEXCHANGE, CAER_HOST_CONFIG_DATAEXCHANGE_BLOCKING, false);
+	caerDeviceConfigSet(
+		moduleData->moduleState, CAER_HOST_CONFIG_DATAEXCHANGE, CAER_HOST_CONFIG_DATAEXCHANGE_START_PRODUCERS, false);
+	caerDeviceConfigSet(
+		moduleData->moduleState, CAER_HOST_CONFIG_DATAEXCHANGE, CAER_HOST_CONFIG_DATAEXCHANGE_STOP_PRODUCERS, true);
 
 	// Create default settings and send them to the device.
 	createDefaultBiasConfiguration(moduleData, chipIDToName(devInfo.chipID, true), devInfo.chipID);
@@ -167,8 +178,7 @@ static bool caerInputDAVISInit(caerModuleData moduleData) {
 
 	// Start data acquisition.
 	bool ret = caerDeviceDataStart(moduleData->moduleState, &caerMainloopDataNotifyIncrease,
-		&caerMainloopDataNotifyDecrease,
-		NULL, &moduleShutdownNotify, moduleData->moduleNode);
+		&caerMainloopDataNotifyDecrease, NULL, &moduleShutdownNotify, moduleData->moduleNode);
 
 	if (!ret) {
 		// Failed to start data acquisition, close device and exit.
@@ -208,7 +218,7 @@ static bool caerInputDAVISInit(caerModuleData moduleData) {
 	sshsNode biasNode = sshsGetRelativeNode(deviceConfigNode, "bias/");
 
 	size_t biasNodesLength = 0;
-	sshsNode *biasNodes = sshsNodeGetChildren(biasNode, &biasNodesLength);
+	sshsNode *biasNodes    = sshsNodeGetChildren(biasNode, &biasNodesLength);
 
 	if (biasNodes != NULL) {
 		for (size_t i = 0; i < biasNodesLength; i++) {
@@ -227,7 +237,7 @@ static bool caerInputDAVISInit(caerModuleData moduleData) {
 static void caerInputDAVISExit(caerModuleData moduleData) {
 	// Device related configuration has its own sub-node.
 	struct caer_davis_info devInfo = caerDavisInfoGet(moduleData->moduleState);
-	sshsNode deviceConfigNode = sshsGetRelativeNode(moduleData->moduleNode, chipIDToName(devInfo.chipID, true));
+	sshsNode deviceConfigNode      = sshsGetRelativeNode(moduleData->moduleNode, chipIDToName(devInfo.chipID, true));
 
 	// Remove listener, which can reference invalid memory in userData.
 	sshsNodeRemoveAttributeListener(moduleData->moduleNode, moduleData, &logLevelListener);
@@ -259,7 +269,7 @@ static void caerInputDAVISExit(caerModuleData moduleData) {
 	sshsNode biasNode = sshsGetRelativeNode(deviceConfigNode, "bias/");
 
 	size_t biasNodesLength = 0;
-	sshsNode *biasNodes = sshsNodeGetChildren(biasNode, &biasNodesLength);
+	sshsNode *biasNodes    = sshsNodeGetChildren(biasNode, &biasNodesLength);
 
 	if (biasNodes != NULL) {
 		for (size_t i = 0; i < biasNodesLength; i++) {
@@ -298,14 +308,14 @@ static void createDefaultUSBConfiguration(caerModuleData moduleData, const char 
 
 	// Subsystem 9: FX2/3 USB Configuration and USB buffer settings.
 	sshsNode usbNode = sshsGetRelativeNode(deviceConfigNode, "usb/");
-	sshsNodeCreateBool(usbNode, "Run", true, SSHS_FLAGS_NORMAL,
-		"Enable the USB state machine (FPGA to USB data exchange).");
+	sshsNodeCreateBool(
+		usbNode, "Run", true, SSHS_FLAGS_NORMAL, "Enable the USB state machine (FPGA to USB data exchange).");
 	sshsNodeCreateShort(usbNode, "EarlyPacketDelay", 8, 1, 8000, SSHS_FLAGS_NORMAL,
 		"Send early USB packets if this timeout is reached (in 125µs time-slices).");
 
 	sshsNodeCreateInt(usbNode, "BufferNumber", 8, 2, 128, SSHS_FLAGS_NORMAL, "Number of USB transfers.");
-	sshsNodeCreateInt(usbNode, "BufferSize", 8192, 512, 32768, SSHS_FLAGS_NORMAL,
-		"Size in bytes of data buffers for USB transfers.");
+	sshsNodeCreateInt(
+		usbNode, "BufferSize", 8192, 512, 32768, SSHS_FLAGS_NORMAL, "Size in bytes of data buffers for USB transfers.");
 }
 
 static void sendDefaultConfiguration(caerModuleData moduleData, struct caer_davis_info *devInfo) {

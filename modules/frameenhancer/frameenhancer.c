@@ -18,35 +18,45 @@ static void caerFrameEnhancerRun(caerModuleData moduleData, caerEventPacketConta
 static void caerFrameEnhancerConfig(caerModuleData moduleData);
 static void caerFrameEnhancerExit(caerModuleData moduleData);
 
-static const struct caer_module_functions FrameEnhancerFunctions = { .moduleConfigInit = &caerFrameEnhancerConfigInit,
-	.moduleInit = &caerFrameEnhancerInit, .moduleRun = &caerFrameEnhancerRun, .moduleConfig = &caerFrameEnhancerConfig,
-	.moduleExit = &caerFrameEnhancerExit, .moduleReset = NULL };
+static const struct caer_module_functions FrameEnhancerFunctions = {.moduleConfigInit = &caerFrameEnhancerConfigInit,
+	.moduleInit                                                                       = &caerFrameEnhancerInit,
+	.moduleRun                                                                        = &caerFrameEnhancerRun,
+	.moduleConfig                                                                     = &caerFrameEnhancerConfig,
+	.moduleExit                                                                       = &caerFrameEnhancerExit,
+	.moduleReset                                                                      = NULL};
 
-static const struct caer_event_stream_in FrameEnhancerInputs[] = {
-	{ .type = FRAME_EVENT, .number = 1, .readOnly = true } };
+static const struct caer_event_stream_in FrameEnhancerInputs[] = {{.type = FRAME_EVENT, .number = 1, .readOnly = true}};
 // The output frame here is a _different_ frame than the above input!
-static const struct caer_event_stream_out FrameEnhancerOutputs[] = { { .type = FRAME_EVENT } };
+static const struct caer_event_stream_out FrameEnhancerOutputs[] = {{.type = FRAME_EVENT}};
 
-static const struct caer_module_info FrameEnhancerInfo = { .version = 1, .name = "FrameEnhancer", .description =
-	"Applies contrast enhancement techniques to frames, or interpolates colors to get an RGB frame (demoisaicing).",
-	.type = CAER_MODULE_PROCESSOR, .memSize = sizeof(struct FrameEnhancer_state), .functions = &FrameEnhancerFunctions,
-	.inputStreams = FrameEnhancerInputs, .inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(FrameEnhancerInputs),
-	.outputStreams = FrameEnhancerOutputs, .outputStreamsSize = CAER_EVENT_STREAM_OUT_SIZE(FrameEnhancerOutputs), };
+static const struct caer_module_info FrameEnhancerInfo = {
+	.version = 1,
+	.name    = "FrameEnhancer",
+	.description
+	= "Applies contrast enhancement techniques to frames, or interpolates colors to get an RGB frame (demoisaicing).",
+	.type              = CAER_MODULE_PROCESSOR,
+	.memSize           = sizeof(struct FrameEnhancer_state),
+	.functions         = &FrameEnhancerFunctions,
+	.inputStreams      = FrameEnhancerInputs,
+	.inputStreamsSize  = CAER_EVENT_STREAM_IN_SIZE(FrameEnhancerInputs),
+	.outputStreams     = FrameEnhancerOutputs,
+	.outputStreamsSize = CAER_EVENT_STREAM_OUT_SIZE(FrameEnhancerOutputs),
+};
 
 caerModuleInfo caerModuleGetInfo(void) {
 	return (&FrameEnhancerInfo);
 }
 
 static void caerFrameEnhancerConfigInit(sshsNode moduleNode) {
-	sshsNodeCreateBool(moduleNode, "doDemosaic", false, SSHS_FLAGS_NORMAL,
-		"Do demosaicing (color interpolation) on frame.");
+	sshsNodeCreateBool(
+		moduleNode, "doDemosaic", false, SSHS_FLAGS_NORMAL, "Do demosaicing (color interpolation) on frame.");
 	sshsNodeCreateBool(moduleNode, "doContrast", false, SSHS_FLAGS_NORMAL, "Do contrast enhancement on frame.");
 
 #if defined(LIBCAER_HAVE_OPENCV) && LIBCAER_HAVE_OPENCV == 1
 	sshsNodeCreateString(moduleNode, "demosaicType", "opencv_edge_aware", 8, 17, SSHS_FLAGS_NORMAL,
 		"Demoisaicing (color interpolation) algorithm to apply.");
-	sshsNodeCreateAttributeListOptions(moduleNode, "demosaicType", SSHS_STRING,
-		"opencv_edge_aware,opencv_normal,standard", false);
+	sshsNodeCreateAttributeListOptions(
+		moduleNode, "demosaicType", SSHS_STRING, "opencv_edge_aware,opencv_normal,standard", false);
 	sshsNodeCreateString(moduleNode, "contrastType", "opencv_normalization", 8, 29, SSHS_FLAGS_NORMAL,
 		"Contrast enhancement algorithm to apply.");
 	sshsNodeCreateAttributeListOptions(moduleNode, "contrastType", SSHS_STRING,
@@ -54,11 +64,11 @@ static void caerFrameEnhancerConfigInit(sshsNode moduleNode) {
 #else
 	// Only standard algorithms are available here, so we force those and make it read-only.
 	sshsNodeRemoveAttribute(moduleNode, "demosaicType", SSHS_STRING);
-	sshsNodeCreateString(moduleNode, "demosaicType", "standard", 8, 8,
-		SSHS_FLAGS_READ_ONLY, "Demoisaicing (color interpolation) algorithm to apply.");
+	sshsNodeCreateString(moduleNode, "demosaicType", "standard", 8, 8, SSHS_FLAGS_READ_ONLY,
+		"Demoisaicing (color interpolation) algorithm to apply.");
 	sshsNodeRemoveAttribute(moduleNode, "contrastType", SSHS_STRING);
-	sshsNodeCreateString(moduleNode, "contrastType", "standard", 8, 8,
-		SSHS_FLAGS_READ_ONLY, "Contrast enhancement algorithm to apply.");
+	sshsNodeCreateString(
+		moduleNode, "contrastType", "standard", 8, 8, SSHS_FLAGS_READ_ONLY, "Contrast enhancement algorithm to apply.");
 #endif
 }
 
@@ -78,8 +88,8 @@ static bool caerFrameEnhancerInit(caerModuleData moduleData) {
 		"Output frame width.");
 	sshsNodeCreateShort(sourceInfoNode, "frameSizeY", sizeY, 1, 1024, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT,
 		"Output frame height.");
-	sshsNodeCreateShort(sourceInfoNode, "dataSizeX", sizeX, 1, 1024, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT,
-		"Output data width.");
+	sshsNodeCreateShort(
+		sourceInfoNode, "dataSizeX", sizeX, 1, 1024, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Output data width.");
 	sshsNodeCreateShort(sourceInfoNode, "dataSizeY", sizeY, 1, 1024, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT,
 		"Output data height.");
 
@@ -93,16 +103,17 @@ static bool caerFrameEnhancerInit(caerModuleData moduleData) {
 	return (true);
 }
 
-static void caerFrameEnhancerRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out) {
-	caerFrameEventPacketConst frame = (caerFrameEventPacketConst) caerEventPacketContainerFindEventPacketByTypeConst(in,
-		FRAME_EVENT);
+static void caerFrameEnhancerRun(
+	caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out) {
+	caerFrameEventPacketConst frame
+		= (caerFrameEventPacketConst) caerEventPacketContainerFindEventPacketByTypeConst(in, FRAME_EVENT);
 
 	// Only process packets with content.
 	if (frame == NULL) {
 		return;
 	}
 
-	FrameEnhancerState state = moduleData->moduleState;
+	FrameEnhancerState state           = moduleData->moduleState;
 	caerFrameEventPacket enhancedFrame = NULL;
 
 	if (state->doDemosaic) {
@@ -117,8 +128,8 @@ static void caerFrameEnhancerRun(caerModuleData moduleData, caerEventPacketConta
 		// If enhancedFrame doesn't exist yet, make a copy of frame, since
 		// the demosaic operation didn't do it for us.
 		if (enhancedFrame == NULL) {
-			enhancedFrame = (caerFrameEventPacket) caerEventPacketCopyOnlyValidEvents(
-				(caerEventPacketHeaderConst) frame);
+			enhancedFrame
+				= (caerFrameEventPacket) caerEventPacketCopyOnlyValidEvents((caerEventPacketHeaderConst) frame);
 			if (enhancedFrame == NULL) {
 				return;
 			}

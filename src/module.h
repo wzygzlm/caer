@@ -1,8 +1,8 @@
 #ifndef MODULE_H_
 #define MODULE_H_
 
-#include "caer-sdk/module.h"
 #include "caer-sdk/mainloop.h"
+#include "caer-sdk/module.h"
 
 #ifdef __cplusplus
 extern "C" {

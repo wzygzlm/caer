@@ -1,6 +1,6 @@
+#include "caer-sdk/cross/portable_io.h"
 #include "caer-sdk/mainloop.h"
 #include "output_common.h"
-#include "caer-sdk/cross/portable_io.h"
 #include <fcntl.h>
 #include <time.h>
 
@@ -9,16 +9,26 @@
 
 static bool caerOutputFileInit(caerModuleData moduleData);
 
-static const struct caer_module_functions OutputFileFunctions = { .moduleInit = &caerOutputFileInit, .moduleRun =
-	&caerOutputCommonRun, .moduleConfig = NULL, .moduleExit = &caerOutputCommonExit, .moduleReset =
-	&caerOutputCommonReset };
+static const struct caer_module_functions OutputFileFunctions = {.moduleInit = &caerOutputFileInit,
+	.moduleRun                                                               = &caerOutputCommonRun,
+	.moduleConfig                                                            = NULL,
+	.moduleExit                                                              = &caerOutputCommonExit,
+	.moduleReset                                                             = &caerOutputCommonReset};
 
-static const struct caer_event_stream_in OutputFileInputs[] = { { .type = -1, .number = -1, .readOnly = true } };
+static const struct caer_event_stream_in OutputFileInputs[] = {{.type = -1, .number = -1, .readOnly = true}};
 
-static const struct caer_module_info OutputFileInfo = { .version = 1, .name = "FileOutput", .description =
-	"Write AEDAT 3 data out to a file.", .type = CAER_MODULE_OUTPUT, .memSize = sizeof(struct output_common_state),
-	.functions = &OutputFileFunctions, .inputStreams = OutputFileInputs, .inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(
-		OutputFileInputs), .outputStreams = NULL, .outputStreamsSize = 0, };
+static const struct caer_module_info OutputFileInfo = {
+	.version           = 1,
+	.name              = "FileOutput",
+	.description       = "Write AEDAT 3 data out to a file.",
+	.type              = CAER_MODULE_OUTPUT,
+	.memSize           = sizeof(struct output_common_state),
+	.functions         = &OutputFileFunctions,
+	.inputStreams      = OutputFileInputs,
+	.inputStreamsSize  = CAER_EVENT_STREAM_IN_SIZE(OutputFileInputs),
+	.outputStreams     = NULL,
+	.outputStreamsSize = 0,
+};
 
 caerModuleInfo caerModuleGetInfo(void) {
 	return (&OutputFileInfo);
@@ -116,7 +126,7 @@ static bool caerOutputFileInit(caerModuleData moduleData) {
 
 	// Generate current file name and open it.
 	char *directory = sshsNodeGetString(moduleData->moduleNode, "directory");
-	char *prefix = sshsNodeGetString(moduleData->moduleNode, "prefix");
+	char *prefix    = sshsNodeGetString(moduleData->moduleNode, "prefix");
 
 	char *filePath = getFullFilePath(moduleData, directory, prefix);
 	free(directory);

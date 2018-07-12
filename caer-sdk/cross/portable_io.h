@@ -23,11 +23,11 @@ extern "C" {
 #include <limits.h>
 
 #if defined(__APPLE__)
-	#include <sys/syslimits.h>
+#include <sys/syslimits.h>
 #endif
 
 #ifndef PATH_MAX
-	#error "No PATH_MAX defined."
+#error "No PATH_MAX defined."
 #endif
 
 /**

@@ -1,14 +1,14 @@
-#include <stdlib.h>
-#include <stdio.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <inttypes.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/socket.h>
-#include <sys/un.h>
 #include "ext/net_rw.h"
 #include "modules/inout/inout_common.h"
+#include <inttypes.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <unistd.h>
 
 #include <libcaer/events/common.h>
 
@@ -29,7 +29,7 @@ int main(int argc, char *argv[]) {
 	struct sigaction shutdownAction;
 
 	shutdownAction.sa_handler = &globalShutdownSignalHandler;
-	shutdownAction.sa_flags = 0;
+	shutdownAction.sa_flags   = 0;
 	sigemptyset(&shutdownAction.sa_mask);
 	sigaddset(&shutdownAction.sa_mask, SIGTERM);
 	sigaddset(&shutdownAction.sa_mask, SIGINT);
@@ -51,7 +51,7 @@ int main(int argc, char *argv[]) {
 
 	if (argc != 1 && argc != 2) {
 		fprintf(stderr, "Incorrect argument number. Either pass none for default local socket"
-			"path of /tmp/caer.sock, or pass the absolute path to the socket.\n");
+						"path of /tmp/caer.sock, or pass the absolute path to the socket.\n");
 		return (EXIT_FAILURE);
 	}
 
@@ -83,7 +83,7 @@ int main(int argc, char *argv[]) {
 
 	// 1M data buffer should be enough for the Unix Socket event packets. Frames are very big!
 	size_t dataBufferLength = 1024 * 1024;
-	uint8_t *dataBuffer = malloc(dataBufferLength);
+	uint8_t *dataBuffer     = malloc(dataBufferLength);
 	if (dataBuffer == NULL) {
 		close(listenUnixSocket);
 
@@ -122,22 +122,22 @@ int main(int argc, char *argv[]) {
 		// Decode successfully received data.
 		caerEventPacketHeader header = (caerEventPacketHeader) dataBuffer;
 
-		int16_t eventType = caerEventPacketHeaderGetEventType(header);
-		int16_t eventSource = caerEventPacketHeaderGetEventSource(header);
-		int32_t eventSize = caerEventPacketHeaderGetEventSize(header);
-		int32_t eventTSOffset = caerEventPacketHeaderGetEventTSOffset(header);
+		int16_t eventType       = caerEventPacketHeaderGetEventType(header);
+		int16_t eventSource     = caerEventPacketHeaderGetEventSource(header);
+		int32_t eventSize       = caerEventPacketHeaderGetEventSize(header);
+		int32_t eventTSOffset   = caerEventPacketHeaderGetEventTSOffset(header);
 		int32_t eventTSOverflow = caerEventPacketHeaderGetEventTSOverflow(header);
-		int32_t eventCapacity = caerEventPacketHeaderGetEventCapacity(header);
-		int32_t eventNumber = caerEventPacketHeaderGetEventNumber(header);
-		int32_t eventValid = caerEventPacketHeaderGetEventValid(header);
+		int32_t eventCapacity   = caerEventPacketHeaderGetEventCapacity(header);
+		int32_t eventNumber     = caerEventPacketHeaderGetEventNumber(header);
+		int32_t eventValid      = caerEventPacketHeaderGetEventValid(header);
 
-		printf(
-			"type = %" PRIi16 ", source = %" PRIi16 ", size = %" PRIi32 ", tsOffset = %" PRIi32 ", tsOverflow = %" PRIi32 ", capacity = %" PRIi32 ", number = %" PRIi32 ", valid = %" PRIi32 ".\n",
+		printf("type = %" PRIi16 ", source = %" PRIi16 ", size = %" PRIi32 ", tsOffset = %" PRIi32
+			   ", tsOverflow = %" PRIi32 ", capacity = %" PRIi32 ", number = %" PRIi32 ", valid = %" PRIi32 ".\n",
 			eventType, eventSource, eventSize, eventTSOffset, eventTSOverflow, eventCapacity, eventNumber, eventValid);
 
 		// Get rest of event packet, the part with the events themselves.
-		if (!recvUntilDone(listenUnixSocket, dataBuffer + CAER_EVENT_PACKET_HEADER_SIZE,
-			(size_t) (eventCapacity * eventSize))) {
+		if (!recvUntilDone(
+				listenUnixSocket, dataBuffer + CAER_EVENT_PACKET_HEADER_SIZE, (size_t)(eventCapacity * eventSize))) {
 			free(dataBuffer);
 			close(listenUnixSocket);
 
@@ -147,10 +147,10 @@ int main(int argc, char *argv[]) {
 
 		if (eventValid > 0) {
 			void *firstEvent = caerGenericEventGetEvent(header, 0);
-			void *lastEvent = caerGenericEventGetEvent(header, eventValid - 1);
+			void *lastEvent  = caerGenericEventGetEvent(header, eventValid - 1);
 
 			int32_t firstTS = caerGenericEventGetTimestamp(firstEvent, header);
-			int32_t lastTS = caerGenericEventGetTimestamp(lastEvent, header);
+			int32_t lastTS  = caerGenericEventGetTimestamp(lastEvent, header);
 
 			int32_t tsDifference = lastTS - firstTS;
 

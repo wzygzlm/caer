@@ -1,6 +1,8 @@
 #ifndef CALIBRATION_SETTINGS_H_
 #define CALIBRATION_SETTINGS_H_
 
+#include <stdint.h>
+
 enum CameraCalibrationPattern { CAMCALIB_CHESSBOARD, CAMCALIB_CIRCLES_GRID, CAMCALIB_ASYMMETRIC_CIRCLES_GRID };
 
 struct CameraCalibrationSettings_struct {

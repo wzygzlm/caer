@@ -1,16 +1,16 @@
-#include <stdlib.h>
-#include <stdio.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <inttypes.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include <netinet/in.h>
 #include "ext/uthash/utarray.h"
 #include "ext/uthash/utlist.h"
 #include "modules/inout/inout_common.h"
+#include <arpa/inet.h>
+#include <inttypes.h>
+#include <netinet/in.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <unistd.h>
 
 #include <libcaer/events/common.h>
 
@@ -39,8 +39,8 @@ typedef struct udp_message *udpMessage;
 
 static void rebuildUDPPackets(int64_t highestParsedSequenceNumber, udpPacket *incompleteUDPPackets,
 	udpMessage *unassignedUDPMessages, int64_t sequenceNumber, uint8_t *data, size_t dataLength);
-static caerEventPacketHeader getNextUDPEventPacket(int64_t *highestParsedSequenceNumber,
-	udpPacket *incompleteUDPPackets, udpMessage *unassignedUDPMessages);
+static caerEventPacketHeader getNextUDPEventPacket(
+	int64_t *highestParsedSequenceNumber, udpPacket *incompleteUDPPackets, udpMessage *unassignedUDPMessages);
 static void printPacketInfo(caerEventPacketHeader header);
 
 static atomic_bool globalShutdown = ATOMIC_VAR_INIT(false);
@@ -53,7 +53,7 @@ static void globalShutdownSignalHandler(int signal) {
 }
 
 int main(int argc, char *argv[]) {
-	// Install signal handler for global shutdown.
+// Install signal handler for global shutdown.
 #if defined(_WIN32)
 	if (signal(SIGTERM, &globalShutdownSignalHandler) == SIG_ERR) {
 		caerLog(CAER_LOG_CRITICAL, "ShutdownAction", "Failed to set signal handler for SIGTERM. Error: %d.", errno);
@@ -68,7 +68,7 @@ int main(int argc, char *argv[]) {
 	struct sigaction shutdownAction;
 
 	shutdownAction.sa_handler = &globalShutdownSignalHandler;
-	shutdownAction.sa_flags = 0;
+	shutdownAction.sa_flags   = 0;
 	sigemptyset(&shutdownAction.sa_mask);
 	sigaddset(&shutdownAction.sa_mask, SIGTERM);
 	sigaddset(&shutdownAction.sa_mask, SIGINT);
@@ -88,11 +88,11 @@ int main(int argc, char *argv[]) {
 	// Those are for now also the only two parameters permitted.
 	// If none passed, attempt to connect to default UDP IP:Port.
 	const char *ipAddress = "127.0.0.1";
-	uint16_t portNumber = 8888;
+	uint16_t portNumber   = 8888;
 
 	if (argc != 1 && argc != 3) {
 		fprintf(stderr, "Incorrect argument number. Either pass none for default IP:Port"
-			"combination of 127.0.0.1:8888, or pass the IP followed by the Port.\n");
+						"combination of 127.0.0.1:8888, or pass the IP followed by the Port.\n");
 		return (EXIT_FAILURE);
 	}
 
@@ -106,7 +106,7 @@ int main(int argc, char *argv[]) {
 	memset(&listenUDPAddress, 0, sizeof(struct sockaddr_in));
 
 	listenUDPAddress.sin_family = AF_INET;
-	listenUDPAddress.sin_port = htons(portNumber);
+	listenUDPAddress.sin_port   = htons(portNumber);
 
 	if (inet_pton(AF_INET, ipAddress, &listenUDPAddress.sin_addr) == 0) {
 		fprintf(stderr, "No valid IP address found. '%s' is invalid!\n", ipAddress);
@@ -129,7 +129,7 @@ int main(int argc, char *argv[]) {
 
 	// Use cAER maximum UDP message size.
 	size_t dataBufferLength = AEDAT3_MAX_UDP_SIZE;
-	uint8_t *dataBuffer = malloc(dataBufferLength);
+	uint8_t *dataBuffer     = malloc(dataBufferLength);
 	if (dataBuffer == NULL) {
 		close(listenUDPSocket);
 
@@ -184,8 +184,8 @@ int main(int argc, char *argv[]) {
 			networkHeader.sequenceNumber, dataBuffer + AEDAT3_NETWORK_HEADER_LENGTH,
 			(size_t) result - AEDAT3_NETWORK_HEADER_LENGTH);
 
-		caerEventPacketHeader eventPacket = getNextUDPEventPacket(&highestParsedSequenceNumber, &incompleteUDPPackets,
-			&unassignedUDPMessages);
+		caerEventPacketHeader eventPacket
+			= getNextUDPEventPacket(&highestParsedSequenceNumber, &incompleteUDPPackets, &unassignedUDPMessages);
 
 		printPacketInfo(eventPacket);
 
@@ -196,14 +196,12 @@ int main(int argc, char *argv[]) {
 	close(listenUDPSocket);
 
 	udpMessage msg = NULL;
-	LL_FOREACH(unassignedUDPMessages, msg)
-	{
+	LL_FOREACH(unassignedUDPMessages, msg) {
 		free(msg);
 	}
 
 	udpPacket pkt = NULL;
-	LL_FOREACH(incompleteUDPPackets, pkt)
-	{
+	LL_FOREACH(incompleteUDPPackets, pkt) {
 		free(pkt->content);
 		free(pkt);
 	}
@@ -217,7 +215,7 @@ static void rebuildUDPPackets(int64_t highestParsedSequenceNumber, udpPacket *in
 	udpMessage *unassignedUDPMessages, int64_t sequenceNumber, uint8_t *data, size_t dataLength) {
 	// Is this a start message or an intermediate/end one?
 	bool startMessage = (U64T(sequenceNumber) & 0x8000000000000000LL);
-	sequenceNumber = sequenceNumber & 0x7FFFFFFFFFFFFFFFLL;
+	sequenceNumber    = sequenceNumber & 0x7FFFFFFFFFFFFFFFLL;
 
 	// If the sequence number is smaller or equal of the highest already parsed
 	// UDP packet, we discard it right away. The stream reconstruction has already
@@ -237,8 +235,7 @@ static void rebuildUDPPackets(int64_t highestParsedSequenceNumber, udpPacket *in
 		// First we check if we already have an UDP packet with this particular starting
 		// sequence number. Duplicate messages are possible with UDP!
 		udpPacket packet = NULL;
-		LL_FOREACH(*incompleteUDPPackets, packet)
-		{
+		LL_FOREACH(*incompleteUDPPackets, packet) {
 			if (packet->startSequenceNumber == sequenceNumber) {
 				// Duplicate, ignore!
 				return;
@@ -250,12 +247,12 @@ static void rebuildUDPPackets(int64_t highestParsedSequenceNumber, udpPacket *in
 		// its right place in the list based upon the sequence number.
 		caerEventPacketHeader eventHeader = (caerEventPacketHeader) data;
 
-		int32_t eventSize = caerEventPacketHeaderGetEventSize(eventHeader);
+		int32_t eventSize   = caerEventPacketHeaderGetEventSize(eventHeader);
 		int32_t eventNumber = caerEventPacketHeaderGetEventNumber(eventHeader);
 
 		// Determine event packe size in bytes, so we can allocate space for it and
 		// calculate how many UDP packets are used to send this.
-		size_t eventPacketSize = CAER_EVENT_PACKET_HEADER_SIZE + (size_t) (eventSize * eventNumber);
+		size_t eventPacketSize = CAER_EVENT_PACKET_HEADER_SIZE + (size_t)(eventSize * eventNumber);
 
 		// Allocate memory for new event packet.
 		caerEventPacketHeader newEventPacket = calloc(1, eventPacketSize);
@@ -280,17 +277,16 @@ static void rebuildUDPPackets(int64_t highestParsedSequenceNumber, udpPacket *in
 		// Copy content at start, set all required fields.
 		newPacket->content = newEventPacket;
 		memcpy(newPacket->content, data, dataLength);
-		newPacket->startSequenceNumber = sequenceNumber;
-		newPacket->endSequenceNumber = I64T((size_t ) sequenceNumber + numUDPPackets - 1);
-		newPacket->numUDPPackets = numUDPPackets;
+		newPacket->startSequenceNumber   = sequenceNumber;
+		newPacket->endSequenceNumber     = I64T((size_t) sequenceNumber + numUDPPackets - 1);
+		newPacket->numUDPPackets         = numUDPPackets;
 		newPacket->udpPacketsReceived[0] = true;
 
 		// Find out where to link new UDP packet into ordered list.
 		// We already checked and excluded equality above, so it can only be smaller
 		// or bigger, never equal.
 		udpPacket prevPacket = NULL;
-		LL_FOREACH(*incompleteUDPPackets, packet)
-		{
+		LL_FOREACH(*incompleteUDPPackets, packet) {
 			if (packet->startSequenceNumber > newPacket->startSequenceNumber) {
 				break;
 			}
@@ -300,20 +296,19 @@ static void rebuildUDPPackets(int64_t highestParsedSequenceNumber, udpPacket *in
 
 		if (prevPacket == NULL) {
 			// Insert at HEAD of list.
-			newPacket->next = *incompleteUDPPackets;
+			newPacket->next       = *incompleteUDPPackets;
 			*incompleteUDPPackets = newPacket;
 		}
 		else {
 			// Insert somewhere inside list.
-			newPacket->next = prevPacket->next;
+			newPacket->next  = prevPacket->next;
 			prevPacket->next = newPacket;
 		}
 
 		// Scan unassigned messages list and try to pick up messages that are part
 		// of this UDP packet.
 		udpMessage prevMessage = NULL, message = NULL, nextMessage = NULL;
-		LL_FOREACH_SAFE(*unassignedUDPMessages, message, nextMessage)
-		{
+		LL_FOREACH_SAFE(*unassignedUDPMessages, message, nextMessage) {
 			if (message->sequenceNumber > newPacket->endSequenceNumber) {
 				// There can't be any more possible candidates if we're past
 				// the end sequence number.
@@ -351,8 +346,7 @@ static void rebuildUDPPackets(int64_t highestParsedSequenceNumber, udpPacket *in
 		// Let's find out if we can assign it to any existing UDP packet.
 		// If not, we put it into the unassigned messages list.
 		udpPacket packet = NULL;
-		LL_FOREACH(*incompleteUDPPackets, packet)
-		{
+		LL_FOREACH(*incompleteUDPPackets, packet) {
 			if (sequenceNumber > packet->startSequenceNumber && sequenceNumber <= packet->endSequenceNumber) {
 				// This message is part of this UDP packet!
 				// First check for duplication (is it already there?).
@@ -372,8 +366,7 @@ static void rebuildUDPPackets(int64_t highestParsedSequenceNumber, udpPacket *in
 		// This message was not part of any existing incomplete packet!
 		// Add to unassigned messages list, find place and check for duplicates.
 		udpMessage prevMessage = NULL, message = NULL;
-		LL_FOREACH(*unassignedUDPMessages, message)
-		{
+		LL_FOREACH(*unassignedUDPMessages, message) {
 			if (message->sequenceNumber == sequenceNumber) {
 				// Duplicates are possible, just ignore them.
 				return;
@@ -395,49 +388,49 @@ static void rebuildUDPPackets(int64_t highestParsedSequenceNumber, udpPacket *in
 
 		// Copy data into new message.
 		newMessage->sequenceNumber = sequenceNumber;
-		newMessage->messageLength = dataLength;
+		newMessage->messageLength  = dataLength;
 		memcpy(newMessage->message, data, dataLength);
 
 		// Insert new message.
 		if (prevMessage == NULL) {
 			// Insert at HEAD of list.
-			newMessage->next = *unassignedUDPMessages;
+			newMessage->next       = *unassignedUDPMessages;
 			*unassignedUDPMessages = newMessage;
 		}
 		else {
 			// Insert somewhere inside list.
-			newMessage->next = prevMessage->next;
+			newMessage->next  = prevMessage->next;
 			prevMessage->next = newMessage;
 		}
 	}
 }
 
-static caerEventPacketHeader getNextUDPEventPacket(int64_t *highestParsedSequenceNumber,
-	udpPacket *incompleteUDPPackets, udpMessage *unassignedUDPMessages) {
+static caerEventPacketHeader getNextUDPEventPacket(
+	int64_t *highestParsedSequenceNumber, udpPacket *incompleteUDPPackets, udpMessage *unassignedUDPMessages) {
 	return (NULL);
 }
 
 static void printPacketInfo(caerEventPacketHeader header) {
 	// Decode successfully received data.
-	int16_t eventType = caerEventPacketHeaderGetEventType(header);
-	int16_t eventSource = caerEventPacketHeaderGetEventSource(header);
-	int32_t eventSize = caerEventPacketHeaderGetEventSize(header);
-	int32_t eventTSOffset = caerEventPacketHeaderGetEventTSOffset(header);
+	int16_t eventType       = caerEventPacketHeaderGetEventType(header);
+	int16_t eventSource     = caerEventPacketHeaderGetEventSource(header);
+	int32_t eventSize       = caerEventPacketHeaderGetEventSize(header);
+	int32_t eventTSOffset   = caerEventPacketHeaderGetEventTSOffset(header);
 	int32_t eventTSOverflow = caerEventPacketHeaderGetEventTSOverflow(header);
-	int32_t eventCapacity = caerEventPacketHeaderGetEventCapacity(header);
-	int32_t eventNumber = caerEventPacketHeaderGetEventNumber(header);
-	int32_t eventValid = caerEventPacketHeaderGetEventValid(header);
+	int32_t eventCapacity   = caerEventPacketHeaderGetEventCapacity(header);
+	int32_t eventNumber     = caerEventPacketHeaderGetEventNumber(header);
+	int32_t eventValid      = caerEventPacketHeaderGetEventValid(header);
 
-	printf(
-		"type = %" PRIi16 ", source = %" PRIi16 ", size = %" PRIi32 ", tsOffset = %" PRIi32 ", tsOverflow = %" PRIi32 ", capacity = %" PRIi32 ", number = %" PRIi32 ", valid = %" PRIi32 ".\n",
+	printf("type = %" PRIi16 ", source = %" PRIi16 ", size = %" PRIi32 ", tsOffset = %" PRIi32 ", tsOverflow = %" PRIi32
+		   ", capacity = %" PRIi32 ", number = %" PRIi32 ", valid = %" PRIi32 ".\n",
 		eventType, eventSource, eventSize, eventTSOffset, eventTSOverflow, eventCapacity, eventNumber, eventValid);
 
 	if (eventValid > 0) {
 		void *firstEvent = caerGenericEventGetEvent(header, 0);
-		void *lastEvent = caerGenericEventGetEvent(header, eventValid - 1);
+		void *lastEvent  = caerGenericEventGetEvent(header, eventValid - 1);
 
 		int32_t firstTS = caerGenericEventGetTimestamp(firstEvent, header);
-		int32_t lastTS = caerGenericEventGetTimestamp(lastEvent, header);
+		int32_t lastTS  = caerGenericEventGetTimestamp(lastEvent, header);
 
 		int32_t tsDifference = lastTS - firstTS;
 

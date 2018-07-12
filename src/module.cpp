@@ -1,15 +1,15 @@
 #include "module.h"
 
-#include <regex>
-#include <thread>
-#include <mutex>
 #include <algorithm>
 #include <iterator>
+#include <mutex>
+#include <regex>
+#include <thread>
 #include <vector>
 
+#include <boost/algorithm/string.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/format.hpp>
-#include <boost/algorithm/string.hpp>
 
 static struct {
 	std::vector<boost::filesystem::path> modulePaths;
@@ -151,8 +151,8 @@ void caerModuleSM(caerModuleFunctions moduleFunctions, caerModuleData moduleData
 				}
 			}
 			catch (const std::exception &ex) {
-				libcaer::log::log(libcaer::log::logLevel::ERROR, moduleData->moduleSubSystemString, "moduleInit(): %s",
-					ex.what());
+				libcaer::log::log(
+					libcaer::log::logLevel::ERROR, moduleData->moduleSubSystemString, "moduleInit(): %s", ex.what());
 
 				if (memSize != 0) {
 					// Only deallocate if we were the original allocator.
@@ -193,8 +193,8 @@ void caerModuleSM(caerModuleFunctions moduleFunctions, caerModuleData moduleData
 				moduleFunctions->moduleExit(moduleData);
 			}
 			catch (const std::exception &ex) {
-				libcaer::log::log(libcaer::log::logLevel::ERROR, moduleData->moduleSubSystemString, "moduleExit(): %s",
-					ex.what());
+				libcaer::log::log(
+					libcaer::log::logLevel::ERROR, moduleData->moduleSubSystemString, "moduleExit(): %s", ex.what());
 			}
 		}
 
@@ -239,7 +239,7 @@ caerModuleData caerModuleInitialize(int16_t moduleID, const char *moduleName, ss
 	moduleData->moduleStatus = CAER_MODULE_STOPPED;
 
 	// Setup default full log string name.
-	size_t nameLength = strlen(moduleName);
+	size_t nameLength                 = strlen(moduleName);
 	moduleData->moduleSubSystemString = (char *) malloc(nameLength + 1);
 	if (moduleData->moduleSubSystemString == nullptr) {
 		free(moduleData);
@@ -263,8 +263,8 @@ caerModuleData caerModuleInitialize(int16_t moduleID, const char *moduleName, ss
 	// Initialize shutdown controls.
 	bool runModule = sshsNodeGetBool(moduleData->moduleNode, "runAtStartup");
 
-	sshsNodeCreateBool(moduleData->moduleNode, "running", false, SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT,
-		"Module start/stop.");
+	sshsNodeCreateBool(
+		moduleData->moduleNode, "running", false, SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT, "Module start/stop.");
 	sshsNodePutBool(moduleData->moduleNode, "running", runModule);
 
 	moduleData->running.store(runModule, std::memory_order_relaxed);
@@ -337,8 +337,8 @@ std::pair<ModuleLibrary, caerModuleInfo> caerLoadModuleLibrary(const std::string
 	}
 	catch (const std::exception &ex) {
 		// Failed to load shared library!
-		boost::format exMsg = boost::format("Failed to load library '%s', error: '%s'.") % modulePath.string()
-			% ex.what();
+		boost::format exMsg
+			= boost::format("Failed to load library '%s', error: '%s'.") % modulePath.string() % ex.what();
 		throw std::runtime_error(exMsg.str());
 	}
 
@@ -349,25 +349,25 @@ std::pair<ModuleLibrary, caerModuleInfo> caerLoadModuleLibrary(const std::string
 	catch (const std::exception &ex) {
 		// Failed to find symbol in shared library!
 		caerUnloadModuleLibrary(moduleLibrary);
-		boost::format exMsg = boost::format("Failed to find symbol in library '%s', error: '%s'.") % modulePath.string()
-			% ex.what();
+		boost::format exMsg
+			= boost::format("Failed to find symbol in library '%s', error: '%s'.") % modulePath.string() % ex.what();
 		throw std::runtime_error(exMsg.str());
 	}
 #else
 	void *moduleLibrary = dlopen(modulePath.c_str(), RTLD_NOW);
 	if (moduleLibrary == nullptr) {
 		// Failed to load shared library!
-		boost::format exMsg = boost::format("Failed to load library '%s', error: '%s'.") % modulePath.string()
-		% dlerror();
+		boost::format exMsg
+			= boost::format("Failed to load library '%s', error: '%s'.") % modulePath.string() % dlerror();
 		throw std::runtime_error(exMsg.str());
 	}
 
-	caerModuleInfo (*getInfo)(void) = (caerModuleInfo (*)(void)) dlsym(moduleLibrary, "caerModuleGetInfo");
+	caerModuleInfo (*getInfo)(void) = (caerModuleInfo(*)(void)) dlsym(moduleLibrary, "caerModuleGetInfo");
 	if (getInfo == nullptr) {
 		// Failed to find symbol in shared library!
 		caerUnloadModuleLibrary(moduleLibrary);
-		boost::format exMsg = boost::format("Failed to find symbol in library '%s', error: '%s'.") % modulePath.string()
-		% dlerror();
+		boost::format exMsg
+			= boost::format("Failed to find symbol in library '%s', error: '%s'.") % modulePath.string() % dlerror();
 		throw std::runtime_error(exMsg.str());
 	}
 #endif
@@ -537,7 +537,8 @@ void caerUpdateModulesInformation() {
 		std::for_each(boost::filesystem::recursive_directory_iterator(sPath),
 			boost::filesystem::recursive_directory_iterator(),
 			[&moduleRegex](const boost::filesystem::directory_entry &e) {
-				if (boost::filesystem::exists(e.path()) && boost::filesystem::is_regular_file(e.path()) && std::regex_match(e.path().filename().string(), moduleRegex)) {
+				if (boost::filesystem::exists(e.path()) && boost::filesystem::is_regular_file(e.path())
+					&& std::regex_match(e.path().filename().string(), moduleRegex)) {
 					glModuleData.modulePaths.push_back(e.path());
 				}
 			});
@@ -616,7 +617,7 @@ void caerUpdateModulesInformation() {
 				SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Number of input streams.");
 
 			for (size_t i = 0; i < mLoad.second->inputStreamsSize; i++) {
-				sshsNode inputStreamNode = sshsGetRelativeNode(inputStreamsNode, std::to_string(i) + "/");
+				sshsNode inputStreamNode      = sshsGetRelativeNode(inputStreamsNode, std::to_string(i) + "/");
 				caerEventStreamIn inputStream = &mLoad.second->inputStreams[i];
 
 				sshsNodeCreate(inputStreamNode, "type", inputStream->type, I16T(-1), I16T(INT16_MAX),
@@ -635,7 +636,7 @@ void caerUpdateModulesInformation() {
 				SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT, "Number of output streams.");
 
 			for (size_t i = 0; i < mLoad.second->outputStreamsSize; i++) {
-				sshsNode outputStreamNode = sshsGetRelativeNode(outputStreamsNode, std::to_string(i) + "/");
+				sshsNode outputStreamNode       = sshsGetRelativeNode(outputStreamsNode, std::to_string(i) + "/");
 				caerEventStreamOut outputStream = &mLoad.second->outputStreams[i];
 
 				sshsNodeCreate(outputStreamNode, "type", outputStream->type, I16T(-1), I16T(INT16_MAX),

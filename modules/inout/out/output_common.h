@@ -1,10 +1,10 @@
 #ifndef OUTPUT_COMMON_H_
 #define OUTPUT_COMMON_H_
 
+#include <libcaer/ringbuffer.h>
 #include "caer-sdk/module.h"
 #include "../inout_common.h"
 #include "libuv.h"
-#include <libcaer/ringbuffer.h>
 
 #ifdef HAVE_PTHREADS
 #include "caer-sdk/cross/c11threads_posix.h"
@@ -87,8 +87,7 @@ typedef struct output_common_state *outputCommonState;
 
 bool caerOutputCommonInit(caerModuleData moduleData, int fileDescriptor, outputCommonNetIO streams);
 void caerOutputCommonExit(caerModuleData moduleData);
-void caerOutputCommonRun(caerModuleData moduleData, caerEventPacketContainer in,
-	caerEventPacketContainer *out);
+void caerOutputCommonRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out);
 void caerOutputCommonReset(caerModuleData moduleData, int16_t resetCallSourceID);
 void caerOutputCommonOnServerConnection(uv_stream_t *server, int status);
 void caerOutputCommonOnClientConnection(uv_connect_t *connectionRequest, int status);

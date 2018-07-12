@@ -30,7 +30,7 @@ sshsNode caerMainloopModuleGetSourceNodeForInput(int16_t id, size_t inputNum);
 sshsNode caerMainloopModuleGetSourceInfoForInput(int16_t id, size_t inputNum);
 
 sshsNode caerMainloopGetSourceNode(int16_t sourceID); // Can be NULL.
-void *caerMainloopGetSourceState(int16_t sourceID); // Can be NULL.
+void *caerMainloopGetSourceState(int16_t sourceID);   // Can be NULL.
 sshsNode caerMainloopGetSourceInfo(int16_t sourceID); // Can be NULL.
 
 #ifdef __cplusplus

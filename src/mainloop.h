@@ -5,8 +5,8 @@
 #include "caer-sdk/module.h"
 #include "module.h"
 
-#include <memory>
 #include <functional>
+#include <memory>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -17,10 +17,7 @@ struct OrderedInput {
 	int16_t afterModuleId;
 	bool copyNeeded;
 
-	OrderedInput(int16_t t, int16_t a) :
-			typeId(t),
-			afterModuleId(a),
-			copyNeeded(false) {
+	OrderedInput(int16_t t, int16_t a) : typeId(t), afterModuleId(a), copyNeeded(false) {
 	}
 
 	// Comparison operators.
@@ -67,24 +64,12 @@ struct ModuleInfo {
 	// Module runtime data.
 	caerModuleData runtimeData;
 
-	ModuleInfo() :
-			id(-1),
-			name(),
-			configNode(nullptr),
-			library(),
-			libraryHandle(),
-			libraryInfo(nullptr),
-			runtimeData(nullptr) {
+	ModuleInfo()
+		: id(-1), name(), configNode(nullptr), library(), libraryHandle(), libraryInfo(nullptr), runtimeData(nullptr) {
 	}
 
-	ModuleInfo(int16_t i, const std::string &n, sshsNode c, const std::string &l) :
-			id(i),
-			name(n),
-			configNode(c),
-			library(l),
-			libraryHandle(),
-			libraryInfo(nullptr),
-			runtimeData(nullptr) {
+	ModuleInfo(int16_t i, const std::string &n, sshsNode c, const std::string &l)
+		: id(i), name(n), configNode(c), library(l), libraryHandle(), libraryInfo(nullptr), runtimeData(nullptr) {
 	}
 };
 
@@ -94,8 +79,7 @@ struct DependencyLink {
 	int16_t id;
 	std::shared_ptr<DependencyNode> next;
 
-	DependencyLink(int16_t i) :
-			id(i) {
+	DependencyLink(int16_t i) : id(i) {
 	}
 
 	// Comparison operators.
@@ -130,10 +114,7 @@ struct DependencyNode {
 	DependencyNode *parentLink;
 	std::vector<DependencyLink> links;
 
-	DependencyNode(size_t d, int16_t pId, DependencyNode *pLink) :
-			depth(d),
-			parentId(pId),
-			parentLink(pLink) {
+	DependencyNode(size_t d, int16_t pId, DependencyNode *pLink) : depth(d), parentId(pId), parentLink(pLink) {
 	}
 };
 
@@ -144,10 +125,7 @@ struct ActiveStreams {
 	std::vector<int16_t> users;
 	std::shared_ptr<DependencyNode> dependencies;
 
-	ActiveStreams(int16_t s, int16_t t) :
-			sourceId(s),
-			typeId(t),
-			isProcessor(false) {
+	ActiveStreams(int16_t s, int16_t t) : sourceId(s), typeId(t), isProcessor(false) {
 	}
 
 	// Comparison operators.

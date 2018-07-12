@@ -7,7 +7,7 @@
 #include "sshs/sshs.h"
 
 // Suppress unused argument warnings, if needed
-#define UNUSED_ARGUMENT(arg) (void)(arg)
+#define UNUSED_ARGUMENT(arg) (void) (arg)
 
 #ifdef __cplusplus
 
@@ -18,8 +18,7 @@
 #include <algorithm>
 #include <vector>
 
-template<typename InIter, typename Elem>
-static inline bool findBool(InIter begin, InIter end, const Elem &val) {
+template<typename InIter, typename Elem> static inline bool findBool(InIter begin, InIter end, const Elem &val) {
 	const auto result = std::find(begin, end, val);
 
 	if (result == end) {
@@ -29,8 +28,7 @@ static inline bool findBool(InIter begin, InIter end, const Elem &val) {
 	return (true);
 }
 
-template<typename InIter, typename Pred>
-static inline bool findIfBool(InIter begin, InIter end, Pred predicate) {
+template<typename InIter, typename Pred> static inline bool findIfBool(InIter begin, InIter end, Pred predicate) {
 	const auto result = std::find_if(begin, end, predicate);
 
 	if (result == end) {
@@ -40,14 +38,12 @@ static inline bool findIfBool(InIter begin, InIter end, Pred predicate) {
 	return (true);
 }
 
-template<class T>
-static void vectorSortUnique(std::vector<T> &vec) {
+template<class T> static void vectorSortUnique(std::vector<T> &vec) {
 	std::sort(vec.begin(), vec.end());
 	vec.erase(std::unique(vec.begin(), vec.end()), vec.end());
 }
 
-template<class T>
-static bool vectorDetectDuplicates(std::vector<T> &vec) {
+template<class T> static bool vectorDetectDuplicates(std::vector<T> &vec) {
 	// Detect duplicates.
 	size_t sizeBefore = vec.size();
 

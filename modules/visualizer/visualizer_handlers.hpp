@@ -9,9 +9,7 @@ struct caer_visualizer_event_handler_info {
 	const std::string name;
 	caerVisualizerEventHandler eventHandler;
 
-	caer_visualizer_event_handler_info(const std::string &n, caerVisualizerEventHandler e) :
-			name(n),
-			eventHandler(e) {
+	caer_visualizer_event_handler_info(const std::string &n, caerVisualizerEventHandler e) : name(n), eventHandler(e) {
 	}
 };
 

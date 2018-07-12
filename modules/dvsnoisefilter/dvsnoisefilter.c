@@ -5,27 +5,39 @@
 
 static void caerDVSNoiseFilterConfigInit(sshsNode moduleNode);
 static bool caerDVSNoiseFilterInit(caerModuleData moduleData);
-static void caerDVSNoiseFilterRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out);
+static void caerDVSNoiseFilterRun(
+	caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out);
 static void caerDVSNoiseFilterConfig(caerModuleData moduleData);
 static void caerDVSNoiseFilterExit(caerModuleData moduleData);
 static void caerDVSNoiseFilterReset(caerModuleData moduleData, int16_t resetCallSourceID);
 
-static void statisticsPassthrough(void *userData, const char *key, enum sshs_node_attr_value_type type,
-	union sshs_node_attr_value *value);
+static void statisticsPassthrough(
+	void *userData, const char *key, enum sshs_node_attr_value_type type, union sshs_node_attr_value *value);
 static void caerDVSNoiseFilterConfigCustom(sshsNode node, void *userData, enum sshs_node_attribute_events event,
 	const char *changeKey, enum sshs_node_attr_value_type changeType, union sshs_node_attr_value changeValue);
 
-static const struct caer_module_functions DVSNoiseFilterFunctions = { .moduleConfigInit = &caerDVSNoiseFilterConfigInit,
-	.moduleInit = &caerDVSNoiseFilterInit, .moduleRun = &caerDVSNoiseFilterRun, .moduleConfig =
-		&caerDVSNoiseFilterConfig, .moduleExit = &caerDVSNoiseFilterExit, .moduleReset = &caerDVSNoiseFilterReset };
+static const struct caer_module_functions DVSNoiseFilterFunctions = {.moduleConfigInit = &caerDVSNoiseFilterConfigInit,
+	.moduleInit                                                                        = &caerDVSNoiseFilterInit,
+	.moduleRun                                                                         = &caerDVSNoiseFilterRun,
+	.moduleConfig                                                                      = &caerDVSNoiseFilterConfig,
+	.moduleExit                                                                        = &caerDVSNoiseFilterExit,
+	.moduleReset                                                                       = &caerDVSNoiseFilterReset};
 
-static const struct caer_event_stream_in DVSNoiseFilterInputs[] = { { .type = POLARITY_EVENT, .number = 1, .readOnly =
-false } };
+static const struct caer_event_stream_in DVSNoiseFilterInputs[]
+	= {{.type = POLARITY_EVENT, .number = 1, .readOnly = false}};
 
-static const struct caer_module_info DVSNoiseFilterInfo = { .version = 1, .name = "DVSNoiseFilter", .description =
-	"Filters out noise from DVS change events.", .type = CAER_MODULE_PROCESSOR, .memSize = 0, .functions =
-	&DVSNoiseFilterFunctions, .inputStreams = DVSNoiseFilterInputs, .inputStreamsSize = CAER_EVENT_STREAM_IN_SIZE(
-	DVSNoiseFilterInputs), .outputStreams = NULL, .outputStreamsSize = 0, };
+static const struct caer_module_info DVSNoiseFilterInfo = {
+	.version           = 1,
+	.name              = "DVSNoiseFilter",
+	.description       = "Filters out noise from DVS change events.",
+	.type              = CAER_MODULE_PROCESSOR,
+	.memSize           = 0,
+	.functions         = &DVSNoiseFilterFunctions,
+	.inputStreams      = DVSNoiseFilterInputs,
+	.inputStreamsSize  = CAER_EVENT_STREAM_IN_SIZE(DVSNoiseFilterInputs),
+	.outputStreams     = NULL,
+	.outputStreamsSize = 0,
+};
 
 caerModuleInfo caerModuleGetInfo(void) {
 	return (&DVSNoiseFilterInfo);
@@ -44,8 +56,8 @@ static void caerDVSNoiseFilterConfigInit(sshsNode moduleNode) {
 		"Number of events filtered out by the hot pixel filter.");
 	sshsNodeCreateAttributePollTime(moduleNode, "hotPixelFiltered", SSHS_LONG, 2);
 
-	sshsNodeCreateBool(moduleNode, "backgroundActivityEnable", true, SSHS_FLAGS_NORMAL,
-		"Enable the background activity filter.");
+	sshsNodeCreateBool(
+		moduleNode, "backgroundActivityEnable", true, SSHS_FLAGS_NORMAL, "Enable the background activity filter.");
 	sshsNodeCreateBool(moduleNode, "backgroundActivityTwoLevels", false, SSHS_FLAGS_NORMAL,
 		"Use two-level background activity filtering.");
 	sshsNodeCreateBool(moduleNode, "backgroundActivityCheckPolarity", false, SSHS_FLAGS_NORMAL,
@@ -61,8 +73,8 @@ static void caerDVSNoiseFilterConfigInit(sshsNode moduleNode) {
 		"Number of events filtered out by the background activity filter.");
 	sshsNodeCreateAttributePollTime(moduleNode, "backgroundActivityFiltered", SSHS_LONG, 2);
 
-	sshsNodeCreateBool(moduleNode, "refractoryPeriodEnable", true, SSHS_FLAGS_NORMAL,
-		"Enable the refractory period filter.");
+	sshsNodeCreateBool(
+		moduleNode, "refractoryPeriodEnable", true, SSHS_FLAGS_NORMAL, "Enable the refractory period filter.");
 	sshsNodeCreateInt(moduleNode, "refractoryPeriodTime", 100, 0, 10000000, SSHS_FLAGS_NORMAL,
 		"Minimum time between events to not be filtered out.");
 	sshsNodeCreateLong(moduleNode, "refractoryPeriodFiltered", 0, 0, INT64_MAX,
@@ -70,8 +82,8 @@ static void caerDVSNoiseFilterConfigInit(sshsNode moduleNode) {
 	sshsNodeCreateAttributePollTime(moduleNode, "refractoryPeriodFiltered", SSHS_LONG, 2);
 }
 
-static void statisticsPassthrough(void *userData, const char *key, enum sshs_node_attr_value_type type,
-	union sshs_node_attr_value *value) {
+static void statisticsPassthrough(
+	void *userData, const char *key, enum sshs_node_attr_value_type type, union sshs_node_attr_value *value) {
 	UNUSED_ARGUMENT(type); // We know all statistics are always LONG.
 
 	caerFilterDVSNoise state = userData;
@@ -111,16 +123,16 @@ static bool caerDVSNoiseFilterInit(caerModuleData moduleData) {
 
 	caerDVSNoiseFilterConfig(moduleData);
 
-	caerFilterDVSNoiseConfigSet(moduleData->moduleState, CAER_FILTER_DVS_LOG_LEVEL,
-		atomic_load(&moduleData->moduleLogLevel));
+	caerFilterDVSNoiseConfigSet(
+		moduleData->moduleState, CAER_FILTER_DVS_LOG_LEVEL, atomic_load(&moduleData->moduleLogLevel));
 
 	// Add read passthrough modifiers, they need access to moduleState.
-	sshsNodeAddAttributeReadModifier(moduleData->moduleNode, "hotPixelFiltered", SSHS_LONG, moduleData->moduleState,
-		&statisticsPassthrough);
+	sshsNodeAddAttributeReadModifier(
+		moduleData->moduleNode, "hotPixelFiltered", SSHS_LONG, moduleData->moduleState, &statisticsPassthrough);
 	sshsNodeAddAttributeReadModifier(moduleData->moduleNode, "backgroundActivityFiltered", SSHS_LONG,
 		moduleData->moduleState, &statisticsPassthrough);
-	sshsNodeAddAttributeReadModifier(moduleData->moduleNode, "refractoryPeriodFiltered", SSHS_LONG,
-		moduleData->moduleState, &statisticsPassthrough);
+	sshsNodeAddAttributeReadModifier(
+		moduleData->moduleNode, "refractoryPeriodFiltered", SSHS_LONG, moduleData->moduleState, &statisticsPassthrough);
 
 	// Add config listeners last, to avoid having them dangling if Init doesn't succeed.
 	sshsNodeAddAttributeListener(moduleData->moduleNode, moduleData, &caerModuleConfigDefaultListener);
@@ -130,11 +142,12 @@ static bool caerDVSNoiseFilterInit(caerModuleData moduleData) {
 	return (true);
 }
 
-static void caerDVSNoiseFilterRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out) {
+static void caerDVSNoiseFilterRun(
+	caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out) {
 	UNUSED_ARGUMENT(out);
 
-	caerPolarityEventPacket polarity = (caerPolarityEventPacket) caerEventPacketContainerFindEventPacketByType(in,
-		POLARITY_EVENT);
+	caerPolarityEventPacket polarity
+		= (caerPolarityEventPacket) caerEventPacketContainerFindEventPacketByType(in, POLARITY_EVENT);
 
 	caerFilterDVSNoiseApply(moduleData->moduleState, polarity);
 }
@@ -142,13 +155,13 @@ static void caerDVSNoiseFilterRun(caerModuleData moduleData, caerEventPacketCont
 static void caerDVSNoiseFilterConfig(caerModuleData moduleData) {
 	caerFilterDVSNoise state = moduleData->moduleState;
 
-	caerFilterDVSNoiseConfigSet(state, CAER_FILTER_DVS_HOTPIXEL_TIME,
-		U32T(sshsNodeGetInt(moduleData->moduleNode, "hotPixelTime")));
-	caerFilterDVSNoiseConfigSet(state, CAER_FILTER_DVS_HOTPIXEL_COUNT,
-		U32T(sshsNodeGetInt(moduleData->moduleNode, "hotPixelCount")));
+	caerFilterDVSNoiseConfigSet(
+		state, CAER_FILTER_DVS_HOTPIXEL_TIME, U32T(sshsNodeGetInt(moduleData->moduleNode, "hotPixelTime")));
+	caerFilterDVSNoiseConfigSet(
+		state, CAER_FILTER_DVS_HOTPIXEL_COUNT, U32T(sshsNodeGetInt(moduleData->moduleNode, "hotPixelCount")));
 
-	caerFilterDVSNoiseConfigSet(state, CAER_FILTER_DVS_HOTPIXEL_ENABLE,
-		sshsNodeGetBool(moduleData->moduleNode, "hotPixelEnable"));
+	caerFilterDVSNoiseConfigSet(
+		state, CAER_FILTER_DVS_HOTPIXEL_ENABLE, sshsNodeGetBool(moduleData->moduleNode, "hotPixelEnable"));
 
 	caerFilterDVSNoiseConfigSet(state, CAER_FILTER_DVS_BACKGROUND_ACTIVITY_ENABLE,
 		sshsNodeGetBool(moduleData->moduleNode, "backgroundActivityEnable"));
@@ -168,8 +181,8 @@ static void caerDVSNoiseFilterConfig(caerModuleData moduleData) {
 	caerFilterDVSNoiseConfigSet(state, CAER_FILTER_DVS_REFRACTORY_PERIOD_TIME,
 		U32T(sshsNodeGetInt(moduleData->moduleNode, "refractoryPeriodTime")));
 
-	caerFilterDVSNoiseConfigSet(state, CAER_FILTER_DVS_LOG_LEVEL,
-		U8T(sshsNodeGetByte(moduleData->moduleNode, "logLevel")));
+	caerFilterDVSNoiseConfigSet(
+		state, CAER_FILTER_DVS_LOG_LEVEL, U8T(sshsNodeGetByte(moduleData->moduleNode, "logLevel")));
 }
 
 static void caerDVSNoiseFilterConfigCustom(sshsNode node, void *userData, enum sshs_node_attribute_events event,

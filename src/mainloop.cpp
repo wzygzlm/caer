@@ -1,22 +1,22 @@
 #include "mainloop.h"
-#include "config.h"
 #include "caer-sdk/cross/portable_io.h"
+#include "config.h"
 #include <csignal>
 
-#include <regex>
-#include <unordered_set>
-#include <queue>
-#include <sstream>
-#include <iostream>
-#include <chrono>
-#include <thread>
-#include <mutex>
 #include <algorithm>
+#include <chrono>
+#include <iostream>
+#include <mutex>
+#include <queue>
+#include <regex>
+#include <sstream>
+#include <thread>
+#include <unordered_set>
 
-#include <boost/filesystem.hpp>
-#include <boost/range/join.hpp>
-#include <boost/format.hpp>
 #include <boost/algorithm/string.hpp>
+#include <boost/filesystem.hpp>
+#include <boost/format.hpp>
+#include <boost/range/join.hpp>
 
 // If Boost version recent enough, enable better stack traces on segfault.
 #include <boost/version.hpp>
@@ -66,7 +66,7 @@ void caerMainloopRun(void) {
 	// Setup internal mainloop pointer for public support library.
 	caerMainloopSDKLibInit(&glMainloopData);
 
-	// Install signal handler for global shutdown.
+// Install signal handler for global shutdown.
 #if defined(OS_WINDOWS)
 	if (signal(SIGTERM, &caerMainloopShutdownHandler) == SIG_ERR) {
 		log(logLevel::EMERGENCY, "Mainloop", "Failed to set signal handler for SIGTERM. Error: %d.", errno);
@@ -109,7 +109,7 @@ void caerMainloopRun(void) {
 	struct sigaction shutdown;
 
 	shutdown.sa_handler = &caerMainloopShutdownHandler;
-	shutdown.sa_flags = 0;
+	shutdown.sa_flags   = 0;
 	sigemptyset(&shutdown.sa_mask);
 	sigaddset(&shutdown.sa_mask, SIGTERM);
 	sigaddset(&shutdown.sa_mask, SIGINT);
@@ -127,7 +127,7 @@ void caerMainloopRun(void) {
 	struct sigaction segfault;
 
 	segfault.sa_handler = &caerMainloopSegfaultHandler;
-	segfault.sa_flags = 0;
+	segfault.sa_flags   = 0;
 	sigemptyset(&segfault.sa_mask);
 	sigaddset(&segfault.sa_mask, SIGSEGV);
 	sigaddset(&segfault.sa_mask, SIGABRT);
@@ -153,8 +153,8 @@ void caerMainloopRun(void) {
 	boost::filesystem::path modulesDefaultDir(CM_SHARE_DIRECTORY);
 	modulesDefaultDir.append(MODULES_DIRECTORY, boost::filesystem::path::codecvt());
 
-	sshsNodeCreate(modulesNode, "modulesSearchPath", modulesDefaultDir.string(), 1,
-		8 * PATH_MAX, SSHS_FLAGS_NORMAL, "Directories to search loadable modules in, separated by ':'.");
+	sshsNodeCreate(modulesNode, "modulesSearchPath", modulesDefaultDir.string(), 1, 8 * PATH_MAX, SSHS_FLAGS_NORMAL,
+		"Directories to search loadable modules in, separated by ':'.");
 
 	sshsNodeCreate(modulesNode, "modulesListOptions", "", 0, 10000, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT,
 		"List of loadable modules.");
@@ -175,16 +175,16 @@ void caerMainloopRun(void) {
 		"Write current configuration to XML config file.");
 	sshsNodeAddAttributeListener(systemNode, nullptr, &caerWriteConfigurationListener);
 
-	sshsNodeCreateBool(systemNode, "running", true, SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT,
-		"Global system start/stop.");
+	sshsNodeCreateBool(
+		systemNode, "running", true, SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT, "Global system start/stop.");
 	sshsNodeAddAttributeListener(systemNode, nullptr, &caerMainloopSystemRunningListener);
 
 	// Mainloop running control.
 	glMainloopData.running.store(true);
 
 	glMainloopData.configNode = sshsGetNode(sshsGetGlobal(), "/");
-	sshsNodeCreateBool(glMainloopData.configNode, "running", true, SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT,
-		"Mainloop start/stop.");
+	sshsNodeCreateBool(
+		glMainloopData.configNode, "running", true, SSHS_FLAGS_NORMAL | SSHS_FLAGS_NO_EXPORT, "Mainloop start/stop.");
 	sshsNodeAddAttributeListener(glMainloopData.configNode, nullptr, &caerMainloopRunningListener);
 
 	while (glMainloopData.systemRunning.load()) {
@@ -313,7 +313,7 @@ static std::vector<OrderedInput> parseAugmentedTypeIDString(const std::string &t
 
 	while (std::getline(typesStream, typeString, ',')) {
 		size_t modifierPosition = 0;
-		int type = std::stoi(typeString, &modifierPosition);
+		int type                = std::stoi(typeString, &modifierPosition);
 
 		// Check type ID value.
 		if (type < 0 || type > INT16_MAX) {
@@ -402,7 +402,7 @@ static void parseModuleInput(const std::string &inputDefinition,
 
 			// Get referenced module ID first.
 			const std::string idString = matches[1];
-			int id = std::stoi(idString);
+			int id                     = std::stoi(idString);
 
 			// Check module ID value.
 			if (id < 0 || id > INT16_MAX) {
@@ -430,8 +430,8 @@ static void parseModuleInput(const std::string &inputDefinition,
 			// Verify that the resulting event streams (sourceId, typeId) are
 			// correct and do in fact exist.
 			for (const auto &o : resultMap[mId]) {
-				const auto foundEventStream = std::find(glMainloopData.streams.begin(), glMainloopData.streams.end(),
-					ActiveStreams(mId, o.typeId));
+				const auto foundEventStream = std::find(
+					glMainloopData.streams.begin(), glMainloopData.streams.end(), ActiveStreams(mId, o.typeId));
 
 				if (foundEventStream == glMainloopData.streams.end()) {
 					// Specified event stream doesn't exist!
@@ -456,8 +456,8 @@ static void parseModuleInput(const std::string &inputDefinition,
 		// Clean map of any partial results on failure.
 		resultMap.clear();
 
-		boost::format exMsg = boost::format("Module '%s': Invalid 'moduleInput' attribute: %s") % moduleName
-			% ex.what();
+		boost::format exMsg
+			= boost::format("Module '%s': Invalid 'moduleInput' attribute: %s") % moduleName % ex.what();
 		throw std::logic_error(exMsg.str());
 	}
 }
@@ -477,8 +477,9 @@ static void checkInputDefinitionAgainstEventStreamIn(
 	// Any_Type/Any_Number means there just needs to be something.
 	if (eventStreamsSize == 1 && eventStreams[0].type == -1 && eventStreams[0].number == -1) {
 		if (typeCount.empty()) {
-			boost::format exMsg = boost::format(
-				"Module '%s': ANY_TYPE/ANY_NUMBER definition has no connected input streams.") % moduleName;
+			boost::format exMsg
+				= boost::format("Module '%s': ANY_TYPE/ANY_NUMBER definition has no connected input streams.")
+				  % moduleName;
 			throw std::domain_error(exMsg.str());
 		}
 
@@ -488,8 +489,9 @@ static void checkInputDefinitionAgainstEventStreamIn(
 	// Any_Type/1 means there must be exactly one type with count of 1.
 	if (eventStreamsSize == 1 && eventStreams[0].type == -1 && eventStreams[0].number == 1) {
 		if (typeCount.size() != 1 || typeCount.cbegin()->second != 1) {
-			boost::format exMsg = boost::format(
-				"Module '%s': ANY_TYPE/1 definition requires 1 connected input stream of some type.") % moduleName;
+			boost::format exMsg
+				= boost::format("Module '%s': ANY_TYPE/1 definition requires 1 connected input stream of some type.")
+				  % moduleName;
 			throw std::domain_error(exMsg.str());
 		}
 
@@ -500,9 +502,10 @@ static void checkInputDefinitionAgainstEventStreamIn(
 	// Since EventStreamIn definitions are strictly monotonic in this case, we
 	// first check that the number of definitions and counted types match.
 	if (typeCount.size() != eventStreamsSize) {
-		boost::format exMsg = boost::format(
-			"Module '%s': DEFINED_TYPE definitions require as many connected different types as specified.")
-			% moduleName;
+		boost::format exMsg
+			= boost::format(
+				  "Module '%s': DEFINED_TYPE definitions require as many connected different types as specified.")
+			  % moduleName;
 		throw std::domain_error(exMsg.str());
 	}
 
@@ -510,10 +513,9 @@ static void checkInputDefinitionAgainstEventStreamIn(
 		// Defined_Type/Any_Number means there must be 1 or more such types present.
 		if (eventStreams[i].type >= 0 && eventStreams[i].number == -1) {
 			if (typeCount[eventStreams[i].type] < 1) {
-				boost::format exMsg =
-					boost::format(
-						"Module '%s': DEFINED_TYPE/ANY_NUMBER definition requires at least one connected input stream of that type.")
-						% moduleName;
+				boost::format exMsg = boost::format("Module '%s': DEFINED_TYPE/ANY_NUMBER definition requires at least "
+													"one connected input stream of that type.")
+									  % moduleName;
 				throw std::domain_error(exMsg.str());
 			}
 		}
@@ -521,10 +523,9 @@ static void checkInputDefinitionAgainstEventStreamIn(
 		// Defined_Type/Defined_Number means there must be exactly as many such types present.
 		if (eventStreams[i].type >= 0 && eventStreams[i].number > 0) {
 			if (typeCount[eventStreams[i].type] != eventStreams[i].number) {
-				boost::format exMsg =
-					boost::format(
-						"Module '%s': DEFINED_TYPE/DEFINED_NUMBER definition requires exactly that many connected input streams of that type.")
-						% moduleName;
+				boost::format exMsg = boost::format("Module '%s': DEFINED_TYPE/DEFINED_NUMBER definition requires "
+													"exactly that many connected input streams of that type.")
+									  % moduleName;
 				throw std::domain_error(exMsg.str());
 			}
 		}
@@ -568,8 +569,8 @@ static void updateInputDefinitionCopyNeeded(std::unordered_map<int16_t, std::vec
  * configuration parameter that is required to be set in this case. For other input modules,
  * where the outputs are well known, like devices, this must not be set.
  */
-static void parseModuleOutput(const std::string &moduleOutput, std::unordered_map<int16_t, ssize_t> &outputs,
-	const std::string &moduleName) {
+static void parseModuleOutput(
+	const std::string &moduleOutput, std::unordered_map<int16_t, ssize_t> &outputs, const std::string &moduleName) {
 	try {
 		std::vector<int16_t> results = parseTypeIDString(moduleOutput);
 
@@ -578,14 +579,14 @@ static void parseModuleOutput(const std::string &moduleOutput, std::unordered_ma
 		}
 	}
 	catch (const std::logic_error &ex) {
-		boost::format exMsg = boost::format("Module '%s': Invalid 'moduleOutput' attribute: %s") % moduleName
-			% ex.what();
+		boost::format exMsg
+			= boost::format("Module '%s': Invalid 'moduleOutput' attribute: %s") % moduleName % ex.what();
 		throw std::logic_error(exMsg.str());
 	}
 }
 
-static void parseEventStreamOutDefinition(caerEventStreamOut eventStreams, size_t eventStreamsSize,
-	std::unordered_map<int16_t, ssize_t> &outputs) {
+static void parseEventStreamOutDefinition(
+	caerEventStreamOut eventStreams, size_t eventStreamsSize, std::unordered_map<int16_t, ssize_t> &outputs) {
 	for (size_t i = 0; i < eventStreamsSize; i++) {
 		outputs[eventStreams[i].type] = -1;
 	}
@@ -601,9 +602,8 @@ static void parseEventStreamOutDefinition(caerEventStreamOut eventStreams, size_
 static void checkForActiveStreamCycles(ActiveStreams &stream) {
 	if (findBool(stream.users.begin(), stream.users.end(), stream.sourceId)) {
 		// SourceId found inside users vector!
-		throw std::domain_error(
-			boost::str(
-				boost::format("Found cycle back to Source ID in stream (%d, %d).") % stream.sourceId % stream.typeId));
+		throw std::domain_error(boost::str(
+			boost::format("Found cycle back to Source ID in stream (%d, %d).") % stream.sourceId % stream.typeId));
 	}
 
 	// Detect duplicates, which are not allowed, as they signal a cycle.
@@ -664,10 +664,11 @@ static void printDeps(std::shared_ptr<DependencyNode> deps) {
 }
 
 // Search ID must not be a dummy node (-1).
-static std::pair<DependencyNode *, DependencyLink *> IDExistsInDependencyTree(DependencyNode *root, int16_t searchId,
-	bool directionUp) {
+static std::pair<DependencyNode *, DependencyLink *> IDExistsInDependencyTree(
+	DependencyNode *root, int16_t searchId, bool directionUp) {
 	if (searchId == -1) {
-		throw std::out_of_range("Cannot search for dummy nodes. "
+		throw std::out_of_range(
+			"Cannot search for dummy nodes. "
 			"This should never happen, please report this to the developers and attach your XML configuration file.");
 	}
 
@@ -745,8 +746,8 @@ static void updateDepth(DependencyNode *depNode, size_t addToDepth) {
 	}
 }
 
-static void mergeDependencyTrees(std::shared_ptr<DependencyNode> destRoot,
-	const std::shared_ptr<const DependencyNode> srcRoot) {
+static void mergeDependencyTrees(
+	std::shared_ptr<DependencyNode> destRoot, const std::shared_ptr<const DependencyNode> srcRoot) {
 	std::queue<const DependencyNode *> queue;
 
 	// Initialize traversal queue with level 0 content, always has one element.
@@ -776,11 +777,10 @@ static void mergeDependencyTrees(std::shared_ptr<DependencyNode> destRoot,
 
 					if (checkNodeLink.first != nullptr) {
 						// Dependency cycle found!
-						boost::format exMsg =
-							boost::format(
-								"Found dependency cycle involving multiple streams between modules '%s' (ID %d) and '%s' (ID %d).")
-								% glMainloopData.modules[srcLink.id].name % srcLink.id
-								% glMainloopData.modules[modId].name % modId;
+						boost::format exMsg = boost::format("Found dependency cycle involving multiple streams between "
+															"modules '%s' (ID %d) and '%s' (ID %d).")
+											  % glMainloopData.modules[srcLink.id].name % srcLink.id
+											  % glMainloopData.modules[modId].name % modId;
 						throw std::domain_error(exMsg.str());
 					}
 				}
@@ -817,22 +817,22 @@ static void mergeDependencyTrees(std::shared_ptr<DependencyNode> destRoot,
 
 				// Parent is on same level or below, must insert dummy nodes.
 				size_t numDummyNodes = (destParentNodeLink.first->depth - destNodeLink.first->depth);
-				size_t moveDepth = numDummyNodes + 1;
-				size_t currDepth = destNodeLink.first->depth;
+				size_t moveDepth     = numDummyNodes + 1;
+				size_t currDepth     = destNodeLink.first->depth;
 
 				// First dummy is in the current node itself, where we change ID to -1.
-				destNodeLink.second->id = -1;
+				destNodeLink.second->id                     = -1;
 				std::shared_ptr<DependencyNode> oldNextNode = destNodeLink.second->next;
-				std::shared_ptr<DependencyNode> currNextNode = std::make_shared<DependencyNode>(++currDepth, -1,
-					destNodeLink.first);
+				std::shared_ptr<DependencyNode> currNextNode
+					= std::make_shared<DependencyNode>(++currDepth, -1, destNodeLink.first);
 				destNodeLink.second->next = currNextNode;
 
 				// Then we add any further needed dummy-only nodes.
 				while (numDummyNodes-- > 0) {
 					DependencyLink dummyDepLink(-1);
 
-					std::shared_ptr<DependencyNode> nextNode = std::make_shared<DependencyNode>(++currDepth, -1,
-						currNextNode.get());
+					std::shared_ptr<DependencyNode> nextNode
+						= std::make_shared<DependencyNode>(++currDepth, -1, currNextNode.get());
 					dummyDepLink.next = nextNode;
 
 					currNextNode->links.push_back(dummyDepLink);
@@ -878,15 +878,15 @@ static void mergeDependencyTrees(std::shared_ptr<DependencyNode> destRoot,
 					// The parent's DependencyLink.next can be NULL the first time any child
 					// is added to that particular ID.
 					if (destParentNodeLink.second->next == nullptr) {
-						destParentNodeLink.second->next = std::make_shared<DependencyNode>(
-							destParentNodeLink.first->depth + 1, destParentNodeLink.second->id,
-							destParentNodeLink.first);
+						destParentNodeLink.second->next
+							= std::make_shared<DependencyNode>(destParentNodeLink.first->depth + 1,
+								destParentNodeLink.second->id, destParentNodeLink.first);
 					}
 
 					destParentNodeLink.second->next->links.push_back(DependencyLink(srcLink.id));
 
-					std::sort(destParentNodeLink.second->next->links.begin(),
-						destParentNodeLink.second->next->links.end());
+					std::sort(
+						destParentNodeLink.second->next->links.begin(), destParentNodeLink.second->next->links.end());
 				}
 			}
 		}
@@ -1041,17 +1041,17 @@ static void updateStreamUsersWithGlobalExecutionOrder() {
 	}
 }
 
-static bool isOutputBeingUsed(int16_t sourceId, int16_t typeId, int16_t afterModuleId, int16_t currModuleId,
-	const std::string &currModuleName) {
-	const auto streamUsers = std::find(glMainloopData.streams.begin(), glMainloopData.streams.end(),
-		ActiveStreams(sourceId, typeId));
+static bool isOutputBeingUsed(
+	int16_t sourceId, int16_t typeId, int16_t afterModuleId, int16_t currModuleId, const std::string &currModuleName) {
+	const auto streamUsers
+		= std::find(glMainloopData.streams.begin(), glMainloopData.streams.end(), ActiveStreams(sourceId, typeId));
 
 	if (streamUsers == glMainloopData.streams.end()) {
-		boost::format exMsg =
-			boost::format(
-				"Cannot find valid active event stream for module '%s' (ID %d) on input definition [s: %d, t: %d, a: %d]. "
-					"This should never happen, please report this to the developers and attach your XML configuration file.")
-				% currModuleName % currModuleId % sourceId % typeId % afterModuleId;
+		boost::format exMsg = boost::format("Cannot find valid active event stream for module '%s' (ID %d) on input "
+											"definition [s: %d, t: %d, a: %d]. "
+											"This should never happen, please report this to the developers and attach "
+											"your XML configuration file.")
+							  % currModuleName % currModuleId % sourceId % typeId % afterModuleId;
 		throw std::out_of_range(exMsg.str());
 	}
 
@@ -1059,11 +1059,11 @@ static bool isOutputBeingUsed(int16_t sourceId, int16_t typeId, int16_t afterMod
 	auto currUser = std::find(streamUsers->users.begin(), streamUsers->users.end(), currModuleId);
 
 	if (currUser == streamUsers->users.end()) {
-		boost::format exMsg =
-			boost::format(
-				"Cannot find valid user in event stream for module '%s' (ID %d) on input definition [s: %d, t: %d, a: %d]. "
-					"This should never happen, please report this to the developers and attach your XML configuration file.")
-				% currModuleName % currModuleId % sourceId % typeId % afterModuleId;
+		boost::format exMsg = boost::format("Cannot find valid user in event stream for module '%s' (ID %d) on input "
+											"definition [s: %d, t: %d, a: %d]. "
+											"This should never happen, please report this to the developers and attach "
+											"your XML configuration file.")
+							  % currModuleName % currModuleId % sourceId % typeId % afterModuleId;
 		throw std::out_of_range(exMsg.str());
 	}
 
@@ -1075,15 +1075,15 @@ static bool isOutputBeingUsed(int16_t sourceId, int16_t typeId, int16_t afterMod
 	// Now search in the remaining modules if any need the exact
 	// same data (sourceId, typeId, afterModuleId) that the
 	// current module does. If yes, it will have to be copied.
-	bool userFound = findIfBool(currUser, streamUsers->users.end(),
-		[sourceId, typeId, afterModuleId](const int16_t userId) {
-			const auto &nextUserInputDef = glMainloopData.modules[userId].inputDefinition[sourceId];
+	bool userFound
+		= findIfBool(currUser, streamUsers->users.end(), [sourceId, typeId, afterModuleId](const int16_t userId) {
+			  const auto &nextUserInputDef = glMainloopData.modules[userId].inputDefinition[sourceId];
 
-			return (findIfBool(nextUserInputDef.begin(), nextUserInputDef.end(),
-					[typeId, afterModuleId](const OrderedInput &nextUserOrderIn) {
-						return (nextUserOrderIn.typeId ==typeId && nextUserOrderIn.afterModuleId == afterModuleId);
-					}));
-		});
+			  return (findIfBool(nextUserInputDef.begin(), nextUserInputDef.end(),
+				  [typeId, afterModuleId](const OrderedInput &nextUserOrderIn) {
+					  return (nextUserOrderIn.typeId == typeId && nextUserOrderIn.afterModuleId == afterModuleId);
+				  }));
+		  });
 
 	return (userFound);
 }
@@ -1094,10 +1094,7 @@ static void buildConnectivity() {
 		int16_t afterModuleId;
 		size_t index;
 
-		ModuleSlot(int16_t t, int16_t a, size_t i) :
-				typeId(t),
-				afterModuleId(a),
-				index(i) {
+		ModuleSlot(int16_t t, int16_t a, size_t i) : typeId(t), afterModuleId(a), index(i) {
 		}
 
 		// Comparison operators (std::find() support).
@@ -1137,15 +1134,16 @@ static void buildConnectivity() {
 					// Get input slot from indexes.
 					auto &indexes = streamIndexes[sourceId];
 
-					const auto idx = std::find(indexes.cbegin(), indexes.cend(),
-						ModuleSlot(orderIn.typeId, orderIn.afterModuleId, 0));
+					const auto idx = std::find(
+						indexes.cbegin(), indexes.cend(), ModuleSlot(orderIn.typeId, orderIn.afterModuleId, 0));
 
 					if (idx == indexes.cend()) {
-						boost::format exMsg =
-							boost::format(
-								"Cannot find valid index slot for module '%s' (ID %d) on input definition [s: %d, t: %d, a: %d]. "
-									"This should never happen, please report this to the developers and attach your XML configuration file.")
-								% m.get().name % m.get().id % sourceId % orderIn.typeId % orderIn.afterModuleId;
+						boost::format exMsg = boost::format("Cannot find valid index slot for module '%s' (ID %d) on "
+															"input definition [s: %d, t: %d, a: %d]. "
+															"This should never happen, please report this to the "
+															"developers and attach your XML configuration file.")
+											  % m.get().name % m.get().id % sourceId % orderIn.typeId
+											  % orderIn.afterModuleId;
 						throw std::out_of_range(exMsg.str());
 					}
 
@@ -1154,8 +1152,8 @@ static void buildConnectivity() {
 						// any other modules in this stream that come later on have
 						// an input definition that requires exactly this data.
 						// If yes, we must do the copy. Tables updated accordingly.
-						if (!isOutputBeingUsed(sourceId, orderIn.typeId, orderIn.afterModuleId, m.get().id,
-							m.get().name)) {
+						if (!isOutputBeingUsed(
+								sourceId, orderIn.typeId, orderIn.afterModuleId, m.get().id, m.get().name)) {
 							// Nobody else needs this data, use it directly.
 							// Update active inputs with a viable index.
 							m.get().inputs.push_back(std::make_pair(idx->index, -1));
@@ -1217,7 +1215,7 @@ static size_t getMaximumInputNumber() {
 static void runModules(caerEventPacketContainer in) {
 	// Run through all modules in order.
 	for (const auto &m : glMainloopData.globalExecution) {
-		size_t inputsToPass = 0;
+		size_t inputsToPass        = 0;
 		size_t outputsExpectedBack = 0;
 
 		// Prepare input container. Only do if the module is running.
@@ -1237,10 +1235,10 @@ static void runModules(caerEventPacketContainer in) {
 				}
 				else {
 					// Copy is needed. Do it and update the global event packet storage.
-					caerEventPacketHeader packetCopy = caerEventPacketCopyOnlyEvents(
-						glMainloopData.eventPackets[static_cast<size_t>(input.second)]);
+					caerEventPacketHeader packetCopy
+						= caerEventPacketCopyOnlyEvents(glMainloopData.eventPackets[static_cast<size_t>(input.second)]);
 
-					in->eventPackets[inputsToPass] = packetCopy;
+					in->eventPackets[inputsToPass]                                = packetCopy;
 					glMainloopData.eventPackets[static_cast<size_t>(input.first)] = packetCopy;
 				}
 
@@ -1264,16 +1262,16 @@ static void runModules(caerEventPacketContainer in) {
 			// data and modifying it, even if this modules obviously doesn't.
 			for (const auto &input : m.get().inputs) {
 				if (input.second != -1) {
-					glMainloopData.eventPackets[static_cast<size_t>(input.first)] = caerEventPacketCopyOnlyEvents(
-						glMainloopData.eventPackets[static_cast<size_t>(input.second)]);
+					glMainloopData.eventPackets[static_cast<size_t>(input.first)]
+						= caerEventPacketCopyOnlyEvents(glMainloopData.eventPackets[static_cast<size_t>(input.second)]);
 				}
 			}
 		}
 
 		// Debug logging.
 		caerModuleLog(m.get().runtimeData, CAER_LOG_DEBUG, "Module Input: passing %zu packets in.", inputsToPass);
-		caerModuleLog(m.get().runtimeData, CAER_LOG_DEBUG, "Module Output: expecting %zu packets back out.",
-			outputsExpectedBack);
+		caerModuleLog(
+			m.get().runtimeData, CAER_LOG_DEBUG, "Module Output: expecting %zu packets back out.", outputsExpectedBack);
 
 		// Run module state machine.
 		caerEventPacketContainer out = nullptr;
@@ -1295,9 +1293,9 @@ static void runModules(caerEventPacketContainer in) {
 					// Check that the source ID indeed comes from this module!
 					int16_t sourceId = caerEventPacketHeaderGetEventSource(packet);
 					if (sourceId != m.get().id) {
-						boost::format exMsg = boost::format(
-							"Got event packet back from module '%s' (ID %d) with source ID set to %d.") % m.get().name
-							% m.get().id % sourceId;
+						boost::format exMsg
+							= boost::format("Got event packet back from module '%s' (ID %d) with source ID set to %d.")
+							  % m.get().name % m.get().id % sourceId;
 						throw std::runtime_error(exMsg.str());
 					}
 
@@ -1333,8 +1331,8 @@ static void runModules(caerEventPacketContainer in) {
 					}
 				}
 				else {
-					caerModuleLog(m.get().runtimeData, CAER_LOG_DEBUG,
-						"Module Output: got null packet at idx=%" PRIi32 ".", i);
+					caerModuleLog(
+						m.get().runtimeData, CAER_LOG_DEBUG, "Module Output: got null packet at idx=%" PRIi32 ".", i);
 				}
 			}
 
@@ -1366,7 +1364,7 @@ static void cleanupGlobals() {
 	glMainloopData.copyCount = 0;
 
 	std::for_each(glMainloopData.eventPackets.begin(), glMainloopData.eventPackets.end(),
-		[](caerEventPacketHeader p) {free(p);});
+		[](caerEventPacketHeader p) { free(p); });
 	glMainloopData.eventPackets.clear();
 }
 
@@ -1377,7 +1375,7 @@ static int caerMainloopRunner() {
 	// an ID (16-bit integer, "moduleId") as attribute, and the module's library
 	// (string, "moduleLibrary") as attribute.
 	size_t modulesSize = 0;
-	sshsNode *modules = sshsNodeGetChildren(glMainloopData.configNode, &modulesSize);
+	sshsNode *modules  = sshsNodeGetChildren(glMainloopData.configNode, &modulesSize);
 	if (modules == nullptr || modulesSize == 0) {
 		// Empty configuration.
 		log(logLevel::ERROR, "Mainloop", "No modules configuration found.");
@@ -1385,7 +1383,7 @@ static int caerMainloopRunner() {
 	}
 
 	for (size_t i = 0; i < modulesSize; i++) {
-		sshsNode module = modules[i];
+		sshsNode module              = modules[i];
 		const std::string moduleName = sshsNodeGetName(module);
 
 		if (moduleName == "caer") {
@@ -1402,7 +1400,7 @@ static int caerMainloopRunner() {
 			continue;
 		}
 
-		int16_t moduleId = sshsNodeGetShort(module, "moduleId");
+		int16_t moduleId                = sshsNodeGetShort(module, "moduleId");
 		const std::string moduleLibrary = sshsNodeGetStdString(module, "moduleLibrary");
 
 		// Ensure flags and ranges are set correctly on first-load.
@@ -1459,7 +1457,7 @@ static int caerMainloopRunner() {
 		}
 
 		m.second.libraryHandle = mLoad.first;
-		m.second.libraryInfo = mLoad.second;
+		m.second.libraryInfo   = mLoad.second;
 	}
 
 	// If any modules failed to load, exit program now. We didn't do that before, so that we
@@ -1556,15 +1554,15 @@ static int caerMainloopRunner() {
 			checkInputDefinitionAgainstEventStreamIn(m.get().inputDefinition, m.get().libraryInfo->inputStreams,
 				m.get().libraryInfo->inputStreamsSize, m.get().name);
 
-			updateInputDefinitionCopyNeeded(m.get().inputDefinition, m.get().libraryInfo->inputStreams,
-				m.get().libraryInfo->inputStreamsSize);
+			updateInputDefinitionCopyNeeded(
+				m.get().inputDefinition, m.get().libraryInfo->inputStreams, m.get().libraryInfo->inputStreamsSize);
 		}
 
 		// At this point we can prune all event streams that are not marked active,
 		// since this means nobody is referring to them.
-		glMainloopData.streams.erase(
-			std::remove_if(glMainloopData.streams.begin(), glMainloopData.streams.end(),
-				[](const ActiveStreams &st) {return (st.users.empty());}), glMainloopData.streams.end());
+		glMainloopData.streams.erase(std::remove_if(glMainloopData.streams.begin(), glMainloopData.streams.end(),
+										 [](const ActiveStreams &st) { return (st.users.empty()); }),
+			glMainloopData.streams.end());
 
 		// If all event streams of an INPUT module are dropped, the module itself
 		// is unconnected and useless, and that is a user configuration error.
@@ -1572,12 +1570,13 @@ static int caerMainloopRunner() {
 			int16_t id = m.get().id;
 
 			bool streamFound = findIfBool(glMainloopData.streams.begin(), glMainloopData.streams.end(),
-				[id](const ActiveStreams &st) {return (st.sourceId == id);});
+				[id](const ActiveStreams &st) { return (st.sourceId == id); });
 
 			// No stream found for source ID corresponding to this module's ID.
 			if (!streamFound) {
-				boost::format exMsg = boost::format(
-					"Module '%s': INPUT module is not connected to anything and will not be used.") % m.get().name;
+				boost::format exMsg
+					= boost::format("Module '%s': INPUT module is not connected to anything and will not be used.")
+					  % m.get().name;
 				throw std::domain_error(exMsg.str());
 			}
 		}
@@ -1600,13 +1599,13 @@ static int caerMainloopRunner() {
 						// users. If yes, then that's a valid tap point and we're
 						// good; if no, this is a user configuration error.
 						bool afterModuleIdFound = findIfBool(st.users.begin(), st.users.end(),
-							[&order](int16_t moduleId) {return (order.afterModuleId == moduleId);});
+							[&order](int16_t moduleId) { return (order.afterModuleId == moduleId); });
 
 						if (!afterModuleIdFound) {
-							boost::format exMsg =
-								boost::format(
-									"Module '%s': found invalid afterModuleID declaration of '%d' for stream (%d, %d); referenced module is not part of stream.")
-									% glMainloopData.modules[id].name % order.afterModuleId % st.sourceId % st.typeId;
+							boost::format exMsg
+								= boost::format("Module '%s': found invalid afterModuleID declaration of '%d' for "
+												"stream (%d, %d); referenced module is not part of stream.")
+								  % glMainloopData.modules[id].name % order.afterModuleId % st.sourceId % st.typeId;
 							throw std::domain_error(exMsg.str());
 						}
 
@@ -1616,14 +1615,14 @@ static int caerMainloopRunner() {
 						// got modified by this module, if nothing is modified, then
 						// other modules should refer to whatever prior module is
 						// actually changing or generating data!
-						for (const auto &orderAfter : glMainloopData.modules[order.afterModuleId].inputDefinition[st
-							.sourceId]) {
+						for (const auto &orderAfter :
+							glMainloopData.modules[order.afterModuleId].inputDefinition[st.sourceId]) {
 							if (orderAfter.typeId == order.typeId && !orderAfter.copyNeeded) {
-								boost::format exMsg =
-									boost::format(
-										"Module '%s': found invalid afterModuleID declaration of '%d' for stream (%d, %d); referenced module does not modify this event stream.")
-										% glMainloopData.modules[id].name % order.afterModuleId % st.sourceId
-										% st.typeId;
+								boost::format exMsg
+									= boost::format("Module '%s': found invalid afterModuleID declaration of '%d' for "
+													"stream (%d, %d); referenced module does not modify this event "
+													"stream.")
+									  % glMainloopData.modules[id].name % order.afterModuleId % st.sourceId % st.typeId;
 								throw std::domain_error(exMsg.str());
 							}
 						}
@@ -1705,16 +1704,16 @@ static int caerMainloopRunner() {
 				}
 			}
 
-			outOfLoop: if (modifiedInputsInUse) {
+		outOfLoop:
+			if (modifiedInputsInUse) {
 				// Go to check next module, this one is fine.
 				continue;
 			}
 
 			// Throw error!
-			boost::format exMsg =
-				boost::format(
-					"Module '%s': none of the outputs or modified inputs of this PROCESSOR module are used anywhere as inputs.")
-					% m.get().name;
+			boost::format exMsg = boost::format("Module '%s': none of the outputs or modified inputs of this PROCESSOR "
+												"module are used anywhere as inputs.")
+								  % m.get().name;
 			throw std::domain_error(exMsg.str());
 		}
 	}
@@ -1747,8 +1746,8 @@ static int caerMainloopRunner() {
 
 	// Allocate only one packet container to be re-used over all runModules() calls.
 	// It needs enough capacity to handle the highest number of inputs of any module.
-	caerEventPacketContainer inputContainer = caerEventPacketContainerAllocate(
-		static_cast<int32_t>(getMaximumInputNumber()));
+	caerEventPacketContainer inputContainer
+		= caerEventPacketContainerAllocate(static_cast<int32_t>(getMaximumInputNumber()));
 	if (inputContainer == nullptr) {
 		// TODO: better cleanup on failure here, ensure above memory deallocation.
 		// Cleanup modules and streams on exit.
@@ -1864,7 +1863,7 @@ static void caerMainloopShutdownHandler(int signum) {
 static void caerMainloopSegfaultHandler(int signum) {
 	signal(signum, SIG_DFL);
 
-	// Segfault or abnormal termination, try to print a stack trace if possible.
+// Segfault or abnormal termination, try to print a stack trace if possible.
 #if BOOST_HAS_STACKTRACE
 	std::cout << boost::stacktrace::stacktrace();
 #elif defined(OS_LINUX)

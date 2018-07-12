@@ -11,10 +11,10 @@
 #ifdef __cplusplus
 
 #include <atomic>
-using atomic_bool = std::atomic_bool;
-using atomic_uint_fast8_t = std::atomic_uint_fast8_t;
+using atomic_bool          = std::atomic_bool;
+using atomic_uint_fast8_t  = std::atomic_uint_fast8_t;
 using atomic_uint_fast32_t = std::atomic_uint_fast32_t;
-using atomic_int_fast16_t = std::atomic_int_fast16_t;
+using atomic_int_fast16_t  = std::atomic_int_fast16_t;
 
 #else
 
@@ -48,8 +48,8 @@ enum caer_module_status {
  * runtime, or be well defined. Only one output stream per type is allowed.
  */
 enum caer_module_type {
-	CAER_MODULE_INPUT = 0,
-	CAER_MODULE_OUTPUT = 1,
+	CAER_MODULE_INPUT     = 0,
+	CAER_MODULE_OUTPUT    = 1,
 	CAER_MODULE_PROCESSOR = 2,
 };
 
@@ -74,9 +74,9 @@ static inline const char *caerModuleTypeToString(enum caer_module_type type) {
 }
 
 struct caer_event_stream_in {
-	int16_t type; // Use -1 for any type.
+	int16_t type;   // Use -1 for any type.
 	int16_t number; // Use -1 for any number of.
-	bool readOnly; // True if input is never modified.
+	bool readOnly;  // True if input is never modified.
 };
 
 typedef struct caer_event_stream_in const *caerEventStreamIn;
@@ -106,15 +106,15 @@ struct caer_module_data {
 typedef struct caer_module_data *caerModuleData;
 
 struct caer_module_functions {
-	void (* const moduleConfigInit)(sshsNode moduleNode); // Can be NULL.
-	bool (* const moduleInit)(caerModuleData moduleData); // Can be NULL.
-	void (* const moduleRun)(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out);
-	void (* const moduleConfig)(caerModuleData moduleData); // Can be NULL.
-	void (* const moduleExit)(caerModuleData moduleData); // Can be NULL.
-	void (* const moduleReset)(caerModuleData moduleData, int16_t resetCallSourceID); // Can be NULL.
+	void (*const moduleConfigInit)(sshsNode moduleNode); // Can be NULL.
+	bool (*const moduleInit)(caerModuleData moduleData); // Can be NULL.
+	void (*const moduleRun)(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out);
+	void (*const moduleConfig)(caerModuleData moduleData);                           // Can be NULL.
+	void (*const moduleExit)(caerModuleData moduleData);                             // Can be NULL.
+	void (*const moduleReset)(caerModuleData moduleData, int16_t resetCallSourceID); // Can be NULL.
 };
 
-typedef struct caer_module_functions const * caerModuleFunctions;
+typedef struct caer_module_functions const *caerModuleFunctions;
 
 struct caer_module_info {
 	uint32_t version;
@@ -129,7 +129,7 @@ struct caer_module_info {
 	caerEventStreamOut outputStreams;
 };
 
-typedef struct caer_module_info const * caerModuleInfo;
+typedef struct caer_module_info const *caerModuleInfo;
 
 // Function to be implemented by modules:
 caerModuleInfo caerModuleGetInfo(void);

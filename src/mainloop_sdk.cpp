@@ -21,8 +21,8 @@ void caerMainloopDataNotifyDecrease(void *p) {
 }
 
 bool caerMainloopStreamExists(int16_t sourceId, int16_t typeId) {
-	return (findBool(glMainloopDataPtr->streams.cbegin(), glMainloopDataPtr->streams.cend(),
-		ActiveStreams(sourceId, typeId)));
+	return (findBool(
+		glMainloopDataPtr->streams.cbegin(), glMainloopDataPtr->streams.cend(), ActiveStreams(sourceId, typeId)));
 }
 
 bool caerMainloopModuleExists(int16_t id) {

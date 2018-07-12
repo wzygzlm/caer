@@ -1,18 +1,18 @@
 #include "caer-sdk/cross/portable_io.h"
-#include "caer-sdk/cross/portable_time.h"
 #include "caer-sdk/cross/portable_threads.h"
+#include "caer-sdk/cross/portable_time.h"
 #include "caer-sdk/utils.h"
 
-#include <cstring>
 #include <boost/filesystem.hpp>
+#include <cstring>
 
 #if defined(OS_UNIX)
-#include <unistd.h>
-#include <pwd.h>
-#include <sys/types.h>
-#include <sys/time.h>
 #include <pthread.h>
+#include <pwd.h>
 #include <sched.h>
+#include <sys/time.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 #if defined(OS_LINUX)
 #include <sys/prctl.h>
@@ -20,9 +20,9 @@
 #endif
 #elif defined(OS_WINDOWS)
 #define WIN32_LEAN_AND_MEAN
-#include <windows.h>
 #include <errno.h>
 #include <io.h>
+#include <windows.h>
 #endif
 
 char *portable_realpath(const char *path) {
@@ -132,12 +132,12 @@ char *portable_get_user_home_directory(void) {
 }
 
 #if defined(OS_MACOSX)
-#include <mach/mach.h>
-#include <mach/mach_time.h>
 #include <mach/clock.h>
 #include <mach/clock_types.h>
+#include <mach/mach.h>
 #include <mach/mach_host.h>
 #include <mach/mach_port.h>
+#include <mach/mach_time.h>
 
 bool portable_clock_gettime_monotonic(struct timespec *monoTime) {
 	kern_return_t kRet;
@@ -162,7 +162,7 @@ bool portable_clock_gettime_monotonic(struct timespec *monoTime) {
 		return (false);
 	}
 
-	monoTime->tv_sec = machTime.tv_sec;
+	monoTime->tv_sec  = machTime.tv_sec;
 	monoTime->tv_nsec = machTime.tv_nsec;
 
 	return (true);
@@ -191,12 +191,13 @@ bool portable_clock_gettime_realtime(struct timespec *realTime) {
 		return (false);
 	}
 
-	realTime->tv_sec = machTime.tv_sec;
+	realTime->tv_sec  = machTime.tv_sec;
 	realTime->tv_nsec = machTime.tv_nsec;
 
 	return (true);
 }
-#elif ((defined(_POSIX_C_SOURCE) && _POSIX_C_SOURCE >= 200112L) || (defined(_XOPEN_SOURCE) && _XOPEN_SOURCE >= 600) || (defined(_WIN32) && defined(__MINGW32__)))
+#elif ((defined(_POSIX_C_SOURCE) && _POSIX_C_SOURCE >= 200112L) || (defined(_XOPEN_SOURCE) && _XOPEN_SOURCE >= 600) \
+	   || (defined(_WIN32) && defined(__MINGW32__)))
 bool portable_clock_gettime_monotonic(struct timespec *monoTime) {
 	return (clock_gettime(CLOCK_MONOTONIC, monoTime) == 0);
 }

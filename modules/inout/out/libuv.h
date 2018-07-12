@@ -1,25 +1,23 @@
 #ifndef EXT_LIBUV_H_
 #define EXT_LIBUV_H_
 
-#include <stdlib.h>
+#include "caer-sdk/buffers.h"
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <uv.h>
-#include "caer-sdk/buffers.h"
 
-#define UV_RET_CHECK(RET_VAL, SUBSYS_NAME, FUNC_NAME, CLEANUP_ACTIONS) \
-	if (RET_VAL < 0) { \
-		caerLog(CAER_LOG_ERROR, SUBSYS_NAME, FUNC_NAME " failed, error %d (%s).", \
-			RET_VAL, uv_err_name(RET_VAL)); \
-		CLEANUP_ACTIONS; \
+#define UV_RET_CHECK(RET_VAL, SUBSYS_NAME, FUNC_NAME, CLEANUP_ACTIONS)                                            \
+	if (RET_VAL < 0) {                                                                                            \
+		caerLog(CAER_LOG_ERROR, SUBSYS_NAME, FUNC_NAME " failed, error %d (%s).", RET_VAL, uv_err_name(RET_VAL)); \
+		CLEANUP_ACTIONS;                                                                                          \
 	}
 
-#define UV_RET_CHECK_STDERR(RET_VAL, FUNC_NAME, CLEANUP_ACTIONS) \
-	if (RET_VAL < 0) { \
-		fprintf(stderr, FUNC_NAME " failed, error %d (%s).\n", \
-			RET_VAL, uv_err_name(RET_VAL)); \
-		CLEANUP_ACTIONS; \
+#define UV_RET_CHECK_STDERR(RET_VAL, FUNC_NAME, CLEANUP_ACTIONS)                               \
+	if (RET_VAL < 0) {                                                                         \
+		fprintf(stderr, FUNC_NAME " failed, error %d (%s).\n", RET_VAL, uv_err_name(RET_VAL)); \
+		CLEANUP_ACTIONS;                                                                       \
 	}
 
 static inline bool simpleBufferFileWrite(uv_loop_t *loop, uv_file file, int64_t fileOffset, simpleBuffer buffer) {
@@ -37,12 +35,12 @@ static inline bool simpleBufferFileWrite(uv_loop_t *loop, uv_file file, int64_t 
 	uv_fs_t fileWrite;
 	uv_buf_t writeBuffer;
 
-	size_t curWritten = 0;
+	size_t curWritten   = 0;
 	size_t bytesToWrite = buffer->bufferUsedSize - buffer->bufferPosition;
 
 	while (curWritten < bytesToWrite) {
 		writeBuffer.base = (char *) buffer->buffer + buffer->bufferPosition + curWritten;
-		writeBuffer.len = bytesToWrite - curWritten;
+		writeBuffer.len  = bytesToWrite - curWritten;
 
 		retVal = uv_fs_write(loop, &fileWrite, file, &writeBuffer, 1, fileOffset + (int64_t) curWritten, NULL);
 		if (retVal < 0) {
@@ -78,12 +76,12 @@ static inline bool simpleBufferFileRead(uv_loop_t *loop, uv_file file, int64_t f
 	uv_fs_t fileRead;
 	uv_buf_t readBuffer;
 
-	size_t curRead = 0;
+	size_t curRead     = 0;
 	size_t bytesToRead = buffer->bufferSize - buffer->bufferPosition;
 
 	while (curRead < bytesToRead) {
 		readBuffer.base = (char *) buffer->buffer + buffer->bufferPosition + curRead;
-		readBuffer.len = bytesToRead - curRead;
+		readBuffer.len  = bytesToRead - curRead;
 
 		retVal = uv_fs_read(loop, &fileRead, file, &readBuffer, 1, fileOffset + (int64_t) curRead, NULL);
 		if (retVal < 0) {
@@ -125,7 +123,7 @@ struct libuvWriteBufStruct {
 typedef struct libuvWriteBufStruct *libuvWriteBuf;
 
 struct libuvWriteMultiBufStruct {
-	void *data; // Allow arbitrary data to be attached to buffers for callback. Must be on heap for free().
+	void *data;      // Allow arbitrary data to be attached to buffers for callback. Must be on heap for free().
 	size_t refCount; // Reference count this to allow efficient multiple destination writes.
 	void (*statusCheck)(uv_handle_t *handle, int status);
 	size_t buffersSize;
@@ -135,13 +133,13 @@ struct libuvWriteMultiBufStruct {
 typedef struct libuvWriteMultiBufStruct *libuvWriteMultiBuf;
 
 static inline libuvWriteMultiBuf libuvWriteBufAlloc(size_t number) {
-	libuvWriteMultiBuf writeBufs = calloc(1,
-		sizeof(struct libuvWriteMultiBufStruct) + (number * sizeof(struct libuvWriteBufStruct)));
+	libuvWriteMultiBuf writeBufs
+		= calloc(1, sizeof(struct libuvWriteMultiBufStruct) + (number * sizeof(struct libuvWriteBufStruct)));
 	if (writeBufs == NULL) {
 		return (NULL);
 	}
 
-	writeBufs->refCount = 1; // Start at one. There must be at least one reference.
+	writeBufs->refCount    = 1; // Start at one. There must be at least one reference.
 	writeBufs->buffersSize = number;
 
 	return (writeBufs);
@@ -168,10 +166,10 @@ static inline void libuvWriteBufFree(libuvWriteMultiBuf buffers) {
 	}
 }
 
-static inline void libuvWriteBufInternalInit(libuvWriteBuf writeBuf, void *buffer, size_t bufferSize,
-	void *bufferToFree) {
+static inline void libuvWriteBufInternalInit(
+	libuvWriteBuf writeBuf, void *buffer, size_t bufferSize, void *bufferToFree) {
 	writeBuf->buf.base = (char *) buffer;
-	writeBuf->buf.len = bufferSize;
+	writeBuf->buf.len  = bufferSize;
 
 	if (bufferToFree == NULL) {
 		writeBuf->freeBuf = buffer;
@@ -274,8 +272,8 @@ static inline int libuvWriteUDP(uv_udp_t *dest, const struct sockaddr *destAddre
 		uvBuffers[i] = buffers->buffers[i].buf;
 	}
 
-	int retVal = uv_udp_send(sendRequest, dest, uvBuffers, (unsigned int) buffers->buffersSize, destAddress,
-		&libuvWriteFreeUDP);
+	int retVal = uv_udp_send(
+		sendRequest, dest, uvBuffers, (unsigned int) buffers->buffersSize, destAddress, &libuvWriteFreeUDP);
 	if (retVal < 0) {
 		free(sendRequest);
 	}
