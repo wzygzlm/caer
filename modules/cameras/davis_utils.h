@@ -470,9 +470,15 @@ static void createDefaultLogicConfiguration(
 	sshsNodeCreateShort(apsNode, "EndRow0", I16T(devInfo->apsSizeY - 1), 0, I16T(devInfo->apsSizeY - 1),
 		SSHS_FLAGS_NORMAL, "Row/Y address of ROI 0 end point.");
 	sshsNodeCreateBool(apsNode, "ROI0Enabled", true, SSHS_FLAGS_NORMAL, "Enable ROI region 0.");
+
 	sshsNodeCreateInt(apsNode, "Exposure", 4000, 0, (0x01 << 20) - 1, SSHS_FLAGS_NORMAL, "Set exposure time (in µs).");
+	// Initialize exposure in backend (libcaer), so that read-modifier that bypasses SSHS to access
+	// libcaer directly will read the correct value.
+	caerDeviceConfigSet(moduleData->moduleState, DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_EXPOSURE,
+		U32T(sshsNodeGetInt(apsNode, "Exposure")));
 	sshsNodeCreateAttributePollTime(apsNode, "Exposure", SSHS_INT, 1);
 	sshsNodeAddAttributeReadModifier(apsNode, "Exposure", SSHS_INT, moduleData->moduleState, &apsExposurePassthrough);
+
 	sshsNodeCreateInt(
 		apsNode, "FrameDelay", 1000, 0, (0x01 << 20) - 1, SSHS_FLAGS_NORMAL, "Set delay time between frames (in µs).");
 	sshsNodeCreateShort(apsNode, "RowSettle", (devInfo->adcClock / 3), 0, I16T(devInfo->adcClock * 2),
