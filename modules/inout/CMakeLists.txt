@@ -1,5 +1,5 @@
 # Not supported on Windows right now, pending switch to boost.
-IF (OS_WINDOWS)
+IF (OS_WINDOWS OR CROSS_COMPILE)
 	RETURN()
 ENDIF()
 
