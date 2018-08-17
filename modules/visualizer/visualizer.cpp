@@ -342,10 +342,10 @@ static void initSystemOnce(caerModuleData moduleData) {
 #endif
 
 	// Determine biggest possible statistics string.
-	size_t maxStatStringLength = (size_t) snprintf(nullptr, 0, CAER_STATISTICS_STRING_TOTAL, UINT64_MAX);
+	size_t maxStatStringLength = (size_t) snprintf(nullptr, 0, CAER_STATISTICS_STRING_PKT_TSDIFF, UINT64_MAX);
 
 	char maxStatString[maxStatStringLength + 1];
-	snprintf(maxStatString, maxStatStringLength + 1, CAER_STATISTICS_STRING_TOTAL, UINT64_MAX);
+	snprintf(maxStatString, maxStatStringLength + 1, CAER_STATISTICS_STRING_PKT_TSDIFF, UINT64_MAX);
 	maxStatString[maxStatStringLength] = '\0';
 
 	// Load statistics font into memory.
@@ -762,11 +762,12 @@ repeat:
 				(state->renderSizeY * state->renderZoomFactor.load(std::memory_order_relaxed)) + GLOBAL_FONT_SIZE);
 			state->renderWindow->draw(validEventsText);
 
-			sf::Text GapEventsText(state->packetStatistics.currentStatisticsStringGap, *state->font, GLOBAL_FONT_SIZE);
+			sf::Text GapEventsText(
+				state->packetStatistics.currentStatisticsStringTSDiff, *state->font, GLOBAL_FONT_SIZE);
 			sfml::Helpers::setTextColor(GapEventsText, sf::Color::White);
-			GapEventsText.setPosition(GLOBAL_FONT_SPACING,
-				(state->renderSizeY * state->renderZoomFactor.load(std::memory_order_relaxed))
-					+ (2 * GLOBAL_FONT_SIZE));
+			GapEventsText.setPosition(
+				GLOBAL_FONT_SPACING, (state->renderSizeY * state->renderZoomFactor.load(std::memory_order_relaxed))
+										 + (2 * GLOBAL_FONT_SIZE));
 			state->renderWindow->draw(GapEventsText);
 		}
 
