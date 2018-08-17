@@ -5,18 +5,16 @@
 
 #include <libcaer/events/common.h>
 #include "caer-sdk/cross/portable_time.h"
-#include <sys/time.h>
-#include <time.h>
 
 #define CAER_STATISTICS_STRING_EVT_TOTAL "Total events/second: %10" PRIu64
 #define CAER_STATISTICS_STRING_EVT_VALID "Valid events/second: %10" PRIu64
-#define CAER_STATISTICS_STRING_PKT_TSDIFF "Max packets time diff (µs): %10" PRIu64
+#define CAER_STATISTICS_STRING_PKT_TSDIFF "Max packets time diff (µs): %10" PRIi64
 
 struct caer_statistics_state {
 	uint64_t divisionFactor;
-	char *currentStatisticsStringTotal;
-	char *currentStatisticsStringValid;
-	char *currentStatisticsStringTSDiff;
+	uint64_t currStatsEventsTotal;
+	uint64_t currStatsEventsValid;
+	int64_t currStatsPacketTSDiff;
 	// Internal book-keeping.
 	struct timespec lastTime;
 	uint64_t totalEventsCounter;
@@ -27,19 +25,39 @@ struct caer_statistics_state {
 
 typedef struct caer_statistics_state *caerStatisticsState;
 
+struct caer_statistics_string_state {
+	struct caer_statistics_state stats;
+	char *currentStatisticsStringTotal;
+	char *currentStatisticsStringValid;
+	char *currentStatisticsStringTSDiff;
+};
+
+typedef struct caer_statistics_string_state *caerStatisticsStringState;
+
 // For reuse inside other modules.
-static inline bool caerStatisticsStringInit(caerStatisticsState state) {
-	// Total and Valid parts have same length. TSDiff is bigger, so use that one.
-	size_t maxSplitStatStringLength = (size_t) snprintf(NULL, 0, CAER_STATISTICS_STRING_PKT_TSDIFF, UINT64_MAX);
+static inline void caerStatisticsInit(caerStatisticsState state) {
+	memset(state, 0, sizeof(struct caer_statistics_state));
+
+	// Initialize to current time.
+	portable_clock_gettime_monotonic(&state->lastTime);
+
+	// Set division factor to 1 by default (avoid division by zero).
+	state->divisionFactor = 1;
+}
+
+static inline bool caerStatisticsStringInit(caerStatisticsStringState state) {
+	// Determine biggest possible statistics string. Total and Valid parts have same length. TSDiff is bigger, so use
+	// that one.
+	size_t maxStatStringLength = (size_t) snprintf(NULL, 0, CAER_STATISTICS_STRING_PKT_TSDIFF, UINT64_MAX);
 
 	state->currentStatisticsStringTotal
-		= (char *) calloc(maxSplitStatStringLength + 1, sizeof(char)); // +1 for NUL termination.
+		= (char *) calloc(maxStatStringLength + 1, sizeof(char)); // +1 for NUL termination.
 	if (state->currentStatisticsStringTotal == NULL) {
 		return (false);
 	}
 
 	state->currentStatisticsStringValid
-		= (char *) calloc(maxSplitStatStringLength + 1, sizeof(char)); // +1 for NUL termination.
+		= (char *) calloc(maxStatStringLength + 1, sizeof(char)); // +1 for NUL termination.
 	if (state->currentStatisticsStringValid == NULL) {
 		free(state->currentStatisticsStringTotal);
 		state->currentStatisticsStringTotal = NULL;
@@ -48,7 +66,7 @@ static inline bool caerStatisticsStringInit(caerStatisticsState state) {
 	}
 
 	state->currentStatisticsStringTSDiff
-		= (char *) calloc(maxSplitStatStringLength + 1, sizeof(char)); // +1 for NUL termination.
+		= (char *) calloc(maxStatStringLength + 1, sizeof(char)); // +1 for NUL termination.
 	if (state->currentStatisticsStringTSDiff == NULL) {
 		free(state->currentStatisticsStringTotal);
 		state->currentStatisticsStringTotal = NULL;
@@ -59,16 +77,12 @@ static inline bool caerStatisticsStringInit(caerStatisticsState state) {
 		return (false);
 	}
 
-	// Initialize to current time.
-	portable_clock_gettime_monotonic(&state->lastTime);
-
-	// Set division factor to 1 by default (avoid division by zero).
-	state->divisionFactor = 1;
+	caerStatisticsInit(&state->stats);
 
 	return (true);
 }
 
-static inline void caerStatisticsStringUpdate(caerEventPacketHeaderConst packetHeader, caerStatisticsState state) {
+static inline bool caerStatisticsUpdate(caerEventPacketHeaderConst packetHeader, caerStatisticsState state) {
 	// Only non-NULL packets (with content!) contribute to the event count.
 	if (packetHeader != NULL) {
 		int32_t eventNumber = caerEventPacketHeaderGetEventNumber(packetHeader);
@@ -105,20 +119,35 @@ static inline void caerStatisticsStringUpdate(caerEventPacketHeaderConst packetH
 		uint64_t validEventsPerTime
 			= (state->validEventsCounter * (1000000000LLU / state->divisionFactor)) / diffNanoTime;
 
-		sprintf(state->currentStatisticsStringTotal, CAER_STATISTICS_STRING_EVT_TOTAL, totalEventsPerTime);
-		sprintf(state->currentStatisticsStringValid, CAER_STATISTICS_STRING_EVT_VALID, validEventsPerTime);
-		sprintf(
-			state->currentStatisticsStringTSDiff, CAER_STATISTICS_STRING_PKT_TSDIFF, U64T(state->packetTimeDifference));
+		state->currStatsEventsTotal  = totalEventsPerTime;
+		state->currStatsEventsValid  = validEventsPerTime;
+		state->currStatsPacketTSDiff = state->packetTimeDifference;
 
 		// Reset for next update.
 		state->totalEventsCounter   = 0;
 		state->validEventsCounter   = 0;
 		state->packetTimeDifference = 0;
 		state->lastTime             = currentTime;
+
+		return (true); // Update done.
+	}
+
+	return (false); // No update, no new data.
+}
+
+static inline void caerStatisticsStringUpdate(
+	caerEventPacketHeaderConst packetHeader, caerStatisticsStringState state) {
+	if (caerStatisticsUpdate(packetHeader, &state->stats)) {
+		sprintf(
+			state->currentStatisticsStringTotal, CAER_STATISTICS_STRING_EVT_TOTAL, state->stats.currStatsEventsTotal);
+		sprintf(
+			state->currentStatisticsStringValid, CAER_STATISTICS_STRING_EVT_VALID, state->stats.currStatsEventsValid);
+		sprintf(state->currentStatisticsStringTSDiff, CAER_STATISTICS_STRING_PKT_TSDIFF,
+			state->stats.currStatsPacketTSDiff);
 	}
 }
 
-static inline void caerStatisticsStringExit(caerStatisticsState state) {
+static inline void caerStatisticsStringExit(caerStatisticsStringState state) {
 	// Reclaim string memory.
 	if (state->currentStatisticsStringTotal != NULL) {
 		free(state->currentStatisticsStringTotal);
@@ -136,7 +165,12 @@ static inline void caerStatisticsStringExit(caerStatisticsState state) {
 	}
 }
 
-static inline void caerStatisticsStringReset(caerStatisticsState state) {
+static inline void caerStatisticsReset(caerStatisticsState state) {
+	// Reset data.
+	state->currStatsEventsTotal  = 0;
+	state->currStatsEventsValid  = 0;
+	state->currStatsPacketTSDiff = 0;
+
 	// Reset counters.
 	state->totalEventsCounter   = 0;
 	state->validEventsCounter   = 0;
@@ -145,6 +179,15 @@ static inline void caerStatisticsStringReset(caerStatisticsState state) {
 
 	// Update to current time.
 	portable_clock_gettime_monotonic(&state->lastTime);
+}
+
+static inline void caerStatisticsStringReset(caerStatisticsStringState state) {
+	caerStatisticsReset(&state->stats);
+
+	// Reset strings.
+	state->currentStatisticsStringTotal[0]  = 0x00;
+	state->currentStatisticsStringValid[0]  = 0x00;
+	state->currentStatisticsStringTSDiff[0] = 0x00;
 }
 
 #endif /* STATISTICS_H_ */
