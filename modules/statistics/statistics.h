@@ -8,7 +8,7 @@
 
 #define CAER_STATISTICS_STRING_EVT_TOTAL "Total events/second: %10" PRIu64
 #define CAER_STATISTICS_STRING_EVT_VALID "Valid events/second: %10" PRIu64
-#define CAER_STATISTICS_STRING_PKT_TSDIFF "Max packets time diff (µs): %10" PRIi64
+#define CAER_STATISTICS_STRING_PKT_TSDIFF "Max packets time diff (us): %10" PRIi64
 
 struct caer_statistics_state {
 	uint64_t divisionFactor;
