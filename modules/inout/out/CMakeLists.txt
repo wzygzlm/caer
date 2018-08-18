@@ -13,7 +13,7 @@ ADD_LIBRARY(output_common SHARED output_common.c)
 
 SET_TARGET_PROPERTIES(output_common
 	PROPERTIES
-	PREFIX "caer_"
+	PREFIX "libcaer_"
 )
 
 TARGET_LINK_LIBRARIES(output_common ${OUTPUT_LIBS})
