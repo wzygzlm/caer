@@ -1,25 +1,30 @@
 #include "statistics.h"
 #include "caer-sdk/mainloop.h"
 
-static void caerStatisticsConfigInit(sshsNode moduleNode);
-static bool caerStatisticsInit(caerModuleData moduleData);
-static void caerStatisticsRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out);
-static void caerStatisticsExit(caerModuleData moduleData);
-static void caerStatisticsReset(caerModuleData moduleData, int16_t resetCallSourceID);
+static void statisticsModuleConfigInit(sshsNode moduleNode);
+static bool statisticsModuleInit(caerModuleData moduleData);
+static void statisticsModuleRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out);
+static void statisticsModuleReset(caerModuleData moduleData, int16_t resetCallSourceID);
 
-static const struct caer_module_functions StatisticsFunctions = {.moduleConfigInit = &caerStatisticsConfigInit,
-	.moduleInit                                                                    = &caerStatisticsInit,
-	.moduleRun                                                                     = &caerStatisticsRun,
-	.moduleConfig                                                                  = NULL,
-	.moduleExit                                                                    = &caerStatisticsExit,
-	.moduleReset                                                                   = &caerStatisticsReset};
+static const struct caer_module_functions StatisticsFunctions = {
+	.moduleConfigInit = &statisticsModuleConfigInit,
+	.moduleInit       = &statisticsModuleInit,
+	.moduleRun        = &statisticsModuleRun,
+	.moduleConfig     = NULL,
+	.moduleExit       = NULL,
+	.moduleReset      = &statisticsModuleReset,
+};
 
-static const struct caer_event_stream_in StatisticsInputs[] = {{.type = -1, .number = 1, .readOnly = true}};
+static const struct caer_event_stream_in StatisticsInputs[] = {{
+	.type     = -1,
+	.number   = 1,
+	.readOnly = true,
+}};
 
 static const struct caer_module_info StatisticsInfo = {
 	.version           = 1,
 	.name              = "Statistics",
-	.description       = "Display statistics on number of events.",
+	.description       = "Display statistics on events.",
 	.type              = CAER_MODULE_OUTPUT,
 	.memSize           = sizeof(struct caer_statistics_state),
 	.functions         = &StatisticsFunctions,
@@ -33,43 +38,56 @@ caerModuleInfo caerModuleGetInfo(void) {
 	return (&StatisticsInfo);
 }
 
-static void caerStatisticsConfigInit(sshsNode moduleNode) {
+static void statisticsModuleConfigInit(sshsNode moduleNode) {
 	sshsNodeCreateLong(moduleNode, "divisionFactor", 1000, 1, INT64_MAX, SSHS_FLAGS_NORMAL,
 		"Division factor for statistics display, to get Kilo/Mega/... events shown.");
+
+	sshsNodeCreateLong(moduleNode, "eventsTotal", 0, 0, INT64_MAX, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT,
+		"Number of events per second.");
+	sshsNodeCreateAttributePollTime(moduleNode, "eventsTotal", SSHS_LONG, 1);
+
+	sshsNodeCreateLong(moduleNode, "eventsValid", 0, 0, INT64_MAX, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT,
+		"Number of valid events per second.");
+	sshsNodeCreateAttributePollTime(moduleNode, "eventsValid", SSHS_LONG, 1);
+
+	sshsNodeCreateLong(moduleNode, "packetTSDiff", 0, 0, INT64_MAX, SSHS_FLAGS_READ_ONLY | SSHS_FLAGS_NO_EXPORT,
+		"Maximum time difference (in µs) between consecutive packets.");
+	sshsNodeCreateAttributePollTime(moduleNode, "packetTSDiff", SSHS_LONG, 2);
 }
 
-static bool caerStatisticsInit(caerModuleData moduleData) {
+static bool statisticsModuleInit(caerModuleData moduleData) {
 	caerStatisticsState state = moduleData->moduleState;
+
+	caerStatisticsInit(state);
 
 	// Configurable division factor.
 	state->divisionFactor = U64T(sshsNodeGetLong(moduleData->moduleNode, "divisionFactor"));
 
-	return (caerStatisticsStringInit(state));
+	return (true);
 }
 
-static void caerStatisticsRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out) {
+static void statisticsModuleRun(caerModuleData moduleData, caerEventPacketContainer in, caerEventPacketContainer *out) {
 	UNUSED_ARGUMENT(out);
 
 	// Interpret variable arguments (same as above in main function).
 	caerEventPacketHeaderConst packetHeader = caerEventPacketContainerGetEventPacketConst(in, 0);
 
 	caerStatisticsState state = moduleData->moduleState;
-	caerStatisticsStringUpdate(packetHeader, state);
 
-	fprintf(stdout, "\r%s - %s", state->currentStatisticsStringTotal, state->currentStatisticsStringValid);
-	fflush(stdout);
+	if (caerStatisticsUpdate(packetHeader, state)) {
+		sshsNodeUpdateReadOnlyAttribute(moduleData->moduleNode, "eventsTotal", SSHS_LONG,
+			(union sshs_node_attr_value){.ilong = state->currStatsEventsTotal});
+		sshsNodeUpdateReadOnlyAttribute(moduleData->moduleNode, "eventsValid", SSHS_LONG,
+			(union sshs_node_attr_value){.ilong = state->currStatsEventsValid});
+		sshsNodeUpdateReadOnlyAttribute(moduleData->moduleNode, "packetTSDiff", SSHS_LONG,
+			(union sshs_node_attr_value){.ilong = state->currStatsPacketTSDiff});
+	}
 }
 
-static void caerStatisticsExit(caerModuleData moduleData) {
-	caerStatisticsState state = moduleData->moduleState;
-
-	caerStatisticsStringExit(state);
-}
-
-static void caerStatisticsReset(caerModuleData moduleData, int16_t resetCallSourceID) {
+static void statisticsModuleReset(caerModuleData moduleData, int16_t resetCallSourceID) {
 	UNUSED_ARGUMENT(resetCallSourceID);
 
 	caerStatisticsState state = moduleData->moduleState;
 
-	caerStatisticsStringReset(state);
+	caerStatisticsReset(state);
 }

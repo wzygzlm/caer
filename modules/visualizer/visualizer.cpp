@@ -58,7 +58,7 @@ struct caer_visualizer_state {
 	caerVisualizerRendererInfo renderer;
 	caerVisualizerEventHandlerInfo eventHandler;
 	bool showStatistics;
-	struct caer_statistics_state packetStatistics;
+	struct caer_statistics_string_state packetStatistics;
 	std::atomic_uint_fast32_t packetSubsampleRendering;
 	uint32_t packetSubsampleCount;
 };
@@ -341,11 +341,12 @@ static void initSystemOnce(caerModuleData moduleData) {
 	XInitThreads();
 #endif
 
-	// Determine biggest possible statistics string.
-	size_t maxStatStringLength = (size_t) snprintf(nullptr, 0, CAER_STATISTICS_STRING_TOTAL, UINT64_MAX);
+	// Determine biggest possible statistics string. Total and Valid parts have same length. TSDiff is bigger, so use
+	// that one.
+	size_t maxStatStringLength = (size_t) snprintf(nullptr, 0, CAER_STATISTICS_STRING_PKT_TSDIFF, INT64_MAX);
 
 	char maxStatString[maxStatStringLength + 1];
-	snprintf(maxStatString, maxStatStringLength + 1, CAER_STATISTICS_STRING_TOTAL, UINT64_MAX);
+	snprintf(maxStatString, maxStatStringLength + 1, CAER_STATISTICS_STRING_PKT_TSDIFF, INT64_MAX);
 	maxStatString[maxStatStringLength] = '\0';
 
 	// Load statistics font into memory.
@@ -762,11 +763,12 @@ repeat:
 				(state->renderSizeY * state->renderZoomFactor.load(std::memory_order_relaxed)) + GLOBAL_FONT_SIZE);
 			state->renderWindow->draw(validEventsText);
 
-			sf::Text GapEventsText(state->packetStatistics.currentStatisticsStringGap, *state->font, GLOBAL_FONT_SIZE);
+			sf::Text GapEventsText(
+				state->packetStatistics.currentStatisticsStringTSDiff, *state->font, GLOBAL_FONT_SIZE);
 			sfml::Helpers::setTextColor(GapEventsText, sf::Color::White);
-			GapEventsText.setPosition(GLOBAL_FONT_SPACING,
-				(state->renderSizeY * state->renderZoomFactor.load(std::memory_order_relaxed))
-					+ (2 * GLOBAL_FONT_SIZE));
+			GapEventsText.setPosition(
+				GLOBAL_FONT_SPACING, (state->renderSizeY * state->renderZoomFactor.load(std::memory_order_relaxed))
+										 + (2 * GLOBAL_FONT_SIZE));
 			state->renderWindow->draw(GapEventsText);
 		}
 
