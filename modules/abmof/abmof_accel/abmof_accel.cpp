@@ -1,9 +1,13 @@
 #include "abmof.h"
 
 // xfopencv
-#include "xf_headers.h"
-#include "xf_dense_npyr_optical_flow_config.h"
+// only used in SDx environment
+// #include "xf_headers.h"
+// #include "xf_dense_npyr_optical_flow_config.h"
 
+
+// standard opencv, used in standard opencv environment
+#include "opencv2/opencv.hpp"
 #include <math.h>
 
 
@@ -89,7 +93,7 @@ static void *display(void *ptr)
     //OpenCV Code
     //----------------------------------------------------------
 
-    cv::Mat img = cv::Mat(DVS_HEIGHT, DVS_WIDTH, XF_8UC1, slices[currentIdx]);
+    cv::Mat img = cv::Mat(DVS_HEIGHT, DVS_WIDTH, CV_8UC1, slices[currentIdx]);
      //make it continuous
     if (!img.isContinuous()) {
         img = img.clone();
@@ -105,7 +109,7 @@ static void *display(void *ptr)
     while(1) {
 
             /* get a frame from camera */
-    		    img = cv::Mat(DVS_HEIGHT, DVS_WIDTH, XF_8UC1, slices[currentIdx]);
+    		    img = cv::Mat(DVS_HEIGHT, DVS_WIDTH, CV_8UC1, slices[currentIdx]);
     		    double maxIntensity;
     		    // cv::minMaxLoc(img, NULL, &maxIntensity);
     		    // std::cout<<"max value is "<<maxIntensity<<std::endl;
@@ -124,7 +128,7 @@ static void *display(void *ptr)
 
 void saveImg(char img[DVS_WIDTH][DVS_HEIGHT], long cnt)
 {
-	cv::Mat frame_out = cv::Mat(DVS_WIDTH, DVS_HEIGHT, XF_8UC1, img);
+	cv::Mat frame_out = cv::Mat(DVS_WIDTH, DVS_HEIGHT, CV_8UC1, img);
 
 	char out_string[200];
 	sprintf(out_string,"out_%ld.png", cnt);
