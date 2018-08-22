@@ -13,7 +13,7 @@ INCLUDE_DIRECTORIES ($ENV{HOME}/Xilinx/SDx/2018.2/target/aarch32-linux/include)
 INCLUDE_DIRECTORIES (./)
 INCLUDE_DIRECTORIES (./abmof_accel)
 
-set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -Wall -O3 -g -fmessage-length=0 -MMD -MP -fPIC -D __SDSCC__")
+set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -Wall -O0 -g -fmessage-length=0 -MMD -MP -fPIC -D __SDSCC__")
 
 LINK_DIRECTORIES(${ABMOF_LIBDIRS})
 

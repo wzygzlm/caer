@@ -27,6 +27,7 @@ struct SADResult {
 int init_socket(int port);
 void abmof_accel(int16_t x, int16_t y, bool pol, int64_t ts);
 void accumulate(int16_t x, int16_t y, bool pol, int64_t ts);
+void sendEventSlice();
 void resetSlices();
 void resetCurrentSlice();
 void rotateSlices();

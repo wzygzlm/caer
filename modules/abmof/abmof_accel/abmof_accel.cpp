@@ -21,6 +21,9 @@ static uint64_t imgNum = 0;
 static bool initSocketFlg = false;
 static uint16_t retSocket;
 
+// To trigger the tcp to send event slice
+static bool sendFlg = false;
+
 static void *display(void *);
 
 
@@ -76,6 +79,7 @@ int init_socket(int port)
     }
     std::cout << "Connection accepted" << std::endl;
      pthread_create(&thread_id,NULL,display,&remoteSocket);
+     pthread_setname_np(thread_id, "SliceDisplay");
      sleep(5);
 
      //pthread_join(thread_id,NULL);
@@ -107,20 +111,23 @@ static void *display(void *ptr)
     std::cout << "Image Size:" << imgSize << std::endl;
 
     while(1) {
-
+        if(sendFlg)
+        {
             /* get a frame from camera */
-    		    img = cv::Mat(DVS_HEIGHT, DVS_WIDTH, CV_8UC1, slices[currentIdx]);
-    		    double maxIntensity;
-    		    // cv::minMaxLoc(img, NULL, &maxIntensity);
-    		    // std::cout<<"max value is "<<maxIntensity<<std::endl;
-                //do video processing here
-                // cvtColor(img, imgGray, CV_BGR2GRAY);
+            img = cv::Mat(DVS_HEIGHT, DVS_WIDTH, CV_8UC1, slices[currentIdx]);
+            double maxIntensity;
+            // cv::minMaxLoc(img, NULL, &maxIntensity);
+            // std::cout<<"max value is "<<maxIntensity<<std::endl;
+            //do video processing here
+            // cvtColor(img, imgGray, CV_BGR2GRAY);
 
-                //send processed image
-                if ((bytes = send(socket, img.data, imgSize, 0)) < 0){
-                     std::cerr << "bytes = " << bytes << std::endl;
-                     break;
-                }
+            //send processed image
+            if ((bytes = send(socket, img.data, imgSize, 0)) < 0){
+                std::cerr << "bytes = " << bytes << std::endl;
+                break;
+            }
+            sendFlg = false;
+        }
     }
 
 }
@@ -134,6 +141,11 @@ void saveImg(char img[DVS_WIDTH][DVS_HEIGHT], long cnt)
 	sprintf(out_string,"out_%ld.png", cnt);
 
 	cv::imwrite(out_string,frame_out);
+}
+
+void sendEventSlice()
+{
+    sendFlg = true;
 }
 
 void resetSlices()

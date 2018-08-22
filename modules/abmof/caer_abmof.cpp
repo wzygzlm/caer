@@ -183,7 +183,9 @@ static void caerABMOFRun(
 
 	// caerModuleLog(moduleData, CAER_LOG_DEBUG, "First polarity event - ts: %lld, x: %d, y: %d, pol: %d.\n", firstEventTs, x, y, pol);
 
-	// resetSlices();
+    sendEventSlice();
+
+	resetSlices();
 
 	CAER_POLARITY_ITERATOR_VALID_START(polarity)
 	int16_t x        = caerPolarityEventGetX(caerPolarityIteratorElement);
@@ -196,15 +198,15 @@ static void caerABMOFRun(
 	// Some condition is satisfied, so we rotate the slices;
 	if (ts - lastRotationTs >= 20000)
 	{
-		rotateSlices();
-		caerModuleLog(moduleData, CAER_LOG_DEBUG, "Rotation packet interval is %lld.", ts - lastRotationTs);
-		lastRotationTs = ts;
+		// rotateSlices();
+		// caerModuleLog(moduleData, CAER_LOG_DEBUG, "Rotation packet interval is %lld.", ts - lastRotationTs);
+		// lastRotationTs = ts;
 	}
 
 	int16_t blockSize = sshsNodeGetInt(moduleData->moduleNode, "blockSize");
 	int16_t searchDistance = sshsNodeGetInt(moduleData->moduleNode, "searchDistance");
 
-	calculateOF(x, y, searchDistance, blockSize);
+	// calculateOF(x, y, searchDistance, blockSize);
 
 	// caerModuleLog(moduleData, CAER_LOG_DEBUG, "Current polarity event - ts: %d, x: %d, y: %d, pol: %d.\n", ts, x, y, pol);
 	CAER_POLARITY_ITERATOR_VALID_END
